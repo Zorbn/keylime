@@ -27,7 +27,6 @@ pub struct Window {
     height: i32,
 
     gfx: Option<Gfx>,
-    // draw: Option<Text>,
 }
 
 impl Window {
@@ -58,7 +57,6 @@ impl Window {
                 height: DEFAULT_HEIGHT,
 
                 gfx: None,
-                // draw: None,
             });
 
             let lparam: *mut Window = &mut *window;
@@ -132,8 +130,7 @@ impl Window {
             }
             WM_CREATE => {
                 (*window).hwnd = hwnd;
-                (*window).gfx = Gfx::new(window.as_ref().unwrap()).ok();
-                // (*window).draw = Some(Text::new(hwnd, (*window).width, (*window).height).unwrap());
+                (*window).gfx = Some(Gfx::new(window.as_ref().unwrap()).unwrap());
             }
             WM_SIZE => {
                 let width = (lparam.0 & 0xffff) as i32;
@@ -148,10 +145,6 @@ impl Window {
             }
             WM_PAINT => {
                 println!("paint");
-
-                // if let Some(draw) = &mut (*window).draw {
-                //     draw.frame((*window).hwnd, (*window).width, (*window).height);
-                // }
 
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }

@@ -13,18 +13,18 @@ fn main() {
 
     while window.is_running() {
         let dt = window.update();
-        // println!("dt: {dt}");
+        // println!("dt: {dt}");w
 
         let gfx = window.gfx();
 
-        gfx.begin_frame(Color::new(255, 125, 0, 255));
+        gfx.begin_frame(Color::new(255, 255, 255, 255));
 
         gfx.begin(None);
 
         gfx.add_sprite(
             [0.0, 0.0, 1.0, 1.0],
-            [0.0, 0.0, 16000.0, 160.0],
-            Color::new(255, 255, 255, 255),
+            [0.0, 0.0, 37.0, 9.0],
+            Color::new(0, 0, 0, 255),
         );
 
         gfx.end();

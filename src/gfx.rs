@@ -1,11 +1,8 @@
-use std::{
-    mem::offset_of,
-    ptr::{copy_nonoverlapping, null_mut},
-    slice::from_raw_parts,
-};
+use core::str;
+use std::{mem::offset_of, ptr::copy_nonoverlapping, slice::from_raw_parts};
 
 use windows::{
-    core::{s, Interface, Result, HRESULT},
+    core::{s, Result},
     Win32::{
         Foundation::{RECT, TRUE},
         Graphics::{
@@ -38,6 +35,11 @@ struct VSOutput {
 	float4 color : COLOR0;
 };
 
+struct PSOutput {
+    float4 color : SV_Target0;
+    float4 alphaMask : SV_Target1;
+};
+
 Texture2D _texture : register(t0);
 SamplerState _sampler : register(s0);
 
@@ -49,8 +51,11 @@ VSOutput VsMain(VSInput input) {
 	return output;
 }
 
-float4 PsMain(VSOutput input) : SV_Target {
-	return _texture.Sample(_sampler, input.uv) * (input.color / 255.0);
+PSOutput PsMain(VSOutput input) : SV_Target {
+    PSOutput output;
+    output.color = float4(input.color.rgb / 255.0, 1.0);
+    output.alphaMask = _texture.Sample(_sampler, input.uv).rgbr;
+    return output;
 }
 "#;
 
@@ -100,7 +105,7 @@ pub struct Gfx {
     vertex_shader: ID3D11VertexShader,
     input_layout: ID3D11InputLayout,
     pixel_shader: ID3D11PixelShader,
-    texture_data: Option<TextureData>,
+    texture_data: TextureData,
     uniform_buffer: ID3D11Buffer,
 
     render_target_view: Option<ID3D11RenderTargetView>,
@@ -186,11 +191,11 @@ impl Gfx {
 
             desc.RenderTarget[0] = D3D11_RENDER_TARGET_BLEND_DESC {
                 BlendEnable: TRUE,
-                SrcBlend: D3D11_BLEND_SRC_ALPHA,
-                DestBlend: D3D11_BLEND_INV_SRC_ALPHA,
+                SrcBlend: D3D11_BLEND_SRC1_COLOR,
+                DestBlend: D3D11_BLEND_INV_SRC1_COLOR,
                 BlendOp: D3D11_BLEND_OP_ADD,
-                SrcBlendAlpha: D3D11_BLEND_SRC_ALPHA,
-                DestBlendAlpha: D3D11_BLEND_INV_SRC_ALPHA,
+                SrcBlendAlpha: D3D11_BLEND_ONE,
+                DestBlendAlpha: D3D11_BLEND_ZERO,
                 BlendOpAlpha: D3D11_BLEND_OP_ADD,
                 RenderTargetWriteMask: D3D11_COLOR_WRITE_ENABLE_ALL.0 as u8,
             };
@@ -212,7 +217,7 @@ impl Gfx {
             let mut compiled_code = None;
             let mut compile_error = None;
 
-            D3DCompile(
+            if D3DCompile(
                 SHADER_CODE.as_ptr() as _,
                 SHADER_CODE.len(),
                 None,
@@ -224,7 +229,11 @@ impl Gfx {
                 0,
                 &mut compiled_code,
                 Some(&mut compile_error),
-            )?;
+            )
+            .is_err()
+            {
+                Self::handle_shader_error(compile_error.unwrap());
+            }
 
             let compiled_code = compiled_code.unwrap();
             let compiled_code_slice = from_raw_parts(
@@ -285,7 +294,7 @@ impl Gfx {
             let mut compiled_code = None;
             let mut compile_error = None;
 
-            D3DCompile(
+            if D3DCompile(
                 SHADER_CODE.as_ptr() as _,
                 SHADER_CODE.len(),
                 None,
@@ -297,7 +306,11 @@ impl Gfx {
                 0,
                 &mut compiled_code,
                 Some(&mut compile_error),
-            )?;
+            )
+            .is_err()
+            {
+                Self::handle_shader_error(compile_error.unwrap());
+            }
 
             let compiled_code = compiled_code.unwrap();
             let compiled_code_slice = from_raw_parts(
@@ -328,7 +341,17 @@ impl Gfx {
             uniform_buffer_result.unwrap()
         };
 
-        let mut gfx = Self {
+        let mut text = Text::new()?;
+        let (atlas_data, atlas_width, atlas_height) = text.generate_atlas().unwrap();
+
+        let texture_data = Self::create_texture(
+            &device,
+            atlas_width as u32,
+            atlas_height as u32,
+            &atlas_data,
+        )?;
+
+        let gfx = Self {
             device,
             context,
             swap_chain,
@@ -337,7 +360,7 @@ impl Gfx {
             vertex_shader,
             input_layout,
             pixel_shader,
-            texture_data: None,
+            texture_data,
             uniform_buffer,
 
             render_target_view: None,
@@ -354,33 +377,24 @@ impl Gfx {
             index_buffer_capacity: 0,
         };
 
-        let mut text = Text::new()?;
-        let [atlas_width, atlas_height] = text.atlas_size();
-
-        let texture_data = gfx.create_texture(atlas_width as u32, atlas_height as u32)?;
-
-        //         let mut dxgi_surface: &IDXGISurface = null_mut();
-        //         println!("{}", dxgi_surface as usize);
-        //         let dxgi_surface_ptr: *mut *mut IDXGISurface = &mut dxgi_surface;
-        //
-        //         texture_data.texture.
-        //         assert!(
-        //             texture_data
-        //                 .texture
-        //                 .query(&IDXGISurface::IID, dxgi_surface_ptr as _)
-        //                 >= HRESULT(0)
-        //         );
-
-        let dxgi_surface = texture_data.texture.cast::<IDXGISurface>().unwrap();
-
-        text.generate_atlas(&dxgi_surface);
-
-        gfx.texture_data = Some(texture_data);
-
         Ok(gfx)
     }
 
-    unsafe fn create_texture(&self, width: u32, height: u32) -> Result<TextureData> {
+    unsafe fn handle_shader_error(compile_error: ID3DBlob) {
+        let message = str::from_utf8_unchecked(from_raw_parts(
+            compile_error.GetBufferPointer() as _,
+            compile_error.GetBufferSize(),
+        ));
+
+        panic!("Shader compile error: {}", message);
+    }
+
+    unsafe fn create_texture(
+        device: &ID3D11Device,
+        width: u32,
+        height: u32,
+        atlas_data: &[u8],
+    ) -> Result<TextureData> {
         let (texture, texture_view, sampler_state) = {
             let sampler_desc = D3D11_SAMPLER_DESC {
                 Filter: D3D11_FILTER_MIN_MAG_MIP_POINT,
@@ -393,42 +407,32 @@ impl Gfx {
 
             let mut sampler_state_result = None;
 
-            self.device
-                .CreateSamplerState(&sampler_desc, Some(&mut sampler_state_result))?;
-
-            // let pixels = [0xFFFFFFFFu32];
+            device.CreateSamplerState(&sampler_desc, Some(&mut sampler_state_result))?;
 
             let desc = D3D11_TEXTURE2D_DESC {
                 Width: width,
                 Height: height,
                 MipLevels: 1,
                 ArraySize: 1,
-                // Format: DXGI_FORMAT_R8G8B8A8_UNORM,
-                Format: DXGI_FORMAT_B8G8R8A8_UNORM,
+                Format: DXGI_FORMAT_R8G8B8A8_UNORM,
                 SampleDesc: DXGI_SAMPLE_DESC {
                     Count: 1,
                     ..Default::default()
                 },
-                // Usage: D3D11_USAGE_IMMUTABLE,
-                Usage: D3D11_USAGE_DEFAULT,
-                // BindFlags: D3D11_BIND_SHADER_RESOURCE.0 as u32,
-                BindFlags: D3D11_BIND_SHADER_RESOURCE.0 as u32 | D3D11_BIND_RENDER_TARGET.0 as u32,
+                Usage: D3D11_USAGE_IMMUTABLE,
+                BindFlags: D3D11_BIND_SHADER_RESOURCE.0 as u32,
                 ..Default::default()
             };
 
-            // let init_data = D3D11_SUBRESOURCE_DATA {
-            //     pSysMem: pixels.as_ptr() as _,
-            //     SysMemPitch: width * 4,
-            //     ..Default::default()
-            // };
+            let init_data = D3D11_SUBRESOURCE_DATA {
+                pSysMem: atlas_data.as_ptr() as _,
+                SysMemPitch: width * 4,
+                ..Default::default()
+            };
 
             let mut texture_result = None;
 
-            // self.device
-            //     .CreateTexture2D(&desc, Some(&init_data), Some(&mut texture_result))?;
-
-            self.device
-                .CreateTexture2D(&desc, None, Some(&mut texture_result))?;
+            device.CreateTexture2D(&desc, Some(&init_data), Some(&mut texture_result))?;
 
             let texture = texture_result.unwrap();
 
@@ -445,7 +449,7 @@ impl Gfx {
 
             let mut texture_view_result = None;
 
-            self.device.CreateShaderResourceView(
+            device.CreateShaderResourceView(
                 &texture,
                 Some(&view_desc),
                 Some(&mut texture_view_result),
@@ -648,12 +652,10 @@ impl Gfx {
 
             self.context.IASetInputLayout(&self.input_layout);
 
-            if let Some(texture_data) = &self.texture_data {
-                self.context
-                    .PSSetShaderResources(0, Some(&[Some(texture_data.texture_view.clone())]));
-                self.context
-                    .PSSetSamplers(0, Some(&[Some(texture_data.sampler_state.clone())]));
-            }
+            self.context
+                .PSSetShaderResources(0, Some(&[Some(self.texture_data.texture_view.clone())]));
+            self.context
+                .PSSetSamplers(0, Some(&[Some(self.texture_data.sampler_state.clone())]));
 
             self.context.IASetVertexBuffers(
                 0,
