@@ -3,7 +3,7 @@ use std::ptr::null_mut;
 use windows::{
     core::{w, Result},
     Win32::{
-        Foundation::{HWND, LPARAM, LRESULT, WPARAM},
+        Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
         System::{
             LibraryLoader::GetModuleHandleW,
             Performance::{QueryPerformanceCounter, QueryPerformanceFrequency},
@@ -25,7 +25,9 @@ pub struct Window {
     is_focused: bool,
     width: i32,
     height: i32,
+
     gfx: Option<Gfx>,
+    // draw: Option<Text>,
 }
 
 impl Window {
@@ -54,10 +56,29 @@ impl Window {
                 is_focused: false,
                 width: DEFAULT_WIDTH,
                 height: DEFAULT_HEIGHT,
+
                 gfx: None,
+                // draw: None,
             });
 
             let lparam: *mut Window = &mut *window;
+
+            let mut window_rect = RECT {
+                left: 0,
+                top: 0,
+                right: 640,
+                bottom: 480,
+            };
+
+            AdjustWindowRectEx(
+                &mut window_rect,
+                WS_OVERLAPPEDWINDOW,
+                false,
+                WINDOW_EX_STYLE::default(),
+            )?;
+
+            let width = window_rect.right - window_rect.left;
+            let height = window_rect.bottom - window_rect.top;
 
             CreateWindowExW(
                 WINDOW_EX_STYLE(0),
@@ -66,8 +87,8 @@ impl Window {
                 WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,
-                window.width,
-                window.height,
+                width,
+                height,
                 None,
                 None,
                 window_class.hInstance,
@@ -112,6 +133,7 @@ impl Window {
             WM_CREATE => {
                 (*window).hwnd = hwnd;
                 (*window).gfx = Gfx::new(window.as_ref().unwrap()).ok();
+                // (*window).draw = Some(Text::new(hwnd, (*window).width, (*window).height).unwrap());
             }
             WM_SIZE => {
                 let width = (lparam.0 & 0xffff) as i32;
@@ -124,7 +146,17 @@ impl Window {
                     gfx.resize(width, height).unwrap();
                 }
             }
+            WM_PAINT => {
+                println!("paint");
+
+                // if let Some(draw) = &mut (*window).draw {
+                //     draw.frame((*window).hwnd, (*window).width, (*window).height);
+                // }
+
+                return DefWindowProcW(hwnd, msg, wparam, lparam);
+            }
             WM_CLOSE => {
+                println!("closed");
                 (*window).is_running = false;
             }
             WM_DESTROY => {
@@ -152,10 +184,9 @@ impl Window {
             let dt = (time - self.last_time) as f32 / self.timer_frequency as f32;
             self.last_time = time;
 
-            while PeekMessageW(&mut msg, self.hwnd, 0, 0, PM_REMOVE).as_bool() {
-                let _ = TranslateMessage(&msg);
-                DispatchMessageW(&msg);
-            }
+            let _ = GetMessageW(&mut msg, self.hwnd, 0, 0);
+            let _ = TranslateMessage(&msg);
+            DispatchMessageW(&msg);
 
             dt
         }
