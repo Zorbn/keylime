@@ -13,7 +13,7 @@ fn main() {
 
     while window.is_running() {
         let dt = window.update();
-        // println!("dt: {dt}");w
+        // println!("dt: {dt}");
 
         let gfx = window.gfx();
 
@@ -21,10 +21,13 @@ fn main() {
 
         gfx.begin(None);
 
-        gfx.add_sprite(
-            [0.0, 0.0, 1.0, 1.0],
-            [0.0, 0.0, 37.0, 9.0],
-            Color::new(0, 0, 0, 255),
+        gfx.add_text("hello world".chars(), 50.0, 50.0, &Color::new(0, 0, 0, 255));
+
+        gfx.add_text(
+            ['h', 'i', ' ', 't', 'h', 'e', 'r', 'e'],
+            50.0,
+            80.0,
+            &Color::new(0, 0, 0, 255),
         );
 
         gfx.end();

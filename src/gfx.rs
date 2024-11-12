@@ -16,7 +16,11 @@ use windows::{
     },
 };
 
-use crate::{matrix::ortho, text::Text, window::Window};
+use crate::{
+    matrix::ortho,
+    text::{AtlasDimensions, Text},
+    window::Window,
+};
 
 const SHADER_CODE: &str = r#"
 cbuffer constants : register(b0) {
@@ -120,6 +124,8 @@ pub struct Gfx {
     indices: Vec<u32>,
     index_buffer: Option<ID3D11Buffer>,
     index_buffer_capacity: usize,
+
+    atlas_dimensions: AtlasDimensions,
 }
 
 impl Gfx {
@@ -342,13 +348,13 @@ impl Gfx {
         };
 
         let mut text = Text::new()?;
-        let (atlas_data, atlas_width, atlas_height) = text.generate_atlas().unwrap();
+        let atlas = text.generate_atlas().unwrap();
 
         let texture_data = Self::create_texture(
             &device,
-            atlas_width as u32,
-            atlas_height as u32,
-            &atlas_data,
+            atlas.dimensions.width as u32,
+            atlas.dimensions.height as u32,
+            &atlas.data,
         )?;
 
         let gfx = Self {
@@ -375,6 +381,8 @@ impl Gfx {
             indices: Vec::new(),
             index_buffer: None,
             index_buffer_capacity: 0,
+
+            atlas_dimensions: atlas.dimensions,
         };
 
         Ok(gfx)
@@ -687,19 +695,16 @@ impl Gfx {
         }
     }
 
-    pub fn add_sprite(&mut self, src: [f32; 4], dst: [f32; 4], color: Color) {
+    pub fn add_sprite(&mut self, src: [f32; 4], dst: [f32; 4], color: &Color) {
         let left = dst[0];
         let top = dst[1];
         let right = left + dst[2];
         let bottom = top + dst[3];
 
-        let inv_texture_width = 1.0;
-        let inv_texture_height = 1.0;
-
-        let uv_left = src[0] * inv_texture_width;
-        let uv_right = (src[0] + src[2]) * inv_texture_width;
-        let uv_top = src[1] * inv_texture_height;
-        let uv_bottom = (src[1] + src[3]) * inv_texture_height;
+        let uv_left = src[0];
+        let uv_right = src[0] + src[2];
+        let uv_top = src[1];
+        let uv_bottom = src[1] + src[3];
 
         let r = color.r as f32;
         let g = color.g as f32;
@@ -759,5 +764,46 @@ impl Gfx {
                 a,
             },
         ]);
+    }
+
+    pub fn add_text(
+        &mut self,
+        text: impl IntoIterator<Item = char>,
+        x: f32,
+        y: f32,
+        color: &Color,
+    ) {
+        let min_char = b' ' as u32;
+        let max_char = b'~' as u32;
+
+        let AtlasDimensions {
+            width,
+            glyph_offset_x,
+            glyph_step_x,
+            glyph_width,
+            glyph_height,
+            ..
+        } = self.atlas_dimensions;
+
+        for (i, c) in text.into_iter().enumerate() {
+            let char_index = c as u32;
+
+            if char_index <= min_char || char_index > max_char {
+                continue;
+            }
+
+            let atlas_char_index = char_index - min_char - 1;
+
+            self.add_sprite(
+                [
+                    (glyph_step_x * atlas_char_index as f32 - glyph_offset_x) / width as f32,
+                    0.0,
+                    glyph_width / width as f32,
+                    1.0,
+                ],
+                [x + i as f32 * glyph_width, y, glyph_width, glyph_height],
+                &color,
+            );
+        }
     }
 }
