@@ -608,47 +608,51 @@ impl Gfx {
                 self.index_buffer_capacity = self.indices.capacity();
             }
 
-            if let Some(vertex_buffer) = &self.vertex_buffer {
-                let mut resource = D3D11_MAPPED_SUBRESOURCE::default();
-                self.context
-                    .Map(
-                        vertex_buffer,
-                        0,
-                        D3D11_MAP_WRITE_DISCARD,
-                        0,
-                        Some(&mut resource),
-                    )
-                    .unwrap();
+            let Some(vertex_buffer) = &self.vertex_buffer else {
+                return;
+            };
 
-                copy_nonoverlapping(
-                    self.vertices.as_ptr(),
-                    resource.pData as *mut Vertex,
-                    self.vertices.len(),
-                );
+            let Some(index_buffer) = &self.index_buffer else {
+                return;
+            };
 
-                self.context.Unmap(vertex_buffer, 0);
-            }
+            let mut resource = D3D11_MAPPED_SUBRESOURCE::default();
+            self.context
+                .Map(
+                    vertex_buffer,
+                    0,
+                    D3D11_MAP_WRITE_DISCARD,
+                    0,
+                    Some(&mut resource),
+                )
+                .unwrap();
 
-            if let Some(index_buffer) = &self.index_buffer {
-                let mut resource = D3D11_MAPPED_SUBRESOURCE::default();
-                self.context
-                    .Map(
-                        index_buffer,
-                        0,
-                        D3D11_MAP_WRITE_DISCARD,
-                        0,
-                        Some(&mut resource),
-                    )
-                    .unwrap();
+            copy_nonoverlapping(
+                self.vertices.as_ptr(),
+                resource.pData as *mut Vertex,
+                self.vertices.len(),
+            );
 
-                copy_nonoverlapping(
-                    self.indices.as_ptr(),
-                    resource.pData as *mut u32,
-                    self.indices.len(),
-                );
+            self.context.Unmap(vertex_buffer, 0);
 
-                self.context.Unmap(index_buffer, 0);
-            }
+            let mut resource = D3D11_MAPPED_SUBRESOURCE::default();
+            self.context
+                .Map(
+                    index_buffer,
+                    0,
+                    D3D11_MAP_WRITE_DISCARD,
+                    0,
+                    Some(&mut resource),
+                )
+                .unwrap();
+
+            copy_nonoverlapping(
+                self.indices.as_ptr(),
+                resource.pData as *mut u32,
+                self.indices.len(),
+            );
+
+            self.context.Unmap(index_buffer, 0);
 
             self.context.RSSetScissorRects(Some(&[RECT {
                 left: self.bounds[0] as i32,
@@ -675,11 +679,8 @@ impl Gfx {
                 Some(&0),
             );
 
-            self.context.IASetIndexBuffer(
-                Some(self.index_buffer.as_ref().unwrap()),
-                DXGI_FORMAT_R32_UINT,
-                0,
-            );
+            self.context
+                .IASetIndexBuffer(Some(index_buffer), DXGI_FORMAT_R32_UINT, 0);
 
             self.context
                 .IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -768,7 +769,7 @@ impl Gfx {
         ]);
     }
 
-    pub fn add_text(
+    pub fn add_text<'a>(
         &mut self,
         text: impl IntoIterator<Item = char>,
         x: f32,
@@ -796,14 +797,26 @@ impl Gfx {
 
             let atlas_char_index = char_index - min_char - 1;
 
+            let mut source_x =
+                (glyph_step_x * atlas_char_index as f32 - glyph_offset_x) / width as f32;
+            let mut source_width = glyph_width / width as f32;
+
+            let mut destination_x = x + i as f32 * glyph_width;
+            let mut destination_width = glyph_width;
+
+            // DirectWrite might press the first character in the atlas right up against the left edge (eg. the exclamation point),
+            // so we'll just shift it back to the center when rendering if necessary.
+            if source_x < 0.0 {
+                destination_width += source_x * width as f32;
+                destination_x -= source_x * width as f32;
+
+                source_width += source_x;
+                source_x = 0.0;
+            }
+
             self.add_sprite(
-                [
-                    (glyph_step_x * atlas_char_index as f32 - glyph_offset_x) / width as f32,
-                    0.0,
-                    glyph_width / width as f32,
-                    1.0,
-                ],
-                [x + i as f32 * glyph_width, y, glyph_width, glyph_height],
+                [source_x, 0.0, source_width, 1.0],
+                [destination_x, y, destination_width, glyph_height],
                 &color,
             );
         }
@@ -811,5 +824,17 @@ impl Gfx {
 
     pub fn add_rect(&mut self, x: f32, y: f32, width: f32, height: f32, color: &Color) {
         self.add_sprite([-1.0; 4], [x, y, width, height], color);
+    }
+
+    pub fn glyph_width(&self) -> f32 {
+        self.atlas_dimensions.glyph_width
+    }
+
+    pub fn glyph_height(&self) -> f32 {
+        self.atlas_dimensions.glyph_height
+    }
+
+    pub fn line_height(&self) -> f32 {
+        self.atlas_dimensions.line_height
     }
 }

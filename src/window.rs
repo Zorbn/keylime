@@ -1,4 +1,4 @@
-use std::ptr::null_mut;
+use std::{char, ptr::null_mut};
 
 use windows::{
     core::{w, Result},
@@ -8,11 +8,11 @@ use windows::{
             LibraryLoader::GetModuleHandleW,
             Performance::{QueryPerformanceCounter, QueryPerformanceFrequency},
         },
-        UI::WindowsAndMessaging::*,
+        UI::{Input::KeyboardAndMouse::GetKeyState, WindowsAndMessaging::*},
     },
 };
 
-use crate::gfx::Gfx;
+use crate::{gfx::Gfx, key::Key, keybind::Keybind};
 
 const DEFAULT_WIDTH: i32 = 640;
 const DEFAULT_HEIGHT: i32 = 480;
@@ -27,6 +27,9 @@ pub struct Window {
     height: i32,
 
     gfx: Option<Gfx>,
+
+    chars_typed: Vec<char>,
+    keybinds_typed: Vec<Keybind>,
 }
 
 impl Window {
@@ -57,6 +60,9 @@ impl Window {
                 height: DEFAULT_HEIGHT,
 
                 gfx: None,
+
+                chars_typed: Vec::new(),
+                keybinds_typed: Vec::new(),
             });
 
             let lparam: *mut Window = &mut *window;
@@ -155,6 +161,31 @@ impl Window {
             WM_KILLFOCUS => {
                 (*window).is_focused = false;
             }
+            WM_CHAR => {
+                if let Some(char) = char::from_u32(wparam.0 as u32) {
+                    if !char.is_control() {
+                        (*window).chars_typed.push(char);
+                    }
+                }
+            }
+            WM_KEYDOWN | WM_SYSKEYDOWN => {
+                if let Some(key) = Key::from((wparam.0 & 0xffff) as u32) {
+                    let has_shift =
+                        GetKeyState(Key::LShift as i32) < 0 || GetKeyState(Key::RShift as i32) < 0;
+
+                    let has_ctrl =
+                        GetKeyState(Key::LCtrl as i32) < 0 || GetKeyState(Key::RCtrl as i32) < 0;
+
+                    let has_alt =
+                        GetKeyState(Key::LAlt as i32) < 0 || GetKeyState(Key::RAlt as i32) < 0;
+
+                    (*window)
+                        .keybinds_typed
+                        .push(Keybind::new(key, has_shift, has_ctrl, has_alt));
+                }
+
+                return DefWindowProcW(hwnd, msg, wparam, lparam);
+            }
             _ => return DefWindowProcW(hwnd, msg, wparam, lparam),
         }
 
@@ -162,6 +193,9 @@ impl Window {
     }
 
     pub fn update(&mut self) -> f32 {
+        self.chars_typed.clear();
+        self.keybinds_typed.clear();
+
         unsafe {
             let mut msg = MSG::default();
 
@@ -189,6 +223,14 @@ impl Window {
 
     pub fn gfx(&mut self) -> &mut Gfx {
         self.gfx.as_mut().unwrap()
+    }
+
+    pub fn get_typed_char(&mut self) -> Option<char> {
+        self.chars_typed.pop()
+    }
+
+    pub fn get_typed_keybind(&mut self) -> Option<Keybind> {
+        self.keybinds_typed.pop()
     }
 }
 

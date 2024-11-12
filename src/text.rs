@@ -1,7 +1,7 @@
 use std::mem::ManuallyDrop;
 
 use windows::{
-    core::{w, Interface, Result, PCWSTR},
+    core::{w, Result, PCWSTR},
     Win32::{Foundation::FALSE, Graphics::DirectWrite::*},
 };
 
@@ -21,19 +21,16 @@ pub struct AtlasDimensions {
     pub glyph_step_x: f32,
     pub glyph_width: f32,
     pub glyph_height: f32,
+    pub line_height: f32,
 }
 
 pub struct Text {
     dwrite_factory: IDWriteFactory,
 
-    font_collection: IDWriteFontCollection,
-    font_family: IDWriteFontFamily,
-    font: IDWriteFont,
     font_face: IDWriteFontFace,
 
     glyph_width: f32,
-    glyph_height: f32,
-    glyph_metrics_scale: f32,
+    line_height: f32,
 }
 
 impl Text {
@@ -72,24 +69,18 @@ impl Text {
         font_face.GetDesignGlyphMetrics(&m_glyph_index, 1, &mut m_glyph_metrics, FALSE)?;
 
         let glyph_width = (m_glyph_metrics.advanceWidth as f32) * glyph_metrics_scale;
-        let glyph_height = (font_metrics.ascent as f32
+        let line_height = (font_metrics.ascent as f32
             + font_metrics.descent as f32
-            + font_metrics.lineGap as f32
-            - m_glyph_metrics.topSideBearing as f32
-            - m_glyph_metrics.bottomSideBearing as f32)
+            + font_metrics.lineGap as f32)
             * glyph_metrics_scale;
 
         Ok(Self {
             dwrite_factory,
 
-            font_collection,
-            font_family,
-            font,
             font_face,
 
             glyph_width,
-            glyph_height,
-            glyph_metrics_scale,
+            line_height,
         })
     }
 
@@ -179,6 +170,7 @@ impl Text {
                 glyph_step_x: self.glyph_width.ceil(),
                 glyph_width: self.glyph_width,
                 glyph_height: (desired_bounds.bottom - desired_bounds.top) as f32,
+                line_height: self.line_height,
             },
         })
     }
