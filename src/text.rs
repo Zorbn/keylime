@@ -79,16 +79,6 @@ impl Text {
             - m_glyph_metrics.bottomSideBearing as f32)
             * glyph_metrics_scale;
 
-        println!("{glyph_width} {glyph_height}");
-        println!(
-            "is monospaced: {}",
-            font_face
-                .cast::<IDWriteFontFace1>()
-                .unwrap()
-                .IsMonospacedFont()
-                .as_bool()
-        );
-
         Ok(Self {
             dwrite_factory,
 
@@ -115,18 +105,6 @@ impl Text {
 
         for i in 0..ATLAS_SIZE {
             let code_points = [b' ' as u32 + i as u32 + 1];
-
-            let mut glyph_index = 0u16;
-            self.font_face
-                .GetGlyphIndices(code_points.as_ptr(), 1, &mut glyph_index)?;
-
-            let mut glyph_metrics = DWRITE_GLYPH_METRICS::default();
-            self.font_face
-                .GetDesignGlyphMetrics(&glyph_index, 1, &mut glyph_metrics, FALSE)?;
-
-            assert!(
-                (glyph_metrics.advanceWidth as f32 * self.glyph_metrics_scale) == self.glyph_width
-            );
 
             self.font_face.GetGlyphIndices(
                 code_points.as_ptr(),
@@ -173,7 +151,6 @@ impl Text {
 
         let desired_bounds =
             glyph_run_analysis.GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1)?;
-        println!("{:?}", desired_bounds);
 
         let atlas_width = (desired_bounds.right - desired_bounds.left) as usize;
         let atlas_height = (desired_bounds.bottom - desired_bounds.top) as usize;
@@ -192,8 +169,6 @@ impl Text {
             result[destination_index + 1] = result[source_index + 1];
             result[destination_index + 2] = result[source_index + 2];
         }
-
-        println!("atlas size: {}, {}", atlas_width, atlas_height);
 
         Ok(Atlas {
             data: result,

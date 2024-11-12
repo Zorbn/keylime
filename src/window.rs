@@ -143,13 +143,7 @@ impl Window {
                     gfx.resize(width, height).unwrap();
                 }
             }
-            WM_PAINT => {
-                println!("paint");
-
-                return DefWindowProcW(hwnd, msg, wparam, lparam);
-            }
             WM_CLOSE => {
-                println!("closed");
                 (*window).is_running = false;
             }
             WM_DESTROY => {
@@ -171,15 +165,15 @@ impl Window {
         unsafe {
             let mut msg = MSG::default();
 
+            let _ = GetMessageW(&mut msg, self.hwnd, 0, 0);
+            let _ = TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+
             let mut time = 0i64;
             let _ = QueryPerformanceCounter(&mut time);
 
             let dt = (time - self.last_time) as f32 / self.timer_frequency as f32;
             self.last_time = time;
-
-            let _ = GetMessageW(&mut msg, self.hwnd, 0, 0);
-            let _ = TranslateMessage(&msg);
-            DispatchMessageW(&msg);
 
             dt
         }

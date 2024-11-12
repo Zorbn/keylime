@@ -58,7 +58,9 @@ VSOutput VsMain(VSInput input) {
 PSOutput PsMain(VSOutput input) : SV_Target {
     PSOutput output;
     output.color = float4(input.color.rgb / 255.0, 1.0);
-    output.alphaMask = _texture.Sample(_sampler, input.uv).rgbr;
+    output.alphaMask = input.uv.y < 0.0 ?
+        float4(1.0, 1.0, 1.0, 1.0) :
+        _texture.Sample(_sampler, input.uv).rgbr;
     return output;
 }
 "#;
@@ -805,5 +807,9 @@ impl Gfx {
                 &color,
             );
         }
+    }
+
+    pub fn add_rect(&mut self, x: f32, y: f32, width: f32, height: f32, color: &Color) {
+        self.add_sprite([-1.0; 4], [x, y, width, height], color);
     }
 }

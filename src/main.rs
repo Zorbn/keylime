@@ -30,6 +30,8 @@ fn main() {
             &Color::new(0, 0, 0, 255),
         );
 
+        gfx.add_rect(90.0, 80.0, 32.0, 32.0, &Color::new(255, 0, 0, 255));
+
         gfx.end();
 
         gfx.end_frame();
