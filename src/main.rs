@@ -55,10 +55,9 @@ fn main() {
     let mut window = Window::new().unwrap();
 
     while window.is_running() {
-        let _ = window.update();
-        // println!("dt: {dt}");
+        let dt = window.update(editor.is_animating());
 
-        editor.update(&mut window, &mut line_pool);
+        editor.update(&mut window, &mut line_pool, dt);
 
         let gfx = window.gfx();
 

@@ -242,7 +242,7 @@ impl Window {
         LRESULT(0)
     }
 
-    pub fn update(&mut self) -> f32 {
+    pub fn update(&mut self, is_animating: bool) -> f32 {
         self.chars_typed.clear();
         self.keybinds_typed.clear();
         self.mousebinds_pressed.clear();
@@ -251,9 +251,18 @@ impl Window {
         unsafe {
             let mut msg = MSG::default();
 
-            let _ = GetMessageW(&mut msg, self.hwnd, 0, 0);
-            let _ = TranslateMessage(&msg);
-            DispatchMessageW(&msg);
+            let has_message = if is_animating {
+                PeekMessageW(&mut msg, self.hwnd, 0, 0, PM_REMOVE).as_bool()
+            } else {
+                let _ = GetMessageW(&mut msg, self.hwnd, 0, 0);
+
+                true
+            };
+
+            if has_message {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
 
             let mut time = 0i64;
             let _ = QueryPerformanceCounter(&mut time);
@@ -261,7 +270,7 @@ impl Window {
             let dt = (time - self.last_time) as f32 / self.timer_frequency as f32;
             self.last_time = time;
 
-            dt
+            if is_animating { dt } else { 0.0 }
         }
     }
 

@@ -16,6 +16,7 @@ use crate::{
 pub struct Editor {
     doc: Doc,
     camera_y: f32,
+    camera_velocity_y: f32,
 }
 
 impl Editor {
@@ -23,10 +24,15 @@ impl Editor {
         Self {
             doc: Doc::new(line_pool),
             camera_y: 0.0,
+            camera_velocity_y: 0.0,
         }
     }
 
-    pub fn update(&mut self, window: &mut Window, line_pool: &mut LinePool) {
+    pub fn is_animating(&self) -> bool {
+        self.camera_velocity_y != 0.0
+    }
+
+    pub fn update(&mut self, window: &mut Window, line_pool: &mut LinePool, dt: f32) {
         while let Some(char) = window.get_typed_char() {
             self.doc.insert_at_cursor(&[char], line_pool);
         }
@@ -132,12 +138,22 @@ impl Editor {
             }
         }
 
-        while let Some(mouse_scroll) = window.get_mouse_scroll() {
-            const SCROLL_SPEED: f32 = 3.0;
+        const SCROLL_SPEED: f32 = 30.0;
+        const SCROLL_FRICTION: f32 = 5.0;
 
-            self.camera_y -= mouse_scroll.delta * window.gfx().line_height() * SCROLL_SPEED;
-            self.camera_y = self.camera_y.clamp(0.0, (self.doc.lines().len() - 1) as f32 * window.gfx().line_height());
+        while let Some(mouse_scroll) = window.get_mouse_scroll() {
+            self.camera_velocity_y -= mouse_scroll.delta * window.gfx().line_height() * SCROLL_SPEED;
         }
+
+        self.camera_velocity_y -= self.camera_velocity_y * dt * SCROLL_FRICTION;
+
+        // We want the velocity to eventually be exactly zero so that we can stop animating.
+        if self.camera_velocity_y.abs() < 0.5 {
+            self.camera_velocity_y = 0.0;
+        }
+
+        self.camera_y += self.camera_velocity_y * dt;
+        self.camera_y = self.camera_y.clamp(0.0, (self.doc.lines().len() - 1) as f32 * window.gfx().line_height());
     }
 
     pub fn draw(&mut self, gfx: &mut Gfx) {
