@@ -215,6 +215,16 @@ impl Doc {
         }
     }
 
+    pub fn insert_at_cursor(&mut self, text: &[char], line_pool: &mut LinePool) {
+        if let Some(selection) = self.cursor.get_selection() {
+            self.end_cursor_selection();
+            self.delete(selection.start, selection.end, line_pool);
+        }
+
+        let start = self.get_cursor().position;
+        self.insert(start, text, line_pool);
+    }
+
     // It's ok for the x position to equal the length of the line.
     // That represents the cursor being right before the newline sequence.
     fn clamp_position(&self, position: Position) -> Position {

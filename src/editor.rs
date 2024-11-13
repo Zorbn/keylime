@@ -24,8 +24,7 @@ impl Editor {
 
     pub fn update(&mut self, window: &mut Window, line_pool: &mut LinePool) {
         while let Some(char) = window.get_typed_char() {
-            let start = self.doc.get_cursor().position;
-            self.doc.insert(start, &[char], line_pool);
+            self.doc.insert_at_cursor(&[char], line_pool);
         }
 
         while let Some(keybind) = window.get_typed_keybind() {
@@ -58,8 +57,16 @@ impl Editor {
                     key: Key::Backspace,
                     mods: 0,
                 } => {
-                    let end = self.doc.get_cursor().position;
-                    let start = self.doc.move_position(end, Position::new(-1, 0));
+                    let (start, end) = if let Some(selection) = self.doc.get_cursor().get_selection() {
+                        self.doc.end_cursor_selection();
+
+                        (selection.start, selection.end)
+                    } else {
+                        let end = self.doc.get_cursor().position;
+                        let start = self.doc.move_position(end, Position::new(-1, 0));
+
+                        (start, end)
+                    };
 
                     self.doc.delete(start, end, line_pool);
                 }
@@ -67,8 +74,16 @@ impl Editor {
                     key: Key::Delete,
                     mods: 0,
                 } => {
-                    let start = self.doc.get_cursor().position;
-                    let end = self.doc.move_position(start, Position::new(1, 0));
+                    let (start, end) = if let Some(selection) = self.doc.get_cursor().get_selection() {
+                        self.doc.end_cursor_selection();
+
+                        (selection.start, selection.end)
+                    } else {
+                        let start = self.doc.get_cursor().position;
+                        let end = self.doc.move_position(start, Position::new(1, 0));
+
+                        (start, end)
+                    };
 
                     self.doc.delete(start, end, line_pool);
                 }
@@ -76,16 +91,13 @@ impl Editor {
                     key: Key::Enter,
                     mods: 0,
                 } => {
-                    let start = self.doc.get_cursor().position;
-                    self.doc.insert(start, &['\n'], line_pool);
+                    self.doc.insert_at_cursor(&['\n'], line_pool);
                 }
                 Keybind {
                     key: Key::Tab,
                     mods: 0,
                 } => {
-                    let start = self.doc.get_cursor().position;
-                    // self.doc.insert(start, &[' ', ' ', ' ', ' '], line_pool);
-                    self.doc.insert(start, &['\t'], line_pool);
+                    self.doc.insert_at_cursor(&['\t'], line_pool);
                 }
                 _ => {}
             }
