@@ -15,7 +15,7 @@ use windows::{
 use crate::{
     gfx::Gfx,
     key::Key,
-    keybind::{Keybind, MOD_CTRL, MOD_SHIFT},
+    keybind::Keybind,
     mouse_button::MouseButton,
     mousebind::Mousebind,
 };
@@ -194,42 +194,42 @@ impl Window {
 
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
-            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN => {
-                const MK_MBUTTON: usize = 0x10;
+            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_MOUSEMOVE => {
+                const MK_LBUTTON: usize = 0x01;
                 const MK_RBUTTON: usize = 0x02;
+                const MK_MBUTTON: usize = 0x10;
                 const MK_XBUTTON1: usize = 0x20;
                 const MK_XBUTTON2: usize = 0x40;
                 const MK_SHIFT: usize = 0x04;
                 const MK_CONTROL: usize = 0x08;
 
-                let mut button = MouseButton::Left;
-
-                if wparam.0 & MK_MBUTTON != 0 {
-                    button = MouseButton::Middle;
+                let button = if wparam.0 & MK_LBUTTON != 0 {
+                    Some(MouseButton::Left)
+                } else if wparam.0 & MK_MBUTTON != 0 {
+                    Some(MouseButton::Middle)
                 } else if wparam.0 & MK_RBUTTON != 0 {
-                    button = MouseButton::Right;
+                    Some(MouseButton::Right)
                 } else if wparam.0 & MK_XBUTTON1 != 0 {
-                    button = MouseButton::FirstSide;
+                    Some(MouseButton::FirstSide)
                 } else if wparam.0 & MK_XBUTTON2 != 0 {
-                    button = MouseButton::SecondSide;
+                    Some(MouseButton::SecondSide)
+                } else {
+                    None
+                };
+
+                if let Some(button) = button {
+                    let has_shift = wparam.0 & MK_SHIFT != 0;
+                    let has_ctrl = wparam.0 & MK_CONTROL != 0;
+
+                    let x = transmute::<u32, i32>((lparam.0 & 0xffff) as u32) as f32;
+                    let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xffff) as u32) as f32;
+
+                    let is_drag = msg == WM_MOUSEMOVE;
+
+                    (*window)
+                        .mousebinds_pressed
+                        .push(Mousebind::new(button, x, y, has_shift, has_ctrl, false, is_drag));
                 }
-
-                let mut mods = 0;
-
-                if wparam.0 & MK_SHIFT != 0 {
-                    mods |= MOD_SHIFT;
-                }
-
-                if wparam.0 & MK_CONTROL != 0 {
-                    mods |= MOD_CTRL;
-                }
-
-                let x = transmute::<u32, i32>((lparam.0 & 0xffff) as u32) as f32;
-                let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xffff) as u32) as f32;
-
-                (*window)
-                    .mousebinds_pressed
-                    .push(Mousebind { button, x, y, mods });
             }
             _ => return DefWindowProcW(hwnd, msg, wparam, lparam),
         }

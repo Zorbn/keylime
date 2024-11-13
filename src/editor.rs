@@ -98,6 +98,7 @@ impl Editor {
                     x,
                     y,
                     mods: 0,
+                    ..
                 } => {
                     let position = self
                         .doc

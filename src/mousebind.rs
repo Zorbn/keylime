@@ -8,6 +8,7 @@ pub struct Mousebind {
     pub x: f32,
     pub y: f32,
     pub mods: u8,
+    pub is_drag: bool,
 }
 
 impl Mousebind {
@@ -18,6 +19,7 @@ impl Mousebind {
         has_shift: bool,
         has_ctrl: bool,
         has_alt: bool,
+        is_drag: bool,
     ) -> Self {
         let mut mods = 0u8;
 
@@ -33,6 +35,6 @@ impl Mousebind {
             mods |= MOD_ALT;
         }
 
-        Self { button, x, y, mods }
+        Self { button, x, y, mods, is_drag }
     }
 }
