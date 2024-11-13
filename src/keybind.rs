@@ -28,20 +28,4 @@ impl Keybind {
 
         Self { mods, key }
     }
-
-    pub fn key(&self) -> Key {
-        self.key
-    }
-
-    pub fn has_shift(&self) -> bool {
-        (self.mods & MOD_SHIFT) != 0
-    }
-
-    pub fn has_ctrl(&self) -> bool {
-        (self.mods & MOD_CTRL) != 0
-    }
-
-    pub fn has_alt(&self) -> bool {
-        (self.mods & MOD_ALT) != 0
-    }
 }

@@ -6,8 +6,11 @@ mod key;
 mod keybind;
 mod line_pool;
 mod matrix;
+mod mouse_button;
+mod mousebind;
 mod position;
 mod text;
+mod visual_position;
 mod window;
 
 use editor::Editor;
@@ -25,7 +28,7 @@ fn main() {
     let mut window = Window::new().unwrap();
 
     while window.is_running() {
-        let dt = window.update();
+        let _ = window.update();
         // println!("dt: {dt}");
 
         editor.update(&mut window, &mut line_pool);
@@ -35,21 +38,6 @@ fn main() {
         gfx.begin_frame(Color::new(255, 255, 255, 255));
 
         editor.draw(gfx);
-
-        //         gfx.begin(None);
-        //
-        //         gfx.add_text("hello world".chars(), 50.0, 50.0, &Color::new(0, 0, 0, 255));
-        //
-        //         gfx.add_text(
-        //             ['h', 'i', ' ', 't', 'h', 'e', 'r', 'e'],
-        //             50.0,
-        //             80.0,
-        //             &Color::new(0, 0, 0, 255),
-        //         );
-        //
-        //         gfx.add_rect(90.0, 80.0, 32.0, 32.0, &Color::new(255, 0, 0, 255));
-        //
-        //         gfx.end();
 
         gfx.end_frame();
     }

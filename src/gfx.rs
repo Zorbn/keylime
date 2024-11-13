@@ -66,6 +66,7 @@ PSOutput PsMain(VSOutput input) : SV_Target {
 "#;
 
 struct TextureData {
+    #[allow(unused)]
     texture: ID3D11Texture2D,
     texture_view: ID3D11ShaderResourceView,
     sampler_state: ID3D11SamplerState,
@@ -101,6 +102,8 @@ impl Color {
         Self { r, g, b, a }
     }
 }
+
+const TAB_WIDTH: usize = 4;
 
 pub struct Gfx {
     device: ID3D11Device,
@@ -769,7 +772,17 @@ impl Gfx {
         ]);
     }
 
-    pub fn add_text<'a>(
+    pub fn measure_text(text: impl IntoIterator<Item = char>) -> isize {
+        let mut width = 0isize;
+
+        for c in text.into_iter() {
+            width += if c == '\t' { TAB_WIDTH as isize } else { 1 };
+        }
+
+        width
+    }
+
+    pub fn add_text(
         &mut self,
         text: impl IntoIterator<Item = char>,
         x: f32,
@@ -788,10 +801,13 @@ impl Gfx {
             ..
         } = self.atlas_dimensions;
 
-        for (i, c) in text.into_iter().enumerate() {
+        let mut i = 0;
+
+        for c in text.into_iter() {
             let char_index = c as u32;
 
             if char_index <= min_char || char_index > max_char {
+                i += if c == '\t' { TAB_WIDTH } else { 1 };
                 continue;
             }
 
@@ -819,6 +835,8 @@ impl Gfx {
                 [destination_x, y, destination_width, glyph_height],
                 &color,
             );
+
+            i += 1;
         }
     }
 

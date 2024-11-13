@@ -4,6 +4,8 @@ use crate::{
     key::Key,
     keybind::Keybind,
     line_pool::LinePool,
+    mouse_button::MouseButton,
+    mousebind::Mousebind,
     position::Position,
     window::Window,
 };
@@ -61,11 +63,45 @@ impl Editor {
                     self.doc.delete(start, end, line_pool);
                 }
                 Keybind {
+                    key: Key::Delete,
+                    mods: 0,
+                } => {
+                    let start = self.doc.get_cursor().position;
+                    let end = self.doc.move_position(start, Position::new(1, 0));
+
+                    self.doc.delete(start, end, line_pool);
+                }
+                Keybind {
                     key: Key::Enter,
                     mods: 0,
                 } => {
                     let start = self.doc.get_cursor().position;
                     self.doc.insert(start, &['\n'], line_pool);
+                }
+                Keybind {
+                    key: Key::Tab,
+                    mods: 0,
+                } => {
+                    let start = self.doc.get_cursor().position;
+                    // self.doc.insert(start, &[' ', ' ', ' ', ' '], line_pool);
+                    self.doc.insert(start, &['\t'], line_pool);
+                }
+                _ => {}
+            }
+        }
+
+        while let Some(mousebind) = window.get_pressed_mousebind() {
+            match mousebind {
+                Mousebind {
+                    button: MouseButton::Left,
+                    x,
+                    y,
+                    mods: 0,
+                } => {
+                    let x = (x / window.gfx().glyph_width()) as isize;
+                    let y = (y / window.gfx().line_height()) as isize;
+
+                    self.doc.jump_cursor(Position::new(x, y));
                 }
                 _ => {}
             }
@@ -75,11 +111,13 @@ impl Editor {
     pub fn draw(&mut self, gfx: &mut Gfx) {
         gfx.begin(None);
 
-        let cursor_position = self.doc.get_cursor().position;
+        let cursor_position = self
+            .doc
+            .position_to_visual(self.doc.get_cursor().position, gfx);
 
         gfx.add_rect(
-            cursor_position.x as f32 * gfx.glyph_width(),
-            cursor_position.y as f32 * gfx.line_height(),
+            cursor_position.x,
+            cursor_position.y,
             gfx.glyph_width(),
             gfx.glyph_height(),
             &Color::new(125, 125, 200, 255),

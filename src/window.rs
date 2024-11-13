@@ -1,4 +1,4 @@
-use std::{char, ptr::null_mut};
+use std::{char, mem::transmute, ptr::null_mut};
 
 use windows::{
     core::{w, Result},
@@ -12,7 +12,13 @@ use windows::{
     },
 };
 
-use crate::{gfx::Gfx, key::Key, keybind::Keybind};
+use crate::{
+    gfx::Gfx,
+    key::Key,
+    keybind::{Keybind, MOD_CTRL, MOD_SHIFT},
+    mouse_button::MouseButton,
+    mousebind::Mousebind,
+};
 
 const DEFAULT_WIDTH: i32 = 640;
 const DEFAULT_HEIGHT: i32 = 480;
@@ -30,6 +36,7 @@ pub struct Window {
 
     chars_typed: Vec<char>,
     keybinds_typed: Vec<Keybind>,
+    mousebinds_pressed: Vec<Mousebind>,
 }
 
 impl Window {
@@ -63,6 +70,7 @@ impl Window {
 
                 chars_typed: Vec::new(),
                 keybinds_typed: Vec::new(),
+                mousebinds_pressed: Vec::new(),
             });
 
             let lparam: *mut Window = &mut *window;
@@ -186,6 +194,43 @@ impl Window {
 
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
+            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN => {
+                const MK_MBUTTON: usize = 0x10;
+                const MK_RBUTTON: usize = 0x02;
+                const MK_XBUTTON1: usize = 0x20;
+                const MK_XBUTTON2: usize = 0x40;
+                const MK_SHIFT: usize = 0x04;
+                const MK_CONTROL: usize = 0x08;
+
+                let mut button = MouseButton::Left;
+
+                if wparam.0 & MK_MBUTTON != 0 {
+                    button = MouseButton::Middle;
+                } else if wparam.0 & MK_RBUTTON != 0 {
+                    button = MouseButton::Right;
+                } else if wparam.0 & MK_XBUTTON1 != 0 {
+                    button = MouseButton::FirstSide;
+                } else if wparam.0 & MK_XBUTTON2 != 0 {
+                    button = MouseButton::SecondSide;
+                }
+
+                let mut mods = 0;
+
+                if wparam.0 & MK_SHIFT != 0 {
+                    mods |= MOD_SHIFT;
+                }
+
+                if wparam.0 & MK_CONTROL != 0 {
+                    mods |= MOD_CTRL;
+                }
+
+                let x = transmute::<u32, i32>((lparam.0 & 0xffff) as u32) as f32;
+                let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xffff) as u32) as f32;
+
+                (*window)
+                    .mousebinds_pressed
+                    .push(Mousebind { button, x, y, mods });
+            }
             _ => return DefWindowProcW(hwnd, msg, wparam, lparam),
         }
 
@@ -195,6 +240,7 @@ impl Window {
     pub fn update(&mut self) -> f32 {
         self.chars_typed.clear();
         self.keybinds_typed.clear();
+        self.mousebinds_pressed.clear();
 
         unsafe {
             let mut msg = MSG::default();
@@ -231,6 +277,10 @@ impl Window {
 
     pub fn get_typed_keybind(&mut self) -> Option<Keybind> {
         self.keybinds_typed.pop()
+    }
+
+    pub fn get_pressed_mousebind(&mut self) -> Option<Mousebind> {
+        self.mousebinds_pressed.pop()
     }
 }
 

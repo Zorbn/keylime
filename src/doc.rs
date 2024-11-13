@@ -1,7 +1,9 @@
 use crate::{
     cursor::Cursor,
+    gfx::Gfx,
     line_pool::{Line, LinePool},
     position::Position,
+    visual_position::VisualPosition,
 };
 
 pub struct Doc {
@@ -77,6 +79,10 @@ impl Doc {
 
     pub fn move_cursor(&mut self, delta: Position) {
         self.cursor.position = self.move_position(self.cursor.position, delta);
+    }
+
+    pub fn jump_cursor(&mut self, position: Position) {
+        self.cursor.position = self.clamp_position(position);
     }
 
     pub fn get_cursor(&self) -> &Cursor {
@@ -169,12 +175,24 @@ impl Doc {
     // It's ok for the x position to equal the length of the line.
     // That represents the cursor being right before the newline sequence.
     fn clamp_position(&self, position: Position) -> Position {
-        let max_y = self.lines.len() as isize;
+        let max_y = self.lines.len() as isize - 1;
         let clamped_y = position.y.clamp(0, max_y);
 
         let max_x = self.lines[clamped_y as usize].len() as isize;
         let clamped_x = position.x.clamp(0, max_x);
 
         Position::new(clamped_x, clamped_y)
+    }
+
+    pub fn position_to_visual(&self, position: Position, gfx: &Gfx) -> VisualPosition {
+        let position = self.clamp_position(position);
+        let leading_text = &self.lines[position.y as usize][..position.x as usize];
+
+        let visual_x = Gfx::measure_text(leading_text.iter().copied());
+
+        VisualPosition::new(
+            visual_x as f32 * gfx.glyph_width(),
+            position.y as f32 * gfx.line_height(),
+        )
     }
 }
