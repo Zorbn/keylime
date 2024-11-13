@@ -56,10 +56,12 @@ VSOutput VsMain(VSInput input) {
 }
 
 PSOutput PsMain(VSOutput input) : SV_Target {
+    float4 normalizedColor = input.color / 255.0;
+
     PSOutput output;
-    output.color = float4(input.color.rgb / 255.0, 1.0);
+    output.color = float4(normalizedColor.rgb, 1.0);
     output.alphaMask = input.uv.y < 0.0 ?
-        float4(1.0, 1.0, 1.0, 1.0) :
+        normalizedColor.aaaa :
         _texture.Sample(_sampler, input.uv).rgbr;
     return output;
 }

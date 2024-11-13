@@ -35,7 +35,7 @@ fn main() {
 
         let gfx = window.gfx();
 
-        gfx.begin_frame(Color::new(255, 255, 255, 255));
+        gfx.begin_frame(Color::new(245, 245, 245, 255));
 
         editor.draw(gfx);
 

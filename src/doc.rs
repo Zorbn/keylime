@@ -83,11 +83,35 @@ impl Doc {
         self.lines[y as usize].len() as isize
     }
 
-    pub fn move_cursor(&mut self, delta: Position) {
+    pub fn move_cursor(&mut self, delta: Position, should_select: bool) {
+        self.update_cursor_selection(should_select);
+
         self.cursor.position = self.move_position_with_desired_visual_x(self.cursor.position, delta, Some(self.cursor.desired_visual_x));
 
         if delta.x != 0 {
             self.update_cursor_desired_visual_x();
+        }
+    }
+
+    pub fn jump_cursor(&mut self, position: Position, should_select: bool) {
+        self.update_cursor_selection(should_select);
+
+        self.cursor.position = self.clamp_position(position);
+    }
+
+    pub fn start_cursor_selection(&mut self) {
+        self.cursor.selection_anchor = Some(self.cursor.position);
+    }
+
+    pub fn end_cursor_selection(&mut self) {
+        self.cursor.selection_anchor = None;
+    }
+
+    pub fn update_cursor_selection(&mut self, should_select: bool) {
+        if should_select && self.cursor.selection_anchor.is_none() {
+            self.start_cursor_selection();
+        } else if !should_select && self.cursor.selection_anchor.is_some() {
+            self.end_cursor_selection();
         }
     }
 
@@ -100,10 +124,6 @@ impl Doc {
 
     fn update_cursor_desired_visual_x(&mut self) {
         self.cursor.desired_visual_x = self.get_cursor_visual_x();
-    }
-
-    pub fn jump_cursor(&mut self, position: Position) {
-        self.cursor.position = self.clamp_position(position);
     }
 
     pub fn get_cursor(&self) -> &Cursor {
@@ -145,7 +165,7 @@ impl Doc {
             end
         };
 
-        if cursor_effect_end.y <= self.cursor.position.y
+        if cursor_effect_end.y == self.cursor.position.y
             && cursor_effect_end.x <= self.cursor.position.x
         {
             self.cursor.position.x -= cursor_effect_end.x - start.x;
@@ -186,7 +206,7 @@ impl Doc {
         }
 
         // Shift the cursor:
-        if start.y <= self.cursor.position.y && start.x <= self.cursor.position.x {
+        if start.y == self.cursor.position.y && start.x <= self.cursor.position.x {
             self.cursor.position.x += position.x - start.x;
             self.cursor.position.y += position.y - start.y;
             self.update_cursor_desired_visual_x();
