@@ -14,6 +14,22 @@ impl Position {
     pub fn zero() -> Self {
         Self { x: 0, y: 0 }
     }
+
+    pub fn min(self, other: Position) -> Position {
+        if self < other {
+            self
+        } else {
+            other
+        }
+    }
+
+    pub fn max(self, other: Position) -> Position {
+        if self > other {
+            self
+        } else {
+            other
+        }
+    }
 }
 
 impl Ord for Position {

@@ -124,7 +124,7 @@ impl Editor {
                 } => {
                     let position = self
                         .doc
-                        .visual_to_position(VisualPosition::new(x, y), &window.gfx());
+                        .visual_to_position(VisualPosition::new(x, y + self.camera_y), &window.gfx());
 
                     self.doc.jump_cursor(position, is_drag);
                 }
@@ -143,23 +143,27 @@ impl Editor {
     pub fn draw(&mut self, gfx: &mut Gfx) {
         gfx.begin(None);
 
+        let camera_y = self.camera_y.floor();
         let line_padding = (gfx.line_height() - gfx.glyph_height()) / 2.0;
 
-        let min_y = (self.camera_y / gfx.line_height()) as usize;
+        let min_y = (camera_y / gfx.line_height()) as usize;
+        let sub_line_offset_y = camera_y - min_y as f32 * gfx.line_height();
 
-        let max_y = ((self.camera_y + gfx.height()) / gfx.line_height()) as usize + 1;
+        let max_y = ((camera_y + gfx.height()) / gfx.line_height()) as usize + 1;
         let max_y = max_y.min(self.doc.lines().len());
 
         for (i, line) in self.doc.lines()[min_y..max_y].iter().enumerate() {
             let y = i as f32 * gfx.line_height();
 
-            gfx.add_text(line.iter().copied(), 0.0, y + line_padding, &Color::new(0, 0, 0, 255));
+            gfx.add_text(line.iter().copied(), 0.0, y + line_padding - sub_line_offset_y, &Color::new(0, 0, 0, 255));
         }
 
         if let Some(selection) = self.doc.get_cursor().get_selection() {
-            let mut position = selection.start;
+            let start = selection.start.max(Position::new(0, min_y as isize));
+            let end = selection.end.min(Position::new(0, max_y as isize));
+            let mut position = start;
 
-            while position < selection.end {
+            while position < end {
                 let highlight_position = self
                     .doc
                     .position_to_visual(position, gfx);
@@ -169,7 +173,7 @@ impl Editor {
 
                 gfx.add_rect(
                     highlight_position.x,
-                    highlight_position.y,
+                    highlight_position.y - camera_y,
                     char_width as f32 * gfx.glyph_width(),
                     gfx.line_height(),
                     &Color::new(76, 173, 228, 125),
@@ -185,7 +189,7 @@ impl Editor {
 
         gfx.add_rect(
             cursor_position.x,
-            cursor_position.y,
+            cursor_position.y - camera_y,
             (gfx.glyph_width() * 0.25).ceil(),
             gfx.line_height(),
             &Color::new(0, 0, 0, 255),
