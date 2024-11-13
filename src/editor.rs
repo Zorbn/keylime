@@ -15,12 +15,14 @@ use crate::{
 
 pub struct Editor {
     doc: Doc,
+    camera_y: f32,
 }
 
 impl Editor {
     pub fn new(line_pool: &mut LinePool) -> Self {
         Self {
             doc: Doc::new(line_pool),
+            camera_y: 0.0,
         }
     }
 
@@ -129,6 +131,13 @@ impl Editor {
                 _ => {}
             }
         }
+
+        while let Some(mouse_scroll) = window.get_mouse_scroll() {
+            const SCROLL_SPEED: f32 = 3.0;
+
+            self.camera_y -= mouse_scroll.delta * window.gfx().line_height() * SCROLL_SPEED;
+            self.camera_y = self.camera_y.clamp(0.0, (self.doc.lines().len() - 1) as f32 * window.gfx().line_height());
+        }
     }
 
     pub fn draw(&mut self, gfx: &mut Gfx) {
@@ -136,7 +145,12 @@ impl Editor {
 
         let line_padding = (gfx.line_height() - gfx.glyph_height()) / 2.0;
 
-        for (i, line) in self.doc.lines().iter().enumerate() {
+        let min_y = (self.camera_y / gfx.line_height()) as usize;
+
+        let max_y = ((self.camera_y + gfx.height()) / gfx.line_height()) as usize + 1;
+        let max_y = max_y.min(self.doc.lines().len());
+
+        for (i, line) in self.doc.lines()[min_y..max_y].iter().enumerate() {
             let y = i as f32 * gfx.line_height();
 
             gfx.add_text(line.iter().copied(), 0.0, y + line_padding, &Color::new(0, 0, 0, 255));

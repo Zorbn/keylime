@@ -13,11 +13,7 @@ use windows::{
 };
 
 use crate::{
-    gfx::Gfx,
-    key::Key,
-    keybind::Keybind,
-    mouse_button::MouseButton,
-    mousebind::Mousebind,
+    gfx::Gfx, key::Key, keybind::Keybind, mouse_button::MouseButton, mouse_scroll::MouseScroll, mousebind::Mousebind
 };
 
 const DEFAULT_WIDTH: i32 = 640;
@@ -37,6 +33,7 @@ pub struct Window {
     chars_typed: Vec<char>,
     keybinds_typed: Vec<Keybind>,
     mousebinds_pressed: Vec<Mousebind>,
+    mouse_scrolls: Vec<MouseScroll>,
 }
 
 impl Window {
@@ -71,6 +68,7 @@ impl Window {
                 chars_typed: Vec::new(),
                 keybinds_typed: Vec::new(),
                 mousebinds_pressed: Vec::new(),
+                mouse_scrolls: Vec::new(),
             });
 
             let lparam: *mut Window = &mut *window;
@@ -231,6 +229,13 @@ impl Window {
                         .push(Mousebind::new(button, x, y, has_shift, has_ctrl, false, is_drag));
                 }
             }
+            WM_MOUSEWHEEL => {
+                const WHEEL_DELTA: f32 = 120.0;
+
+                let delta = transmute::<u16, i16>(((wparam.0 >> 16) & 0xffff) as u16) as f32 / WHEEL_DELTA;
+
+                (*window).mouse_scrolls.push(MouseScroll { delta });
+            }
             _ => return DefWindowProcW(hwnd, msg, wparam, lparam),
         }
 
@@ -241,6 +246,7 @@ impl Window {
         self.chars_typed.clear();
         self.keybinds_typed.clear();
         self.mousebinds_pressed.clear();
+        self.mouse_scrolls.clear();
 
         unsafe {
             let mut msg = MSG::default();
@@ -281,6 +287,10 @@ impl Window {
 
     pub fn get_pressed_mousebind(&mut self) -> Option<Mousebind> {
         self.mousebinds_pressed.pop()
+    }
+
+    pub fn get_mouse_scroll(&mut self) -> Option<MouseScroll> {
+        self.mouse_scrolls.pop()
     }
 }
 

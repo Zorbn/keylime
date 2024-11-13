@@ -881,4 +881,8 @@ impl Gfx {
     pub fn line_height(&self) -> f32 {
         self.atlas_dimensions.line_height
     }
+
+    pub fn height(&self) -> f32 {
+        self.height as f32
+    }
 }

@@ -8,6 +8,7 @@ mod line_pool;
 mod matrix;
 mod mouse_button;
 mod mousebind;
+mod mouse_scroll;
 mod position;
 mod text;
 mod visual_position;
@@ -17,6 +18,32 @@ use editor::Editor;
 use gfx::Color;
 use line_pool::LinePool;
 use window::Window;
+
+/*
+ * TODO:
+ * Ctrl modifier for arrows, backspace, delete.
+ * Common hotkeys: home, end, ctrl-a.
+ * Scrolling: Mouse wheel, pgup, pgdn, arrows.
+ * Undo/redo.
+ * Multiple cursors.
+ * Syntax highlighting.
+ * Open/save/close/save-as dialogs.
+ * Multiple tabs.
+ * Multiple panes (split view).
+ * File tree.
+ * Per file type indentation.
+ * Comment region: ctrl-/.
+ * Indent-unindent region: ctrl-[, ctrl-], tab, shift-tab.
+ * Copy/cut/paste.
+ * Implicit copy/cut/paste for current line when shortcut is pressed but nothing is selected.
+ * Support for OS scaling (eg. 125% applied for a monitor).
+ * Search and search & replace.
+ * Running commands and seeing output (very simple integrated terminal).
+ * Find in files.
+ * Configuration file: colors, fonts.
+ * Command palette (eg. for ctrl-g, go to line).
+ * Simple auto-complete.
+ */
 
 fn main() {
     println!("Hello, world!");
