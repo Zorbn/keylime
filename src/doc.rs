@@ -153,7 +153,7 @@ impl Doc {
         } else {
             let (start_lines, end_lines) = self.lines.split_at_mut(end.y as usize);
 
-            let start_line = start_lines.last_mut().unwrap();
+            let start_line = &mut start_lines[start.y as usize];
             let end_line = end_lines.first().unwrap();
 
             start_line.truncate(start.x as usize);
@@ -258,7 +258,7 @@ impl Doc {
         Position::new(clamped_x, clamped_y)
     }
 
-    pub fn position_to_visual(&self, position: Position, gfx: &Gfx) -> VisualPosition {
+    pub fn position_to_visual(&self, position: Position, camera_y: f32, gfx: &Gfx) -> VisualPosition {
         let position = self.clamp_position(position);
         let leading_text = &self.lines[position.y as usize][..position.x as usize];
 
@@ -266,14 +266,14 @@ impl Doc {
 
         VisualPosition::new(
             visual_x as f32 * gfx.glyph_width(),
-            position.y as f32 * gfx.line_height(),
+            position.y as f32 * gfx.line_height() - camera_y,
         )
     }
 
-    pub fn visual_to_position(&self, visual: VisualPosition, gfx: &Gfx) -> Position {
+    pub fn visual_to_position(&self, visual: VisualPosition, camera_y: f32, gfx: &Gfx) -> Position {
         let mut position = Position::new(
             (visual.x / gfx.glyph_width()) as isize,
-            (visual.y / gfx.line_height()) as isize,
+            ((visual.y + camera_y) / gfx.line_height()) as isize,
         );
 
         let desired_x = position.x;

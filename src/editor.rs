@@ -124,7 +124,7 @@ impl Editor {
                 } => {
                     let position = self
                         .doc
-                        .visual_to_position(VisualPosition::new(x, y + self.camera_y), &window.gfx());
+                        .visual_to_position(VisualPosition::new(x, y), self.camera_y, &window.gfx());
 
                     self.doc.jump_cursor(position, is_drag);
                 }
@@ -166,14 +166,14 @@ impl Editor {
             while position < end {
                 let highlight_position = self
                     .doc
-                    .position_to_visual(position, gfx);
+                    .position_to_visual(position, camera_y, gfx);
 
                 let char = self.doc.get_char(position);
                 let char_width = Gfx::get_char_width(char);
 
                 gfx.add_rect(
                     highlight_position.x,
-                    highlight_position.y - camera_y,
+                    highlight_position.y,
                     char_width as f32 * gfx.glyph_width(),
                     gfx.line_height(),
                     &Color::new(76, 173, 228, 125),
@@ -185,11 +185,11 @@ impl Editor {
 
         let cursor_position = self
             .doc
-            .position_to_visual(self.doc.get_cursor().position, gfx);
+            .position_to_visual(self.doc.get_cursor().position, camera_y, gfx);
 
         gfx.add_rect(
             cursor_position.x,
-            cursor_position.y - camera_y,
+            cursor_position.y,
             (gfx.glyph_width() * 0.25).ceil(),
             gfx.line_height(),
             &Color::new(0, 0, 0, 255),
