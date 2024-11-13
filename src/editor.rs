@@ -1,8 +1,10 @@
+use std::fs::File;
+
 use crate::{
     doc::Doc,
     gfx::{Color, Gfx},
     key::Key,
-    keybind::{Keybind, MOD_SHIFT},
+    keybind::{Keybind, MOD_CTRL, MOD_SHIFT},
     line_pool::LinePool,
     mouse_button::MouseButton,
     mousebind::Mousebind,
@@ -98,6 +100,12 @@ impl Editor {
                     mods: 0,
                 } => {
                     self.doc.insert_at_cursor(&['\t'], line_pool);
+                }
+                Keybind { key: Key::O, mods: MOD_CTRL } => {
+                    self.doc.load(&mut File::open("test.txt").unwrap(), line_pool).unwrap();
+                }
+                Keybind { key: Key::S, mods: MOD_CTRL } => {
+                    self.doc.save(&mut File::create("test.txt").unwrap()).unwrap();
                 }
                 _ => {}
             }

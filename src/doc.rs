@@ -1,3 +1,5 @@
+use std::{fs::File, io::{self, Read, Write}};
+
 use crate::{
     cursor::Cursor,
     gfx::Gfx,
@@ -6,9 +8,15 @@ use crate::{
     visual_position::VisualPosition,
 };
 
+enum LineEnding {
+    Lf,
+    CrLf,
+}
+
 pub struct Doc {
     lines: Vec<Line>,
     cursor: Cursor,
+    line_ending: LineEnding,
 }
 
 impl Doc {
@@ -18,6 +26,7 @@ impl Doc {
         Self {
             lines,
             cursor: Cursor::new(Position::zero(), 0),
+            line_ending: LineEnding::CrLf,
         }
     }
 
@@ -97,6 +106,7 @@ impl Doc {
         self.update_cursor_selection(should_select);
 
         self.cursor.position = self.clamp_position(position);
+        self.update_cursor_desired_visual_x();
     }
 
     pub fn start_cursor_selection(&mut self) {
@@ -261,5 +271,65 @@ impl Doc {
             Gfx::find_x_for_visual_x(self.lines[position.y as usize].iter().copied(), desired_x);
 
         position
+    }
+
+    pub fn save(&mut self, file: &mut File) -> io::Result<usize> {
+        let string = self.to_string();
+
+        file.write(string.as_bytes())
+    }
+
+    pub fn load(&mut self, file: &mut File, line_pool: &mut LinePool) -> io::Result<usize> {
+        self.cursor = Cursor::new(Position::zero(), 0);
+        self.line_ending = LineEnding::Lf;
+
+        let mut string = String::new();
+        let read = file.read_to_string(&mut string)?;
+
+        for line in self.lines.drain(..) {
+            line_pool.push(line);
+        }
+
+        let mut current_line = line_pool.pop();
+
+        for c in string.chars() {
+            match c {
+                '\r' => {
+                    self.line_ending = LineEnding::CrLf;
+                }
+                '\n' => {
+                    self.lines.push(current_line);
+                    current_line = line_pool.pop();
+                }
+                _ => {
+                    current_line.push(c);
+                }
+            }
+        }
+
+        self.lines.push(current_line);
+
+        Ok(read)
+    }
+}
+
+impl ToString for Doc {
+    fn to_string(&self) -> String {
+        let mut string = String::new();
+
+        let line_ending_chars: &[char] = match self.line_ending {
+            LineEnding::Lf => &['\n'],
+            LineEnding::CrLf => &['\r', '\n'],
+        };
+
+        for (i, line) in self.lines.iter().enumerate() {
+            string.extend(line);
+
+            if i != self.lines.len() - 1 {
+                string.extend(line_ending_chars);
+            }
+        }
+
+        string
     }
 }
