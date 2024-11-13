@@ -150,10 +150,13 @@ impl Editor {
                     .doc
                     .position_to_visual(position, gfx);
 
+                let char = self.doc.get_char(position);
+                let char_width = Gfx::get_char_width(char);
+
                 gfx.add_rect(
                     highlight_position.x,
                     highlight_position.y,
-                    gfx.glyph_width(),
+                    char_width as f32 * gfx.glyph_width(),
                     gfx.line_height(),
                     &Color::new(76, 173, 228, 125),
                 );

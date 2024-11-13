@@ -235,6 +235,17 @@ impl Doc {
         self.insert(start, text, line_pool);
     }
 
+    pub fn get_char(&self, position: Position) -> char {
+        let position = self.clamp_position(position);
+        let line = &self.lines[position.y as usize];
+
+        if position.x >= line.len() as isize {
+            '\n'
+        } else {
+            line[position.x as usize]
+        }
+    }
+
     // It's ok for the x position to equal the length of the line.
     // That represents the cursor being right before the newline sequence.
     fn clamp_position(&self, position: Position) -> Position {

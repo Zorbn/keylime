@@ -801,6 +801,13 @@ impl Gfx {
         x
     }
 
+    pub fn get_char_width(c: char) -> isize {
+        match c {
+            '\t' => TAB_WIDTH as isize,
+            _ => 1,
+        }
+    }
+
     pub fn add_text(
         &mut self,
         text: impl IntoIterator<Item = char>,
@@ -826,7 +833,7 @@ impl Gfx {
             let char_index = c as u32;
 
             if char_index <= min_char || char_index > max_char {
-                i += if c == '\t' { TAB_WIDTH } else { 1 };
+                i += Self::get_char_width(c);
                 continue;
             }
 
@@ -855,7 +862,7 @@ impl Gfx {
                 &color,
             );
 
-            i += 1;
+            i += Self::get_char_width(c);
         }
     }
 
