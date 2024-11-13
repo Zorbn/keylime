@@ -17,11 +17,15 @@ impl Doc {
 
         Self {
             lines,
-            cursor: Cursor::new(Position::zero()),
+            cursor: Cursor::new(Position::zero(), 0),
         }
     }
 
     pub fn move_position(&self, position: Position, delta: Position) -> Position {
+        self.move_position_with_desired_visual_x(position, delta, None)
+    }
+
+    pub fn move_position_with_desired_visual_x(&self, position: Position, delta: Position, desired_visual_x: Option<isize>) -> Position {
         let position = self.clamp_position(position);
 
         let mut new_y = position.y + delta.y;
@@ -39,7 +43,9 @@ impl Doc {
                 );
             }
 
-            if new_x > self.get_line_len(new_y) {
+            if let Some(desired_visual_x) = desired_visual_x {
+                new_x = Gfx::find_x_for_visual_x(self.lines[new_y as usize].iter().copied(), desired_visual_x);
+            } else if new_x > self.get_line_len(new_y) {
                 new_x = self.get_line_len(new_y);
             }
         }
@@ -78,7 +84,22 @@ impl Doc {
     }
 
     pub fn move_cursor(&mut self, delta: Position) {
-        self.cursor.position = self.move_position(self.cursor.position, delta);
+        self.cursor.position = self.move_position_with_desired_visual_x(self.cursor.position, delta, Some(self.cursor.desired_visual_x));
+
+        if delta.x != 0 {
+            self.update_cursor_desired_visual_x();
+        }
+    }
+
+    fn get_cursor_visual_x(&self) -> isize {
+        let leading_text = &self.lines[self.cursor.position.y as usize][..self.cursor.position.x as usize];
+        let visual_x = Gfx::measure_text(leading_text.iter().copied());
+
+        visual_x
+    }
+
+    fn update_cursor_desired_visual_x(&mut self) {
+        self.cursor.desired_visual_x = self.get_cursor_visual_x();
     }
 
     pub fn jump_cursor(&mut self, position: Position) {
@@ -129,6 +150,7 @@ impl Doc {
         {
             self.cursor.position.x -= cursor_effect_end.x - start.x;
             self.cursor.position.y -= cursor_effect_end.y - start.y;
+            self.update_cursor_desired_visual_x();
         } else if cursor_effect_end.y < self.cursor.position.y {
             self.cursor.position.y -= cursor_effect_end.y - start.y;
         }
@@ -167,6 +189,7 @@ impl Doc {
         if start.y <= self.cursor.position.y && start.x <= self.cursor.position.x {
             self.cursor.position.x += position.x - start.x;
             self.cursor.position.y += position.y - start.y;
+            self.update_cursor_desired_visual_x();
         } else if start.y < self.cursor.position.y {
             self.cursor.position.y += position.y - start.y;
         }
