@@ -7,6 +7,7 @@ use crate::{
     mouse_button::MouseButton,
     mousebind::Mousebind,
     position::Position,
+    visual_position::VisualPosition,
     window::Window,
 };
 
@@ -98,10 +99,11 @@ impl Editor {
                     y,
                     mods: 0,
                 } => {
-                    let x = (x / window.gfx().glyph_width()) as isize;
-                    let y = (y / window.gfx().line_height()) as isize;
+                    let position = self
+                        .doc
+                        .visual_to_position(VisualPosition::new(x, y), &window.gfx());
 
-                    self.doc.jump_cursor(Position::new(x, y));
+                    self.doc.jump_cursor(position);
                 }
                 _ => {}
             }

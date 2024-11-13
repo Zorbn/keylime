@@ -195,4 +195,18 @@ impl Doc {
             position.y as f32 * gfx.line_height(),
         )
     }
+
+    pub fn visual_to_position(&self, visual: VisualPosition, gfx: &Gfx) -> Position {
+        let mut position = Position::new(
+            (visual.x / gfx.glyph_width()) as isize,
+            (visual.y / gfx.line_height()) as isize,
+        );
+
+        let desired_x = position.x;
+        position = self.clamp_position(position);
+        position.x =
+            Gfx::find_x_for_visual_x(self.lines[position.y as usize].iter().copied(), desired_x);
+
+        position
+    }
 }

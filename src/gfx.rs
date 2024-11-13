@@ -782,6 +782,23 @@ impl Gfx {
         width
     }
 
+    pub fn find_x_for_visual_x(text: impl IntoIterator<Item = char>, visual_x: isize) -> isize {
+        let mut current_visual_x = 0isize;
+        let mut x = 0isize;
+
+        for c in text.into_iter() {
+            current_visual_x += if c == '\t' { TAB_WIDTH as isize } else { 1 };
+
+            if current_visual_x > visual_x {
+                return x;
+            }
+
+            x += 1;
+        }
+
+        x
+    }
+
     pub fn add_text(
         &mut self,
         text: impl IntoIterator<Item = char>,
