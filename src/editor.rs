@@ -142,7 +142,7 @@ impl Editor {
                     let height_lines = window.gfx().height_lines();
 
                     self.doc
-                        .move_cursor(Position::new(0, -height_lines), mods & MOD_SHIFT != 0)
+                        .move_cursor(Position::new(0, -height_lines), mods & MOD_SHIFT != 0);
                 }
                 Keybind {
                     key: Key::PageDown,
@@ -151,7 +151,35 @@ impl Editor {
                     let height_lines = window.gfx().height_lines();
 
                     self.doc
-                        .move_cursor(Position::new(0, height_lines), mods & MOD_SHIFT != 0)
+                        .move_cursor(Position::new(0, height_lines), mods & MOD_SHIFT != 0);
+                }
+                Keybind {
+                    key: Key::Home,
+                    mods,
+                } => {
+                    let mut position = self.doc.get_cursor().position;
+                    position.x = 0;
+
+                    self.doc.jump_cursor(position, mods & MOD_SHIFT != 0);
+                }
+                Keybind {
+                    key: Key::End,
+                    mods,
+                } => {
+                    let mut position = self.doc.get_cursor().position;
+                    position.x = self.doc.get_line_len(position.y);
+
+                    self.doc.jump_cursor(position, mods & MOD_SHIFT != 0);
+                }
+                Keybind {
+                    key: Key::A,
+                    mods: MOD_CTRL,
+                } => {
+                    let y = self.doc.lines().len() as isize - 1;
+                    let x = self.doc.get_line_len(y);
+
+                    self.doc.jump_cursor(Position::zero(), false);
+                    self.doc.jump_cursor(Position::new(x, y), true);
                 }
                 _ => {}
             }

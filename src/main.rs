@@ -22,7 +22,6 @@ use window::Window;
 /*
  * TODO:
  * Ctrl modifier for arrows, backspace, delete.
- * Common hotkeys: home, end, ctrl-a.
  * Undo/redo.
  * Multiple cursors.
  * Syntax highlighting.
