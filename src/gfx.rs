@@ -885,4 +885,8 @@ impl Gfx {
     pub fn height(&self) -> f32 {
         self.height as f32
     }
+
+    pub fn height_lines(&self) -> isize {
+        (self.height() / self.line_height()) as isize
+    }
 }

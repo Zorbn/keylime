@@ -135,6 +135,24 @@ impl Editor {
                         .save(&mut File::create("test.txt").unwrap())
                         .unwrap();
                 }
+                Keybind {
+                    key: Key::PageUp,
+                    mods,
+                } => {
+                    let height_lines = window.gfx().height_lines();
+
+                    self.doc
+                        .move_cursor(Position::new(0, -height_lines), mods & MOD_SHIFT != 0)
+                }
+                Keybind {
+                    key: Key::PageDown,
+                    mods,
+                } => {
+                    let height_lines = window.gfx().height_lines();
+
+                    self.doc
+                        .move_cursor(Position::new(0, height_lines), mods & MOD_SHIFT != 0)
+                }
                 _ => {}
             }
         }
@@ -161,6 +179,7 @@ impl Editor {
         }
 
         while let Some(mouse_scroll) = window.get_mouse_scroll() {
+            self.camera_needs_recenter = false;
             self.camera_velocity_y -=
                 mouse_scroll.delta * window.gfx().line_height() * SCROLL_SPEED;
         }
@@ -180,10 +199,7 @@ impl Editor {
         }
 
         if self.camera_needs_recenter {
-            let f = SCROLL_FRICTION;
-            let t = 1.0; // Time to scroll to destination.
-
-            let target_y = if new_cursor_visual_position.y < gfx.height() / 2.0 {
+            let visual_distance = if new_cursor_visual_position.y < gfx.height() / 2.0 {
                 new_cursor_visual_position.y - cursor_scroll_border
             } else {
                 new_cursor_visual_position.y - gfx.height()
@@ -191,13 +207,7 @@ impl Editor {
                     + cursor_scroll_border
             };
 
-            // Velocity of the camera is (v = starting velocity, f = friction factor): v * f^t
-            // Integrate to get position: y = (v * f^t) / ln(f)
-            // Add term so we start at zero: y = (v * f^t) / ln(f) - v / ln(f)
-            // Solve for v:
-            let v = (target_y * f.ln()) / (f.powf(t) - 1.0);
-
-            self.camera_velocity_y = v;
+            self.scroll_visual_distance(visual_distance);
         }
 
         self.camera_velocity_y = self.camera_velocity_y * SCROLL_FRICTION.powf(dt);
@@ -215,6 +225,19 @@ impl Editor {
             0.0,
             (self.doc.lines().len() - 1) as f32 * window.gfx().line_height(),
         );
+    }
+
+    fn scroll_visual_distance(&mut self, visual_distance: f32) {
+        let f = SCROLL_FRICTION;
+        let t = 1.0; // Time to scroll to destination.
+
+        // Velocity of the camera is (v = starting velocity, f = friction factor): v * f^t
+        // Integrate to get position: y = (v * f^t) / ln(f)
+        // Add term so we start at zero: y = (v * f^t) / ln(f) - v / ln(f)
+        // Solve for v:
+        let v = (visual_distance * f.ln()) / (f.powf(t) - 1.0);
+
+        self.camera_velocity_y = v;
     }
 
     pub fn draw(&mut self, gfx: &mut Gfx) {

@@ -23,7 +23,6 @@ use window::Window;
  * TODO:
  * Ctrl modifier for arrows, backspace, delete.
  * Common hotkeys: home, end, ctrl-a.
- * Scrolling: Mouse wheel, pgup, pgdn, arrows.
  * Undo/redo.
  * Multiple cursors.
  * Syntax highlighting.
