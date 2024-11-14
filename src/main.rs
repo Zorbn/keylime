@@ -1,4 +1,5 @@
 mod cursor;
+mod cursor_index;
 mod doc;
 mod editor;
 mod gfx;
@@ -21,9 +22,11 @@ use window::Window;
 
 /*
  * TODO:
- * Ctrl modifier for arrows, backspace, delete.
- * Undo/redo.
  * Multiple cursors.
+ * Undo/redo.
+ * Copy/cut/paste.
+ * Implicit copy/cut/paste for current line when shortcut is pressed but nothing is selected.
+ * Ctrl modifier for arrows, backspace, delete.
  * Syntax highlighting.
  * Open/save/close/save-as dialogs.
  * Multiple tabs.
@@ -32,8 +35,6 @@ use window::Window;
  * Per file type indentation.
  * Comment region: ctrl-/.
  * Indent-unindent region: ctrl-[, ctrl-], tab, shift-tab.
- * Copy/cut/paste.
- * Implicit copy/cut/paste for current line when shortcut is pressed but nothing is selected.
  * Support for OS scaling (eg. 125% applied for a monitor).
  * Search and search & replace.
  * Running commands and seeing output (very simple integrated terminal).

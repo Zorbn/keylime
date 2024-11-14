@@ -1,6 +1,7 @@
 use std::fs::File;
 
 use crate::{
+    cursor_index::CursorIndex,
     doc::Doc,
     gfx::{Color, Gfx},
     key::Key,
@@ -39,10 +40,10 @@ impl Editor {
     }
 
     pub fn update(&mut self, window: &mut Window, line_pool: &mut LinePool, dt: f32) {
-        let old_cursor_position = self.doc.get_cursor().position;
+        let old_cursor_position = self.doc.get_cursor(CursorIndex::Main).position;
 
         while let Some(char) = window.get_typed_char() {
-            self.doc.insert_at_cursor(&[char], line_pool);
+            self.doc.insert_at_cursors(&[char], line_pool);
         }
 
         while let Some(keybind) = window.get_typed_keybind() {
@@ -52,72 +53,78 @@ impl Editor {
                     mods,
                 } => self
                     .doc
-                    .move_cursor(Position::new(-1, 0), mods & MOD_SHIFT != 0),
+                    .move_cursors(Position::new(-1, 0), mods & MOD_SHIFT != 0),
                 Keybind {
                     key: Key::Right,
                     mods,
                 } => {
                     self.doc
-                        .move_cursor(Position::new(1, 0), mods & MOD_SHIFT != 0);
+                        .move_cursors(Position::new(1, 0), mods & MOD_SHIFT != 0);
                 }
                 Keybind { key: Key::Up, mods } => {
                     self.doc
-                        .move_cursor(Position::new(0, -1), mods & MOD_SHIFT != 0);
+                        .move_cursors(Position::new(0, -1), mods & MOD_SHIFT != 0);
                 }
                 Keybind {
                     key: Key::Down,
                     mods,
                 } => {
                     self.doc
-                        .move_cursor(Position::new(0, 1), mods & MOD_SHIFT != 0);
+                        .move_cursors(Position::new(0, 1), mods & MOD_SHIFT != 0);
                 }
                 Keybind {
                     key: Key::Backspace,
                     mods: 0,
                 } => {
-                    let (start, end) =
-                        if let Some(selection) = self.doc.get_cursor().get_selection() {
-                            self.doc.end_cursor_selection();
+                    for index in self.doc.cursor_indices() {
+                        let cursor = self.doc.get_cursor(index);
+
+                        let (start, end) = if let Some(selection) = cursor.get_selection() {
+                            self.doc.end_cursor_selection(index);
 
                             (selection.start, selection.end)
                         } else {
-                            let end = self.doc.get_cursor().position;
+                            let end = cursor.position;
                             let start = self.doc.move_position(end, Position::new(-1, 0));
 
                             (start, end)
                         };
 
-                    self.doc.delete(start, end, line_pool);
+                        self.doc.delete(start, end, line_pool);
+                    }
                 }
                 Keybind {
                     key: Key::Delete,
                     mods: 0,
                 } => {
-                    let (start, end) =
-                        if let Some(selection) = self.doc.get_cursor().get_selection() {
-                            self.doc.end_cursor_selection();
+                    for index in self.doc.cursor_indices() {
+                        let cursor = self.doc.get_cursor(index);
+
+                        let (start, end) = if let Some(selection) = cursor.get_selection() {
+                            self.doc.end_cursor_selection(index);
 
                             (selection.start, selection.end)
                         } else {
-                            let start = self.doc.get_cursor().position;
+                            let start = cursor.position;
                             let end = self.doc.move_position(start, Position::new(1, 0));
 
                             (start, end)
                         };
 
-                    self.doc.delete(start, end, line_pool);
+                        self.doc.delete(start, end, line_pool);
+                    }
                 }
                 Keybind {
                     key: Key::Enter,
                     mods: 0,
                 } => {
-                    self.doc.insert_at_cursor(&['\n'], line_pool);
+                    self.doc.insert_at_cursors(&['\n'], line_pool);
                 }
                 Keybind {
                     key: Key::Tab,
                     mods: 0,
                 } => {
-                    self.doc.insert_at_cursor(&['\t'], line_pool);
+                    self.doc.insert_at_cursors(&['\t'], line_pool);
                 }
                 Keybind {
                     key: Key::O,
@@ -142,7 +149,7 @@ impl Editor {
                     let height_lines = window.gfx().height_lines();
 
                     self.doc
-                        .move_cursor(Position::new(0, -height_lines), mods & MOD_SHIFT != 0);
+                        .move_cursors(Position::new(0, -height_lines), mods & MOD_SHIFT != 0);
                 }
                 Keybind {
                     key: Key::PageDown,
@@ -151,25 +158,29 @@ impl Editor {
                     let height_lines = window.gfx().height_lines();
 
                     self.doc
-                        .move_cursor(Position::new(0, height_lines), mods & MOD_SHIFT != 0);
+                        .move_cursors(Position::new(0, height_lines), mods & MOD_SHIFT != 0);
                 }
                 Keybind {
                     key: Key::Home,
                     mods,
                 } => {
-                    let mut position = self.doc.get_cursor().position;
-                    position.x = 0;
+                    for index in self.doc.cursor_indices() {
+                        let mut position = self.doc.get_cursor(index).position;
+                        position.x = 0;
 
-                    self.doc.jump_cursor(position, mods & MOD_SHIFT != 0);
+                        self.doc.jump_cursor(index, position, mods & MOD_SHIFT != 0);
+                    }
                 }
                 Keybind {
                     key: Key::End,
                     mods,
                 } => {
-                    let mut position = self.doc.get_cursor().position;
-                    position.x = self.doc.get_line_len(position.y);
+                    for index in self.doc.cursor_indices() {
+                        let mut position = self.doc.get_cursor(index).position;
+                        position.x = self.doc.get_line_len(position.y);
 
-                    self.doc.jump_cursor(position, mods & MOD_SHIFT != 0);
+                        self.doc.jump_cursor(index, position, mods & MOD_SHIFT != 0);
+                    }
                 }
                 Keybind {
                     key: Key::A,
@@ -178,29 +189,35 @@ impl Editor {
                     let y = self.doc.lines().len() as isize - 1;
                     let x = self.doc.get_line_len(y);
 
-                    self.doc.jump_cursor(Position::zero(), false);
-                    self.doc.jump_cursor(Position::new(x, y), true);
+                    self.doc.jump_cursors(Position::zero(), false);
+                    self.doc.jump_cursors(Position::new(x, y), true);
                 }
                 _ => {}
             }
         }
 
         while let Some(mousebind) = window.get_pressed_mousebind() {
+            let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
+            let position =
+                self.doc
+                    .visual_to_position(visual_position, self.camera_y, window.gfx());
+
             match mousebind {
                 Mousebind {
                     button: MouseButton::Left,
-                    x,
-                    y,
                     mods: 0,
                     is_drag,
+                    ..
                 } => {
-                    let position = self.doc.visual_to_position(
-                        VisualPosition::new(x, y),
-                        self.camera_y,
-                        &window.gfx(),
-                    );
-
-                    self.doc.jump_cursor(position, is_drag);
+                    self.doc.jump_cursors(position, is_drag);
+                }
+                Mousebind {
+                    button: MouseButton::Left,
+                    mods: MOD_CTRL,
+                    is_drag: false,
+                    ..
+                } => {
+                    self.doc.add_cursor(position);
                 }
                 _ => {}
             }
@@ -212,9 +229,11 @@ impl Editor {
                 mouse_scroll.delta * window.gfx().line_height() * SCROLL_SPEED;
         }
 
+        // TODO: Combine cursors that are overlapping at the end of the update.
+
         let gfx = window.gfx();
 
-        let new_cursor_position = self.doc.get_cursor().position;
+        let new_cursor_position = self.doc.get_cursor(CursorIndex::Main).position;
         let new_cursor_visual_position =
             self.doc
                 .position_to_visual(new_cursor_position, self.camera_y, gfx);
@@ -291,7 +310,11 @@ impl Editor {
             );
         }
 
-        if let Some(selection) = self.doc.get_cursor().get_selection() {
+        for index in self.doc.cursor_indices() {
+            let Some(selection) = self.doc.get_cursor(index).get_selection() else {
+                continue;
+            };
+
             let start = selection.start.max(Position::new(0, min_y as isize));
             let end = selection.end.min(Position::new(0, max_y as isize));
             let mut position = start;
@@ -314,17 +337,19 @@ impl Editor {
             }
         }
 
-        let cursor_position =
-            self.doc
-                .position_to_visual(self.doc.get_cursor().position, camera_y, gfx);
+        for index in self.doc.cursor_indices() {
+            let cursor_position =
+                self.doc
+                    .position_to_visual(self.doc.get_cursor(index).position, camera_y, gfx);
 
-        gfx.add_rect(
-            cursor_position.x,
-            cursor_position.y,
-            (gfx.glyph_width() * 0.25).ceil(),
-            gfx.line_height(),
-            &Color::new(0, 0, 0, 255),
-        );
+            gfx.add_rect(
+                cursor_position.x,
+                cursor_position.y,
+                (gfx.glyph_width() * 0.25).ceil(),
+                gfx.line_height(),
+                &Color::new(0, 0, 0, 255),
+            );
+        }
 
         gfx.end();
     }
