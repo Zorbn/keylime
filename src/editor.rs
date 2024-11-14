@@ -13,10 +13,15 @@ use crate::{
     window::Window,
 };
 
+const SCROLL_SPEED: f32 = 30.0;
+const SCROLL_FRICTION: f32 = 0.0001;
+const RECENTER_DISTANCE: usize = 3;
+
 pub struct Editor {
     doc: Doc,
     camera_y: f32,
     camera_velocity_y: f32,
+    camera_needs_recenter: bool,
 }
 
 impl Editor {
@@ -25,6 +30,7 @@ impl Editor {
             doc: Doc::new(line_pool),
             camera_y: 0.0,
             camera_velocity_y: 0.0,
+            camera_needs_recenter: false,
         }
     }
 
@@ -33,6 +39,8 @@ impl Editor {
     }
 
     pub fn update(&mut self, window: &mut Window, line_pool: &mut LinePool, dt: f32) {
+        let old_cursor_position = self.doc.get_cursor().position;
+
         while let Some(char) = window.get_typed_char() {
             self.doc.insert_at_cursor(&[char], line_pool);
         }
@@ -42,41 +50,42 @@ impl Editor {
                 Keybind {
                     key: Key::Left,
                     mods,
-                } => {
-                    self.doc.move_cursor(Position::new(-1, 0), mods & MOD_SHIFT != 0)
-                }
+                } => self
+                    .doc
+                    .move_cursor(Position::new(-1, 0), mods & MOD_SHIFT != 0),
                 Keybind {
                     key: Key::Right,
                     mods,
                 } => {
-                    self.doc.move_cursor(Position::new(1, 0), mods & MOD_SHIFT != 0);
+                    self.doc
+                        .move_cursor(Position::new(1, 0), mods & MOD_SHIFT != 0);
                 }
-                Keybind {
-                    key: Key::Up,
-                    mods,
-                } => {
-                    self.doc.move_cursor(Position::new(0, -1), mods & MOD_SHIFT != 0);
+                Keybind { key: Key::Up, mods } => {
+                    self.doc
+                        .move_cursor(Position::new(0, -1), mods & MOD_SHIFT != 0);
                 }
                 Keybind {
                     key: Key::Down,
                     mods,
                 } => {
-                    self.doc.move_cursor(Position::new(0, 1), mods & MOD_SHIFT != 0);
+                    self.doc
+                        .move_cursor(Position::new(0, 1), mods & MOD_SHIFT != 0);
                 }
                 Keybind {
                     key: Key::Backspace,
                     mods: 0,
                 } => {
-                    let (start, end) = if let Some(selection) = self.doc.get_cursor().get_selection() {
-                        self.doc.end_cursor_selection();
+                    let (start, end) =
+                        if let Some(selection) = self.doc.get_cursor().get_selection() {
+                            self.doc.end_cursor_selection();
 
-                        (selection.start, selection.end)
-                    } else {
-                        let end = self.doc.get_cursor().position;
-                        let start = self.doc.move_position(end, Position::new(-1, 0));
+                            (selection.start, selection.end)
+                        } else {
+                            let end = self.doc.get_cursor().position;
+                            let start = self.doc.move_position(end, Position::new(-1, 0));
 
-                        (start, end)
-                    };
+                            (start, end)
+                        };
 
                     self.doc.delete(start, end, line_pool);
                 }
@@ -84,16 +93,17 @@ impl Editor {
                     key: Key::Delete,
                     mods: 0,
                 } => {
-                    let (start, end) = if let Some(selection) = self.doc.get_cursor().get_selection() {
-                        self.doc.end_cursor_selection();
+                    let (start, end) =
+                        if let Some(selection) = self.doc.get_cursor().get_selection() {
+                            self.doc.end_cursor_selection();
 
-                        (selection.start, selection.end)
-                    } else {
-                        let start = self.doc.get_cursor().position;
-                        let end = self.doc.move_position(start, Position::new(1, 0));
+                            (selection.start, selection.end)
+                        } else {
+                            let start = self.doc.get_cursor().position;
+                            let end = self.doc.move_position(start, Position::new(1, 0));
 
-                        (start, end)
-                    };
+                            (start, end)
+                        };
 
                     self.doc.delete(start, end, line_pool);
                 }
@@ -109,11 +119,21 @@ impl Editor {
                 } => {
                     self.doc.insert_at_cursor(&['\t'], line_pool);
                 }
-                Keybind { key: Key::O, mods: MOD_CTRL } => {
-                    self.doc.load(&mut File::open("test.txt").unwrap(), line_pool).unwrap();
+                Keybind {
+                    key: Key::O,
+                    mods: MOD_CTRL,
+                } => {
+                    self.doc
+                        .load(&mut File::open("test.txt").unwrap(), line_pool)
+                        .unwrap();
                 }
-                Keybind { key: Key::S, mods: MOD_CTRL } => {
-                    self.doc.save(&mut File::create("test.txt").unwrap()).unwrap();
+                Keybind {
+                    key: Key::S,
+                    mods: MOD_CTRL,
+                } => {
+                    self.doc
+                        .save(&mut File::create("test.txt").unwrap())
+                        .unwrap();
                 }
                 _ => {}
             }
@@ -128,9 +148,11 @@ impl Editor {
                     mods: 0,
                     is_drag,
                 } => {
-                    let position = self
-                        .doc
-                        .visual_to_position(VisualPosition::new(x, y), self.camera_y, &window.gfx());
+                    let position = self.doc.visual_to_position(
+                        VisualPosition::new(x, y),
+                        self.camera_y,
+                        &window.gfx(),
+                    );
 
                     self.doc.jump_cursor(position, is_drag);
                 }
@@ -138,22 +160,63 @@ impl Editor {
             }
         }
 
-        const SCROLL_SPEED: f32 = 30.0;
-        const SCROLL_FRICTION: f32 = 5.0;
-
         while let Some(mouse_scroll) = window.get_mouse_scroll() {
-            self.camera_velocity_y -= mouse_scroll.delta * window.gfx().line_height() * SCROLL_SPEED;
+            self.camera_velocity_y -=
+                mouse_scroll.delta * window.gfx().line_height() * SCROLL_SPEED;
         }
 
-        self.camera_velocity_y -= self.camera_velocity_y * dt * SCROLL_FRICTION;
+        let gfx = window.gfx();
+
+        let new_cursor_position = self.doc.get_cursor().position;
+        let new_cursor_visual_position =
+            self.doc
+                .position_to_visual(new_cursor_position, self.camera_y, gfx);
+        let cursor_scroll_border = gfx.line_height() * RECENTER_DISTANCE as f32;
+
+        if old_cursor_position != new_cursor_position
+            && (new_cursor_visual_position.y < cursor_scroll_border
+                || new_cursor_visual_position.y
+                    > gfx.height() - gfx.line_height() - cursor_scroll_border)
+        {
+            self.camera_needs_recenter = true;
+        }
+
+        if self.camera_needs_recenter {
+            let f = SCROLL_FRICTION;
+            let t = 1.0; // Time to scroll to destination.
+
+            let target_y = if new_cursor_visual_position.y < cursor_scroll_border {
+                new_cursor_visual_position.y - cursor_scroll_border
+            } else {
+                new_cursor_visual_position.y - gfx.height()
+                    + gfx.line_height()
+                    + cursor_scroll_border
+            };
+
+            // Velocity of the camera is (v = starting velocity, f = friction factor): v * f^t
+            // Integrate to get position: y = (v * f^t) / ln(f)
+            // Add term so we start at zero: y = (v * f^t) / ln(f) - v / ln(f)
+            // Solve for v:
+            let v = (target_y * f.ln()) / (f.powf(t) - 1.0);
+
+            self.camera_velocity_y = v;
+        }
+
+        self.camera_velocity_y = self.camera_velocity_y * SCROLL_FRICTION.powf(dt);
 
         // We want the velocity to eventually be exactly zero so that we can stop animating.
         if self.camera_velocity_y.abs() < 0.5 {
             self.camera_velocity_y = 0.0;
+
+            // If we're recentering the camera then we must be done at this point.
+            self.camera_needs_recenter = false;
         }
 
         self.camera_y += self.camera_velocity_y * dt;
-        self.camera_y = self.camera_y.clamp(0.0, (self.doc.lines().len() - 1) as f32 * window.gfx().line_height());
+        self.camera_y = self.camera_y.clamp(
+            0.0,
+            (self.doc.lines().len() - 1) as f32 * window.gfx().line_height(),
+        );
     }
 
     pub fn draw(&mut self, gfx: &mut Gfx) {
@@ -171,7 +234,12 @@ impl Editor {
         for (i, line) in self.doc.lines()[min_y..max_y].iter().enumerate() {
             let y = i as f32 * gfx.line_height();
 
-            gfx.add_text(line.iter().copied(), 0.0, y + line_padding - sub_line_offset_y, &Color::new(0, 0, 0, 255));
+            gfx.add_text(
+                line.iter().copied(),
+                0.0,
+                y + line_padding - sub_line_offset_y,
+                &Color::new(0, 0, 0, 255),
+            );
         }
 
         if let Some(selection) = self.doc.get_cursor().get_selection() {
@@ -180,9 +248,7 @@ impl Editor {
             let mut position = start;
 
             while position < end {
-                let highlight_position = self
-                    .doc
-                    .position_to_visual(position, camera_y, gfx);
+                let highlight_position = self.doc.position_to_visual(position, camera_y, gfx);
 
                 let char = self.doc.get_char(position);
                 let char_width = Gfx::get_char_width(char);
@@ -199,9 +265,9 @@ impl Editor {
             }
         }
 
-        let cursor_position = self
-            .doc
-            .position_to_visual(self.doc.get_cursor().position, camera_y, gfx);
+        let cursor_position =
+            self.doc
+                .position_to_visual(self.doc.get_cursor().position, camera_y, gfx);
 
         gfx.add_rect(
             cursor_position.x,

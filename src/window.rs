@@ -13,7 +13,8 @@ use windows::{
 };
 
 use crate::{
-    gfx::Gfx, key::Key, keybind::Keybind, mouse_button::MouseButton, mouse_scroll::MouseScroll, mousebind::Mousebind
+    gfx::Gfx, key::Key, keybind::Keybind, mouse_button::MouseButton, mouse_scroll::MouseScroll,
+    mousebind::Mousebind,
 };
 
 const DEFAULT_WIDTH: i32 = 640;
@@ -224,15 +225,16 @@ impl Window {
 
                     let is_drag = msg == WM_MOUSEMOVE;
 
-                    (*window)
-                        .mousebinds_pressed
-                        .push(Mousebind::new(button, x, y, has_shift, has_ctrl, false, is_drag));
+                    (*window).mousebinds_pressed.push(Mousebind::new(
+                        button, x, y, has_shift, has_ctrl, false, is_drag,
+                    ));
                 }
             }
             WM_MOUSEWHEEL => {
                 const WHEEL_DELTA: f32 = 120.0;
 
-                let delta = transmute::<u16, i16>(((wparam.0 >> 16) & 0xffff) as u16) as f32 / WHEEL_DELTA;
+                let delta =
+                    transmute::<u16, i16>(((wparam.0 >> 16) & 0xffff) as u16) as f32 / WHEEL_DELTA;
 
                 (*window).mouse_scrolls.push(MouseScroll { delta });
             }
@@ -270,7 +272,11 @@ impl Window {
             let dt = (time - self.last_time) as f32 / self.timer_frequency as f32;
             self.last_time = time;
 
-            if is_animating { dt } else { 0.0 }
+            if is_animating {
+                dt
+            } else {
+                0.0
+            }
         }
     }
 
