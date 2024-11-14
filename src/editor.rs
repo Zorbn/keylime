@@ -173,19 +173,17 @@ impl Editor {
                 .position_to_visual(new_cursor_position, self.camera_y, gfx);
         let cursor_scroll_border = gfx.line_height() * RECENTER_DISTANCE as f32;
 
-        if old_cursor_position != new_cursor_position
-            && (new_cursor_visual_position.y < cursor_scroll_border
+        if old_cursor_position != new_cursor_position {
+            self.camera_needs_recenter = new_cursor_visual_position.y < cursor_scroll_border
                 || new_cursor_visual_position.y
-                    > gfx.height() - gfx.line_height() - cursor_scroll_border)
-        {
-            self.camera_needs_recenter = true;
+                    > gfx.height() - gfx.line_height() - cursor_scroll_border;
         }
 
         if self.camera_needs_recenter {
             let f = SCROLL_FRICTION;
             let t = 1.0; // Time to scroll to destination.
 
-            let target_y = if new_cursor_visual_position.y < cursor_scroll_border {
+            let target_y = if new_cursor_visual_position.y < gfx.height() / 2.0 {
                 new_cursor_visual_position.y - cursor_scroll_border
             } else {
                 new_cursor_visual_position.y - gfx.height()
