@@ -1,9 +1,4 @@
-use crate::position::Position;
-
-pub struct Selection {
-    pub start: Position,
-    pub end: Position,
-}
+use crate::{position::Position, selection::Selection};
 
 pub struct Cursor {
     pub position: Position,
@@ -13,7 +8,11 @@ pub struct Cursor {
 
 impl Cursor {
     pub fn new(position: Position, desired_visual_x: isize) -> Self {
-        Self { position, selection_anchor: None, desired_visual_x }
+        Self {
+            position,
+            selection_anchor: None,
+            desired_visual_x,
+        }
     }
 
     pub fn get_selection(&self) -> Option<Selection> {
@@ -22,9 +21,15 @@ impl Cursor {
         };
 
         if selection_anchor < self.position {
-            Some(Selection { start: selection_anchor, end: self.position })
+            Some(Selection {
+                start: selection_anchor,
+                end: self.position,
+            })
         } else {
-            Some(Selection { start: self.position, end: selection_anchor })
+            Some(Selection {
+                start: self.position,
+                end: selection_anchor,
+            })
         }
     }
 }

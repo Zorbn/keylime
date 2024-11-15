@@ -1,4 +1,4 @@
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CursorIndex {
     Some(usize),
     Main,
@@ -19,8 +19,8 @@ pub struct CursorIndices {
 }
 
 impl CursorIndices {
-    pub fn new(len: usize) -> Self {
-        Self { i: 0, len }
+    pub fn new(i: usize, len: usize) -> Self {
+        Self { i, len }
     }
 }
 
@@ -32,6 +32,20 @@ impl Iterator for CursorIndices {
             let index = CursorIndex::Some(self.i);
 
             self.i += 1;
+
+            Some(index)
+        } else {
+            None
+        }
+    }
+}
+
+impl DoubleEndedIterator for CursorIndices {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.len > self.i {
+            let index = CursorIndex::Some(self.len - 1);
+
+            self.len -= 1;
 
             Some(index)
         } else {

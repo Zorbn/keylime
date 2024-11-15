@@ -9,6 +9,7 @@ use crate::{
     gfx::Gfx,
     line_pool::{Line, LinePool},
     position::Position,
+    selection::Selection,
     visual_position::VisualPosition,
 };
 
@@ -180,18 +181,56 @@ impl Doc {
         self.update_cursor_desired_visual_x(CursorIndex::Main);
     }
 
-    pub fn get_cursor(&self, index: CursorIndex) -> &Cursor {
+    fn unwrap_cursor_index(&self, index: CursorIndex) -> usize {
         let main_cursor_index = self.get_main_cursor_index();
-        &self.cursors[index.unwrap_or(main_cursor_index)]
+
+        index.unwrap_or(main_cursor_index)
+    }
+
+    pub fn remove_cursor(&mut self, index: CursorIndex) {
+        if self.cursors.len() < 2 {
+            return;
+        }
+
+        let index = self.unwrap_cursor_index(index);
+        self.cursors.remove(index);
+    }
+
+    pub fn get_cursor(&self, index: CursorIndex) -> &Cursor {
+        let index = self.unwrap_cursor_index(index);
+        &self.cursors[index]
     }
 
     pub fn get_cursor_mut(&mut self, index: CursorIndex) -> &mut Cursor {
-        let main_cursor_index = self.get_main_cursor_index();
-        &mut self.cursors[index.unwrap_or(main_cursor_index)]
+        let index = self.unwrap_cursor_index(index);
+        &mut self.cursors[index]
+    }
+
+    pub fn set_cursor_selection(&mut self, index: CursorIndex, selection: Option<Selection>) {
+        let cursor = self.get_cursor_mut(index);
+
+        let Some(selection) = selection else {
+            cursor.selection_anchor = None;
+            return;
+        };
+
+        let is_cursor_at_start = if let Some(current_selection) = cursor.get_selection() {
+            cursor.position == current_selection.start
+        } else {
+            false
+        };
+
+        if is_cursor_at_start {
+            cursor.selection_anchor = Some(selection.end);
+            cursor.position = selection.start;
+        } else {
+            cursor.selection_anchor = Some(selection.start);
+            cursor.position = selection.end;
+        }
     }
 
     pub fn cursor_indices(&self) -> CursorIndices {
-        CursorIndices::new(self.cursors.len())
+        CursorIndices::new(0, self.cursors.len())
     }
 
     fn get_main_cursor_index(&self) -> usize {

@@ -10,6 +10,7 @@ use crate::{
     mouse_button::MouseButton,
     mousebind::Mousebind,
     position::Position,
+    selection::Selection,
     visual_position::VisualPosition,
     window::Window,
 };
@@ -229,8 +230,11 @@ impl Editor {
                 mouse_scroll.delta * window.gfx().line_height() * SCROLL_SPEED;
         }
 
-        // TODO: Combine cursors that are overlapping at the end of the update.
+        self.combine_overlapping_cursors();
+        self.update_camera(window, old_cursor_position, dt);
+    }
 
+    fn update_camera(&mut self, window: &mut Window, old_cursor_position: Position, dt: f32) {
         let gfx = window.gfx();
 
         let new_cursor_position = self.doc.get_cursor(CursorIndex::Main).position;
@@ -272,6 +276,40 @@ impl Editor {
             0.0,
             (self.doc.lines().len() - 1) as f32 * window.gfx().line_height(),
         );
+    }
+
+    fn combine_overlapping_cursors(&mut self) {
+        for index in self.doc.cursor_indices().rev() {
+            let cursor = self.doc.get_cursor(index);
+            let position = cursor.position;
+            let selection = cursor.get_selection();
+
+            for other_index in self.doc.cursor_indices() {
+                if index == other_index {
+                    continue;
+                }
+
+                let other_cursor = self.doc.get_cursor(other_index);
+
+                let do_remove = if let Some(selection) = other_cursor.get_selection() {
+                    position >= selection.start && position <= selection.end
+                } else {
+                    position == other_cursor.position
+                };
+
+                if !do_remove {
+                    continue;
+                }
+
+                self.doc.set_cursor_selection(
+                    other_index,
+                    Selection::union(other_cursor.get_selection(), selection),
+                );
+                self.doc.remove_cursor(index);
+
+                break;
+            }
+        }
     }
 
     fn scroll_visual_distance(&mut self, visual_distance: f32) {

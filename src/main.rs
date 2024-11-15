@@ -11,6 +11,7 @@ mod mouse_button;
 mod mouse_scroll;
 mod mousebind;
 mod position;
+mod selection;
 mod text;
 mod visual_position;
 mod window;
@@ -22,7 +23,6 @@ use window::Window;
 
 /*
  * TODO:
- * Multiple cursors.
  * Undo/redo.
  * Copy/cut/paste.
  * Implicit copy/cut/paste for current line when shortcut is pressed but nothing is selected.
