@@ -5,7 +5,7 @@ use crate::{
     doc::Doc,
     gfx::{Color, Gfx},
     key::Key,
-    keybind::{Keybind, MOD_CTRL, MOD_SHIFT},
+    keybind::{Keybind, MOD_ALT, MOD_CTRL, MOD_SHIFT},
     line_pool::LinePool,
     mouse_button::MouseButton,
     mousebind::Mousebind,
@@ -50,28 +50,35 @@ impl Editor {
         while let Some(keybind) = window.get_typed_keybind() {
             match keybind {
                 Keybind {
-                    key: Key::Left,
-                    mods,
-                } => self
-                    .doc
-                    .move_cursors(Position::new(-1, 0), mods & MOD_SHIFT != 0),
-                Keybind {
-                    key: Key::Right,
+                    key: Key::Up | Key::Down | Key::Left | Key::Right,
                     mods,
                 } => {
-                    self.doc
-                        .move_cursors(Position::new(1, 0), mods & MOD_SHIFT != 0);
-                }
-                Keybind { key: Key::Up, mods } => {
-                    self.doc
-                        .move_cursors(Position::new(0, -1), mods & MOD_SHIFT != 0);
-                }
-                Keybind {
-                    key: Key::Down,
-                    mods,
-                } => {
-                    self.doc
-                        .move_cursors(Position::new(0, 1), mods & MOD_SHIFT != 0);
+                    let key = keybind.key;
+
+                    let direction = match key {
+                        Key::Up => Position::new(0, -1),
+                        Key::Down => Position::new(0, 1),
+                        Key::Left => Position::new(-1, 0),
+                        Key::Right => Position::new(1, 0),
+                        _ => unreachable!(),
+                    };
+
+                    if (mods & MOD_CTRL != 0)
+                        && (mods & MOD_ALT != 0)
+                        && (key == Key::Up || key == Key::Down)
+                    {
+                        let cursor = self.doc.get_cursor(CursorIndex::Main);
+
+                        let position = self.doc.move_position_with_desired_visual_x(
+                            cursor.position,
+                            direction,
+                            Some(cursor.desired_visual_x),
+                        );
+
+                        self.doc.add_cursor(position);
+                    } else {
+                        self.doc.move_cursors(direction, mods & MOD_SHIFT != 0);
+                    }
                 }
                 Keybind {
                     key: Key::Backspace,
@@ -192,6 +199,12 @@ impl Editor {
 
                     self.doc.jump_cursors(Position::zero(), false);
                     self.doc.jump_cursors(Position::new(x, y), true);
+                }
+                Keybind {
+                    key: Key::Escape,
+                    mods: 0,
+                } => {
+                    self.doc.clear_extra_cursors(CursorIndex::Some(0));
                 }
                 _ => {}
             }

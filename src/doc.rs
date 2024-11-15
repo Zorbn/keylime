@@ -138,7 +138,7 @@ impl Doc {
     }
 
     pub fn jump_cursors(&mut self, position: Position, should_select: bool) {
-        self.clear_extra_cursors();
+        self.clear_extra_cursors(CursorIndex::Main);
         self.jump_cursor(CursorIndex::Main, position, should_select);
     }
 
@@ -423,10 +423,10 @@ impl Doc {
         self.cursors.push(Cursor::new(Position::zero(), 0));
     }
 
-    fn clear_extra_cursors(&mut self) {
-        let main_cursor_index = self.get_main_cursor_index();
+    pub fn clear_extra_cursors(&mut self, kept_index: CursorIndex) {
+        let kept_index = self.unwrap_cursor_index(kept_index);
 
-        self.cursors.swap(0, main_cursor_index);
+        self.cursors.swap(0, kept_index);
         self.cursors.truncate(1);
     }
 
