@@ -1,6 +1,7 @@
 use std::fs::File;
 
 use crate::{
+    action_history::ActionKind,
     cursor_index::CursorIndex,
     doc::Doc,
     gfx::{Color, Gfx},
@@ -40,11 +41,11 @@ impl Editor {
         self.camera_velocity_y != 0.0
     }
 
-    pub fn update(&mut self, window: &mut Window, line_pool: &mut LinePool, dt: f32) {
+    pub fn update(&mut self, window: &mut Window, line_pool: &mut LinePool, time: f32, dt: f32) {
         let old_cursor_position = self.doc.get_cursor(CursorIndex::Main).position;
 
         while let Some(char) = window.get_typed_char() {
-            self.doc.insert_at_cursors(&[char], line_pool);
+            self.doc.insert_at_cursors(&[char], line_pool, time);
         }
 
         while let Some(keybind) = window.get_typed_keybind() {
@@ -88,8 +89,6 @@ impl Editor {
                         let cursor = self.doc.get_cursor(index);
 
                         let (start, end) = if let Some(selection) = cursor.get_selection() {
-                            self.doc.end_cursor_selection(index);
-
                             (selection.start, selection.end)
                         } else {
                             let end = cursor.position;
@@ -98,7 +97,8 @@ impl Editor {
                             (start, end)
                         };
 
-                        self.doc.delete(start, end, line_pool);
+                        self.doc.delete(start, end, line_pool, time);
+                        self.doc.end_cursor_selection(index);
                     }
                 }
                 Keybind {
@@ -109,8 +109,6 @@ impl Editor {
                         let cursor = self.doc.get_cursor(index);
 
                         let (start, end) = if let Some(selection) = cursor.get_selection() {
-                            self.doc.end_cursor_selection(index);
-
                             (selection.start, selection.end)
                         } else {
                             let start = cursor.position;
@@ -119,20 +117,21 @@ impl Editor {
                             (start, end)
                         };
 
-                        self.doc.delete(start, end, line_pool);
+                        self.doc.delete(start, end, line_pool, time);
+                        self.doc.end_cursor_selection(index);
                     }
                 }
                 Keybind {
                     key: Key::Enter,
                     mods: 0,
                 } => {
-                    self.doc.insert_at_cursors(&['\n'], line_pool);
+                    self.doc.insert_at_cursors(&['\n'], line_pool, time);
                 }
                 Keybind {
                     key: Key::Tab,
                     mods: 0,
                 } => {
-                    self.doc.insert_at_cursors(&['\t'], line_pool);
+                    self.doc.insert_at_cursors(&['\t'], line_pool, time);
                 }
                 Keybind {
                     key: Key::O,
@@ -206,6 +205,18 @@ impl Editor {
                 } => {
                     self.doc.clear_extra_cursors(CursorIndex::Some(0));
                 }
+                Keybind {
+                    key: Key::Z,
+                    mods: MOD_CTRL,
+                } => {
+                    self.doc.undo(line_pool, ActionKind::Done);
+                }
+                Keybind {
+                    key: Key::Y,
+                    mods: MOD_CTRL,
+                } => {
+                    self.doc.undo(line_pool, ActionKind::Undone);
+                }
                 _ => {}
             }
         }
@@ -270,6 +281,11 @@ impl Editor {
                     + gfx.line_height()
                     + cursor_scroll_border
             };
+
+            // We can't move the camera past the top of the document,
+            // (eg. if the cursor is on the first line, it might be too close to the edge of the
+            // screen according to RECENTER_DISTANCE, but there's nothing we can do about it, so stop animating).
+            let visual_distance = (visual_distance + self.camera_y).max(0.0) - self.camera_y;
 
             self.scroll_visual_distance(visual_distance);
         }

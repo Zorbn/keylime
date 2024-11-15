@@ -1,3 +1,4 @@
+mod action_history;
 mod cursor;
 mod cursor_index;
 mod doc;
@@ -23,7 +24,6 @@ use window::Window;
 
 /*
  * TODO:
- * Undo/redo.
  * Copy/cut/paste.
  * Implicit copy/cut/paste for current line when shortcut is pressed but nothing is selected.
  * Ctrl modifier for arrows, backspace, delete.
@@ -54,9 +54,9 @@ fn main() {
     let mut window = Window::new().unwrap();
 
     while window.is_running() {
-        let dt = window.update(editor.is_animating());
+        let (time, dt) = window.update(editor.is_animating());
 
-        editor.update(&mut window, &mut line_pool, dt);
+        editor.update(&mut window, &mut line_pool, time, dt);
 
         let gfx = window.gfx();
 

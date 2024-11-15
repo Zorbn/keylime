@@ -22,7 +22,8 @@ const DEFAULT_HEIGHT: i32 = 480;
 
 pub struct Window {
     timer_frequency: i64,
-    last_time: i64,
+    last_queried_time: Option<i64>,
+    time: f32,
     hwnd: HWND,
     is_running: bool,
     is_focused: bool,
@@ -57,7 +58,8 @@ impl Window {
 
             let mut window = Box::new(Window {
                 timer_frequency,
-                last_time: 0,
+                last_queried_time: None,
+                time: 0.0,
                 hwnd: HWND(null_mut()),
                 is_running: true,
                 is_focused: false,
@@ -244,7 +246,7 @@ impl Window {
         LRESULT(0)
     }
 
-    pub fn update(&mut self, is_animating: bool) -> f32 {
+    pub fn update(&mut self, is_animating: bool) -> (f32, f32) {
         self.chars_typed.clear();
         self.keybinds_typed.clear();
         self.mousebinds_pressed.clear();
@@ -266,17 +268,24 @@ impl Window {
                 DispatchMessageW(&msg);
             }
 
-            let mut time = 0i64;
-            let _ = QueryPerformanceCounter(&mut time);
+            let mut queried_time = 0i64;
+            let _ = QueryPerformanceCounter(&mut queried_time);
 
-            let dt = (time - self.last_time) as f32 / self.timer_frequency as f32;
-            self.last_time = time;
-
-            if is_animating {
-                dt
+            let dt = if let Some(last_queried_time) = self.last_queried_time {
+                (queried_time - last_queried_time) as f32 / self.timer_frequency as f32
             } else {
                 0.0
-            }
+            };
+
+            self.last_queried_time = Some(queried_time);
+
+            self.time += dt;
+
+            // Don't return massive delta times from big gaps in animation, because those
+            // might cause visual jumps or other problems. (eg. if you don't interact with
+            // the app for 15 seconds and then you do something that starts an animation,
+            // that animation shouldn't instantly jump to completion).
+            (self.time, if is_animating { dt } else { 0.0 })
         }
     }
 

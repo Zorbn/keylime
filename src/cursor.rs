@@ -1,5 +1,6 @@
 use crate::{position::Position, selection::Selection};
 
+#[derive(Clone)]
 pub struct Cursor {
     pub position: Position,
     pub selection_anchor: Option<Position>,
