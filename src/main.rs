@@ -1,6 +1,7 @@
 mod action_history;
 mod cursor;
 mod cursor_index;
+mod deferred_call;
 mod doc;
 mod editor;
 mod gfx;
@@ -24,7 +25,6 @@ use window::Window;
 
 /*
  * TODO:
- * Copy/cut/paste.
  * Implicit copy/cut/paste for current line when shortcut is pressed but nothing is selected.
  * Ctrl modifier for arrows, backspace, delete.
  * Syntax highlighting.

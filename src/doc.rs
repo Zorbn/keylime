@@ -197,7 +197,7 @@ impl Doc {
         self.update_cursor_desired_visual_x(CursorIndex::Main);
     }
 
-    fn unwrap_cursor_index(&self, index: CursorIndex) -> usize {
+    pub fn unwrap_cursor_index(&self, index: CursorIndex) -> usize {
         let main_cursor_index = self.get_main_cursor_index();
 
         index.unwrap_or(main_cursor_index)
@@ -249,12 +249,36 @@ impl Doc {
         CursorIndices::new(0, self.cursors.len())
     }
 
+    pub fn cursors_len(&self) -> usize {
+        self.cursors.len()
+    }
+
     fn get_main_cursor_index(&self) -> usize {
         self.cursors.len() - 1
     }
 
     pub fn lines(&self) -> &[Line] {
         &self.lines
+    }
+
+    pub fn collect_chars(&self, start: Position, end: Position, buffer: &mut Vec<char>) {
+        let start = self.clamp_position(start);
+        let end = self.clamp_position(end);
+
+        if start.y == end.y {
+            buffer
+                .extend_from_slice(&self.lines[start.y as usize][start.x as usize..end.x as usize]);
+        } else {
+            buffer.extend_from_slice(&self.lines[start.y as usize][start.x as usize..]);
+            buffer.push('\n');
+
+            for line in &self.lines[(start.y + 1) as usize..end.y as usize] {
+                buffer.extend_from_slice(&line);
+                buffer.push('\n');
+            }
+
+            buffer.extend_from_slice(&self.lines[end.y as usize][..end.x as usize]);
+        }
     }
 
     pub fn undo(&mut self, line_pool: &mut LinePool, action_kind: ActionKind) {
@@ -277,7 +301,7 @@ impl Doc {
                         were_cursors_reset = true;
                     }
 
-                    if self.cursors.len() < index {
+                    if self.cursors.len() <= index {
                         self.cursors
                             .resize(index + 1, Cursor::new(Position::zero(), 0));
                     }
@@ -303,6 +327,7 @@ impl Doc {
                     were_cursors_reset = false;
 
                     let mut undo_char_buffer = self.undo_char_buffer.take().unwrap();
+                    undo_char_buffer.clear();
                     undo_char_buffer.extend_from_slice(
                         &action_history!(self, action_kind).deleted_chars[chars_start..],
                     );
@@ -361,55 +386,42 @@ impl Doc {
             self.redo_history.clear();
         }
 
-        let deleted_chars_start = action_history!(self, action_kind).deleted_chars.len();
         self.add_cursors_to_action_history(action_kind, time);
 
         let start = self.clamp_position(start);
         let end = self.clamp_position(end);
 
-        if start.y == end.y {
-            let deleted_chars =
-                self.lines[start.y as usize].drain(start.x as usize..end.x as usize);
+        let mut undo_char_buffer = self.undo_char_buffer.take().unwrap();
+        undo_char_buffer.clear();
 
-            action_history!(self, action_kind)
-                .deleted_chars
-                .extend(deleted_chars);
+        self.collect_chars(start, end, &mut undo_char_buffer);
+
+        let deleted_chars_start = action_history!(self, action_kind).deleted_chars.len();
+
+        action_history!(self, action_kind)
+            .deleted_chars
+            .extend_from_slice(&undo_char_buffer);
+
+        self.undo_char_buffer = Some(undo_char_buffer);
+
+        action_history!(self, action_kind).push_delete(start, deleted_chars_start, time);
+
+        if start.y == end.y {
+            self.lines[start.y as usize].drain(start.x as usize..end.x as usize);
         } else {
             let (start_lines, end_lines) = self.lines.split_at_mut(end.y as usize);
 
             let start_line = &mut start_lines[start.y as usize];
             let end_line = end_lines.first().unwrap();
 
-            action_history!(self, action_kind)
-                .deleted_chars
-                .extend_from_slice(&start_line[start.x as usize..]);
-            action_history!(self, action_kind).deleted_chars.push('\n');
-
-            let mut undo_char_buffer = self.undo_char_buffer.take().unwrap();
-            undo_char_buffer.extend_from_slice(&end_line[..end.x as usize]);
-
             start_line.truncate(start.x as usize);
             start_line.extend_from_slice(&end_line[end.x as usize..]);
             line_pool.push(self.lines.remove(end.y as usize));
 
             for removed_line in self.lines.drain((start.y + 1) as usize..end.y as usize) {
-                action_history!(self, action_kind)
-                    .deleted_chars
-                    .extend_from_slice(&removed_line);
-                action_history!(self, action_kind).deleted_chars.push('\n');
-
                 line_pool.push(removed_line);
             }
-
-            action_history!(self, action_kind)
-                .deleted_chars
-                .extend_from_slice(&undo_char_buffer);
-
-            undo_char_buffer.clear();
-            self.undo_char_buffer = Some(undo_char_buffer);
         }
-
-        action_history!(self, action_kind).push_delete(start, deleted_chars_start, time);
 
         // Shift the cursor:
         for index in self.cursor_indices() {
@@ -513,11 +525,11 @@ impl Doc {
     ) {
         if let Some(selection) = self.get_cursor(index).get_selection() {
             self.delete(selection.start, selection.end, line_pool, time);
+            self.end_cursor_selection(index);
         }
 
         let start = self.get_cursor(index).position;
         self.insert(start, text, line_pool, time);
-        self.end_cursor_selection(index);
     }
 
     pub fn get_char(&self, position: Position) -> char {
@@ -599,6 +611,9 @@ impl Doc {
     }
 
     pub fn load(&mut self, file: &mut File, line_pool: &mut LinePool) -> io::Result<usize> {
+        self.undo_history.clear();
+        self.redo_history.clear();
+
         self.reset_cursors();
         self.line_ending = LineEnding::Lf;
 
@@ -629,6 +644,59 @@ impl Doc {
         self.lines.push(current_line);
 
         Ok(read)
+    }
+
+    pub fn copy_at_cursors(&mut self, text: &mut Vec<char>) {
+        for index in self.cursor_indices() {
+            let cursor = self.get_cursor(index);
+
+            if let Some(selection) = cursor.get_selection() {
+                self.collect_chars(selection.start, selection.end, text);
+            }
+
+            if self.unwrap_cursor_index(index) != self.cursors_len() - 1 {
+                text.push('\n');
+            }
+        }
+    }
+
+    pub fn paste_at_cursors(&mut self, text: &[char], line_pool: &mut LinePool, time: f32) {
+        let mut line_count = 1;
+
+        for c in text {
+            if *c == '\n' {
+                line_count += 1;
+            }
+        }
+
+        let do_spread_lines_between_cursors =
+            self.cursors_len() > 1 && line_count % self.cursors_len() == 0;
+
+        if do_spread_lines_between_cursors {
+            let lines_per_cursor = line_count / self.cursors_len();
+            let mut i = 0;
+
+            for index in self.cursor_indices() {
+                for line_i in 0..lines_per_cursor {
+                    while i < text.len() {
+                        let c = text[i];
+                        i += 1;
+
+                        if c == '\n' {
+                            if line_i < lines_per_cursor - 1 {
+                                self.insert_at_cursor(index, &[c], line_pool, time);
+                            }
+
+                            break;
+                        }
+
+                        self.insert_at_cursor(index, &[c], line_pool, time);
+                    }
+                }
+            }
+        } else {
+            self.insert_at_cursors(text, line_pool, time);
+        }
     }
 }
 

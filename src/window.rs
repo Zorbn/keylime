@@ -1,11 +1,17 @@
-use std::{char, mem::transmute, ptr::null_mut};
+use std::{
+    mem::transmute,
+    ptr::{copy_nonoverlapping, null_mut},
+};
 
 use windows::{
     core::{w, Result},
     Win32::{
-        Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
+        Foundation::{GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, RECT, WPARAM},
         System::{
+            DataExchange::{CloseClipboard, GetClipboardData, OpenClipboard, SetClipboardData},
             LibraryLoader::GetModuleHandleW,
+            Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE},
+            Ole::CF_UNICODETEXT,
             Performance::{QueryPerformanceCounter, QueryPerformanceFrequency},
         },
         UI::{Input::KeyboardAndMouse::GetKeyState, WindowsAndMessaging::*},
@@ -13,8 +19,8 @@ use windows::{
 };
 
 use crate::{
-    gfx::Gfx, key::Key, keybind::Keybind, mouse_button::MouseButton, mouse_scroll::MouseScroll,
-    mousebind::Mousebind,
+    defer, deferred_call::DeferredCall, gfx::Gfx, key::Key, keybind::Keybind,
+    mouse_button::MouseButton, mouse_scroll::MouseScroll, mousebind::Mousebind,
 };
 
 const DEFAULT_WIDTH: i32 = 640;
@@ -29,6 +35,9 @@ pub struct Window {
     is_focused: bool,
     width: i32,
     height: i32,
+
+    wide_text_buffer: Vec<u16>,
+    text_buffer: Vec<char>,
 
     gfx: Option<Gfx>,
 
@@ -65,6 +74,9 @@ impl Window {
                 is_focused: false,
                 width: DEFAULT_WIDTH,
                 height: DEFAULT_HEIGHT,
+
+                wide_text_buffer: Vec::new(),
+                text_buffer: Vec::new(),
 
                 gfx: None,
 
@@ -315,6 +327,98 @@ impl Window {
 
     pub fn get_mouse_scroll(&mut self) -> Option<MouseScroll> {
         self.mouse_scrolls.pop()
+    }
+
+    pub fn set_clipboard(&mut self, text: &[char]) -> Result<()> {
+        self.wide_text_buffer.clear();
+
+        for c in text {
+            let mut dst = [0u16; 2];
+
+            for wide_c in c.encode_utf16(&mut dst) {
+                self.wide_text_buffer.push(*wide_c);
+            }
+        }
+
+        self.wide_text_buffer.push(0);
+
+        unsafe {
+            OpenClipboard(self.hwnd)?;
+
+            defer!({
+                let _ = CloseClipboard();
+            });
+
+            let hglobal = GlobalAlloc(
+                GMEM_MOVEABLE,
+                self.wide_text_buffer.len() * size_of::<u16>(),
+            )?;
+
+            defer!({
+                let _ = GlobalFree(hglobal);
+            });
+
+            let memory = GlobalLock(hglobal) as *mut u16;
+
+            copy_nonoverlapping(
+                self.wide_text_buffer.as_ptr(),
+                memory,
+                self.wide_text_buffer.len(),
+            );
+
+            let _ = GlobalUnlock(hglobal);
+
+            SetClipboardData(CF_UNICODETEXT.0 as u32, HANDLE(hglobal.0))?;
+        }
+
+        Ok(())
+    }
+
+    pub fn get_clipboard(&mut self) -> Result<&[char]> {
+        self.text_buffer.clear();
+        self.wide_text_buffer.clear();
+
+        unsafe {
+            OpenClipboard(self.hwnd)?;
+
+            defer!({
+                let _ = CloseClipboard();
+            });
+
+            let hglobal = GlobalAlloc(
+                GMEM_MOVEABLE,
+                self.wide_text_buffer.len() * size_of::<u16>(),
+            )?;
+
+            defer!({
+                let _ = GlobalFree(hglobal);
+            });
+
+            let hglobal = HGLOBAL(GetClipboardData(CF_UNICODETEXT.0 as u32)?.0);
+
+            let mut memory = GlobalLock(hglobal) as *mut u16;
+
+            if memory != null_mut() {
+                while *memory != 0 {
+                    self.wide_text_buffer.push(*memory);
+                    memory = memory.add(1);
+                }
+            }
+
+            let _ = GlobalUnlock(hglobal);
+        }
+
+        for c in char::decode_utf16(self.wide_text_buffer.iter().copied()) {
+            let c = c.unwrap_or('?');
+
+            if c == '\r' {
+                continue;
+            }
+
+            self.text_buffer.push(c);
+        }
+
+        Ok(&self.text_buffer)
     }
 }
 

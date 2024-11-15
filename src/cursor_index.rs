@@ -13,6 +13,7 @@ impl CursorIndex {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct CursorIndices {
     i: usize,
     len: usize,

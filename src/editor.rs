@@ -25,6 +25,7 @@ pub struct Editor {
     camera_y: f32,
     camera_velocity_y: f32,
     camera_needs_recenter: bool,
+    copied_text: Vec<char>,
 }
 
 impl Editor {
@@ -34,6 +35,7 @@ impl Editor {
             camera_y: 0.0,
             camera_velocity_y: 0.0,
             camera_needs_recenter: false,
+            copied_text: Vec::new(),
         }
     }
 
@@ -216,6 +218,42 @@ impl Editor {
                     mods: MOD_CTRL,
                 } => {
                     self.doc.undo(line_pool, ActionKind::Undone);
+                }
+                Keybind {
+                    key: Key::C,
+                    mods: MOD_CTRL,
+                } => {
+                    self.copied_text.clear();
+                    self.doc.copy_at_cursors(&mut self.copied_text);
+
+                    window.set_clipboard(&self.copied_text).unwrap();
+                }
+                Keybind {
+                    key: Key::X,
+                    mods: MOD_CTRL,
+                } => {
+                    self.copied_text.clear();
+                    self.doc.copy_at_cursors(&mut self.copied_text);
+
+                    window.set_clipboard(&self.copied_text).unwrap();
+
+                    for index in self.doc.cursor_indices() {
+                        let cursor = self.doc.get_cursor(index);
+
+                        if let Some(selection) = cursor.get_selection() {
+                            self.doc
+                                .delete(selection.start, selection.end, line_pool, time);
+                            self.doc.end_cursor_selection(index);
+                        }
+                    }
+                }
+                Keybind {
+                    key: Key::V,
+                    mods: MOD_CTRL,
+                } => {
+                    let text = window.get_clipboard().unwrap();
+
+                    self.doc.paste_at_cursors(text, line_pool, time);
                 }
                 _ => {}
             }
