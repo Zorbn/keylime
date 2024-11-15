@@ -45,6 +45,9 @@ pub struct Window {
     keybinds_typed: Vec<Keybind>,
     mousebinds_pressed: Vec<Mousebind>,
     mouse_scrolls: Vec<MouseScroll>,
+
+    was_copy_implicit: bool,
+    did_just_copy: bool,
 }
 
 impl Window {
@@ -84,6 +87,9 @@ impl Window {
                 keybinds_typed: Vec::new(),
                 mousebinds_pressed: Vec::new(),
                 mouse_scrolls: Vec::new(),
+
+                was_copy_implicit: false,
+                did_just_copy: false,
             });
 
             let lparam: *mut Window = &mut *window;
@@ -252,6 +258,13 @@ impl Window {
 
                 (*window).mouse_scrolls.push(MouseScroll { delta });
             }
+            WM_CLIPBOARDUPDATE => {
+                if !(*window).did_just_copy {
+                    (*window).was_copy_implicit = false;
+                }
+
+                (*window).did_just_copy = false;
+            }
             _ => return DefWindowProcW(hwnd, msg, wparam, lparam),
         }
 
@@ -329,7 +342,10 @@ impl Window {
         self.mouse_scrolls.pop()
     }
 
-    pub fn set_clipboard(&mut self, text: &[char]) -> Result<()> {
+    pub fn set_clipboard(&mut self, text: &[char], was_copy_implicit: bool) -> Result<()> {
+        self.was_copy_implicit = was_copy_implicit;
+        self.did_just_copy = true;
+
         self.wide_text_buffer.clear();
 
         for c in text {
@@ -398,7 +414,7 @@ impl Window {
 
             let mut memory = GlobalLock(hglobal) as *mut u16;
 
-            if memory != null_mut() {
+            if !memory.is_null() {
                 while *memory != 0 {
                     self.wide_text_buffer.push(*memory);
                     memory = memory.add(1);
@@ -419,6 +435,10 @@ impl Window {
         }
 
         Ok(&self.text_buffer)
+    }
+
+    pub fn was_copy_implicit(&self) -> bool {
+        self.was_copy_implicit
     }
 }
 

@@ -25,7 +25,6 @@ use window::Window;
 
 /*
  * TODO:
- * Implicit copy/cut/paste for current line when shortcut is pressed but nothing is selected.
  * Ctrl modifier for arrows, backspace, delete.
  * Syntax highlighting.
  * Open/save/close/save-as dialogs.

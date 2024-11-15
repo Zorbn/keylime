@@ -646,21 +646,59 @@ impl Doc {
         Ok(read)
     }
 
-    pub fn copy_at_cursors(&mut self, text: &mut Vec<char>) {
+    pub fn copy_at_cursors(&mut self, text: &mut Vec<char>) -> bool {
+        let mut was_copy_implicit = true;
+
         for index in self.cursor_indices() {
             let cursor = self.get_cursor(index);
 
             if let Some(selection) = cursor.get_selection() {
+                was_copy_implicit = false;
+
                 self.collect_chars(selection.start, selection.end, text);
+            } else {
+                let start = Position::new(0, cursor.position.y);
+                let end = Position::new(self.get_line_len(start.y), start.y);
+
+                self.collect_chars(start, end, text);
+                text.push('\n');
             }
 
             if self.unwrap_cursor_index(index) != self.cursors_len() - 1 {
                 text.push('\n');
             }
         }
+
+        was_copy_implicit
     }
 
-    pub fn paste_at_cursors(&mut self, text: &[char], line_pool: &mut LinePool, time: f32) {
+    pub fn paste_at_cursor(
+        &mut self,
+        index: CursorIndex,
+        text: &[char],
+        was_copy_implicit: bool,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        let mut start = self.get_cursor(index).position;
+
+        if let Some(selection) = self.get_cursor(index).get_selection() {
+            self.delete(selection.start, selection.end, line_pool, time);
+            self.end_cursor_selection(index);
+        } else if was_copy_implicit {
+            start.x = 0;
+        }
+
+        self.insert(start, text, line_pool, time);
+    }
+
+    pub fn paste_at_cursors(
+        &mut self,
+        text: &[char],
+        was_copy_implicit: bool,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
         let mut line_count = 1;
 
         for c in text {
@@ -684,18 +722,26 @@ impl Doc {
 
                         if c == '\n' {
                             if line_i < lines_per_cursor - 1 {
-                                self.insert_at_cursor(index, &[c], line_pool, time);
+                                self.paste_at_cursor(
+                                    index,
+                                    &[c],
+                                    was_copy_implicit,
+                                    line_pool,
+                                    time,
+                                );
                             }
 
                             break;
                         }
 
-                        self.insert_at_cursor(index, &[c], line_pool, time);
+                        self.paste_at_cursor(index, &[c], was_copy_implicit, line_pool, time);
                     }
                 }
             }
         } else {
-            self.insert_at_cursors(text, line_pool, time);
+            for index in self.cursor_indices() {
+                self.paste_at_cursor(index, text, was_copy_implicit, line_pool, time);
+            }
         }
     }
 }

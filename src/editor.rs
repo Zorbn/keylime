@@ -224,36 +224,54 @@ impl Editor {
                     mods: MOD_CTRL,
                 } => {
                     self.copied_text.clear();
-                    self.doc.copy_at_cursors(&mut self.copied_text);
+                    let was_copy_implicit = self.doc.copy_at_cursors(&mut self.copied_text);
 
-                    window.set_clipboard(&self.copied_text).unwrap();
+                    window
+                        .set_clipboard(&self.copied_text, was_copy_implicit)
+                        .unwrap();
                 }
                 Keybind {
                     key: Key::X,
                     mods: MOD_CTRL,
                 } => {
                     self.copied_text.clear();
-                    self.doc.copy_at_cursors(&mut self.copied_text);
+                    let was_copy_implicit = self.doc.copy_at_cursors(&mut self.copied_text);
 
-                    window.set_clipboard(&self.copied_text).unwrap();
+                    window
+                        .set_clipboard(&self.copied_text, was_copy_implicit)
+                        .unwrap();
 
                     for index in self.doc.cursor_indices() {
                         let cursor = self.doc.get_cursor(index);
 
-                        if let Some(selection) = cursor.get_selection() {
-                            self.doc
-                                .delete(selection.start, selection.end, line_pool, time);
-                            self.doc.end_cursor_selection(index);
-                        }
+                        let (start, end) = if let Some(selection) = cursor.get_selection() {
+                            (selection.start, selection.end)
+                        } else {
+                            let mut start = Position::new(0, cursor.position.y);
+                            let mut end = Position::new(self.doc.get_line_len(start.y), start.y);
+
+                            if start.y as usize == self.doc.lines().len() - 1 {
+                                start = self.doc.move_position(start, Position::new(-1, 0));
+                            } else {
+                                end = self.doc.move_position(end, Position::new(1, 0));
+                            }
+
+                            (start, end)
+                        };
+
+                        self.doc.delete(start, end, line_pool, time);
+                        self.doc.end_cursor_selection(index);
                     }
                 }
                 Keybind {
                     key: Key::V,
                     mods: MOD_CTRL,
                 } => {
+                    let was_copy_implicit = window.was_copy_implicit();
                     let text = window.get_clipboard().unwrap();
 
-                    self.doc.paste_at_cursors(text, line_pool, time);
+                    self.doc
+                        .paste_at_cursors(text, was_copy_implicit, line_pool, time);
                 }
                 _ => {}
             }
