@@ -1,6 +1,7 @@
 use std::{
-    fs::File,
-    io::{self, Read, Write},
+    fs::{read_to_string, File},
+    io::{self, Write},
+    path::{Path, PathBuf},
 };
 
 use crate::{
@@ -31,6 +32,9 @@ enum LineEnding {
 }
 
 pub struct Doc {
+    path: Option<PathBuf>,
+    is_saved: bool,
+
     lines: Vec<Line>,
     cursors: Vec<Cursor>,
     line_ending: LineEnding,
@@ -48,6 +52,9 @@ impl Doc {
         let lines = vec![line_pool.pop()];
 
         let mut doc = Self {
+            path: None,
+            is_saved: true,
+
             lines,
             cursors: Vec::new(),
             line_ending: LineEnding::CrLf,
@@ -541,6 +548,7 @@ impl Doc {
         }
 
         self.mark_line_unhighlighted(start.y);
+        self.is_saved = false;
 
         self.add_cursors_to_action_history(action_kind, time);
 
@@ -622,6 +630,7 @@ impl Doc {
         }
 
         self.mark_line_unhighlighted(start.y);
+        self.is_saved = false;
 
         self.add_cursors_to_action_history(action_kind, time);
 
@@ -750,10 +759,15 @@ impl Doc {
         position
     }
 
-    pub fn save(&mut self, file: &mut File) -> io::Result<usize> {
+    pub fn save(&mut self, path: PathBuf) -> io::Result<()> {
         let string = self.to_string();
 
-        file.write(string.as_bytes())
+        File::create(&path)?.write(string.as_bytes())?;
+
+        self.path = Some(path);
+        self.is_saved = true;
+
+        Ok(())
     }
 
     fn reset_cursors(&mut self) {
@@ -768,7 +782,7 @@ impl Doc {
         self.cursors.truncate(1);
     }
 
-    pub fn load(&mut self, file: &mut File, line_pool: &mut LinePool) -> io::Result<usize> {
+    pub fn load(&mut self, path: &Path, line_pool: &mut LinePool) -> io::Result<()> {
         self.undo_history.clear();
         self.redo_history.clear();
 
@@ -776,9 +790,9 @@ impl Doc {
         self.line_ending = LineEnding::Lf;
 
         self.unhighlighted_line_y = 0;
+        self.is_saved = true;
 
-        let mut string = String::new();
-        let read = file.read_to_string(&mut string)?;
+        let string = read_to_string(path)?;
 
         for line in self.lines.drain(..) {
             line_pool.push(line);
@@ -803,7 +817,27 @@ impl Doc {
 
         self.lines.push(current_line);
 
-        Ok(read)
+        self.path = Some(path.to_path_buf());
+
+        Ok(())
+    }
+
+    pub fn path(&self) -> Option<&PathBuf> {
+        self.path.as_ref()
+    }
+
+    pub fn file_name(&self) -> &str {
+        const DEFAULT_NAME: &str = "Unnamed";
+
+        let Some(path) = &self.path else {
+            return DEFAULT_NAME;
+        };
+
+        path.to_str().unwrap_or(DEFAULT_NAME)
+    }
+
+    pub fn is_saved(&self) -> bool {
+        self.is_saved
     }
 
     pub fn copy_at_cursors(&mut self, text: &mut Vec<char>) -> bool {

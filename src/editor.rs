@@ -1,8 +1,7 @@
-use std::fs::File;
-
 use crate::{
     action_history::ActionKind,
     cursor_index::CursorIndex,
+    dialog::{find_file, message, FindFileKind, MessageKind, MessageResponse},
     doc::Doc,
     gfx::{Color, Gfx},
     key::Key,
@@ -168,17 +167,37 @@ impl Editor {
                     key: Key::O,
                     mods: MOD_CTRL,
                 } => {
-                    self.doc
-                        .load(&mut File::open("test.txt").unwrap(), line_pool)
-                        .unwrap();
+                    if let Ok(path) = find_file(FindFileKind::OpenFile) {
+                        if let Err(err) = self.doc.load(&path, line_pool) {
+                            message("Failed to Open File", &err.to_string(), MessageKind::Ok);
+                        }
+                    }
                 }
                 Keybind {
                     key: Key::S,
                     mods: MOD_CTRL,
                 } => {
-                    self.doc
-                        .save(&mut File::create("test.txt").unwrap())
-                        .unwrap();
+                    self.try_save();
+                }
+                Keybind {
+                    key: Key::W,
+                    mods: MOD_CTRL,
+                } => {
+                    if self.confirm_close("closing") {
+                        self.doc = Doc::new(line_pool);
+                    }
+                }
+                Keybind {
+                    key: Key::R,
+                    mods: MOD_CTRL,
+                } => {
+                    if self.confirm_close("reloading") {
+                        if let Some(path) = self.doc.path().cloned() {
+                            if let Err(err) = self.doc.load(&path, line_pool) {
+                                message("Failed to Reload File", &err.to_string(), MessageKind::Ok);
+                            }
+                        }
+                    }
                 }
                 Keybind {
                     key: Key::PageUp,
@@ -203,7 +222,12 @@ impl Editor {
                     mods,
                 } => {
                     for index in self.doc.cursor_indices() {
-                        let mut position = self.doc.get_cursor(index).position;
+                        let mut position = if mods & MOD_CTRL != 0 {
+                            Position::new(0, 0)
+                        } else {
+                            self.doc.get_cursor(index).position
+                        };
+
                         position.x = 0;
 
                         self.doc.jump_cursor(index, position, mods & MOD_SHIFT != 0);
@@ -214,7 +238,12 @@ impl Editor {
                     mods,
                 } => {
                     for index in self.doc.cursor_indices() {
-                        let mut position = self.doc.get_cursor(index).position;
+                        let mut position = if mods & MOD_CTRL != 0 {
+                            Position::new(0, self.doc.lines().len() as isize - 1)
+                        } else {
+                            self.doc.get_cursor(index).position
+                        };
+
                         position.x = self.doc.get_line_len(position.y);
 
                         self.doc.jump_cursor(index, position, mods & MOD_SHIFT != 0);
@@ -518,5 +547,38 @@ impl Editor {
         }
 
         gfx.end();
+    }
+
+    fn confirm_close(&mut self, reason: &str) -> bool {
+        if self.doc.is_saved() {
+            true
+        } else {
+            let text = format!(
+                "{} has unsaved changes. Do you want to save it before {}?",
+                self.doc.file_name(),
+                reason
+            );
+
+            match message("Unsaved Changes", &text, MessageKind::YesNoCancel) {
+                MessageResponse::Yes => self.try_save(),
+                MessageResponse::No => true,
+                MessageResponse::Cancel => false,
+            }
+        }
+    }
+
+    fn try_save(&mut self) -> bool {
+        let path = if let Some(path) = self.doc.path() {
+            Ok(path.clone())
+        } else {
+            find_file(FindFileKind::Save)
+        };
+
+        if let Err(err) = path.map(|path| self.doc.save(path)) {
+            message("Failed to Save File", &err.to_string(), MessageKind::Ok);
+            false
+        } else {
+            true
+        }
     }
 }

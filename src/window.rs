@@ -8,6 +8,9 @@ use windows::{
     Win32::{
         Foundation::{GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, RECT, WPARAM},
         System::{
+            Com::{
+                CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
+            },
             DataExchange::{CloseClipboard, GetClipboardData, OpenClipboard, SetClipboardData},
             LibraryLoader::GetModuleHandleW,
             Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE},
@@ -19,8 +22,8 @@ use windows::{
 };
 
 use crate::{
-    defer, deferred_call::DeferredCall, gfx::Gfx, key::Key, keybind::Keybind,
-    mouse_button::MouseButton, mouse_scroll::MouseScroll, mousebind::Mousebind,
+    defer, gfx::Gfx, key::Key, keybind::Keybind, mouse_button::MouseButton,
+    mouse_scroll::MouseScroll, mousebind::Mousebind,
 };
 
 const DEFAULT_WIDTH: i32 = 640;
@@ -126,6 +129,8 @@ impl Window {
                 Some(lparam.cast()),
             )?;
 
+            CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE).ok()?;
+
             Ok(window)
         }
     }
@@ -188,14 +193,14 @@ impl Window {
             WM_KILLFOCUS => {
                 (*window).is_focused = false;
             }
-            WM_CHAR => {
+            WM_CHAR if (*window).is_focused => {
                 if let Some(char) = char::from_u32(wparam.0 as u32) {
                     if !char.is_control() {
                         (*window).chars_typed.push(char);
                     }
                 }
             }
-            WM_KEYDOWN | WM_SYSKEYDOWN => {
+            WM_KEYDOWN | WM_SYSKEYDOWN if (*window).is_focused => {
                 if let Some(key) = Key::from((wparam.0 & 0xffff) as u32) {
                     let has_shift =
                         GetKeyState(Key::LShift as i32) < 0 || GetKeyState(Key::RShift as i32) < 0;
@@ -213,7 +218,9 @@ impl Window {
 
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
-            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_MOUSEMOVE => {
+            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_MOUSEMOVE
+                if (*window).is_focused =>
+            {
                 const MK_LBUTTON: usize = 0x01;
                 const MK_RBUTTON: usize = 0x02;
                 const MK_MBUTTON: usize = 0x10;
@@ -250,7 +257,7 @@ impl Window {
                     ));
                 }
             }
-            WM_MOUSEWHEEL => {
+            WM_MOUSEWHEEL if (*window).is_focused => {
                 const WHEEL_DELTA: f32 = 120.0;
 
                 let delta =
@@ -446,6 +453,7 @@ impl Drop for Window {
     fn drop(&mut self) {
         unsafe {
             let _ = DestroyWindow(self.hwnd);
+            CoUninitialize();
         }
     }
 }

@@ -3,6 +3,7 @@ mod char_category;
 mod cursor;
 mod cursor_index;
 mod deferred_call;
+mod dialog;
 mod doc;
 mod editor;
 mod gfx;
@@ -30,7 +31,6 @@ use window::Window;
 
 /*
  * TODO:
- * Open/save/close/save-as dialogs.
  * Multiple tabs.
  * Multiple panes (split view).
  * File tree.
@@ -62,6 +62,7 @@ fn main() {
         number: Color::new(9, 134, 88, 255),
         symbol: Color::new(0, 0, 0, 255),
         string: Color::new(163, 21, 21, 255),
+        background: Color::new(245, 245, 245, 255),
     };
 
     let syntax = Syntax::new(
@@ -106,7 +107,7 @@ fn main() {
 
         let gfx = window.gfx();
 
-        gfx.begin_frame(Color::new(245, 245, 245, 255));
+        gfx.begin_frame(theme.background);
 
         editor.draw(&theme, gfx);
 
