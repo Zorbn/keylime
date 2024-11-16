@@ -34,10 +34,13 @@ pub struct Doc {
     lines: Vec<Line>,
     cursors: Vec<Cursor>,
     line_ending: LineEnding,
+
     undo_history: ActionHistory,
     redo_history: ActionHistory,
     undo_char_buffer: Option<Vec<char>>,
+
     syntax_highlighter: SyntaxHighlighter,
+    unhighlighted_line_y: isize,
 }
 
 impl Doc {
@@ -48,10 +51,13 @@ impl Doc {
             lines,
             cursors: Vec::new(),
             line_ending: LineEnding::CrLf,
+
             undo_history: ActionHistory::new(),
             redo_history: ActionHistory::new(),
             undo_char_buffer: Some(Vec::new()),
+
             syntax_highlighter: SyntaxHighlighter::new(),
+            unhighlighted_line_y: 0,
         };
 
         doc.reset_cursors();
@@ -514,6 +520,10 @@ impl Doc {
         }
     }
 
+    fn mark_line_unhighlighted(&mut self, y: isize) {
+        self.unhighlighted_line_y = self.unhighlighted_line_y.min(y);
+    }
+
     pub fn delete(&mut self, start: Position, end: Position, line_pool: &mut LinePool, time: f32) {
         self.delete_as_action_kind(start, end, line_pool, ActionKind::Done, time);
     }
@@ -529,6 +539,8 @@ impl Doc {
         if action_kind == ActionKind::Done {
             self.redo_history.clear();
         }
+
+        self.mark_line_unhighlighted(start.y);
 
         self.add_cursors_to_action_history(action_kind, time);
 
@@ -608,6 +620,8 @@ impl Doc {
         if action_kind == ActionKind::Done {
             self.redo_history.clear();
         }
+
+        self.mark_line_unhighlighted(start.y);
 
         self.add_cursors_to_action_history(action_kind, time);
 
@@ -761,6 +775,8 @@ impl Doc {
         self.reset_cursors();
         self.line_ending = LineEnding::Lf;
 
+        self.unhighlighted_line_y = 0;
+
         let mut string = String::new();
         let read = file.read_to_string(&mut string)?;
 
@@ -890,15 +906,20 @@ impl Doc {
     }
 
     pub fn update_highlights(&mut self, camera_y: f32, gfx: &Gfx, syntax: &Syntax) {
-        let start = self.visual_to_position(VisualPosition::new(0.0, 0.0), camera_y, gfx);
         let end = self.visual_to_position(
             VisualPosition::new(0.0, camera_y + gfx.height()),
             camera_y,
             gfx,
         );
 
-        self.syntax_highlighter
-            .update(&self.lines, syntax, start.y as usize, end.y as usize);
+        self.syntax_highlighter.update(
+            &self.lines,
+            syntax,
+            self.unhighlighted_line_y as usize,
+            end.y as usize,
+        );
+
+        self.unhighlighted_line_y = end.y + 1;
     }
 
     pub fn highlighted_lines(&self) -> &[HighlightedLine] {
