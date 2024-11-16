@@ -17,9 +17,7 @@ impl Cursor {
     }
 
     pub fn get_selection(&self) -> Option<Selection> {
-        let Some(selection_anchor) = self.selection_anchor else {
-            return None;
-        };
+        let selection_anchor = self.selection_anchor?;
 
         if selection_anchor < self.position {
             Some(Selection {

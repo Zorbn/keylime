@@ -578,7 +578,7 @@ impl Gfx {
 
     pub fn end(&mut self) {
         unsafe {
-            if (self.vertex_buffer.is_none() && self.vertices.len() > 0)
+            if (self.vertex_buffer.is_none() && !self.vertices.is_empty())
                 || self.vertex_buffer_capacity < self.vertices.len()
             {
                 let desc = D3D11_BUFFER_DESC {
@@ -596,7 +596,7 @@ impl Gfx {
                 self.vertex_buffer_capacity = self.vertices.capacity();
             }
 
-            if (self.index_buffer.is_none() && self.indices.len() > 0)
+            if (self.index_buffer.is_none() && !self.indices.is_empty())
                 || self.index_buffer_capacity < self.indices.len()
             {
                 let desc = D3D11_BUFFER_DESC {
@@ -723,10 +723,10 @@ impl Gfx {
         let vertices_len = self.vertices.len() as u32;
 
         self.indices.extend_from_slice(&[
-            vertices_len + 0,
+            vertices_len,
             vertices_len + 1,
             vertices_len + 2,
-            vertices_len + 0,
+            vertices_len,
             vertices_len + 2,
             vertices_len + 3,
         ]);
@@ -860,7 +860,7 @@ impl Gfx {
             self.add_sprite(
                 [source_x, 0.0, source_width, 1.0],
                 [destination_x, y, destination_width, glyph_height],
-                &color,
+                color,
             );
 
             i += Self::get_char_width(c);

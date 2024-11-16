@@ -1,3 +1,5 @@
+#![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
+
 mod action_history;
 mod char_category;
 mod cursor;
@@ -7,6 +9,7 @@ mod dialog;
 mod doc;
 mod editor;
 mod gfx;
+mod input_handlers;
 mod key;
 mod keybind;
 mod line_pool;
@@ -17,6 +20,8 @@ mod mousebind;
 mod position;
 mod selection;
 mod syntax_highlighter;
+mod tab;
+mod temp_buffer;
 mod text;
 mod theme;
 mod visual_position;
@@ -26,6 +31,7 @@ use editor::Editor;
 use gfx::Color;
 use line_pool::LinePool;
 use syntax_highlighter::{HighlightKind, Syntax, SyntaxRange};
+use temp_buffer::TempBuffer;
 use theme::Theme;
 use window::Window;
 
@@ -50,6 +56,7 @@ fn main() {
     println!("Hello, world!");
 
     let mut line_pool = LinePool::new();
+    let mut text_buffer = TempBuffer::new();
 
     let mut editor = Editor::new(&mut line_pool);
 
@@ -103,7 +110,14 @@ fn main() {
     while window.is_running() {
         let (time, dt) = window.update(editor.is_animating());
 
-        editor.update(&mut window, &mut line_pool, &syntax, time, dt);
+        editor.update(
+            &mut window,
+            &mut line_pool,
+            &mut text_buffer,
+            &syntax,
+            time,
+            dt,
+        );
 
         let gfx = window.gfx();
 
@@ -114,5 +128,5 @@ fn main() {
         gfx.end_frame();
     }
 
-    editor.confirm_close("exiting", false);
+    editor.confirm_close_docs("exiting");
 }

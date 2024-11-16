@@ -22,8 +22,14 @@ use windows::{
 };
 
 use crate::{
-    defer, gfx::Gfx, key::Key, keybind::Keybind, mouse_button::MouseButton,
-    mouse_scroll::MouseScroll, mousebind::Mousebind,
+    defer,
+    gfx::Gfx,
+    input_handlers::{CharHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
+    key::Key,
+    keybind::Keybind,
+    mouse_button::MouseButton,
+    mouse_scroll::MouseScroll,
+    mousebind::Mousebind,
 };
 
 const DEFAULT_WIDTH: i32 = 640;
@@ -44,10 +50,10 @@ pub struct Window {
 
     gfx: Option<Gfx>,
 
-    chars_typed: Vec<char>,
-    keybinds_typed: Vec<Keybind>,
-    mousebinds_pressed: Vec<Mousebind>,
-    mouse_scrolls: Vec<MouseScroll>,
+    pub chars_typed: Vec<char>,
+    pub keybinds_typed: Vec<Keybind>,
+    pub mousebinds_pressed: Vec<Mousebind>,
+    pub mouse_scrolls: Vec<MouseScroll>,
 
     was_copy_implicit: bool,
     did_just_copy: bool,
@@ -331,20 +337,20 @@ impl Window {
         self.gfx.as_mut().unwrap()
     }
 
-    pub fn get_typed_char(&mut self) -> Option<char> {
-        self.chars_typed.pop()
+    pub fn get_char_handler(&self) -> CharHandler {
+        CharHandler::new(self.chars_typed.len())
     }
 
-    pub fn get_typed_keybind(&mut self) -> Option<Keybind> {
-        self.keybinds_typed.pop()
+    pub fn get_keybind_handler(&self) -> KeybindHandler {
+        KeybindHandler::new(self.keybinds_typed.len())
     }
 
-    pub fn get_pressed_mousebind(&mut self) -> Option<Mousebind> {
-        self.mousebinds_pressed.pop()
+    pub fn get_mousebind_handler(&self) -> MousebindHandler {
+        MousebindHandler::new(self.mousebinds_pressed.len())
     }
 
-    pub fn get_mouse_scroll(&mut self) -> Option<MouseScroll> {
-        self.mouse_scrolls.pop()
+    pub fn get_mouse_scroll_handler(&self) -> MouseScrollHandler {
+        MouseScrollHandler::new(self.mouse_scrolls.len())
     }
 
     pub fn set_clipboard(&mut self, text: &[char], was_copy_implicit: bool) -> Result<()> {

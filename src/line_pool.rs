@@ -12,11 +12,7 @@ impl LinePool {
     }
 
     pub fn pop(&mut self) -> Line {
-        if let Some(line) = self.available.pop() {
-            line
-        } else {
-            Vec::new()
-        }
+        self.available.pop().unwrap_or_default()
     }
 
     pub fn push(&mut self, mut line: Line) {

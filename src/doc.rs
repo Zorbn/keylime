@@ -1,4 +1,5 @@
 use std::{
+    fmt::{Display, Write as _},
     fs::{read_to_string, File},
     io::{self, Write},
     path::{Path, PathBuf},
@@ -224,10 +225,8 @@ impl Doc {
         };
 
         let starting_line_is_empty = self.get_line_len(starting_position.y) == 0;
-        let ending_position =
-            self.move_position_skipping_lines(starting_position, delta_y, starting_line_is_empty);
 
-        ending_position
+        self.move_position_skipping_lines(starting_position, delta_y, starting_line_is_empty)
     }
 
     fn get_side_offset(direction_x: isize) -> Position {
@@ -430,7 +429,7 @@ impl Doc {
             buffer.push('\n');
 
             for line in &self.lines[(start.y + 1) as usize..end.y as usize] {
-                buffer.extend_from_slice(&line);
+                buffer.extend_from_slice(line);
                 buffer.push('\n');
             }
 
@@ -637,8 +636,8 @@ impl Doc {
         let start = self.clamp_position(start);
         let mut position = self.clamp_position(start);
 
-        for i in 0..text.len() {
-            if text[i] == '\n' {
+        for c in text {
+            if *c == '\n' {
                 let new_y = position.y as usize + 1;
                 let split_x = position.x as usize;
 
@@ -658,7 +657,7 @@ impl Doc {
                 continue;
             }
 
-            self.lines[position.y as usize].insert(position.x as usize, text[i]);
+            self.lines[position.y as usize].insert(position.x as usize, *c);
             position.x += 1;
         }
 
@@ -762,7 +761,7 @@ impl Doc {
     pub fn save(&mut self, path: PathBuf) -> io::Result<()> {
         let string = self.to_string();
 
-        File::create(&path)?.write(string.as_bytes())?;
+        File::create(&path)?.write_all(string.as_bytes())?;
 
         self.path = Some(path);
         self.is_saved = true;
@@ -822,8 +821,8 @@ impl Doc {
         Ok(())
     }
 
-    pub fn path(&self) -> Option<&PathBuf> {
-        self.path.as_ref()
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_deref()
     }
 
     pub fn file_name(&self) -> &str {
@@ -959,25 +958,61 @@ impl Doc {
     pub fn highlighted_lines(&self) -> &[HighlightedLine] {
         self.syntax_highlighter.highlighted_lines()
     }
+
+    pub fn combine_overlapping_cursors(&mut self) {
+        for index in self.cursor_indices().rev() {
+            let cursor = self.get_cursor(index);
+            let position = cursor.position;
+            let selection = cursor.get_selection();
+
+            for other_index in self.cursor_indices() {
+                if index == other_index {
+                    continue;
+                }
+
+                let other_cursor = self.get_cursor(other_index);
+
+                let do_remove = if let Some(selection) = other_cursor.get_selection() {
+                    position >= selection.start && position <= selection.end
+                } else {
+                    position == other_cursor.position
+                };
+
+                if !do_remove {
+                    continue;
+                }
+
+                self.set_cursor_selection(
+                    other_index,
+                    Selection::union(other_cursor.get_selection(), selection),
+                );
+                self.remove_cursor(index);
+
+                break;
+            }
+        }
+    }
 }
 
-impl ToString for Doc {
-    fn to_string(&self) -> String {
-        let mut string = String::new();
-
+impl Display for Doc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let line_ending_chars: &[char] = match self.line_ending {
             LineEnding::Lf => &['\n'],
             LineEnding::CrLf => &['\r', '\n'],
         };
 
         for (i, line) in self.lines.iter().enumerate() {
-            string.extend(line);
+            for c in line {
+                f.write_char(*c)?;
+            }
 
             if i != self.lines.len() - 1 {
-                string.extend(line_ending_chars);
+                for c in line_ending_chars {
+                    f.write_char(*c)?;
+                }
             }
         }
 
-        string
+        Ok(())
     }
 }

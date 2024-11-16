@@ -229,7 +229,7 @@ impl SyntaxHighlighter {
         }
     }
 
-    pub fn update(&mut self, lines: &Vec<Line>, syntax: &Syntax, start_y: usize, end_y: usize) {
+    pub fn update(&mut self, lines: &[Line], syntax: &Syntax, start_y: usize, end_y: usize) {
         if self.highlighted_lines.len() < lines.len() {
             self.highlighted_lines
                 .resize(lines.len(), HighlightedLine::new());

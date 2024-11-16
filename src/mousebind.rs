@@ -3,6 +3,7 @@ use crate::{
     mouse_button::MouseButton,
 };
 
+#[derive(Clone, Copy)]
 pub struct Mousebind {
     pub button: MouseButton,
     pub x: f32,
@@ -35,6 +36,12 @@ impl Mousebind {
             mods |= MOD_ALT;
         }
 
-        Self { button, x, y, mods, is_drag }
+        Self {
+            button,
+            x,
+            y,
+            mods,
+            is_drag,
+        }
     }
 }

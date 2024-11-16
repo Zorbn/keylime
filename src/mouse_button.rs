@@ -1,3 +1,4 @@
+#[derive(Clone, Copy)]
 pub enum MouseButton {
     Left,
     Middle,

@@ -7,7 +7,7 @@ pub fn ortho(left: f32, right: f32, bottom: f32, top: f32, near_z: f32, far_z: f
 
     result[0] = 2.0 * inv_width;
     // Flip the y-axis.
-    result[1 + 1 * 4] = -2.0 * inv_height;
+    result[1 + 4] = -2.0 * inv_height;
     result[2 + 2 * 4] = 2.0 * inv_depth;
     result[3 * 4] = -(right + left) * inv_width;
     // Adjust for flipped y-axis.
