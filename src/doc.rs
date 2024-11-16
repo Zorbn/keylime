@@ -12,6 +12,7 @@ use crate::{
     line_pool::{Line, LinePool},
     position::Position,
     selection::Selection,
+    syntax_highlighter::{HighlightedLine, Syntax, SyntaxHighlighter},
     visual_position::VisualPosition,
 };
 
@@ -36,6 +37,7 @@ pub struct Doc {
     undo_history: ActionHistory,
     redo_history: ActionHistory,
     undo_char_buffer: Option<Vec<char>>,
+    syntax_highlighter: SyntaxHighlighter,
 }
 
 impl Doc {
@@ -49,6 +51,7 @@ impl Doc {
             undo_history: ActionHistory::new(),
             redo_history: ActionHistory::new(),
             undo_char_buffer: Some(Vec::new()),
+            syntax_highlighter: SyntaxHighlighter::new(),
         };
 
         doc.reset_cursors();
@@ -884,6 +887,22 @@ impl Doc {
                 self.paste_at_cursor(index, text, was_copy_implicit, line_pool, time);
             }
         }
+    }
+
+    pub fn update_highlights(&mut self, camera_y: f32, gfx: &Gfx, syntax: &Syntax) {
+        let start = self.visual_to_position(VisualPosition::new(0.0, 0.0), camera_y, gfx);
+        let end = self.visual_to_position(
+            VisualPosition::new(0.0, camera_y + gfx.height()),
+            camera_y,
+            gfx,
+        );
+
+        self.syntax_highlighter
+            .update(&self.lines, syntax, start.y as usize, end.y as usize);
+    }
+
+    pub fn highlighted_lines(&self) -> &[HighlightedLine] {
+        self.syntax_highlighter.highlighted_lines()
     }
 }
 

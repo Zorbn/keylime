@@ -12,6 +12,8 @@ use crate::{
     mousebind::Mousebind,
     position::Position,
     selection::Selection,
+    syntax_highlighter::Syntax,
+    theme::Theme,
     visual_position::VisualPosition,
     window::Window,
 };
@@ -43,7 +45,14 @@ impl Editor {
         self.camera_velocity_y != 0.0
     }
 
-    pub fn update(&mut self, window: &mut Window, line_pool: &mut LinePool, time: f32, dt: f32) {
+    pub fn update(
+        &mut self,
+        window: &mut Window,
+        line_pool: &mut LinePool,
+        syntax: &Syntax,
+        time: f32,
+        dt: f32,
+    ) {
         let old_cursor_position = self.doc.get_cursor(CursorIndex::Main).position;
 
         while let Some(char) = window.get_typed_char() {
@@ -246,9 +255,7 @@ impl Editor {
                     self.copied_text.clear();
                     let was_copy_implicit = self.doc.copy_at_cursors(&mut self.copied_text);
 
-                    window
-                        .set_clipboard(&self.copied_text, was_copy_implicit)
-                        .unwrap();
+                    let _ = window.set_clipboard(&self.copied_text, was_copy_implicit);
                 }
                 Keybind {
                     key: Key::X,
@@ -257,9 +264,7 @@ impl Editor {
                     self.copied_text.clear();
                     let was_copy_implicit = self.doc.copy_at_cursors(&mut self.copied_text);
 
-                    window
-                        .set_clipboard(&self.copied_text, was_copy_implicit)
-                        .unwrap();
+                    let _ = window.set_clipboard(&self.copied_text, was_copy_implicit);
 
                     for index in self.doc.cursor_indices() {
                         let cursor = self.doc.get_cursor(index);
@@ -288,7 +293,7 @@ impl Editor {
                     mods: MOD_CTRL,
                 } => {
                     let was_copy_implicit = window.was_copy_implicit();
-                    let text = window.get_clipboard().unwrap();
+                    let text = window.get_clipboard().unwrap_or(&[]);
 
                     self.doc
                         .paste_at_cursors(text, was_copy_implicit, line_pool, time);
@@ -332,6 +337,8 @@ impl Editor {
 
         self.combine_overlapping_cursors();
         self.update_camera(window, old_cursor_position, dt);
+        self.doc
+            .update_highlights(self.camera_y, window.gfx(), syntax);
     }
 
     fn update_camera(&mut self, window: &mut Window, old_cursor_position: Position, dt: f32) {
@@ -430,7 +437,7 @@ impl Editor {
         self.camera_velocity_y = v;
     }
 
-    pub fn draw(&mut self, gfx: &mut Gfx) {
+    pub fn draw(&mut self, theme: &Theme, gfx: &mut Gfx) {
         gfx.begin(None);
 
         let camera_y = self.camera_y.floor();
@@ -442,15 +449,31 @@ impl Editor {
         let max_y = ((camera_y + gfx.height()) / gfx.line_height()) as usize + 1;
         let max_y = max_y.min(self.doc.lines().len());
 
-        for (i, line) in self.doc.lines()[min_y..max_y].iter().enumerate() {
-            let y = i as f32 * gfx.line_height();
+        let lines = self.doc.lines();
+        let highlighted_lines = self.doc.highlighted_lines();
 
-            gfx.add_text(
-                line.iter().copied(),
-                0.0,
-                y + line_padding - sub_line_offset_y,
-                &Color::new(0, 0, 0, 255),
-            );
+        for (i, y) in (min_y..max_y).enumerate() {
+            let line = &lines[y];
+
+            let visual_y = i as f32 * gfx.line_height() + line_padding - sub_line_offset_y;
+
+            if y > highlighted_lines.len() {
+                gfx.add_text(line.iter().copied(), 0.0, visual_y, &theme.normal);
+            } else {
+                let mut x = 0;
+                let highlighted_line = &highlighted_lines[y];
+
+                for highlight in highlighted_line.highlights() {
+                    let color = &theme.highlight_kind_to_color(highlight.kind);
+
+                    x += gfx.add_text(
+                        line[highlight.start..highlight.end].iter().copied(),
+                        x as f32 * gfx.glyph_width(),
+                        visual_y,
+                        color,
+                    );
+                }
+            }
         }
 
         for index in self.doc.cursor_indices() {

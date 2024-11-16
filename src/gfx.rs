@@ -92,6 +92,7 @@ struct Vertex {
     a: f32,
 }
 
+#[derive(Clone, Copy)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
@@ -814,7 +815,7 @@ impl Gfx {
         x: f32,
         y: f32,
         color: &Color,
-    ) {
+    ) -> isize {
         let min_char = b' ' as u32;
         let max_char = b'~' as u32;
 
@@ -864,6 +865,8 @@ impl Gfx {
 
             i += Self::get_char_width(c);
         }
+
+        i
     }
 
     pub fn add_rect(&mut self, x: f32, y: f32, width: f32, height: f32, color: &Color) {
