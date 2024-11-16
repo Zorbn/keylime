@@ -113,4 +113,6 @@ fn main() {
 
         gfx.end_frame();
     }
+
+    editor.confirm_close("exiting", false);
 }

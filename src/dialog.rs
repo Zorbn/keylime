@@ -9,7 +9,7 @@ use windows::{
                 FileOpenDialog, FileSaveDialog, IFileDialog, FOS_PICKFOLDERS, SIGDN_FILESYSPATH,
             },
             WindowsAndMessaging::{
-                MessageBoxW, IDNO, IDYES, MB_ICONWARNING, MB_OK, MB_YESNOCANCEL,
+                MessageBoxW, IDNO, IDYES, MB_ICONWARNING, MB_OK, MB_YESNO, MB_YESNOCANCEL,
             },
         },
     },
@@ -27,6 +27,7 @@ pub enum FindFileKind {
 #[derive(PartialEq, Eq, Debug)]
 pub enum MessageKind {
     Ok,
+    YesNo,
     YesNoCancel,
 }
 
@@ -64,6 +65,7 @@ pub fn find_file(kind: FindFileKind) -> Result<PathBuf> {
 pub fn message(title: &str, text: &str, kind: MessageKind) -> MessageResponse {
     let style = match kind {
         MessageKind::Ok => MB_OK,
+        MessageKind::YesNo => MB_YESNO,
         MessageKind::YesNoCancel => MB_YESNOCANCEL,
     } | MB_ICONWARNING;
 

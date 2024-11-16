@@ -26,7 +26,7 @@ pub struct Editor {
     camera_y: f32,
     camera_velocity_y: f32,
     camera_needs_recenter: bool,
-    copied_text: Vec<char>,
+    text_buffer: Vec<char>,
 }
 
 impl Editor {
@@ -36,7 +36,7 @@ impl Editor {
             camera_y: 0.0,
             camera_velocity_y: 0.0,
             camera_needs_recenter: false,
-            copied_text: Vec::new(),
+            text_buffer: Vec::new(),
         }
     }
 
@@ -155,7 +155,29 @@ impl Editor {
                     key: Key::Enter,
                     mods: 0,
                 } => {
-                    self.doc.insert_at_cursors(&['\n'], line_pool, time);
+                    self.text_buffer.clear();
+
+                    for index in self.doc.cursor_indices() {
+                        let cursor = self.doc.get_cursor(index);
+
+                        let mut indent_position = Position::new(0, cursor.position.y);
+
+                        while indent_position < cursor.position {
+                            let c = self.doc.get_char(indent_position);
+
+                            if c.is_whitespace() {
+                                self.text_buffer.push(c);
+                                indent_position =
+                                    self.doc.move_position(indent_position, Position::new(1, 0));
+                            } else {
+                                break;
+                            }
+                        }
+
+                        self.doc.insert_at_cursor(index, &['\n'], line_pool, time);
+                        self.doc
+                            .insert_at_cursor(index, &self.text_buffer, line_pool, time);
+                    }
                 }
                 Keybind {
                     key: Key::Tab,
@@ -183,7 +205,7 @@ impl Editor {
                     key: Key::W,
                     mods: MOD_CTRL,
                 } => {
-                    if self.confirm_close("closing") {
+                    if self.confirm_close("closing", true) {
                         self.doc = Doc::new(line_pool);
                     }
                 }
@@ -191,7 +213,7 @@ impl Editor {
                     key: Key::R,
                     mods: MOD_CTRL,
                 } => {
-                    if self.confirm_close("reloading") {
+                    if self.confirm_close("reloading", true) {
                         if let Some(path) = self.doc.path().cloned() {
                             if let Err(err) = self.doc.load(&path, line_pool) {
                                 message("Failed to Reload File", &err.to_string(), MessageKind::Ok);
@@ -281,19 +303,19 @@ impl Editor {
                     key: Key::C,
                     mods: MOD_CTRL,
                 } => {
-                    self.copied_text.clear();
-                    let was_copy_implicit = self.doc.copy_at_cursors(&mut self.copied_text);
+                    self.text_buffer.clear();
+                    let was_copy_implicit = self.doc.copy_at_cursors(&mut self.text_buffer);
 
-                    let _ = window.set_clipboard(&self.copied_text, was_copy_implicit);
+                    let _ = window.set_clipboard(&self.text_buffer, was_copy_implicit);
                 }
                 Keybind {
                     key: Key::X,
                     mods: MOD_CTRL,
                 } => {
-                    self.copied_text.clear();
-                    let was_copy_implicit = self.doc.copy_at_cursors(&mut self.copied_text);
+                    self.text_buffer.clear();
+                    let was_copy_implicit = self.doc.copy_at_cursors(&mut self.text_buffer);
 
-                    let _ = window.set_clipboard(&self.copied_text, was_copy_implicit);
+                    let _ = window.set_clipboard(&self.text_buffer, was_copy_implicit);
 
                     for index in self.doc.cursor_indices() {
                         let cursor = self.doc.get_cursor(index);
@@ -549,7 +571,7 @@ impl Editor {
         gfx.end();
     }
 
-    fn confirm_close(&mut self, reason: &str) -> bool {
+    pub fn confirm_close(&mut self, reason: &str, is_cancelable: bool) -> bool {
         if self.doc.is_saved() {
             true
         } else {
@@ -559,7 +581,13 @@ impl Editor {
                 reason
             );
 
-            match message("Unsaved Changes", &text, MessageKind::YesNoCancel) {
+            let message_kind = if is_cancelable {
+                MessageKind::YesNoCancel
+            } else {
+                MessageKind::YesNo
+            };
+
+            match message("Unsaved Changes", &text, message_kind) {
                 MessageResponse::Yes => self.try_save(),
                 MessageResponse::No => true,
                 MessageResponse::Cancel => false,
