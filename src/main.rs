@@ -1,4 +1,5 @@
 mod action_history;
+mod char_category;
 mod cursor;
 mod cursor_index;
 mod deferred_call;
@@ -25,7 +26,6 @@ use window::Window;
 
 /*
  * TODO:
- * Ctrl modifier for arrows, backspace, delete.
  * Syntax highlighting.
  * Open/save/close/save-as dialogs.
  * Multiple tabs.

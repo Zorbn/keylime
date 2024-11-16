@@ -66,6 +66,8 @@ impl Editor {
                         _ => unreachable!(),
                     };
 
+                    let should_select = mods & MOD_SHIFT != 0;
+
                     if (mods & MOD_CTRL != 0)
                         && (mods & MOD_ALT != 0)
                         && (key == Key::Up || key == Key::Down)
@@ -79,13 +81,21 @@ impl Editor {
                         );
 
                         self.doc.add_cursor(position);
+                    } else if mods & MOD_CTRL != 0 {
+                        match key {
+                            Key::Up => self.doc.move_cursors_to_next_paragraph(-1, should_select),
+                            Key::Down => self.doc.move_cursors_to_next_paragraph(1, should_select),
+                            Key::Left => self.doc.move_cursors_to_next_word(-1, should_select),
+                            Key::Right => self.doc.move_cursors_to_next_word(1, should_select),
+                            _ => unreachable!(),
+                        }
                     } else {
-                        self.doc.move_cursors(direction, mods & MOD_SHIFT != 0);
+                        self.doc.move_cursors(direction, should_select);
                     }
                 }
                 Keybind {
                     key: Key::Backspace,
-                    mods: 0,
+                    mods,
                 } => {
                     for index in self.doc.cursor_indices() {
                         let cursor = self.doc.get_cursor(index);
@@ -94,7 +104,12 @@ impl Editor {
                             (selection.start, selection.end)
                         } else {
                             let end = cursor.position;
-                            let start = self.doc.move_position(end, Position::new(-1, 0));
+
+                            let start = if mods & MOD_CTRL != 0 {
+                                self.doc.move_position_to_next_word(end, -1, false)
+                            } else {
+                                self.doc.move_position(end, Position::new(-1, 0))
+                            };
 
                             (start, end)
                         };
@@ -105,7 +120,7 @@ impl Editor {
                 }
                 Keybind {
                     key: Key::Delete,
-                    mods: 0,
+                    mods,
                 } => {
                     for index in self.doc.cursor_indices() {
                         let cursor = self.doc.get_cursor(index);
@@ -114,7 +129,12 @@ impl Editor {
                             (selection.start, selection.end)
                         } else {
                             let start = cursor.position;
-                            let end = self.doc.move_position(start, Position::new(1, 0));
+
+                            let end = if mods & MOD_CTRL != 0 {
+                                self.doc.move_position_to_next_word(start, 1, false)
+                            } else {
+                                self.doc.move_position(start, Position::new(1, 0))
+                            };
 
                             (start, end)
                         };

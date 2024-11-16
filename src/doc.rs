@@ -5,6 +5,7 @@ use std::{
 
 use crate::{
     action_history::{Action, ActionHistory, ActionKind},
+    char_category::CharCategory,
     cursor::Cursor,
     cursor_index::{CursorIndex, CursorIndices},
     gfx::Gfx,
@@ -117,6 +118,110 @@ impl Doc {
         Position::new(new_x, new_y)
     }
 
+    pub fn move_position_skipping_category(
+        &self,
+        position: Position,
+        delta_x: isize,
+        category: CharCategory,
+    ) -> Position {
+        let mut position = self.clamp_position(position);
+        let side_offset = Self::get_side_offset(delta_x);
+        let delta = Position::new(delta_x, 0);
+
+        loop {
+            let current_category =
+                CharCategory::new(self.get_char(self.move_position(position, side_offset)));
+            let next_position = self.move_position(position, delta);
+
+            if current_category != category
+                || current_category == CharCategory::Newline
+                || next_position == position
+            {
+                break;
+            }
+
+            position = next_position;
+        }
+
+        position
+    }
+
+    pub fn move_position_to_next_word(
+        &self,
+        position: Position,
+        delta_x: isize,
+        do_skip_leading_whitespace: bool,
+    ) -> Position {
+        let starting_position = if do_skip_leading_whitespace {
+            self.move_position_skipping_category(position, delta_x, CharCategory::Space)
+        } else {
+            self.clamp_position(position)
+        };
+
+        let side_offset = Self::get_side_offset(delta_x);
+        let starting_category =
+            CharCategory::new(self.get_char(self.move_position(starting_position, side_offset)));
+
+        let ending_position =
+            self.move_position_skipping_category(starting_position, delta_x, starting_category);
+
+        if ending_position == position {
+            self.move_position(ending_position, Position::new(delta_x, 0))
+        } else {
+            ending_position
+        }
+    }
+
+    pub fn move_position_skipping_lines(
+        &self,
+        position: Position,
+        delta_y: isize,
+        do_skip_empty_lines: bool,
+    ) -> Position {
+        let mut position = self.clamp_position(position);
+        let delta = Position::new(0, delta_y);
+
+        loop {
+            let current_line_is_empty = self.get_line_len(position.y) == 0;
+            let next_position = self.move_position(position, delta);
+
+            if current_line_is_empty != do_skip_empty_lines || next_position == position {
+                break;
+            }
+
+            position = next_position;
+        }
+
+        position
+    }
+
+    pub fn move_position_to_next_paragraph(
+        &self,
+        position: Position,
+        delta_y: isize,
+        do_skip_leading_whitespace: bool,
+    ) -> Position {
+        let starting_position = if do_skip_leading_whitespace {
+            self.move_position_skipping_lines(position, delta_y, true)
+        } else {
+            self.clamp_position(position)
+        };
+
+        let starting_line_is_empty = self.get_line_len(starting_position.y) == 0;
+        let ending_position =
+            self.move_position_skipping_lines(starting_position, delta_y, starting_line_is_empty);
+
+        ending_position
+    }
+
+    fn get_side_offset(direction_x: isize) -> Position {
+        if direction_x < 0 {
+            Position::new(-1, 0)
+        } else {
+            Position::zero()
+        }
+    }
+
     pub fn get_line_len(&self, y: isize) -> isize {
         if y < 0 || y >= self.lines.len() as isize {
             return 0;
@@ -143,6 +248,42 @@ impl Doc {
     pub fn move_cursors(&mut self, delta: Position, should_select: bool) {
         for index in self.cursor_indices() {
             self.move_cursor(index, delta, should_select);
+        }
+    }
+
+    pub fn move_cursor_to_next_word(
+        &mut self,
+        index: CursorIndex,
+        delta_x: isize,
+        should_select: bool,
+    ) {
+        let cursor = self.get_cursor(index);
+        let destination = self.move_position_to_next_word(cursor.position, delta_x, true);
+
+        self.jump_cursor(index, destination, should_select);
+    }
+
+    pub fn move_cursors_to_next_word(&mut self, delta_x: isize, should_select: bool) {
+        for index in self.cursor_indices() {
+            self.move_cursor_to_next_word(index, delta_x, should_select);
+        }
+    }
+
+    pub fn move_cursor_to_next_paragraph(
+        &mut self,
+        index: CursorIndex,
+        delta_y: isize,
+        should_select: bool,
+    ) {
+        let cursor = self.get_cursor(index);
+        let destination = self.move_position_to_next_paragraph(cursor.position, delta_y, true);
+
+        self.jump_cursor(index, destination, should_select);
+    }
+
+    pub fn move_cursors_to_next_paragraph(&mut self, delta_y: isize, should_select: bool) {
+        for index in self.cursor_indices() {
+            self.move_cursor_to_next_paragraph(index, delta_y, should_select);
         }
     }
 
@@ -536,7 +677,7 @@ impl Doc {
         let position = self.clamp_position(position);
         let line = &self.lines[position.y as usize];
 
-        if position.x >= line.len() as isize {
+        if position.x == line.len() as isize {
             '\n'
         } else {
             line[position.x as usize]
