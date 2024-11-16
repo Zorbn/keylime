@@ -193,14 +193,14 @@ impl Window {
             WM_KILLFOCUS => {
                 (*window).is_focused = false;
             }
-            WM_CHAR if (*window).is_focused => {
+            WM_CHAR => {
                 if let Some(char) = char::from_u32(wparam.0 as u32) {
                     if !char.is_control() {
                         (*window).chars_typed.push(char);
                     }
                 }
             }
-            WM_KEYDOWN | WM_SYSKEYDOWN if (*window).is_focused => {
+            WM_KEYDOWN | WM_SYSKEYDOWN => {
                 if let Some(key) = Key::from((wparam.0 & 0xffff) as u32) {
                     let has_shift =
                         GetKeyState(Key::LShift as i32) < 0 || GetKeyState(Key::RShift as i32) < 0;
@@ -218,9 +218,7 @@ impl Window {
 
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
-            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_MOUSEMOVE
-                if (*window).is_focused =>
-            {
+            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_MOUSEMOVE => {
                 const MK_LBUTTON: usize = 0x01;
                 const MK_RBUTTON: usize = 0x02;
                 const MK_MBUTTON: usize = 0x10;
@@ -257,7 +255,7 @@ impl Window {
                     ));
                 }
             }
-            WM_MOUSEWHEEL if (*window).is_focused => {
+            WM_MOUSEWHEEL => {
                 const WHEEL_DELTA: f32 = 120.0;
 
                 let delta =

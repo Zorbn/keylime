@@ -123,8 +123,30 @@ impl SyntaxHighlighter {
         HighlightResult::Token { end: i }
     }
 
+    fn match_number_hex(line: &Line, start: usize) -> HighlightResult {
+        let mut i = start;
+
+        while i < line.len() {
+            if !line[i].is_ascii_hexdigit() {
+                if i == start {
+                    return HighlightResult::None;
+                }
+
+                break;
+            }
+
+            i += 1;
+        }
+
+        HighlightResult::Token { end: i }
+    }
+
     fn match_number(line: &Line, start: usize) -> HighlightResult {
         let mut i = start;
+
+        if i + 2 < line.len() && line[i] == '0' && line[i + 1] == 'x' {
+            return Self::match_number_hex(line, start + 2);
+        }
 
         let mut has_digit = false;
         let mut has_dot = false;
