@@ -59,13 +59,11 @@ impl Editor {
                 return;
             };
 
-            let doc_bounds =
-                Rect::new(bounds.x, bounds.y + tab_height, bounds.width, bounds.height);
-
             let tab_width = gfx.glyph_width() * 4.0
                 + Gfx::measure_text(doc.file_name().chars()) as f32 * gfx.glyph_width();
 
             let tab_bounds = Rect::new(tab_x, 0.0, tab_width, tab_height);
+            let doc_bounds = bounds.shrink_top_by(tab_bounds);
 
             tab_x += tab_width - gfx.border_width();
 

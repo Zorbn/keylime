@@ -403,14 +403,14 @@ impl Tab {
         if old_cursor_position != new_cursor_position {
             self.camera_needs_recenter = new_cursor_visual_position.y < cursor_scroll_border
                 || new_cursor_visual_position.y
-                    > gfx.height() - gfx.line_height() - cursor_scroll_border;
+                    > self.doc_bounds.height - gfx.line_height() - cursor_scroll_border;
         }
 
         if self.camera_needs_recenter {
-            let visual_distance = if new_cursor_visual_position.y < gfx.height() / 2.0 {
+            let visual_distance = if new_cursor_visual_position.y < self.doc_bounds.height / 2.0 {
                 new_cursor_visual_position.y - cursor_scroll_border
             } else {
-                new_cursor_visual_position.y - gfx.height()
+                new_cursor_visual_position.y - self.doc_bounds.height
                     + gfx.line_height()
                     + cursor_scroll_border
             };

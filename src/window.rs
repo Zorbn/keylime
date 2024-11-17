@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     mem::transmute,
     ptr::{copy_nonoverlapping, null_mut},
 };
@@ -44,7 +45,6 @@ pub struct Window {
 
     is_running: bool,
     is_focused: bool,
-    got_focus_this_frame: bool,
 
     width: i32,
     height: i32,
@@ -58,6 +58,11 @@ pub struct Window {
     pub keybinds_typed: Vec<Keybind>,
     pub mousebinds_pressed: Vec<Mousebind>,
     pub mouse_scrolls: Vec<MouseScroll>,
+
+    // Keep track of which mouse buttons have been pressed since the window was
+    // last focused, so that we can skip stray mouse drag events that may happen
+    // when the window is gaining focus again after coming back from a popup.
+    draggable_buttons: HashSet<MouseButton>,
 
     was_copy_implicit: bool,
     did_just_copy: bool,
@@ -90,7 +95,6 @@ impl Window {
 
                 is_running: true,
                 is_focused: false,
-                got_focus_this_frame: false,
 
                 width: DEFAULT_WIDTH,
                 height: DEFAULT_HEIGHT,
@@ -104,6 +108,8 @@ impl Window {
                 keybinds_typed: Vec::new(),
                 mousebinds_pressed: Vec::new(),
                 mouse_scrolls: Vec::new(),
+
+                draggable_buttons: HashSet::new(),
 
                 was_copy_implicit: false,
                 did_just_copy: false,
@@ -203,10 +209,10 @@ impl Window {
             }
             WM_SETFOCUS => {
                 (*window).is_focused = true;
-                (*window).got_focus_this_frame = true;
             }
             WM_KILLFOCUS => {
                 (*window).is_focused = false;
+                (*window).draggable_buttons.clear();
 
                 let _ = PostMessageW((*window).hwnd, WM_PAINT, None, None);
             }
@@ -267,7 +273,8 @@ impl Window {
 
                     let is_drag = msg == WM_MOUSEMOVE;
 
-                    if !is_drag || !(*window).got_focus_this_frame {
+                    if !is_drag || (*window).draggable_buttons.contains(&button) {
+                        (*window).draggable_buttons.insert(button);
                         (*window).mousebinds_pressed.push(Mousebind::new(
                             button, x, y, has_shift, has_ctrl, false, is_drag,
                         ));
@@ -314,8 +321,6 @@ impl Window {
                 let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
-
-            self.got_focus_this_frame = false;
 
             let mut queried_time = 0i64;
             let _ = QueryPerformanceCounter(&mut queried_time);

@@ -906,6 +906,10 @@ impl Gfx {
         self.line_height() * 1.25
     }
 
+    pub fn file_tree_width(&self) -> f32 {
+        self.glyph_width() * 20.0
+    }
+
     pub fn height_lines(&self) -> isize {
         (self.height() / self.line_height()) as isize
     }

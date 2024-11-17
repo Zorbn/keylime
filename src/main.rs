@@ -8,6 +8,7 @@ mod deferred_call;
 mod dialog;
 mod doc;
 mod editor;
+mod file_tree;
 mod gfx;
 mod input_handlers;
 mod key;
@@ -29,6 +30,7 @@ mod visual_position;
 mod window;
 
 use editor::Editor;
+use file_tree::FileTree;
 use gfx::Color;
 use line_pool::LinePool;
 use rect::Rect;
@@ -55,6 +57,13 @@ use window::Window;
 
 fn main() {
     println!("Hello, world!");
+
+    let mut file_tree = FileTree::new();
+    file_tree.load(Some(".".into())).unwrap();
+    file_tree.open(7).unwrap();
+    file_tree.open(1).unwrap();
+    file_tree.load(None).unwrap();
+    file_tree.test_print(0, 0);
 
     let mut line_pool = LinePool::new();
     let mut text_buffer = TempBuffer::new();
@@ -129,10 +138,12 @@ fn main() {
         let gfx = window.gfx();
         let bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
 
-        editor.layout(bounds, gfx);
+        file_tree.layout(bounds, gfx);
+        editor.layout(bounds.shrink_left_by(file_tree.bounds()), gfx);
 
         gfx.begin_frame(theme.background);
 
+        file_tree.draw(&theme, gfx);
         editor.draw(&theme, gfx, is_focused);
 
         gfx.end_frame();
