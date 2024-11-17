@@ -85,16 +85,18 @@ impl Tab {
                 mousebind.y - self.doc_bounds.y,
             );
 
+            let position = doc.visual_to_position(visual_position, self.camera_y, window.gfx());
+
             match mousebind {
                 Mousebind {
                     button: MouseButton::Left,
-                    mods: 0,
+                    mods: 0 | MOD_SHIFT,
                     is_drag,
                     ..
                 } => {
-                    let position =
-                        doc.visual_to_position(visual_position, self.camera_y, window.gfx());
-                    doc.jump_cursors(position, is_drag);
+                    let mods = mousebind.mods;
+
+                    doc.jump_cursors(position, is_drag || (mods & MOD_SHIFT != 0));
                 }
                 Mousebind {
                     button: MouseButton::Left,
@@ -102,8 +104,6 @@ impl Tab {
                     is_drag: false,
                     ..
                 } => {
-                    let position =
-                        doc.visual_to_position(visual_position, self.camera_y, window.gfx());
                     doc.add_cursor(position);
                 }
                 _ => mousebind_handler.unprocessed(window, mousebind),
@@ -310,7 +310,11 @@ impl Tab {
                     key: Key::Escape,
                     mods: 0,
                 } => {
-                    doc.clear_extra_cursors(CursorIndex::Some(0));
+                    if doc.cursors_len() > 1 {
+                        doc.clear_extra_cursors(CursorIndex::Some(0));
+                    } else {
+                        doc.end_cursor_selection(CursorIndex::Main);
+                    }
                 }
                 Keybind {
                     key: Key::Z,
@@ -453,7 +457,7 @@ impl Tab {
         self.tab_bounds
     }
 
-    pub fn draw(&mut self, doc: &Doc, theme: &Theme, gfx: &mut Gfx) {
+    pub fn draw(&mut self, doc: &Doc, theme: &Theme, gfx: &mut Gfx, is_focused: bool) {
         gfx.begin(Some(self.doc_bounds));
 
         let camera_y = self.camera_y.floor();
@@ -519,17 +523,19 @@ impl Tab {
             }
         }
 
-        for index in doc.cursor_indices() {
-            let cursor_position =
-                doc.position_to_visual(doc.get_cursor(index).position, camera_y, gfx);
+        if is_focused {
+            for index in doc.cursor_indices() {
+                let cursor_position =
+                    doc.position_to_visual(doc.get_cursor(index).position, camera_y, gfx);
 
-            gfx.add_rect(
-                cursor_position.x,
-                cursor_position.y,
-                (gfx.glyph_width() * 0.25).ceil(),
-                gfx.line_height(),
-                &Color::new(0, 0, 0, 255),
-            );
+                gfx.add_rect(
+                    cursor_position.x,
+                    cursor_position.y,
+                    (gfx.glyph_width() * 0.25).ceil(),
+                    gfx.line_height(),
+                    &Color::new(0, 0, 0, 255),
+                );
+            }
         }
 
         gfx.end();

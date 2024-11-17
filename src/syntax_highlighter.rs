@@ -30,6 +30,7 @@ pub struct SyntaxRange {
     pub start: String,
     pub end: String,
     pub escape: Option<char>,
+    pub max_length: Option<usize>,
     pub kind: HighlightKind,
 }
 
@@ -207,9 +208,17 @@ impl SyntaxHighlighter {
             i += range.start.len();
         }
 
+        let mut unescaped_len = 0;
+        let max_len = range.max_length.unwrap_or(usize::MAX);
+
         while i < line.len() {
+            if unescaped_len > max_len {
+                return HighlightResult::None;
+            }
+
             if Some(line[i]) == range.escape {
                 i += 2;
+                unescaped_len += 1;
                 continue;
             }
 
@@ -221,6 +230,7 @@ impl SyntaxHighlighter {
             }
 
             i += 1;
+            unescaped_len += 1;
         }
 
         HighlightResult::Range {

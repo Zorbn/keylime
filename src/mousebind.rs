@@ -3,7 +3,7 @@ use crate::{
     mouse_button::MouseButton,
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Mousebind {
     pub button: MouseButton,
     pub x: f32,

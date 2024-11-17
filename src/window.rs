@@ -39,9 +39,13 @@ pub struct Window {
     timer_frequency: i64,
     last_queried_time: Option<i64>,
     time: f32,
+
     hwnd: HWND,
+
     is_running: bool,
     is_focused: bool,
+    got_focus_this_frame: bool,
+
     width: i32,
     height: i32,
 
@@ -81,9 +85,13 @@ impl Window {
                 timer_frequency,
                 last_queried_time: None,
                 time: 0.0,
+
                 hwnd: HWND(null_mut()),
+
                 is_running: true,
                 is_focused: false,
+                got_focus_this_frame: false,
+
                 width: DEFAULT_WIDTH,
                 height: DEFAULT_HEIGHT,
 
@@ -195,9 +203,12 @@ impl Window {
             }
             WM_SETFOCUS => {
                 (*window).is_focused = true;
+                (*window).got_focus_this_frame = true;
             }
             WM_KILLFOCUS => {
                 (*window).is_focused = false;
+
+                let _ = PostMessageW((*window).hwnd, WM_PAINT, None, None);
             }
             WM_CHAR => {
                 if let Some(char) = char::from_u32(wparam.0 as u32) {
@@ -256,9 +267,11 @@ impl Window {
 
                     let is_drag = msg == WM_MOUSEMOVE;
 
-                    (*window).mousebinds_pressed.push(Mousebind::new(
-                        button, x, y, has_shift, has_ctrl, false, is_drag,
-                    ));
+                    if !is_drag || !(*window).got_focus_this_frame {
+                        (*window).mousebinds_pressed.push(Mousebind::new(
+                            button, x, y, has_shift, has_ctrl, false, is_drag,
+                        ));
+                    }
                 }
             }
             WM_MOUSEWHEEL => {
@@ -291,18 +304,18 @@ impl Window {
         unsafe {
             let mut msg = MSG::default();
 
-            let has_message = if is_animating {
-                PeekMessageW(&mut msg, self.hwnd, 0, 0, PM_REMOVE).as_bool()
-            } else {
+            if !is_animating {
                 let _ = GetMessageW(&mut msg, self.hwnd, 0, 0);
-
-                true
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
             };
 
-            if has_message {
+            while PeekMessageW(&mut msg, self.hwnd, 0, 0, PM_REMOVE).as_bool() {
                 let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
+
+            self.got_focus_this_frame = false;
 
             let mut queried_time = 0i64;
             let _ = QueryPerformanceCounter(&mut queried_time);
@@ -327,6 +340,10 @@ impl Window {
 
     pub fn is_running(&self) -> bool {
         self.is_running
+    }
+
+    pub fn is_focused(&self) -> bool {
+        self.is_focused
     }
 
     pub fn hwnd(&self) -> HWND {

@@ -178,7 +178,7 @@ impl Editor {
         }
     }
 
-    pub fn draw(&mut self, theme: &Theme, gfx: &mut Gfx) {
+    pub fn draw(&mut self, theme: &Theme, gfx: &mut Gfx, is_focused: bool) {
         let tab_height = gfx.tab_height();
         let tab_padding_y = (tab_height - gfx.line_height()) * 0.75;
 
@@ -252,7 +252,7 @@ impl Editor {
         gfx.end();
 
         if let Some((tab, doc)) = self.get_tab_with_doc(self.focused_tab_index) {
-            tab.draw(doc, theme, gfx);
+            tab.draw(doc, theme, gfx, is_focused);
         }
     }
 
@@ -341,6 +341,7 @@ impl Editor {
         for i in 0..self.docs.len() {
             if self.docs[i].is_none() {
                 doc_index = Some(i);
+                break;
             }
         }
 

@@ -86,24 +86,28 @@ fn main() {
                 start: "\"".into(),
                 end: "\"".into(),
                 escape: Some('\\'),
+                max_length: None,
                 kind: HighlightKind::String,
             },
             SyntaxRange {
                 start: "'".into(),
                 end: "'".into(),
                 escape: Some('\\'),
+                max_length: Some(1),
                 kind: HighlightKind::String,
             },
             SyntaxRange {
                 start: "//".into(),
                 end: "\n".into(),
                 escape: None,
+                max_length: None,
                 kind: HighlightKind::Comment,
             },
             SyntaxRange {
                 start: "/*".into(),
                 end: "*/".into(),
                 escape: None,
+                max_length: None,
                 kind: HighlightKind::Comment,
             },
         ],
@@ -121,6 +125,7 @@ fn main() {
             dt,
         );
 
+        let is_focused = window.is_focused();
         let gfx = window.gfx();
         let bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
 
@@ -128,7 +133,7 @@ fn main() {
 
         gfx.begin_frame(theme.background);
 
-        editor.draw(&theme, gfx);
+        editor.draw(&theme, gfx, is_focused);
 
         gfx.end_frame();
     }
