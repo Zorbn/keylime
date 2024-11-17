@@ -9,6 +9,7 @@ use crate::{
     mouse_button::MouseButton,
     mousebind::Mousebind,
     position::Position,
+    rect::Rect,
     syntax_highlighter::Syntax,
     temp_buffer::TempBuffer,
     theme::Theme,
@@ -26,6 +27,9 @@ pub struct Tab {
     camera_y: f32,
     camera_velocity_y: f32,
     camera_needs_recenter: bool,
+
+    tab_bounds: Rect,
+    doc_bounds: Rect,
 }
 
 impl Tab {
@@ -36,6 +40,9 @@ impl Tab {
             camera_y: 0.0,
             camera_velocity_y: 0.0,
             camera_needs_recenter: false,
+
+            tab_bounds: Rect::zero(),
+            doc_bounds: Rect::zero(),
         }
     }
 
@@ -45,6 +52,11 @@ impl Tab {
 
     pub fn is_animating(&self) -> bool {
         self.camera_velocity_y != 0.0
+    }
+
+    pub fn layout(&mut self, tab_bounds: Rect, doc_bounds: Rect) {
+        self.tab_bounds = tab_bounds;
+        self.doc_bounds = doc_bounds;
     }
 
     pub fn update(
@@ -68,7 +80,10 @@ impl Tab {
         let mut mousebind_handler = window.get_mousebind_handler();
 
         while let Some(mousebind) = mousebind_handler.next(window) {
-            let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
+            let visual_position = VisualPosition::new(
+                mousebind.x - self.doc_bounds.x,
+                mousebind.y - self.doc_bounds.y,
+            );
 
             match mousebind {
                 Mousebind {
@@ -434,8 +449,12 @@ impl Tab {
         self.camera_velocity_y = v;
     }
 
+    pub fn tab_bounds(&self) -> Rect {
+        self.tab_bounds
+    }
+
     pub fn draw(&mut self, doc: &Doc, theme: &Theme, gfx: &mut Gfx) {
-        gfx.begin(None);
+        gfx.begin(Some(self.doc_bounds));
 
         let camera_y = self.camera_y.floor();
         let line_padding = (gfx.line_height() - gfx.glyph_height()) / 2.0;

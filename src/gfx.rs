@@ -18,6 +18,7 @@ use windows::{
 
 use crate::{
     matrix::ortho,
+    rect::Rect,
     text::{AtlasDimensions, Text},
     window::Window,
 };
@@ -123,7 +124,7 @@ pub struct Gfx {
     render_target_view: Option<ID3D11RenderTargetView>,
     width: i32,
     height: i32,
-    bounds: [f32; 4],
+    bounds: Rect,
 
     vertices: Vec<Vertex>,
     vertex_buffer: Option<ID3D11Buffer>,
@@ -380,7 +381,7 @@ impl Gfx {
             render_target_view: None,
             width: 0,
             height: 0,
-            bounds: [0.0; 4],
+            bounds: Rect::zero(),
 
             vertices: Vec::new(),
             vertex_buffer: None,
@@ -565,14 +566,14 @@ impl Gfx {
         }
     }
 
-    pub fn begin(&mut self, bounds: Option<[f32; 4]>) {
+    pub fn begin(&mut self, bounds: Option<Rect>) {
         self.vertices.clear();
         self.indices.clear();
 
         if let Some(bounds) = bounds {
             self.bounds = bounds;
         } else {
-            self.bounds = [0.0, 0.0, self.width as f32, self.height as f32];
+            self.bounds = Rect::new(0.0, 0.0, self.width as f32, self.height as f32);
         }
     }
 
@@ -661,10 +662,10 @@ impl Gfx {
             self.context.Unmap(index_buffer, 0);
 
             self.context.RSSetScissorRects(Some(&[RECT {
-                left: self.bounds[0] as i32,
-                right: (self.bounds[0] + self.bounds[2]) as i32,
-                top: self.bounds[1] as i32,
-                bottom: (self.bounds[1] + self.bounds[3]) as i32,
+                left: self.bounds.x as i32,
+                right: (self.bounds.x + self.bounds.width) as i32,
+                top: self.bounds.y as i32,
+                bottom: (self.bounds.y + self.bounds.height) as i32,
             }]));
 
             self.context
@@ -704,16 +705,16 @@ impl Gfx {
         }
     }
 
-    pub fn add_sprite(&mut self, src: [f32; 4], dst: [f32; 4], color: &Color) {
-        let left = dst[0];
-        let top = dst[1];
-        let right = left + dst[2];
-        let bottom = top + dst[3];
+    pub fn add_sprite(&mut self, src: Rect, dst: Rect, color: &Color) {
+        let left = dst.x + self.bounds.x;
+        let top = dst.y + self.bounds.y;
+        let right = left + dst.width;
+        let bottom = top + dst.height;
 
-        let uv_left = src[0];
-        let uv_right = src[0] + src[2];
-        let uv_top = src[1];
-        let uv_bottom = src[1] + src[3];
+        let uv_left = src.x;
+        let uv_right = src.x + src.width;
+        let uv_top = src.y;
+        let uv_bottom = src.y + src.height;
 
         let r = color.r as f32;
         let g = color.g as f32;
@@ -858,8 +859,8 @@ impl Gfx {
             }
 
             self.add_sprite(
-                [source_x, 0.0, source_width, 1.0],
-                [destination_x, y, destination_width, glyph_height],
+                Rect::new(source_x, 0.0, source_width, 1.0),
+                Rect::new(destination_x, y, destination_width, glyph_height),
                 color,
             );
 
@@ -870,7 +871,11 @@ impl Gfx {
     }
 
     pub fn add_rect(&mut self, x: f32, y: f32, width: f32, height: f32, color: &Color) {
-        self.add_sprite([-1.0; 4], [x, y, width, height], color);
+        self.add_sprite(
+            Rect::new(-1.0, -1.0, -1.0, -1.0),
+            Rect::new(x, y, width, height),
+            color,
+        );
     }
 
     pub fn glyph_width(&self) -> f32 {
@@ -885,8 +890,20 @@ impl Gfx {
         self.atlas_dimensions.line_height
     }
 
+    pub fn border_width(&self) -> f32 {
+        1.0
+    }
+
+    pub fn width(&self) -> f32 {
+        self.width as f32
+    }
+
     pub fn height(&self) -> f32 {
         self.height as f32
+    }
+
+    pub fn tab_height(&self) -> f32 {
+        self.line_height() * 1.25
     }
 
     pub fn height_lines(&self) -> isize {

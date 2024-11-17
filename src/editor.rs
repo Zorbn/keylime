@@ -7,10 +7,14 @@ use crate::{
     key::Key,
     keybind::{Keybind, MOD_CTRL},
     line_pool::LinePool,
+    mouse_button::MouseButton,
+    mousebind::Mousebind,
+    rect::Rect,
     syntax_highlighter::Syntax,
     tab::Tab,
     temp_buffer::TempBuffer,
     theme::Theme,
+    visual_position::VisualPosition,
     window::Window,
 };
 
@@ -18,6 +22,7 @@ pub struct Editor {
     docs: Vec<Option<Doc>>,
     tabs: Vec<Tab>,
     focused_tab_index: usize,
+    bounds: Rect,
 }
 
 impl Editor {
@@ -26,6 +31,7 @@ impl Editor {
             docs: Vec::new(),
             tabs: Vec::new(),
             focused_tab_index: 0,
+            bounds: Rect::zero(),
         };
 
         editor.add_doc(Doc::new(line_pool));
@@ -42,6 +48,31 @@ impl Editor {
         }
     }
 
+    pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
+        self.bounds = bounds;
+
+        let mut tab_x = 0.0;
+        let tab_height = gfx.tab_height();
+
+        for i in 0..self.tabs.len() {
+            let Some((tab, doc)) = self.get_tab_with_doc(i) else {
+                return;
+            };
+
+            let doc_bounds =
+                Rect::new(bounds.x, bounds.y + tab_height, bounds.width, bounds.height);
+
+            let tab_width = gfx.glyph_width() * 4.0
+                + Gfx::measure_text(doc.file_name().chars()) as f32 * gfx.glyph_width();
+
+            let tab_bounds = Rect::new(tab_x, 0.0, tab_width, tab_height);
+
+            tab_x += tab_width - gfx.border_width();
+
+            tab.layout(tab_bounds, doc_bounds);
+        }
+    }
+
     pub fn update(
         &mut self,
         window: &mut Window,
@@ -51,6 +82,34 @@ impl Editor {
         time: f32,
         dt: f32,
     ) {
+        let mut mousebind_handler = window.get_mousebind_handler();
+
+        while let Some(mousebind) = mousebind_handler.next(window) {
+            let visual_position =
+                VisualPosition::new(mousebind.x - self.bounds.x, mousebind.y - self.bounds.y);
+
+            match mousebind {
+                Mousebind {
+                    button: MouseButton::Left,
+                    mods: 0,
+                    is_drag: false,
+                    ..
+                } => {
+                    match self
+                        .tabs
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, tab)| tab.tab_bounds().contains_position(visual_position))
+                        .nth(0)
+                    {
+                        Some((i, _)) => self.focused_tab_index = i,
+                        _ => mousebind_handler.unprocessed(window, mousebind),
+                    }
+                }
+                _ => mousebind_handler.unprocessed(window, mousebind),
+            }
+        }
+
         let mut keybind_handler = window.get_keybind_handler();
 
         while let Some(keybind) = keybind_handler.next(window) {
@@ -69,7 +128,7 @@ impl Editor {
                     key: Key::S,
                     mods: MOD_CTRL,
                 } => {
-                    if let Some((_, doc)) = self.get_focused_tab() {
+                    if let Some((_, doc)) = self.get_tab_with_doc(self.focused_tab_index) {
                         Self::try_save_doc(doc);
                     }
                 }
@@ -90,7 +149,7 @@ impl Editor {
                     key: Key::R,
                     mods: MOD_CTRL,
                 } => {
-                    if let Some((_, doc)) = self.get_focused_tab() {
+                    if let Some((_, doc)) = self.get_tab_with_doc(self.focused_tab_index) {
                         Self::reload_doc(doc, line_pool);
                     }
                 }
@@ -114,25 +173,97 @@ impl Editor {
             }
         }
 
-        if let Some((tab, doc)) = self.get_focused_tab() {
+        if let Some((tab, doc)) = self.get_tab_with_doc(self.focused_tab_index) {
             tab.update(doc, window, line_pool, text_buffer, syntax, time, dt);
         }
     }
 
-    fn get_focused_tab(&mut self) -> Option<(&mut Tab, &mut Doc)> {
-        if let Some(tab) = self.tabs.get_mut(self.focused_tab_index) {
+    pub fn draw(&mut self, theme: &Theme, gfx: &mut Gfx) {
+        let tab_height = gfx.tab_height();
+        let tab_padding_y = (tab_height - gfx.line_height()) * 0.75;
+
+        gfx.begin(Some(self.bounds));
+
+        for i in 0..self.tabs.len() {
+            let Some((tab, doc)) = self.get_tab_with_doc(i) else {
+                continue;
+            };
+
+            let tab_bounds = tab.tab_bounds();
+
+            gfx.add_rect(
+                tab_bounds.x,
+                0.0,
+                gfx.border_width(),
+                tab_bounds.height,
+                &theme.border,
+            );
+
+            let text_x = tab_bounds.x + gfx.glyph_width() * 2.0;
+
+            gfx.add_text(
+                doc.file_name().chars(),
+                text_x,
+                tab_padding_y,
+                &theme.normal,
+            );
+
+            gfx.add_rect(
+                tab_bounds.x + tab_bounds.width - gfx.border_width(),
+                0.0,
+                gfx.border_width(),
+                tab_bounds.height,
+                &theme.border,
+            );
+        }
+
+        let focused_tab_bounds = if let Some(tab) = self.tabs.get(self.focused_tab_index) {
+            let tab_bounds = tab.tab_bounds();
+
+            gfx.add_rect(
+                tab_bounds.x,
+                0.0,
+                tab_bounds.width,
+                gfx.border_width(),
+                &theme.keyword,
+            );
+
+            tab_bounds
+        } else {
+            Rect::zero()
+        };
+
+        gfx.add_rect(
+            0.0,
+            tab_height - gfx.border_width(),
+            focused_tab_bounds.x,
+            gfx.border_width(),
+            &theme.border,
+        );
+
+        gfx.add_rect(
+            focused_tab_bounds.x + focused_tab_bounds.width,
+            tab_height - gfx.border_width(),
+            self.bounds.width - focused_tab_bounds.x - focused_tab_bounds.width,
+            gfx.border_width(),
+            &theme.border,
+        );
+
+        gfx.end();
+
+        if let Some((tab, doc)) = self.get_tab_with_doc(self.focused_tab_index) {
+            tab.draw(doc, theme, gfx);
+        }
+    }
+
+    fn get_tab_with_doc(&mut self, tab_index: usize) -> Option<(&mut Tab, &mut Doc)> {
+        if let Some(tab) = self.tabs.get_mut(tab_index) {
             if let Some(Some(doc)) = self.docs.get_mut(tab.doc_index()) {
                 return Some((tab, doc));
             }
         }
 
         None
-    }
-
-    pub fn draw(&mut self, theme: &Theme, gfx: &mut Gfx) {
-        if let Some((tab, doc)) = self.get_focused_tab() {
-            tab.draw(doc, theme, gfx);
-        }
     }
 
     pub fn confirm_close_docs(&mut self, reason: &str) {

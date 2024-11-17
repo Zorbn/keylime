@@ -18,6 +18,7 @@ mod mouse_button;
 mod mouse_scroll;
 mod mousebind;
 mod position;
+mod rect;
 mod selection;
 mod syntax_highlighter;
 mod tab;
@@ -30,6 +31,7 @@ mod window;
 use editor::Editor;
 use gfx::Color;
 use line_pool::LinePool;
+use rect::Rect;
 use syntax_highlighter::{HighlightKind, Syntax, SyntaxRange};
 use temp_buffer::TempBuffer;
 use theme::Theme;
@@ -37,7 +39,6 @@ use window::Window;
 
 /*
  * TODO:
- * Multiple tabs.
  * Multiple panes (split view).
  * File tree.
  * Per file type indentation.
@@ -69,6 +70,7 @@ fn main() {
         number: Color::new(9, 134, 88, 255),
         symbol: Color::new(0, 0, 0, 255),
         string: Color::new(163, 21, 21, 255),
+        border: Color::new(229, 229, 229, 255),
         background: Color::new(245, 245, 245, 255),
     };
 
@@ -120,6 +122,9 @@ fn main() {
         );
 
         let gfx = window.gfx();
+        let bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
+
+        editor.layout(bounds, gfx);
 
         gfx.begin_frame(theme.background);
 

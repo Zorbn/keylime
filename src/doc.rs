@@ -828,11 +828,11 @@ impl Doc {
     pub fn file_name(&self) -> &str {
         const DEFAULT_NAME: &str = "Unnamed";
 
-        let Some(path) = &self.path else {
-            return DEFAULT_NAME;
-        };
-
-        path.to_str().unwrap_or(DEFAULT_NAME)
+        self.path
+            .as_ref()
+            .and_then(|path| path.file_name())
+            .and_then(|name| name.to_str())
+            .unwrap_or(DEFAULT_NAME)
     }
 
     pub fn is_saved(&self) -> bool {
