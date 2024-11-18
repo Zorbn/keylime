@@ -16,7 +16,7 @@ use crate::{
     temp_buffer::TempBuffer,
     theme::Theme,
     visual_position::VisualPosition,
-    window_handle::WindowHandle,
+    window::Window,
 };
 
 pub struct Editor {
@@ -75,7 +75,7 @@ impl Editor {
     pub fn update(
         &mut self,
         command_palette: &mut CommandPalette,
-        window: &mut WindowHandle,
+        window: &mut Window,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
         syntax: &Syntax,

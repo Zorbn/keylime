@@ -21,7 +21,7 @@ use crate::{
     rect::Rect,
     side::{SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     text::{AtlasDimensions, Text},
-    window_handle::WindowHandle,
+    window::Window,
 };
 
 const SHADER_CODE: &str = r#"
@@ -139,7 +139,7 @@ pub struct Gfx {
 }
 
 impl Gfx {
-    pub unsafe fn new(window: &WindowHandle) -> Result<Self> {
+    pub unsafe fn new(window: &Window) -> Result<Self> {
         let (device, context) = {
             let mut device_result = None;
             let mut context_result = None;
@@ -176,7 +176,7 @@ impl Gfx {
                 },
                 BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
                 BufferCount: 2,
-                Scaling: DXGI_SCALING_STRETCH,
+                Scaling: DXGI_SCALING_NONE,
                 SwapEffect: DXGI_SWAP_EFFECT_FLIP_DISCARD,
                 ..Default::default()
             };

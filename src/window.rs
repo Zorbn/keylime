@@ -1,16 +1,23 @@
-use std::{collections::HashSet, mem::transmute, ptr::null_mut};
+use std::{
+    collections::HashSet,
+    mem::transmute,
+    ptr::{copy_nonoverlapping, null_mut},
+};
 
 use windows::{
     core::{w, Result},
     Win32::{
-        Foundation::{BOOL, HWND, LPARAM, LRESULT, RECT, WPARAM},
+        Foundation::{GlobalFree, BOOL, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, RECT, WPARAM},
         Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE},
         System::{
             Com::{
                 CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
             },
+            DataExchange::{CloseClipboard, GetClipboardData, OpenClipboard, SetClipboardData},
             LibraryLoader::GetModuleHandleW,
-            Performance::QueryPerformanceFrequency,
+            Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE},
+            Ole::CF_UNICODETEXT,
+            Performance::{QueryPerformanceCounter, QueryPerformanceFrequency},
         },
         UI::{
             HiDpi::GetDpiForWindow, Input::KeyboardAndMouse::GetKeyState, WindowsAndMessaging::*,
@@ -19,11 +26,143 @@ use windows::{
 };
 
 use crate::{
-    app::App, gfx::Gfx, key::Key, keybind::Keybind, mouse_button::MouseButton,
-    mouse_scroll::MouseScroll, mousebind::Mousebind, window_handle::WindowHandle,
+    app::App,
+    defer,
+    gfx::Gfx,
+    input_handlers::{CharHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
+    key::Key,
+    keybind::Keybind,
+    mouse_button::MouseButton,
+    mouse_scroll::MouseScroll,
+    mousebind::Mousebind,
 };
 
 const DEFAULT_DPI: f32 = 92.0;
+
+pub struct WindowRunner {
+    window: Window,
+    app: App,
+}
+
+impl WindowRunner {
+    pub fn new(app: App) -> Result<Box<Self>> {
+        let use_dark_mode = BOOL::from(app.is_dark());
+
+        let mut window_runner = Box::new(WindowRunner {
+            window: Window::new()?,
+            app,
+        });
+
+        unsafe {
+            let window_class = WNDCLASSEXW {
+                cbSize: size_of::<WNDCLASSEXW>() as u32,
+                lpfnWndProc: Some(Self::window_proc),
+                hInstance: GetModuleHandleW(None)?.into(),
+                hCursor: LoadCursorW(None, IDC_ARROW)?,
+                lpszClassName: w!("keylime_window_class"),
+                ..Default::default()
+            };
+
+            assert!(RegisterClassExW(&window_class) != 0);
+
+            let lparam: *mut WindowRunner = &mut *window_runner;
+
+            CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                window_class.lpszClassName,
+                w!("Keylime"),
+                WS_OVERLAPPEDWINDOW,
+                CW_USEDEFAULT,
+                CW_USEDEFAULT,
+                0,
+                0,
+                None,
+                None,
+                window_class.hInstance,
+                Some(lparam.cast()),
+            )?;
+
+            DwmSetWindowAttribute(
+                window_runner.window.hwnd(),
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                &use_dark_mode as *const BOOL as _,
+                size_of::<BOOL>() as u32,
+            )?;
+
+            let _ = ShowWindow(window_runner.window.hwnd(), SW_SHOWDEFAULT);
+
+            CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE).ok()?;
+        }
+
+        Ok(window_runner)
+    }
+
+    pub fn run(&mut self) {
+        let WindowRunner {
+            window: window_handle,
+            app,
+            ..
+        } = self;
+
+        while window_handle.is_running() {
+            app.update(window_handle);
+            app.draw(window_handle);
+        }
+    }
+
+    unsafe extern "system" fn window_proc(
+        hwnd: HWND,
+        msg: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> LRESULT {
+        let window_runner = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut WindowRunner;
+
+        match msg {
+            WM_NCCREATE => {
+                let create_struct = lparam.0 as *const CREATESTRUCTW;
+
+                SetWindowLongPtrW(
+                    hwnd,
+                    GWLP_USERDATA,
+                    (*create_struct).lpCreateParams as isize,
+                );
+
+                // Update the window to finish setting user data.
+                let _ = SetWindowPos(
+                    hwnd,
+                    None,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
+                );
+
+                DefWindowProcW(hwnd, msg, wparam, lparam)
+            }
+            _ => {
+                let WindowRunner {
+                    window: window_handle,
+                    app,
+                    ..
+                } = &mut (*window_runner);
+
+                window_handle.window_proc(app, hwnd, msg, wparam, lparam)
+            }
+        }
+    }
+}
+
+impl Drop for WindowRunner {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = DestroyWindow(self.window.hwnd());
+            CoUninitialize();
+        }
+    }
+}
+
 const DEFAULT_WIDTH: i32 = 640;
 const DEFAULT_HEIGHT: i32 = 480;
 
@@ -46,171 +185,247 @@ pub struct Window {
 
     gfx: Option<Gfx>,
 
-    pub chars_typed: Vec<char>,
-    pub keybinds_typed: Vec<Keybind>,
-    pub mousebinds_pressed: Vec<Mousebind>,
-    pub mouse_scrolls: Vec<MouseScroll>,
-
     // Keep track of which mouse buttons have been pressed since the window was
     // last focused, so that we can skip stray mouse drag events that may happen
     // when the window is gaining focus again after coming back from a popup.
     draggable_buttons: HashSet<MouseButton>,
 
+    pub chars_typed: Vec<char>,
+    pub keybinds_typed: Vec<Keybind>,
+    pub mousebinds_pressed: Vec<Mousebind>,
+    pub mouse_scrolls: Vec<MouseScroll>,
+
     was_copy_implicit: bool,
     did_just_copy: bool,
-
-    app: App,
 }
 
 impl Window {
-    pub fn new(app: App, use_dark_mode: bool) -> Result<Box<Self>> {
+    fn new() -> Result<Self> {
+        let mut timer_frequency = 0i64;
+
         unsafe {
-            let mut timer_frequency = 0i64;
-
             QueryPerformanceFrequency(&mut timer_frequency)?;
+        }
 
-            let window_class = WNDCLASSEXW {
-                cbSize: size_of::<WNDCLASSEXW>() as u32,
-                lpfnWndProc: Some(Self::window_proc),
-                hInstance: GetModuleHandleW(None)?.into(),
-                hCursor: LoadCursorW(None, IDC_ARROW)?,
-                lpszClassName: w!("keylime_window_class"),
-                ..Default::default()
+        Ok(Self {
+            timer_frequency,
+            last_queried_time: None,
+            time: 0.0,
+
+            hwnd: HWND(null_mut()),
+
+            is_running: true,
+            is_focused: false,
+
+            dpi: 1.0,
+            width: DEFAULT_WIDTH,
+            height: DEFAULT_HEIGHT,
+
+            wide_text_buffer: Vec::new(),
+            text_buffer: Vec::new(),
+
+            gfx: None,
+
+            draggable_buttons: HashSet::new(),
+
+            chars_typed: Vec::new(),
+            keybinds_typed: Vec::new(),
+            mousebinds_pressed: Vec::new(),
+            mouse_scrolls: Vec::new(),
+
+            was_copy_implicit: false,
+            did_just_copy: false,
+        })
+    }
+
+    pub fn clear_inputs(&mut self) {
+        self.chars_typed.clear();
+        self.keybinds_typed.clear();
+        self.mousebinds_pressed.clear();
+        self.mouse_scrolls.clear();
+    }
+
+    pub fn update(&mut self, is_animating: bool) -> (f32, f32) {
+        self.clear_inputs();
+
+        unsafe {
+            let mut msg = MSG::default();
+
+            if !is_animating {
+                let _ = GetMessageW(&mut msg, self.hwnd, 0, 0);
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
             };
 
-            assert!(RegisterClassExW(&window_class) != 0);
+            while PeekMessageW(&mut msg, self.hwnd, 0, 0, PM_REMOVE).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
 
-            let mut window = Box::new(Window {
-                timer_frequency,
-                last_queried_time: None,
-                time: 0.0,
+            let mut queried_time = 0i64;
+            let _ = QueryPerformanceCounter(&mut queried_time);
 
-                hwnd: HWND(null_mut()),
+            let dt = if let Some(last_queried_time) = self.last_queried_time {
+                (queried_time - last_queried_time) as f32 / self.timer_frequency as f32
+            } else {
+                0.0
+            };
 
-                is_running: true,
-                is_focused: false,
+            self.last_queried_time = Some(queried_time);
 
-                dpi: 1.0,
-                width: DEFAULT_WIDTH,
-                height: DEFAULT_HEIGHT,
+            self.time += dt;
 
-                wide_text_buffer: Vec::new(),
-                text_buffer: Vec::new(),
+            // Don't return massive delta times from big gaps in animation, because those
+            // might cause visual jumps or other problems. (eg. if you don't interact with
+            // the app for 15 seconds and then you do something that starts an animation,
+            // that animation shouldn't instantly jump to completion).
+            (self.time, if is_animating { dt } else { 0.0 })
+        }
+    }
 
-                gfx: None,
+    pub fn is_running(&self) -> bool {
+        self.is_running
+    }
 
-                chars_typed: Vec::new(),
-                keybinds_typed: Vec::new(),
-                mousebinds_pressed: Vec::new(),
-                mouse_scrolls: Vec::new(),
+    pub fn is_focused(&self) -> bool {
+        self.is_focused
+    }
 
-                draggable_buttons: HashSet::new(),
+    pub fn hwnd(&self) -> HWND {
+        self.hwnd
+    }
 
-                was_copy_implicit: false,
-                did_just_copy: false,
+    pub fn dpi(&self) -> f32 {
+        self.dpi
+    }
 
-                app,
+    pub fn gfx(&mut self) -> &mut Gfx {
+        self.gfx.as_mut().unwrap()
+    }
+
+    pub fn get_char_handler(&self) -> CharHandler {
+        CharHandler::new(self.chars_typed.len())
+    }
+
+    pub fn get_keybind_handler(&self) -> KeybindHandler {
+        KeybindHandler::new(self.keybinds_typed.len())
+    }
+
+    pub fn get_mousebind_handler(&self) -> MousebindHandler {
+        MousebindHandler::new(self.mousebinds_pressed.len())
+    }
+
+    pub fn get_mouse_scroll_handler(&self) -> MouseScrollHandler {
+        MouseScrollHandler::new(self.mouse_scrolls.len())
+    }
+
+    pub fn set_clipboard(&mut self, text: &[char], was_copy_implicit: bool) -> Result<()> {
+        self.was_copy_implicit = was_copy_implicit;
+        self.did_just_copy = true;
+
+        self.wide_text_buffer.clear();
+
+        for c in text {
+            let mut dst = [0u16; 2];
+
+            for wide_c in c.encode_utf16(&mut dst) {
+                self.wide_text_buffer.push(*wide_c);
+            }
+        }
+
+        self.wide_text_buffer.push(0);
+
+        unsafe {
+            OpenClipboard(self.hwnd)?;
+
+            defer!({
+                let _ = CloseClipboard();
             });
 
-            let lparam: *mut Window = &mut *window;
-
-            CreateWindowExW(
-                WINDOW_EX_STYLE(0),
-                window_class.lpszClassName,
-                w!("Keylime"),
-                WS_OVERLAPPEDWINDOW,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                0,
-                0,
-                None,
-                None,
-                window_class.hInstance,
-                Some(lparam.cast()),
+            let hglobal = GlobalAlloc(
+                GMEM_MOVEABLE,
+                self.wide_text_buffer.len() * size_of::<u16>(),
             )?;
 
-            let use_dark_mode = BOOL::from(use_dark_mode);
+            defer!({
+                let _ = GlobalFree(hglobal);
+            });
 
-            DwmSetWindowAttribute(
-                window.hwnd,
-                DWMWA_USE_IMMERSIVE_DARK_MODE,
-                &use_dark_mode as *const BOOL as _,
-                size_of::<BOOL>() as u32,
+            let memory = GlobalLock(hglobal) as *mut u16;
+
+            copy_nonoverlapping(
+                self.wide_text_buffer.as_ptr(),
+                memory,
+                self.wide_text_buffer.len(),
+            );
+
+            let _ = GlobalUnlock(hglobal);
+
+            SetClipboardData(CF_UNICODETEXT.0 as u32, HANDLE(hglobal.0))?;
+        }
+
+        Ok(())
+    }
+
+    pub fn get_clipboard(&mut self) -> Result<&[char]> {
+        self.text_buffer.clear();
+        self.wide_text_buffer.clear();
+
+        unsafe {
+            OpenClipboard(self.hwnd)?;
+
+            defer!({
+                let _ = CloseClipboard();
+            });
+
+            let hglobal = GlobalAlloc(
+                GMEM_MOVEABLE,
+                self.wide_text_buffer.len() * size_of::<u16>(),
             )?;
 
-            let _ = ShowWindow(window.hwnd, SW_SHOWDEFAULT);
+            defer!({
+                let _ = GlobalFree(hglobal);
+            });
 
-            CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE).ok()?;
+            let hglobal = HGLOBAL(GetClipboardData(CF_UNICODETEXT.0 as u32)?.0);
 
-            Ok(window)
+            let mut memory = GlobalLock(hglobal) as *mut u16;
+
+            if !memory.is_null() {
+                while *memory != 0 {
+                    self.wide_text_buffer.push(*memory);
+                    memory = memory.add(1);
+                }
+            }
+
+            let _ = GlobalUnlock(hglobal);
         }
-    }
 
-    fn as_window_handle(&mut self) -> (WindowHandle, &mut App) {
-        let Window {
-            timer_frequency,
-            last_queried_time,
-            time,
-            hwnd,
-            is_running,
-            is_focused,
-            dpi,
-            width,
-            height,
-            wide_text_buffer,
-            text_buffer,
-            gfx,
-            chars_typed,
-            keybinds_typed,
-            mousebinds_pressed,
-            mouse_scrolls,
-            was_copy_implicit,
-            did_just_copy,
-            app,
-            ..
-        } = self;
+        for c in char::decode_utf16(self.wide_text_buffer.iter().copied()) {
+            let c = c.unwrap_or('?');
 
-        let window_handle = WindowHandle::new(
-            timer_frequency,
-            last_queried_time,
-            time,
-            hwnd,
-            is_running,
-            is_focused,
-            dpi,
-            width,
-            height,
-            wide_text_buffer,
-            text_buffer,
-            gfx,
-            chars_typed,
-            keybinds_typed,
-            mousebinds_pressed,
-            mouse_scrolls,
-            was_copy_implicit,
-            did_just_copy,
-        );
+            if c == '\r' {
+                continue;
+            }
 
-        (window_handle, app)
-    }
-
-    pub fn run(&mut self) {
-        let (mut window_handle, app) = self.as_window_handle();
-
-        while window_handle.is_running() {
-            app.update(&mut window_handle);
-            app.draw(&mut window_handle);
+            self.text_buffer.push(c);
         }
+
+        Ok(&self.text_buffer)
     }
 
-    unsafe extern "system" fn window_proc(
+    pub fn was_copy_implicit(&self) -> bool {
+        self.was_copy_implicit
+    }
+
+    unsafe fn window_proc(
+        &mut self,
+        app: &mut App,
         hwnd: HWND,
         msg: u32,
         wparam: WPARAM,
         lparam: LPARAM,
     ) -> LRESULT {
-        let window = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut Window;
-
         match msg {
             WM_NCCREATE => {
                 let create_struct = lparam.0 as *const CREATESTRUCTW;
@@ -235,14 +450,14 @@ impl Window {
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
             WM_CREATE => {
-                (*window).hwnd = hwnd;
-                (*window).dpi = GetDpiForWindow(hwnd) as f32 / DEFAULT_DPI;
+                self.hwnd = hwnd;
+                self.dpi = GetDpiForWindow(hwnd) as f32 / DEFAULT_DPI;
 
                 let mut window_rect = RECT {
                     left: 0,
                     top: 0,
-                    right: (*window).width,
-                    bottom: (*window).height,
+                    right: self.width,
+                    bottom: self.height,
                 };
 
                 AdjustWindowRectEx(
@@ -253,26 +468,25 @@ impl Window {
                 )
                 .unwrap();
 
-                let width = ((window_rect.right - window_rect.left) as f32 * (*window).dpi) as i32;
-                let height = ((window_rect.bottom - window_rect.top) as f32 * (*window).dpi) as i32;
+                let width = ((window_rect.right - window_rect.left) as f32 * self.dpi) as i32;
+                let height = ((window_rect.bottom - window_rect.top) as f32 * self.dpi) as i32;
 
                 let _ = SetWindowPos(hwnd, None, 0, 0, width, height, SWP_NOMOVE);
 
-                let (window_handle, _) = (*window).as_window_handle();
-                (*window).gfx = Some(Gfx::new(&window_handle).unwrap());
+                self.gfx = Some(Gfx::new(self).unwrap());
             }
             WM_DPICHANGED => {
                 let dpi = (wparam.0 & 0xffff) as f32 / DEFAULT_DPI;
-                (*window).dpi = dpi;
+                self.dpi = dpi;
 
-                if let Some(gfx) = &mut (*window).gfx {
+                if let Some(gfx) = &mut self.gfx {
                     gfx.set_scale(dpi);
                 }
 
                 let rect = *(lparam.0 as *const RECT);
 
                 let _ = SetWindowPos(
-                    (*window).hwnd,
+                    self.hwnd,
                     None,
                     0,
                     0,
@@ -285,35 +499,33 @@ impl Window {
                 let width = (lparam.0 & 0xffff) as i32;
                 let height = ((lparam.0 >> 16) & 0xffff) as i32;
 
-                (*window).width = width;
-                (*window).height = height;
+                self.width = width;
+                self.height = height;
 
-                if let Some(gfx) = &mut (*window).gfx {
+                if let Some(gfx) = &mut self.gfx {
                     gfx.resize(width, height).unwrap();
-
-                    let (mut window_handle, app) = (*window).as_window_handle();
-                    app.draw(&mut window_handle);
+                    app.draw(self);
                 }
             }
             WM_CLOSE => {
-                (*window).is_running = false;
+                self.is_running = false;
             }
             WM_DESTROY => {
                 PostQuitMessage(0);
             }
             WM_SETFOCUS => {
-                (*window).is_focused = true;
+                self.is_focused = true;
             }
             WM_KILLFOCUS => {
-                (*window).is_focused = false;
-                (*window).draggable_buttons.clear();
+                self.is_focused = false;
+                self.draggable_buttons.clear();
 
-                let _ = PostMessageW((*window).hwnd, WM_PAINT, None, None);
+                let _ = PostMessageW(self.hwnd, WM_PAINT, None, None);
             }
             WM_CHAR => {
                 if let Some(char) = char::from_u32(wparam.0 as u32) {
                     if !char.is_control() {
-                        (*window).chars_typed.push(char);
+                        self.chars_typed.push(char);
                     }
                 }
             }
@@ -328,8 +540,7 @@ impl Window {
                     let has_alt =
                         GetKeyState(Key::LAlt as i32) < 0 || GetKeyState(Key::RAlt as i32) < 0;
 
-                    (*window)
-                        .keybinds_typed
+                    self.keybinds_typed
                         .push(Keybind::new(key, has_shift, has_ctrl, has_alt));
                 }
 
@@ -368,16 +579,16 @@ impl Window {
 
                 let do_ignore = if let Some(button) = button {
                     if !is_drag {
-                        (*window).draggable_buttons.insert(button);
+                        self.draggable_buttons.insert(button);
                     }
 
-                    is_drag && !(*window).draggable_buttons.contains(&button)
+                    is_drag && !self.draggable_buttons.contains(&button)
                 } else {
                     false
                 };
 
                 if !do_ignore {
-                    (*window).mousebinds_pressed.push(Mousebind::new(
+                    self.mousebinds_pressed.push(Mousebind::new(
                         button, x, y, has_shift, has_ctrl, false, is_drag,
                     ));
                 }
@@ -388,27 +599,18 @@ impl Window {
                 let delta =
                     transmute::<u16, i16>(((wparam.0 >> 16) & 0xffff) as u16) as f32 / WHEEL_DELTA;
 
-                (*window).mouse_scrolls.push(MouseScroll { delta });
+                self.mouse_scrolls.push(MouseScroll { delta });
             }
             WM_CLIPBOARDUPDATE => {
-                if !(*window).did_just_copy {
-                    (*window).was_copy_implicit = false;
+                if !self.did_just_copy {
+                    self.was_copy_implicit = false;
                 }
 
-                (*window).did_just_copy = false;
+                self.did_just_copy = false;
             }
             _ => return DefWindowProcW(hwnd, msg, wparam, lparam),
         }
 
         LRESULT(0)
-    }
-}
-
-impl Drop for Window {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = DestroyWindow(self.hwnd);
-            CoUninitialize();
-        }
     }
 }

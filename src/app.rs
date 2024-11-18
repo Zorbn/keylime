@@ -7,7 +7,7 @@ use crate::{
     syntax_highlighter::{HighlightKind, Syntax, SyntaxRange},
     temp_buffer::TempBuffer,
     theme::Theme,
-    window_handle::WindowHandle,
+    window::Window,
 };
 
 pub struct App {
@@ -100,7 +100,7 @@ impl App {
         }
     }
 
-    pub fn update(&mut self, window: &mut WindowHandle) {
+    pub fn update(&mut self, window: &mut Window) {
         let (time, dt) = window.update(self.editor.is_animating());
 
         self.command_palette.update(
@@ -122,7 +122,7 @@ impl App {
         );
     }
 
-    pub fn draw(&mut self, window: &mut WindowHandle) {
+    pub fn draw(&mut self, window: &mut Window) {
         let is_focused = window.is_focused();
         let gfx = window.gfx();
         let bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
@@ -144,10 +144,6 @@ impl App {
 
     pub fn is_dark(&self) -> bool {
         self.theme.is_dark()
-    }
-
-    pub fn background_color(&self) -> Color {
-        self.theme.background
     }
 }
 

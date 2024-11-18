@@ -22,7 +22,7 @@ use crate::{
     temp_buffer::TempBuffer,
     theme::Theme,
     visual_position::VisualPosition,
-    window_handle::WindowHandle,
+    window::Window,
 };
 
 #[derive(PartialEq, Eq)]
@@ -115,7 +115,7 @@ impl CommandPalette {
     pub fn update(
         &mut self,
         editor: &mut Editor,
-        window: &mut WindowHandle,
+        window: &mut Window,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
         time: f32,

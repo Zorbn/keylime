@@ -1,6 +1,4 @@
-use crate::{
-    keybind::Keybind, mouse_scroll::MouseScroll, mousebind::Mousebind, window_handle::WindowHandle,
-};
+use crate::{keybind::Keybind, mouse_scroll::MouseScroll, mousebind::Mousebind, window::Window};
 
 macro_rules! define_handler {
     ($name:ident, $buffer:ident, $t:ident) => {
@@ -16,7 +14,7 @@ macro_rules! define_handler {
                 }
             }
 
-            pub fn next(&mut self, window: &mut WindowHandle) -> Option<$t> {
+            pub fn next(&mut self, window: &mut Window) -> Option<$t> {
                 if self.i < 0 {
                     None
                 } else {
@@ -25,7 +23,7 @@ macro_rules! define_handler {
                 }
             }
 
-            pub fn unprocessed(&self, window: &mut WindowHandle, t: $t) {
+            pub fn unprocessed(&self, window: &mut Window, t: $t) {
                 window.$buffer.push(t);
             }
         }

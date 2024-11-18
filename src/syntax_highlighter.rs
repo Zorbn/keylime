@@ -234,7 +234,7 @@ impl SyntaxHighlighter {
         }
 
         HighlightResult::Range {
-            end: i,
+            end: i.min(line.len()),
             is_finished: false,
         }
     }

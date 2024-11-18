@@ -30,10 +30,9 @@ mod text;
 mod theme;
 mod visual_position;
 mod window;
-mod window_handle;
 
 use app::App;
-use window::Window;
+use window::WindowRunner;
 
 /*
  * TODO:
@@ -53,9 +52,8 @@ fn main() {
     println!("Hello, world!");
 
     let app = App::new();
-    let is_dark = app.is_dark();
 
-    let mut window = Window::new(app, is_dark).unwrap();
+    let mut window = WindowRunner::new(app).unwrap();
 
     window.run();
 }
