@@ -37,7 +37,7 @@ use crate::{
     mousebind::Mousebind,
 };
 
-const DEFAULT_DPI: f32 = 92.0;
+const DEFAULT_DPI: f32 = 96.0;
 
 pub struct WindowRunner {
     window: Window,
