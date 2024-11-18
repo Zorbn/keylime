@@ -2,13 +2,13 @@
 
 mod action_history;
 mod char_category;
+mod command_palette;
 mod cursor;
 mod cursor_index;
 mod deferred_call;
 mod dialog;
 mod doc;
 mod editor;
-mod file_tree;
 mod gfx;
 mod input_handlers;
 mod key;
@@ -21,6 +21,7 @@ mod mousebind;
 mod position;
 mod rect;
 mod selection;
+mod side;
 mod syntax_highlighter;
 mod tab;
 mod temp_buffer;
@@ -29,8 +30,8 @@ mod theme;
 mod visual_position;
 mod window;
 
+use command_palette::CommandPalette;
 use editor::Editor;
-use file_tree::FileTree;
 use gfx::Color;
 use line_pool::LinePool;
 use rect::Rect;
@@ -42,32 +43,24 @@ use window::Window;
 /*
  * TODO:
  * Multiple panes (split view).
- * File tree.
  * Per file type indentation.
  * Comment region: ctrl-/.
  * Indent-unindent region: ctrl-[, ctrl-], tab, shift-tab.
  * Support for OS scaling (eg. 125% applied for a monitor).
  * Search and search & replace.
  * Running commands and seeing output (very simple integrated terminal).
- * Find in files.
  * Configuration file: colors, fonts.
- * Command palette (eg. for ctrl-g, go to line).
+ * More command palette commands (go to line, open folder, new file/folder, recycle file/folder, etc).
  * Simple auto-complete.
  */
 
 fn main() {
     println!("Hello, world!");
 
-    let mut file_tree = FileTree::new();
-    file_tree.load(Some(".".into())).unwrap();
-    file_tree.open(7).unwrap();
-    file_tree.open(1).unwrap();
-    file_tree.load(None).unwrap();
-    file_tree.test_print(0, 0);
-
     let mut line_pool = LinePool::new();
     let mut text_buffer = TempBuffer::new();
 
+    let mut command_palette = CommandPalette::new(&mut line_pool);
     let mut editor = Editor::new(&mut line_pool);
 
     let mut window = Window::new().unwrap();
@@ -79,9 +72,22 @@ fn main() {
         number: Color::new(9, 134, 88, 255),
         symbol: Color::new(0, 0, 0, 255),
         string: Color::new(163, 21, 21, 255),
+        selection: Color::new(76, 173, 228, 125),
         border: Color::new(229, 229, 229, 255),
         background: Color::new(245, 245, 245, 255),
     };
+
+    // let theme = Theme {
+    //     normal: Color::new(204, 204, 204, 255),
+    //     comment: Color::new(106, 153, 85, 255),
+    //     keyword: Color::new(86, 156, 214, 255),
+    //     number: Color::new(181, 206, 168, 255),
+    //     symbol: Color::new(204, 204, 204, 255),
+    //     string: Color::new(163, 21, 21, 255),
+    //     selection: Color::new(76, 173, 228, 125),
+    //     border: Color::new(43, 43, 43, 255),
+    //     background: Color::new(30, 30, 30, 255),
+    // };
 
     let syntax = Syntax::new(
         &[
@@ -125,7 +131,16 @@ fn main() {
     while window.is_running() {
         let (time, dt) = window.update(editor.is_animating());
 
+        command_palette.update(
+            &mut editor,
+            &mut window,
+            &mut line_pool,
+            &mut text_buffer,
+            time,
+            dt,
+        );
         editor.update(
+            &mut command_palette,
             &mut window,
             &mut line_pool,
             &mut text_buffer,
@@ -138,13 +153,13 @@ fn main() {
         let gfx = window.gfx();
         let bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
 
-        file_tree.layout(bounds, gfx);
-        editor.layout(bounds.shrink_left_by(file_tree.bounds()), gfx);
+        command_palette.layout(bounds, gfx);
+        editor.layout(bounds, gfx);
 
         gfx.begin_frame(theme.background);
 
-        file_tree.draw(&theme, gfx);
-        editor.draw(&theme, gfx, is_focused);
+        editor.draw(&theme, gfx, is_focused && !command_palette.is_active());
+        command_palette.draw(&theme, gfx, is_focused);
 
         gfx.end_frame();
     }

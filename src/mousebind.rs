@@ -5,7 +5,7 @@ use crate::{
 
 #[derive(Clone, Copy, Debug)]
 pub struct Mousebind {
-    pub button: MouseButton,
+    pub button: Option<MouseButton>,
     pub x: f32,
     pub y: f32,
     pub mods: u8,
@@ -14,7 +14,7 @@ pub struct Mousebind {
 
 impl Mousebind {
     pub fn new(
-        button: MouseButton,
+        button: Option<MouseButton>,
         x: f32,
         y: f32,
         has_shift: bool,

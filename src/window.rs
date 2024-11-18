@@ -264,21 +264,28 @@ impl Window {
                     None
                 };
 
-                if let Some(button) = button {
-                    let has_shift = wparam.0 & MK_SHIFT != 0;
-                    let has_ctrl = wparam.0 & MK_CONTROL != 0;
+                let has_shift = wparam.0 & MK_SHIFT != 0;
+                let has_ctrl = wparam.0 & MK_CONTROL != 0;
 
-                    let x = transmute::<u32, i32>((lparam.0 & 0xffff) as u32) as f32;
-                    let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xffff) as u32) as f32;
+                let x = transmute::<u32, i32>((lparam.0 & 0xffff) as u32) as f32;
+                let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xffff) as u32) as f32;
 
-                    let is_drag = msg == WM_MOUSEMOVE;
+                let is_drag = msg == WM_MOUSEMOVE;
 
-                    if !is_drag || (*window).draggable_buttons.contains(&button) {
+                let do_ignore = if let Some(button) = button {
+                    if !is_drag {
                         (*window).draggable_buttons.insert(button);
-                        (*window).mousebinds_pressed.push(Mousebind::new(
-                            button, x, y, has_shift, has_ctrl, false, is_drag,
-                        ));
                     }
+
+                    is_drag && !(*window).draggable_buttons.contains(&button)
+                } else {
+                    false
+                };
+
+                if !do_ignore {
+                    (*window).mousebinds_pressed.push(Mousebind::new(
+                        button, x, y, has_shift, has_ctrl, false, is_drag,
+                    ));
                 }
             }
             WM_MOUSEWHEEL => {
@@ -302,11 +309,15 @@ impl Window {
         LRESULT(0)
     }
 
-    pub fn update(&mut self, is_animating: bool) -> (f32, f32) {
+    pub fn clear_inputs(&mut self) {
         self.chars_typed.clear();
         self.keybinds_typed.clear();
         self.mousebinds_pressed.clear();
         self.mouse_scrolls.clear();
+    }
+
+    pub fn update(&mut self, is_animating: bool) -> (f32, f32) {
+        self.clear_inputs();
 
         unsafe {
             let mut msg = MSG::default();

@@ -19,6 +19,7 @@ use windows::{
 use crate::{
     matrix::ortho,
     rect::Rect,
+    side::{SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     text::{AtlasDimensions, Text},
     window::Window,
 };
@@ -870,12 +871,50 @@ impl Gfx {
         i
     }
 
-    pub fn add_rect(&mut self, x: f32, y: f32, width: f32, height: f32, color: &Color) {
-        self.add_sprite(
-            Rect::new(-1.0, -1.0, -1.0, -1.0),
-            Rect::new(x, y, width, height),
-            color,
-        );
+    pub fn add_bordered_rect(
+        &mut self,
+        rect: Rect,
+        sides: u8,
+        color: &Color,
+        border_color: &Color,
+    ) {
+        let border_width = self.border_width();
+
+        self.add_rect(rect, border_color);
+
+        let left = rect.x
+            + if sides & SIDE_LEFT != 0 {
+                border_width
+            } else {
+                0.0
+            };
+
+        let right = rect.x + rect.width
+            - if sides & SIDE_RIGHT != 0 {
+                border_width
+            } else {
+                0.0
+            };
+
+        let top = rect.y
+            + if sides & SIDE_TOP != 0 {
+                border_width
+            } else {
+                0.0
+            };
+
+        let bottom = rect.y + rect.height
+            - if sides & SIDE_BOTTOM != 0 {
+                border_width
+            } else {
+                0.0
+            };
+
+        self.add_rect(Rect::new(left, top, right - left, bottom - top), color);
+    }
+
+    pub fn add_rect(&mut self, rect: Rect, color: &Color) {
+        self.add_sprite(Rect::new(-1.0, -1.0, -1.0, -1.0), rect, color);
     }
 
     pub fn glyph_width(&self) -> f32 {
@@ -888,6 +927,10 @@ impl Gfx {
 
     pub fn line_height(&self) -> f32 {
         self.atlas_dimensions.line_height
+    }
+
+    pub fn line_padding(&self) -> f32 {
+        (self.line_height() - self.glyph_height()) / 2.0
     }
 
     pub fn border_width(&self) -> f32 {
@@ -906,8 +949,8 @@ impl Gfx {
         self.line_height() * 1.25
     }
 
-    pub fn file_tree_width(&self) -> f32 {
-        self.glyph_width() * 20.0
+    pub fn tab_padding_y(&self) -> f32 {
+        (self.tab_height() - self.line_height()) * 0.75
     }
 
     pub fn height_lines(&self) -> isize {

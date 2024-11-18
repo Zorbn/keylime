@@ -7,6 +7,7 @@ pub struct Theme {
     pub number: Color,
     pub symbol: Color,
     pub string: Color,
+    pub selection: Color,
     pub border: Color,
     pub background: Color,
 }

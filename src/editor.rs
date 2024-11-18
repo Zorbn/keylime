@@ -1,8 +1,9 @@
-use std::path::Path;
+use std::{io, path::Path};
 
 use crate::{
+    command_palette::CommandPalette,
     dialog::{find_file, message, FindFileKind, MessageKind, MessageResponse},
-    doc::Doc,
+    doc::{Doc, DocKind},
     gfx::Gfx,
     key::Key,
     keybind::{Keybind, MOD_CTRL},
@@ -34,7 +35,7 @@ impl Editor {
             bounds: Rect::zero(),
         };
 
-        editor.add_doc(Doc::new(line_pool));
+        editor.add_doc(Doc::new(line_pool, DocKind::MultiLine));
         editor.add_tab(0);
 
         editor
@@ -73,6 +74,7 @@ impl Editor {
 
     pub fn update(
         &mut self,
+        command_palette: &mut CommandPalette,
         window: &mut Window,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
@@ -88,7 +90,7 @@ impl Editor {
 
             match mousebind {
                 Mousebind {
-                    button: MouseButton::Left,
+                    button: Some(MouseButton::Left),
                     mods: 0,
                     is_drag: false,
                     ..
@@ -113,12 +115,18 @@ impl Editor {
         while let Some(keybind) = keybind_handler.next(window) {
             match keybind {
                 Keybind {
+                    key: Key::P,
+                    mods: MOD_CTRL,
+                } => {
+                    command_palette.open();
+                }
+                Keybind {
                     key: Key::O,
                     mods: MOD_CTRL,
                 } => {
                     if let Ok(path) = find_file(FindFileKind::OpenFile) {
-                        if let Some(doc_index) = self.open_or_reuse_doc(path.as_path(), line_pool) {
-                            self.add_tab(doc_index);
+                        if let Err(err) = self.open_file(path.as_path(), line_pool) {
+                            message("Error Opening File", &err.to_string(), MessageKind::Ok);
                         }
                     }
                 }
@@ -134,7 +142,7 @@ impl Editor {
                     key: Key::N,
                     mods: MOD_CTRL,
                 } => {
-                    let doc_index = self.add_doc(Doc::new(line_pool));
+                    let doc_index = self.add_doc(Doc::new(line_pool, DocKind::MultiLine));
                     self.add_tab(doc_index);
                 }
                 Keybind {
@@ -172,13 +180,15 @@ impl Editor {
         }
 
         if let Some((tab, doc)) = self.get_tab_with_doc(self.focused_tab_index) {
-            tab.update(doc, window, line_pool, text_buffer, syntax, time, dt);
+            tab.update(doc, window, line_pool, text_buffer, Some(syntax), time, dt);
         }
+
+        window.clear_inputs();
     }
 
     pub fn draw(&mut self, theme: &Theme, gfx: &mut Gfx, is_focused: bool) {
         let tab_height = gfx.tab_height();
-        let tab_padding_y = (tab_height - gfx.line_height()) * 0.75;
+        let tab_padding_y = gfx.tab_padding_y();
 
         gfx.begin(Some(self.bounds));
 
@@ -189,13 +199,7 @@ impl Editor {
 
             let tab_bounds = tab.tab_bounds();
 
-            gfx.add_rect(
-                tab_bounds.x,
-                0.0,
-                gfx.border_width(),
-                tab_bounds.height,
-                &theme.border,
-            );
+            gfx.add_rect(tab_bounds.left_border(gfx.border_width()), &theme.border);
 
             let text_x = tab_bounds.x + gfx.glyph_width() * 2.0;
 
@@ -206,25 +210,13 @@ impl Editor {
                 &theme.normal,
             );
 
-            gfx.add_rect(
-                tab_bounds.x + tab_bounds.width - gfx.border_width(),
-                0.0,
-                gfx.border_width(),
-                tab_bounds.height,
-                &theme.border,
-            );
+            gfx.add_rect(tab_bounds.right_border(gfx.border_width()), &theme.border);
         }
 
         let focused_tab_bounds = if let Some(tab) = self.tabs.get(self.focused_tab_index) {
             let tab_bounds = tab.tab_bounds();
 
-            gfx.add_rect(
-                tab_bounds.x,
-                0.0,
-                tab_bounds.width,
-                gfx.border_width(),
-                &theme.keyword,
-            );
+            gfx.add_rect(tab_bounds.top_border(gfx.border_width()), &theme.keyword);
 
             tab_bounds
         } else {
@@ -232,18 +224,22 @@ impl Editor {
         };
 
         gfx.add_rect(
-            0.0,
-            tab_height - gfx.border_width(),
-            focused_tab_bounds.x,
-            gfx.border_width(),
+            Rect::from_sides(
+                0.0,
+                tab_height - gfx.border_width(),
+                focused_tab_bounds.x,
+                tab_height,
+            ),
             &theme.border,
         );
 
         gfx.add_rect(
-            focused_tab_bounds.x + focused_tab_bounds.width,
-            tab_height - gfx.border_width(),
-            self.bounds.width - focused_tab_bounds.x - focused_tab_bounds.width,
-            gfx.border_width(),
+            Rect::from_sides(
+                focused_tab_bounds.x + focused_tab_bounds.width,
+                tab_height - gfx.border_width(),
+                self.bounds.width,
+                tab_height,
+            ),
             &theme.border,
         );
 
@@ -262,6 +258,22 @@ impl Editor {
         }
 
         None
+    }
+
+    pub fn open_file(&mut self, path: &Path, line_pool: &mut LinePool) -> io::Result<()> {
+        let doc_index = self.open_or_reuse_doc(path, line_pool)?;
+
+        for tab in &self.tabs {
+            if tab.doc_index() == doc_index {
+                self.focused_tab_index = doc_index;
+
+                return Ok(());
+            }
+        }
+
+        self.add_tab(doc_index);
+
+        Ok(())
     }
 
     pub fn confirm_close_docs(&mut self, reason: &str) {
@@ -394,21 +406,17 @@ impl Editor {
         self.clamp_focused_tab();
     }
 
-    fn open_or_reuse_doc(&mut self, path: &Path, line_pool: &mut LinePool) -> Option<usize> {
+    fn open_or_reuse_doc(&mut self, path: &Path, line_pool: &mut LinePool) -> io::Result<usize> {
         for (i, doc) in self.docs.iter().filter_map(|doc| doc.as_ref()).enumerate() {
             if doc.path() == Some(path) {
-                return Some(i);
+                return Ok(i);
             }
         }
 
-        let mut doc = Doc::new(line_pool);
+        let mut doc = Doc::new(line_pool, DocKind::MultiLine);
 
-        if let Err(err) = doc.load(path, line_pool) {
-            message("Failed to Open File", &err.to_string(), MessageKind::Ok);
-        } else {
-            return Some(self.add_doc(doc));
-        }
+        doc.load(path, line_pool)?;
 
-        None
+        Ok(self.add_doc(doc))
     }
 }

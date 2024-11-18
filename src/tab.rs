@@ -2,7 +2,7 @@ use crate::{
     action_history::ActionKind,
     cursor_index::CursorIndex,
     doc::Doc,
-    gfx::{Color, Gfx},
+    gfx::Gfx,
     key::Key,
     keybind::{Keybind, MOD_ALT, MOD_CTRL, MOD_SHIFT},
     line_pool::LinePool,
@@ -65,7 +65,7 @@ impl Tab {
         window: &mut Window,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
-        syntax: &Syntax,
+        syntax: Option<&Syntax>,
         time: f32,
         dt: f32,
     ) {
@@ -89,7 +89,7 @@ impl Tab {
 
             match mousebind {
                 Mousebind {
-                    button: MouseButton::Left,
+                    button: Some(MouseButton::Left),
                     mods: 0 | MOD_SHIFT,
                     is_drag,
                     ..
@@ -99,7 +99,7 @@ impl Tab {
                     doc.jump_cursors(position, is_drag || (mods & MOD_SHIFT != 0));
                 }
                 Mousebind {
-                    button: MouseButton::Left,
+                    button: Some(MouseButton::Left),
                     mods: MOD_CTRL,
                     is_drag: false,
                     ..
@@ -176,7 +176,7 @@ impl Tab {
                             let end = cursor.position;
 
                             let start = if mods & MOD_CTRL != 0 {
-                                doc.move_position_to_next_word(end, -1, false)
+                                doc.move_position_to_next_word(end, -1)
                             } else {
                                 doc.move_position(end, Position::new(-1, 0))
                             };
@@ -201,7 +201,7 @@ impl Tab {
                             let start = cursor.position;
 
                             let end = if mods & MOD_CTRL != 0 {
-                                doc.move_position_to_next_word(start, 1, false)
+                                doc.move_position_to_next_word(start, 1)
                             } else {
                                 doc.move_position(start, Position::new(1, 0))
                             };
@@ -383,7 +383,10 @@ impl Tab {
 
         doc.combine_overlapping_cursors();
         self.update_camera(doc, window, old_cursor_position, dt);
-        doc.update_highlights(self.camera_y, window.gfx(), syntax);
+
+        if let Some(syntax) = syntax {
+            doc.update_highlights(self.camera_y, window.gfx(), syntax);
+        }
     }
 
     fn update_camera(
@@ -457,11 +460,14 @@ impl Tab {
         self.tab_bounds
     }
 
+    pub fn doc_bounds(&self) -> Rect {
+        self.doc_bounds
+    }
+
     pub fn draw(&mut self, doc: &Doc, theme: &Theme, gfx: &mut Gfx, is_focused: bool) {
         gfx.begin(Some(self.doc_bounds));
 
         let camera_y = self.camera_y.floor();
-        let line_padding = (gfx.line_height() - gfx.glyph_height()) / 2.0;
 
         let min_y = (camera_y / gfx.line_height()) as usize;
         let sub_line_offset_y = camera_y - min_y as f32 * gfx.line_height();
@@ -475,7 +481,7 @@ impl Tab {
         for (i, y) in (min_y..max_y).enumerate() {
             let line = &lines[y];
 
-            let visual_y = i as f32 * gfx.line_height() + line_padding - sub_line_offset_y;
+            let visual_y = i as f32 * gfx.line_height() + gfx.line_padding() - sub_line_offset_y;
 
             if y >= highlighted_lines.len() {
                 gfx.add_text(line.iter().copied(), 0.0, visual_y, &theme.normal);
@@ -512,11 +518,13 @@ impl Tab {
                 let char_width = Gfx::get_char_width(char);
 
                 gfx.add_rect(
-                    highlight_position.x,
-                    highlight_position.y,
-                    char_width as f32 * gfx.glyph_width(),
-                    gfx.line_height(),
-                    &Color::new(76, 173, 228, 125),
+                    Rect::new(
+                        highlight_position.x,
+                        highlight_position.y,
+                        char_width as f32 * gfx.glyph_width(),
+                        gfx.line_height(),
+                    ),
+                    &theme.selection,
                 );
 
                 position = doc.move_position(position, Position::new(1, 0));
@@ -529,11 +537,13 @@ impl Tab {
                     doc.position_to_visual(doc.get_cursor(index).position, camera_y, gfx);
 
                 gfx.add_rect(
-                    cursor_position.x,
-                    cursor_position.y,
-                    (gfx.glyph_width() * 0.25).ceil(),
-                    gfx.line_height(),
-                    &Color::new(0, 0, 0, 255),
+                    Rect::new(
+                        cursor_position.x,
+                        cursor_position.y,
+                        (gfx.glyph_width() * 0.25).ceil(),
+                        gfx.line_height(),
+                    ),
+                    &theme.normal,
                 );
             }
         }

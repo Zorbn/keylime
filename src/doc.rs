@@ -32,9 +32,16 @@ enum LineEnding {
     CrLf,
 }
 
+#[derive(PartialEq, Eq)]
+pub enum DocKind {
+    MultiLine,
+    SingleLine,
+}
+
 pub struct Doc {
     path: Option<PathBuf>,
     is_saved: bool,
+    version: usize,
 
     lines: Vec<Line>,
     cursors: Vec<Cursor>,
@@ -46,15 +53,18 @@ pub struct Doc {
 
     syntax_highlighter: SyntaxHighlighter,
     unhighlighted_line_y: isize,
+
+    kind: DocKind,
 }
 
 impl Doc {
-    pub fn new(line_pool: &mut LinePool) -> Self {
+    pub fn new(line_pool: &mut LinePool, kind: DocKind) -> Self {
         let lines = vec![line_pool.pop()];
 
         let mut doc = Self {
             path: None,
             is_saved: true,
+            version: 0,
 
             lines,
             cursors: Vec::new(),
@@ -66,6 +76,8 @@ impl Doc {
 
             syntax_highlighter: SyntaxHighlighter::new(),
             unhighlighted_line_y: 0,
+
+            kind,
         };
 
         doc.reset_cursors();
@@ -163,17 +175,9 @@ impl Doc {
         position
     }
 
-    pub fn move_position_to_next_word(
-        &self,
-        position: Position,
-        delta_x: isize,
-        do_skip_leading_whitespace: bool,
-    ) -> Position {
-        let starting_position = if do_skip_leading_whitespace {
-            self.move_position_skipping_category(position, delta_x, CharCategory::Space)
-        } else {
-            self.clamp_position(position)
-        };
+    pub fn move_position_to_next_word(&self, position: Position, delta_x: isize) -> Position {
+        let starting_position =
+            self.move_position_skipping_category(position, delta_x, CharCategory::Space);
 
         let side_offset = Self::get_side_offset(delta_x);
         let starting_category =
@@ -273,7 +277,7 @@ impl Doc {
         should_select: bool,
     ) {
         let cursor = self.get_cursor(index);
-        let destination = self.move_position_to_next_word(cursor.position, delta_x, true);
+        let destination = self.move_position_to_next_word(cursor.position, delta_x);
 
         self.jump_cursor(index, destination, should_select);
     }
@@ -548,6 +552,7 @@ impl Doc {
 
         self.mark_line_unhighlighted(start.y);
         self.is_saved = false;
+        self.version += 1;
 
         self.add_cursors_to_action_history(action_kind, time);
 
@@ -630,6 +635,7 @@ impl Doc {
 
         self.mark_line_unhighlighted(start.y);
         self.is_saved = false;
+        self.version += 1;
 
         self.add_cursors_to_action_history(action_kind, time);
 
@@ -638,6 +644,10 @@ impl Doc {
 
         for c in text {
             if *c == '\n' {
+                if self.kind == DocKind::SingleLine {
+                    continue;
+                }
+
                 let new_y = position.y as usize + 1;
                 let split_x = position.x as usize;
 
@@ -790,6 +800,7 @@ impl Doc {
 
         self.unhighlighted_line_y = 0;
         self.is_saved = true;
+        self.version = 0;
 
         let string = read_to_string(path)?;
 
@@ -805,6 +816,10 @@ impl Doc {
                     self.line_ending = LineEnding::CrLf;
                 }
                 '\n' => {
+                    if self.kind == DocKind::SingleLine {
+                        break;
+                    }
+
                     self.lines.push(current_line);
                     current_line = line_pool.pop();
                 }
@@ -991,6 +1006,10 @@ impl Doc {
                 break;
             }
         }
+    }
+
+    pub fn version(&self) -> usize {
+        self.version
     }
 }
 
