@@ -36,7 +36,7 @@ pub struct Text {
 
 impl Text {
     pub unsafe fn new(scale: f32) -> Result<Self> {
-        let font_size = scale * FONT_SIZE;
+        let font_size = (scale * FONT_SIZE).floor();
 
         let dwrite_factory: IDWriteFactory = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
 
