@@ -357,15 +357,7 @@ impl Gfx {
             uniform_buffer_result.unwrap()
         };
 
-        let mut text = Text::new()?;
-        let atlas = text.generate_atlas().unwrap();
-
-        let texture_data = Self::create_texture(
-            &device,
-            atlas.dimensions.width as u32,
-            atlas.dimensions.height as u32,
-            &atlas.data,
-        )?;
+        let (texture_data, atlas_dimensions) = Self::create_atlas_texture(&device, window.dpi())?;
 
         let gfx = Self {
             device,
@@ -392,7 +384,7 @@ impl Gfx {
             index_buffer: None,
             index_buffer_capacity: 0,
 
-            atlas_dimensions: atlas.dimensions,
+            atlas_dimensions,
         };
 
         Ok(gfx)
@@ -405,6 +397,23 @@ impl Gfx {
         ));
 
         panic!("Shader compile error: {}", message);
+    }
+
+    unsafe fn create_atlas_texture(
+        device: &ID3D11Device,
+        scale: f32,
+    ) -> Result<(TextureData, AtlasDimensions)> {
+        let mut text = Text::new(scale)?;
+        let atlas = text.generate_atlas().unwrap();
+
+        let texture_data = Self::create_texture(
+            device,
+            atlas.dimensions.width as u32,
+            atlas.dimensions.height as u32,
+            &atlas.data,
+        )?;
+
+        Ok((texture_data, atlas.dimensions))
     }
 
     unsafe fn create_texture(
@@ -543,6 +552,14 @@ impl Gfx {
         self.context.Unmap(&self.uniform_buffer, 0);
 
         Ok(())
+    }
+
+    pub fn set_scale(&mut self, scale: f32) {
+        unsafe {
+            if let Ok(atlas_texture) = Self::create_atlas_texture(&self.device, scale) {
+                (self.texture_data, self.atlas_dimensions) = atlas_texture;
+            }
+        }
     }
 
     pub fn begin_frame(&mut self, clear_color: Color) {

@@ -19,7 +19,9 @@ use windows::{
             Ole::CF_UNICODETEXT,
             Performance::{QueryPerformanceCounter, QueryPerformanceFrequency},
         },
-        UI::{Input::KeyboardAndMouse::GetKeyState, WindowsAndMessaging::*},
+        UI::{
+            HiDpi::GetDpiForWindow, Input::KeyboardAndMouse::GetKeyState, WindowsAndMessaging::*,
+        },
     },
 };
 
@@ -34,6 +36,7 @@ use crate::{
     mousebind::Mousebind,
 };
 
+const DEFAULT_DPI: f32 = 92.0;
 const DEFAULT_WIDTH: i32 = 640;
 const DEFAULT_HEIGHT: i32 = 480;
 
@@ -47,6 +50,7 @@ pub struct Window {
     is_running: bool,
     is_focused: bool,
 
+    dpi: f32,
     width: i32,
     height: i32,
 
@@ -97,6 +101,7 @@ impl Window {
                 is_running: true,
                 is_focused: false,
 
+                dpi: 1.0,
                 width: DEFAULT_WIDTH,
                 height: DEFAULT_HEIGHT,
 
@@ -118,23 +123,6 @@ impl Window {
 
             let lparam: *mut Window = &mut *window;
 
-            let mut window_rect = RECT {
-                left: 0,
-                top: 0,
-                right: 640,
-                bottom: 480,
-            };
-
-            AdjustWindowRectEx(
-                &mut window_rect,
-                WS_OVERLAPPEDWINDOW,
-                false,
-                WINDOW_EX_STYLE::default(),
-            )?;
-
-            let width = window_rect.right - window_rect.left;
-            let height = window_rect.bottom - window_rect.top;
-
             CreateWindowExW(
                 WINDOW_EX_STYLE(0),
                 window_class.lpszClassName,
@@ -142,8 +130,8 @@ impl Window {
                 WS_OVERLAPPEDWINDOW,
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,
-                width,
-                height,
+                0,
+                0,
                 None,
                 None,
                 window_class.hInstance,
@@ -200,7 +188,49 @@ impl Window {
             }
             WM_CREATE => {
                 (*window).hwnd = hwnd;
+                (*window).dpi = GetDpiForWindow(hwnd) as f32 / DEFAULT_DPI;
+
+                let mut window_rect = RECT {
+                    left: 0,
+                    top: 0,
+                    right: (*window).width,
+                    bottom: (*window).height,
+                };
+
+                AdjustWindowRectEx(
+                    &mut window_rect,
+                    WS_OVERLAPPEDWINDOW,
+                    false,
+                    WINDOW_EX_STYLE::default(),
+                )
+                .unwrap();
+
+                let width = ((window_rect.right - window_rect.left) as f32 * (*window).dpi) as i32;
+                let height = ((window_rect.bottom - window_rect.top) as f32 * (*window).dpi) as i32;
+
+                let _ = SetWindowPos(hwnd, None, 0, 0, width, height, SWP_NOMOVE);
+
                 (*window).gfx = Some(Gfx::new(window.as_ref().unwrap()).unwrap());
+            }
+            WM_DPICHANGED => {
+                let dpi = (wparam.0 & 0xffff) as f32 / DEFAULT_DPI;
+                (*window).dpi = dpi;
+
+                if let Some(gfx) = &mut (*window).gfx {
+                    gfx.set_scale(dpi);
+                }
+
+                let rect = *(lparam.0 as *const RECT);
+
+                let _ = SetWindowPos(
+                    (*window).hwnd,
+                    None,
+                    0,
+                    0,
+                    rect.right - rect.left,
+                    rect.bottom - rect.top,
+                    SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOMOVE,
+                );
             }
             WM_SIZE => {
                 let width = (lparam.0 & 0xffff) as i32;
@@ -376,6 +406,10 @@ impl Window {
 
     pub fn hwnd(&self) -> HWND {
         self.hwnd
+    }
+
+    pub fn dpi(&self) -> f32 {
+        self.dpi
     }
 
     pub fn gfx(&mut self) -> &mut Gfx {

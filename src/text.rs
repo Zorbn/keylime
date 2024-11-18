@@ -28,13 +28,16 @@ pub struct Text {
     dwrite_factory: IDWriteFactory,
 
     font_face: IDWriteFontFace,
+    font_size: f32,
 
     glyph_width: f32,
     line_height: f32,
 }
 
 impl Text {
-    pub unsafe fn new() -> Result<Self> {
+    pub unsafe fn new(scale: f32) -> Result<Self> {
+        let font_size = scale * FONT_SIZE;
+
         let dwrite_factory: IDWriteFactory = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
 
         let mut font_collection_result = None;
@@ -60,7 +63,7 @@ impl Text {
         let mut font_metrics = DWRITE_FONT_METRICS::default();
         font_face.GetMetrics(&mut font_metrics);
 
-        let glyph_metrics_scale = FONT_SIZE / font_metrics.designUnitsPerEm as f32;
+        let glyph_metrics_scale = font_size / font_metrics.designUnitsPerEm as f32;
 
         let mut m_glyph_index = 0u16;
         font_face.GetGlyphIndices(['M' as u32].as_ptr(), 1, &mut m_glyph_index)?;
@@ -78,6 +81,7 @@ impl Text {
             dwrite_factory,
 
             font_face,
+            font_size,
 
             glyph_width,
             line_height,
@@ -111,7 +115,7 @@ impl Text {
         let rendering_mode = self
             .font_face
             .GetRecommendedRenderingMode(
-                FONT_SIZE,
+                self.font_size,
                 1.0,
                 DWRITE_MEASURING_MODE_NATURAL,
                 &rendering_params,
@@ -123,7 +127,7 @@ impl Text {
             .CreateGlyphRunAnalysis(
                 &DWRITE_GLYPH_RUN {
                     fontFace: ManuallyDrop::new(Some(self.font_face.clone())),
-                    fontEmSize: FONT_SIZE,
+                    fontEmSize: self.font_size,
                     glyphCount: glyph_indices.len() as u32,
                     glyphIndices: glyph_indices.as_ptr(),
                     glyphAdvances: glyph_advances.as_ptr(),

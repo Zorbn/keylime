@@ -46,7 +46,6 @@ use window::Window;
  * Per file type indentation.
  * Comment region: ctrl-/.
  * Indent-unindent region: ctrl-[, ctrl-], tab, shift-tab.
- * Support for OS scaling (eg. 125% applied for a monitor).
  * Search and search & replace.
  * Running commands and seeing output (very simple integrated terminal).
  * Configuration file: colors, fonts.
