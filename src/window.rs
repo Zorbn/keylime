@@ -108,6 +108,8 @@ impl WindowRunner {
             app.update(window_handle);
             app.draw(window_handle);
         }
+
+        app.close();
     }
 
     unsafe extern "system" fn window_proc(

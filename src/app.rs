@@ -142,13 +142,11 @@ impl App {
         gfx.end_frame();
     }
 
+    pub fn close(&mut self) {
+        self.editor.confirm_close_docs("exiting");
+    }
+
     pub fn is_dark(&self) -> bool {
         self.theme.is_dark()
-    }
-}
-
-impl Drop for App {
-    fn drop(&mut self) {
-        self.editor.confirm_close_docs("exiting");
     }
 }

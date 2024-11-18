@@ -313,7 +313,11 @@ impl Editor {
             find_file(FindFileKind::Save)
         };
 
-        if let Err(err) = path.map(|path| doc.save(path)) {
+        let Ok(path) = path else {
+            return false;
+        };
+
+        if let Err(err) = doc.save(path) {
             message("Failed to Save File", &err.to_string(), MessageKind::Ok);
             false
         } else {

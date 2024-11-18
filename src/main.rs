@@ -52,7 +52,6 @@ fn main() {
     println!("Hello, world!");
 
     let app = App::new();
-
     let mut window = WindowRunner::new(app).unwrap();
 
     window.run();
