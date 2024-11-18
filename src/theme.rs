@@ -23,4 +23,12 @@ impl Theme {
             HighlightKind::String => self.string,
         }
     }
+
+    pub fn is_dark(&self) -> bool {
+        let background_average =
+            (self.background.r as usize + self.background.g as usize + self.background.b as usize)
+                / 3;
+
+        background_average < 128
+    }
 }

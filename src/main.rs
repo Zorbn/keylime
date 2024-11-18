@@ -51,6 +51,7 @@ use window::Window;
  * Running commands and seeing output (very simple integrated terminal).
  * Configuration file: colors, fonts.
  * More command palette commands (go to line, open folder, new file/folder, recycle file/folder, etc).
+ * Factor camera logic out of Tab and also use it for scrolling in the command palette.
  * Simple auto-complete.
  */
 
@@ -62,8 +63,6 @@ fn main() {
 
     let mut command_palette = CommandPalette::new(&mut line_pool);
     let mut editor = Editor::new(&mut line_pool);
-
-    let mut window = Window::new().unwrap();
 
     let theme = Theme {
         normal: Color::new(0, 0, 0, 255),
@@ -83,11 +82,13 @@ fn main() {
     //     keyword: Color::new(86, 156, 214, 255),
     //     number: Color::new(181, 206, 168, 255),
     //     symbol: Color::new(204, 204, 204, 255),
-    //     string: Color::new(163, 21, 21, 255),
+    //     string: Color::new(206, 145, 120, 255),
     //     selection: Color::new(76, 173, 228, 125),
     //     border: Color::new(43, 43, 43, 255),
     //     background: Color::new(30, 30, 30, 255),
     // };
+
+    let mut window = Window::new(theme.is_dark()).unwrap();
 
     let syntax = Syntax::new(
         &[

@@ -51,7 +51,7 @@ pub struct CommandPalette {
 impl CommandPalette {
     pub fn new(line_pool: &mut LinePool) -> Self {
         Self {
-            state: CommandPaletteState::Active,
+            state: CommandPaletteState::Inactive,
             tab: Tab::new(0),
             doc: Doc::new(line_pool, DocKind::SingleLine),
             last_updated_version: None,
@@ -353,7 +353,7 @@ impl CommandPalette {
     }
 
     pub fn draw(&mut self, theme: &Theme, gfx: &mut Gfx, is_focused: bool) {
-        if !self.is_active() {
+        if !self.is_active() || self.last_updated_version.is_none() {
             return;
         }
 

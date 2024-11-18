@@ -7,7 +7,8 @@ use std::{
 use windows::{
     core::{w, Result},
     Win32::{
-        Foundation::{GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, RECT, WPARAM},
+        Foundation::{GlobalFree, BOOL, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, RECT, WPARAM},
+        Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE},
         System::{
             Com::{
                 CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
@@ -69,7 +70,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new() -> Result<Box<Self>> {
+    pub fn new(use_dark_mode: bool) -> Result<Box<Self>> {
         unsafe {
             let mut timer_frequency = 0i64;
 
@@ -138,7 +139,7 @@ impl Window {
                 WINDOW_EX_STYLE(0),
                 window_class.lpszClassName,
                 w!("Keylime"),
-                WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                WS_OVERLAPPEDWINDOW,
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,
                 width,
@@ -148,6 +149,17 @@ impl Window {
                 window_class.hInstance,
                 Some(lparam.cast()),
             )?;
+
+            let use_dark_mode = BOOL::from(use_dark_mode);
+
+            DwmSetWindowAttribute(
+                window.hwnd,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                &use_dark_mode as *const BOOL as _,
+                size_of::<BOOL>() as u32,
+            )?;
+
+            let _ = ShowWindow(window.hwnd, SW_SHOWDEFAULT);
 
             CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE).ok()?;
 
