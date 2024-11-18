@@ -258,22 +258,20 @@ impl SyntaxHighlighter {
                 if let Some(unfinished_range_index) = last_highlighted_line.unfinished_range_index {
                     let range = &syntax.ranges[unfinished_range_index];
 
-                    let HighlightResult::Range { end, is_finished } =
+                    if let HighlightResult::Range { end, is_finished } =
                         Self::match_range(line, x, range, true)
-                    else {
-                        unreachable!();
-                    };
+                    {
+                        self.highlighted_lines[y].push(Highlight {
+                            start: x,
+                            end,
+                            kind: range.kind,
+                        });
+                        x = end;
 
-                    self.highlighted_lines[y].push(Highlight {
-                        start: x,
-                        end,
-                        kind: range.kind,
-                    });
-                    x = end;
-
-                    if !is_finished {
-                        self.highlighted_lines[y].unfinished_range_index =
-                            Some(unfinished_range_index);
+                        if !is_finished {
+                            self.highlighted_lines[y].unfinished_range_index =
+                                Some(unfinished_range_index);
+                        }
                     }
                 }
             }
