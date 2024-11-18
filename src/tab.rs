@@ -14,7 +14,7 @@ use crate::{
     temp_buffer::TempBuffer,
     theme::Theme,
     visual_position::VisualPosition,
-    window::Window,
+    window_handle::WindowHandle,
 };
 
 const SCROLL_SPEED: f32 = 30.0;
@@ -62,7 +62,7 @@ impl Tab {
     pub fn update(
         &mut self,
         doc: &mut Doc,
-        window: &mut Window,
+        window: &mut WindowHandle,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
         syntax: Option<&Syntax>,
@@ -392,7 +392,7 @@ impl Tab {
     fn update_camera(
         &mut self,
         doc: &Doc,
-        window: &mut Window,
+        window: &mut WindowHandle,
         old_cursor_position: Position,
         dt: f32,
     ) {

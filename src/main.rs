@@ -1,6 +1,7 @@
 #![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
 
 mod action_history;
+mod app;
 mod char_category;
 mod command_palette;
 mod cursor;
@@ -29,15 +30,9 @@ mod text;
 mod theme;
 mod visual_position;
 mod window;
+mod window_handle;
 
-use command_palette::CommandPalette;
-use editor::Editor;
-use gfx::Color;
-use line_pool::LinePool;
-use rect::Rect;
-use syntax_highlighter::{HighlightKind, Syntax, SyntaxRange};
-use temp_buffer::TempBuffer;
-use theme::Theme;
+use app::App;
 use window::Window;
 
 /*
@@ -57,112 +52,10 @@ use window::Window;
 fn main() {
     println!("Hello, world!");
 
-    let mut line_pool = LinePool::new();
-    let mut text_buffer = TempBuffer::new();
+    let app = App::new();
+    let is_dark = app.is_dark();
 
-    let mut command_palette = CommandPalette::new(&mut line_pool);
-    let mut editor = Editor::new(&mut line_pool);
+    let mut window = Window::new(app, is_dark).unwrap();
 
-    let theme = Theme {
-        normal: Color::new(0, 0, 0, 255),
-        comment: Color::new(0, 128, 0, 255),
-        keyword: Color::new(0, 0, 255, 255),
-        number: Color::new(9, 134, 88, 255),
-        symbol: Color::new(0, 0, 0, 255),
-        string: Color::new(163, 21, 21, 255),
-        selection: Color::new(76, 173, 228, 125),
-        border: Color::new(229, 229, 229, 255),
-        background: Color::new(245, 245, 245, 255),
-    };
-
-    // let theme = Theme {
-    //     normal: Color::new(204, 204, 204, 255),
-    //     comment: Color::new(106, 153, 85, 255),
-    //     keyword: Color::new(86, 156, 214, 255),
-    //     number: Color::new(181, 206, 168, 255),
-    //     symbol: Color::new(204, 204, 204, 255),
-    //     string: Color::new(206, 145, 120, 255),
-    //     selection: Color::new(76, 173, 228, 125),
-    //     border: Color::new(43, 43, 43, 255),
-    //     background: Color::new(30, 30, 30, 255),
-    // };
-
-    let mut window = Window::new(theme.is_dark()).unwrap();
-
-    let syntax = Syntax::new(
-        &[
-            "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false", "fn",
-            "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref",
-            "return", "self", "Self", "static", "struct", "super", "trait", "true", "type",
-            "unsafe", "use", "where", "while",
-        ],
-        &[
-            SyntaxRange {
-                start: "\"".into(),
-                end: "\"".into(),
-                escape: Some('\\'),
-                max_length: None,
-                kind: HighlightKind::String,
-            },
-            SyntaxRange {
-                start: "'".into(),
-                end: "'".into(),
-                escape: Some('\\'),
-                max_length: Some(1),
-                kind: HighlightKind::String,
-            },
-            SyntaxRange {
-                start: "//".into(),
-                end: "\n".into(),
-                escape: None,
-                max_length: None,
-                kind: HighlightKind::Comment,
-            },
-            SyntaxRange {
-                start: "/*".into(),
-                end: "*/".into(),
-                escape: None,
-                max_length: None,
-                kind: HighlightKind::Comment,
-            },
-        ],
-    );
-
-    while window.is_running() {
-        let (time, dt) = window.update(editor.is_animating());
-
-        command_palette.update(
-            &mut editor,
-            &mut window,
-            &mut line_pool,
-            &mut text_buffer,
-            time,
-            dt,
-        );
-        editor.update(
-            &mut command_palette,
-            &mut window,
-            &mut line_pool,
-            &mut text_buffer,
-            &syntax,
-            time,
-            dt,
-        );
-
-        let is_focused = window.is_focused();
-        let gfx = window.gfx();
-        let bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
-
-        command_palette.layout(bounds, gfx);
-        editor.layout(bounds, gfx);
-
-        gfx.begin_frame(theme.background);
-
-        editor.draw(&theme, gfx, is_focused && !command_palette.is_active());
-        command_palette.draw(&theme, gfx, is_focused);
-
-        gfx.end_frame();
-    }
-
-    editor.confirm_close_docs("exiting");
+    window.run();
 }
