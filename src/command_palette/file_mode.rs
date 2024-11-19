@@ -17,6 +17,7 @@ pub const MODE_OPEN_FILE: CommandPaletteMode = CommandPaletteMode {
 
 fn on_submit_open_file(
     command_palette: &mut CommandPalette,
+    _: bool,
     editor: &mut Editor,
     line_pool: &mut LinePool,
     _: f32,

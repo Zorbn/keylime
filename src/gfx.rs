@@ -878,7 +878,7 @@ impl Gfx {
 
             self.add_sprite(
                 Rect::new(source_x, 0.0, source_width, 1.0),
-                Rect::new(destination_x, y, destination_width, glyph_height).floor_position(),
+                Rect::new(destination_x, y, destination_width, glyph_height),
                 color,
             );
 

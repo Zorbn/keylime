@@ -207,7 +207,7 @@ impl Editor {
 
             gfx.add_rect(tab_bounds.left_border(gfx.border_width()), &theme.border);
 
-            let text_x = tab_bounds.x + gfx.glyph_width() * 2.0;
+            let text_x = (tab_bounds.x + gfx.glyph_width() * 2.0).floor();
 
             gfx.add_text(
                 doc.file_name().chars(),

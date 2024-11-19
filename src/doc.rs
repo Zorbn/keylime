@@ -718,10 +718,15 @@ impl Doc {
         self.insert(start, text, line_pool, time);
     }
 
-    pub fn search(&self, text: &[char], start: Position, do_wrap: bool) -> Option<Position> {
+    pub fn search_forwards(
+        &self,
+        text: &[char],
+        start: Position,
+        do_wrap: bool,
+    ) -> Option<Position> {
         let start = self.clamp_position(start);
 
-        let mut x = start.x as usize;
+        let mut x = start.x as usize + 1;
 
         for y in start.y..self.lines.len() as isize {
             let line = &self.lines[y as usize];
@@ -752,10 +757,63 @@ impl Doc {
         }
 
         if do_wrap {
-            self.search(text, Position::zero(), false)
+            self.search_forwards(text, Position::zero(), false)
         } else {
             None
         }
+    }
+
+    pub fn search_backwards(
+        &self,
+        text: &[char],
+        start: Position,
+        do_wrap: bool,
+    ) -> Option<Position> {
+        let start = self.clamp_position(start);
+
+        let mut x = start.x - 2;
+
+        for y in (0..=start.y).rev() {
+            let line = &self.lines[y as usize];
+
+            if y != start.y {
+                x = line.len().saturating_sub(1) as isize;
+            }
+
+            let search_len = text.len().saturating_sub(1).min(line.len()) as isize;
+
+            while x > search_len {
+                let mut found_text = true;
+
+                for c in text.iter().rev() {
+                    if *c != line[x as usize] {
+                        found_text = false;
+                        break;
+                    }
+
+                    x -= 1;
+                }
+
+                if found_text {
+                    return Some(Position::new(x + 1, y));
+                }
+
+                x -= 1;
+            }
+        }
+
+        if do_wrap {
+            self.search_backwards(text, self.end(), false)
+        } else {
+            None
+        }
+    }
+
+    pub fn end(&self) -> Position {
+        let mut position = Position::new(0, self.lines().len() as isize - 1);
+        position.x = self.get_line_len(position.y);
+
+        position
     }
 
     pub fn get_char(&self, position: Position) -> char {

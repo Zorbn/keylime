@@ -131,10 +131,6 @@ impl Rect {
         )
     }
 
-    pub fn floor_position(&self) -> Rect {
-        Rect::new(self.x.floor(), self.y.floor(), self.width, self.height)
-    }
-
     pub fn top_border(&self, border_width: f32) -> Rect {
         Rect::new(self.x, self.y, self.width, border_width)
     }

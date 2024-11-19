@@ -12,6 +12,7 @@ pub const MODE_SEARCH: CommandPaletteMode = CommandPaletteMode {
 
 fn on_submit_search(
     command_palette: &mut CommandPalette,
+    has_shift: bool,
     editor: &mut Editor,
     _: &mut LinePool,
     _: f32,
@@ -28,12 +29,17 @@ fn on_submit_search(
 
     let start = doc.get_cursor(CursorIndex::Main).position;
 
-    if let Some(position) = doc.search(search_term, start, true) {
+    let result = if has_shift {
+        doc.search_backwards(search_term, start, true)
+    } else {
+        doc.search_forwards(search_term, start, true)
+    };
+
+    if let Some(position) = result {
+        let end = doc.move_position(position, Position::new(search_term.len() as isize, 0));
+
         doc.jump_cursors(position, false);
-        doc.jump_cursors(
-            doc.move_position(position, Position::new(search_term.len() as isize, 0)),
-            true,
-        );
+        doc.jump_cursors(end, true);
 
         tab.recenter();
     }

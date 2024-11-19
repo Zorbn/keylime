@@ -7,7 +7,7 @@ use crate::{
     editor::Editor,
     gfx::Gfx,
     key::Key,
-    keybind::{Keybind, MOD_CTRL},
+    keybind::{Keybind, MOD_CTRL, MOD_SHIFT},
     line_pool::LinePool,
     mouse_button::MouseButton,
     mousebind::Mousebind,
@@ -131,6 +131,7 @@ impl CommandPalette {
 
             let Mousebind {
                 button: None | Some(MouseButton::Left),
+                mods,
                 ..
             } = mousebind
             else {
@@ -158,7 +159,7 @@ impl CommandPalette {
             self.selected_result_index = clicked_result_index;
 
             if mousebind.button.is_some() {
-                self.submit(editor, line_pool, time);
+                self.submit(mods & MOD_SHIFT != 0, editor, line_pool, time);
             }
         }
 
@@ -174,9 +175,9 @@ impl CommandPalette {
                 }
                 Keybind {
                     key: Key::Enter,
-                    mods: 0,
+                    mods,
                 } => {
-                    self.submit(editor, line_pool, time);
+                    self.submit(mods & MOD_SHIFT != 0, editor, line_pool, time);
                 }
                 Keybind {
                     key: Key::Tab,
@@ -231,10 +232,16 @@ impl CommandPalette {
             .clamp(0, self.results.len().saturating_sub(1));
     }
 
-    fn submit(&mut self, editor: &mut Editor, line_pool: &mut LinePool, time: f32) {
+    fn submit(
+        &mut self,
+        has_shift: bool,
+        editor: &mut Editor,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
         self.complete_result(line_pool, time);
 
-        if (self.mode.on_submit)(self, editor, line_pool, time) {
+        if (self.mode.on_submit)(self, has_shift, editor, line_pool, time) {
             self.close(line_pool);
         }
     }

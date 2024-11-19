@@ -276,13 +276,14 @@ impl Tab {
                     mods,
                 } => {
                     for index in doc.cursor_indices() {
-                        let mut position = if mods & MOD_CTRL != 0 {
+                        let position = if mods & MOD_CTRL != 0 {
                             Position::new(0, 0)
                         } else {
-                            doc.get_cursor(index).position
-                        };
+                            let mut position = doc.get_cursor(index).position;
+                            position.x = 0;
 
-                        position.x = 0;
+                            position
+                        };
 
                         doc.jump_cursor(index, position, mods & MOD_SHIFT != 0);
                     }
@@ -292,13 +293,14 @@ impl Tab {
                     mods,
                 } => {
                     for index in doc.cursor_indices() {
-                        let mut position = if mods & MOD_CTRL != 0 {
-                            Position::new(0, doc.lines().len() as isize - 1)
+                        let position = if mods & MOD_CTRL != 0 {
+                            doc.end()
                         } else {
-                            doc.get_cursor(index).position
-                        };
+                            let mut position = doc.get_cursor(index).position;
+                            position.x = doc.get_line_len(position.y);
 
-                        position.x = doc.get_line_len(position.y);
+                            position
+                        };
 
                         doc.jump_cursor(index, position, mods & MOD_SHIFT != 0);
                     }
