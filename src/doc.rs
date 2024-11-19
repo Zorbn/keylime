@@ -718,95 +718,79 @@ impl Doc {
         self.insert(start, text, line_pool, time);
     }
 
-    pub fn search_forwards(
-        &self,
-        text: &[char],
-        start: Position,
-        do_wrap: bool,
-    ) -> Option<Position> {
+    pub fn search(&self, text: &[char], start: Position, is_reverse: bool) -> Option<Position> {
         let start = self.clamp_position(start);
 
-        let mut x = start.x as usize + 1;
+        let step = if is_reverse { -1 } else { 1 };
 
-        for y in start.y..self.lines.len() as isize {
-            let line = &self.lines[y as usize];
+        let text_start_index = if is_reverse {
+            text.len() as isize - 1
+        } else {
+            0
+        };
 
-            let search_len = line.len().saturating_sub(text.len().saturating_sub(1));
+        let mut position = start;
+        let mut match_index = 0;
 
-            while x < search_len {
-                let start_x = x as isize;
-                let mut found_text = true;
+        let line = &self.lines[position.y as usize];
+        (position, _) = self.step_wrapped(line, position, step);
 
-                for c in text {
-                    if *c != line[x] {
-                        found_text = false;
-                        break;
-                    }
+        loop {
+            let line = &self.lines[position.y as usize];
+            let did_wrap;
 
-                    x += 1;
-                }
+            (position, did_wrap) = self.step_wrapped(line, position, step);
 
-                if found_text {
-                    return Some(Position::new(start_x, y));
-                }
-
-                x += 1;
+            if did_wrap {
+                match_index = 0;
+                continue;
             }
 
-            x = 0;
+            if position.x == start.x && position.y == start.y {
+                break;
+            }
+
+            if text[(match_index as isize * step + text_start_index) as usize]
+                == line[position.x as usize]
+            {
+                match_index += 1;
+
+                if match_index >= text.len() {
+                    return Some(Position::new(
+                        position.x + 1 - text.len() as isize + text_start_index,
+                        position.y,
+                    ));
+                }
+            } else {
+                match_index = 0;
+            }
         }
 
-        if do_wrap {
-            self.search_forwards(text, Position::zero(), false)
-        } else {
-            None
-        }
+        None
     }
 
-    pub fn search_backwards(
-        &self,
-        text: &[char],
-        start: Position,
-        do_wrap: bool,
-    ) -> Option<Position> {
-        let start = self.clamp_position(start);
+    // Positions returned by this function are in bounds unless wrapping occurred.
+    fn step_wrapped(&self, line: &Line, position: Position, step: isize) -> (Position, bool) {
+        let mut x = position.x;
+        let mut y = position.y;
+        let mut did_wrap = false;
 
-        let mut x = start.x - 2;
+        x = x.min(line.len() as isize);
+        x += step;
 
-        for y in (0..=start.y).rev() {
-            let line = &self.lines[y as usize];
+        if x < 0 {
+            x = isize::MAX;
+            y -= 1;
+            did_wrap = true;
+        } else if x >= line.len() as isize {
+            x = -1;
+            y += 1;
+            did_wrap = true;
+        };
 
-            if y != start.y {
-                x = line.len().saturating_sub(1) as isize;
-            }
+        y = y.rem_euclid(self.lines.len() as isize);
 
-            let search_len = text.len().saturating_sub(1).min(line.len()) as isize;
-
-            while x > search_len {
-                let mut found_text = true;
-
-                for c in text.iter().rev() {
-                    if *c != line[x as usize] {
-                        found_text = false;
-                        break;
-                    }
-
-                    x -= 1;
-                }
-
-                if found_text {
-                    return Some(Position::new(x + 1, y));
-                }
-
-                x -= 1;
-            }
-        }
-
-        if do_wrap {
-            self.search_backwards(text, self.end(), false)
-        } else {
-            None
-        }
+        (Position::new(x, y), did_wrap)
     }
 
     pub fn end(&self) -> Position {

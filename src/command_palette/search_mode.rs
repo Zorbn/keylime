@@ -29,13 +29,7 @@ fn on_submit_search(
 
     let start = doc.get_cursor(CursorIndex::Main).position;
 
-    let result = if has_shift {
-        doc.search_backwards(search_term, start, true)
-    } else {
-        doc.search_forwards(search_term, start, true)
-    };
-
-    if let Some(position) = result {
+    if let Some(position) = doc.search(search_term, start, has_shift) {
         let end = doc.move_position(position, Position::new(search_term.len() as isize, 0));
 
         doc.jump_cursors(position, false);
