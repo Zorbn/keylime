@@ -17,6 +17,13 @@ use crate::{
     window::Window,
 };
 
+#[derive(PartialEq, Eq)]
+enum CameraRecenterKind {
+    None,
+    OnScrollBorder,
+    OnCursor,
+}
+
 const SCROLL_SPEED: f32 = 30.0;
 const SCROLL_FRICTION: f32 = 0.0001;
 const RECENTER_DISTANCE: usize = 3;
@@ -26,7 +33,7 @@ pub struct Tab {
 
     camera_y: f32,
     camera_velocity_y: f32,
-    camera_needs_recenter: bool,
+    camera_recenter_kind: CameraRecenterKind,
 
     tab_bounds: Rect,
     doc_bounds: Rect,
@@ -39,7 +46,7 @@ impl Tab {
 
             camera_y: 0.0,
             camera_velocity_y: 0.0,
-            camera_needs_recenter: false,
+            camera_recenter_kind: CameraRecenterKind::None,
 
             tab_bounds: Rect::zero(),
             doc_bounds: Rect::zero(),
@@ -113,7 +120,7 @@ impl Tab {
         let mut mouse_scroll_handler = window.get_mouse_scroll_handler();
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
-            self.camera_needs_recenter = false;
+            self.camera_recenter_kind = CameraRecenterKind::None;
             self.camera_velocity_y -=
                 mouse_scroll.delta * window.gfx().line_height() * SCROLL_SPEED;
         }
@@ -404,18 +411,31 @@ impl Tab {
         let cursor_scroll_border = gfx.line_height() * RECENTER_DISTANCE as f32;
 
         if old_cursor_position != new_cursor_position {
-            self.camera_needs_recenter = new_cursor_visual_position.y < cursor_scroll_border
+            let is_cursor_outside_border = new_cursor_visual_position.y < cursor_scroll_border
                 || new_cursor_visual_position.y
                     > self.doc_bounds.height - gfx.line_height() - cursor_scroll_border;
+
+            self.camera_recenter_kind = if is_cursor_outside_border {
+                CameraRecenterKind::OnScrollBorder
+            } else {
+                CameraRecenterKind::None
+            };
         }
 
-        if self.camera_needs_recenter {
-            let visual_distance = if new_cursor_visual_position.y < self.doc_bounds.height / 2.0 {
-                new_cursor_visual_position.y - cursor_scroll_border
-            } else {
-                new_cursor_visual_position.y - self.doc_bounds.height
-                    + gfx.line_height()
-                    + cursor_scroll_border
+        if self.camera_recenter_kind != CameraRecenterKind::None {
+            let visual_distance = match self.camera_recenter_kind {
+                CameraRecenterKind::OnScrollBorder => {
+                    if new_cursor_visual_position.y < self.doc_bounds.height / 2.0 {
+                        new_cursor_visual_position.y - cursor_scroll_border
+                    } else {
+                        new_cursor_visual_position.y - self.doc_bounds.height
+                            + gfx.line_height()
+                            + cursor_scroll_border
+                    }
+                }
+                _ => {
+                    new_cursor_visual_position.y - self.doc_bounds.height / 2.0 + gfx.line_height()
+                }
             };
 
             // We can't move the camera past the top of the document,
@@ -433,7 +453,7 @@ impl Tab {
             self.camera_velocity_y = 0.0;
 
             // If we're recentering the camera then we must be done at this point.
-            self.camera_needs_recenter = false;
+            self.camera_recenter_kind = CameraRecenterKind::None;
         }
 
         self.camera_y += self.camera_velocity_y * dt;
@@ -444,7 +464,7 @@ impl Tab {
     }
 
     pub fn recenter(&mut self) {
-        self.camera_needs_recenter = true;
+        self.camera_recenter_kind = CameraRecenterKind::OnCursor;
     }
 
     fn scroll_visual_distance(&mut self, visual_distance: f32) {
@@ -536,15 +556,17 @@ impl Tab {
         }
 
         if is_focused {
+            let cursor_width = (gfx.glyph_width() * 0.25).ceil();
+
             for index in doc.cursor_indices() {
                 let cursor_position =
                     doc.position_to_visual(doc.get_cursor(index).position, camera_y, gfx);
 
                 gfx.add_rect(
                     Rect::new(
-                        cursor_position.x,
+                        (cursor_position.x - cursor_width / 2.0).max(0.0),
                         cursor_position.y,
-                        (gfx.glyph_width() * 0.25).ceil(),
+                        cursor_width,
                         gfx.line_height(),
                     ),
                     &theme.normal,

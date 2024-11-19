@@ -241,6 +241,7 @@ impl CommandPalette {
 
     fn complete_result(&mut self, line_pool: &mut LinePool, time: f32) {
         (self.mode.on_complete_result)(self, line_pool, time);
+        self.selected_result_index = 0;
     }
 
     fn update_results(&mut self, line_pool: &mut LinePool, time: f32) {
