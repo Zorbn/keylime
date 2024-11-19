@@ -443,6 +443,10 @@ impl Tab {
         );
     }
 
+    pub fn recenter(&mut self) {
+        self.camera_needs_recenter = true;
+    }
+
     fn scroll_visual_distance(&mut self, visual_distance: f32) {
         let f = SCROLL_FRICTION;
         let t = 1.0; // Time to scroll to destination.

@@ -1,12 +1,8 @@
-use std::{
-    fs::read_dir,
-    io,
-    path::{Path, PathBuf},
-};
+pub mod file_mode;
+mod mode;
+pub mod search_mode;
 
 use crate::{
-    cursor_index::CursorIndex,
-    dialog::{message, MessageKind},
     doc::{Doc, DocKind},
     editor::Editor,
     gfx::Gfx,
@@ -15,7 +11,6 @@ use crate::{
     line_pool::LinePool,
     mouse_button::MouseButton,
     mousebind::Mousebind,
-    position::Position,
     rect::Rect,
     side::{SIDE_ALL, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     tab::Tab,
@@ -25,21 +20,23 @@ use crate::{
     window::Window,
 };
 
+use file_mode::MODE_OPEN_FILE;
+use mode::CommandPaletteMode;
+
 #[derive(PartialEq, Eq)]
 enum CommandPaletteState {
     Inactive,
     Active,
 }
 
-const TITLE: &str = "Find File";
-
 pub struct CommandPalette {
     state: CommandPaletteState,
+    mode: CommandPaletteMode,
     tab: Tab,
-    doc: Doc,
+    pub doc: Doc,
+    pub results: Vec<String>,
+    pub selected_result_index: usize,
     last_updated_version: Option<usize>,
-    results: Vec<String>,
-    selected_result_index: usize,
 
     bounds: Rect,
     title_bounds: Rect,
@@ -52,6 +49,7 @@ impl CommandPalette {
     pub fn new(line_pool: &mut LinePool) -> Self {
         Self {
             state: CommandPaletteState::Inactive,
+            mode: MODE_OPEN_FILE,
             tab: Tab::new(0),
             doc: Doc::new(line_pool, DocKind::SingleLine),
             last_updated_version: None,
@@ -71,9 +69,10 @@ impl CommandPalette {
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
+        let title = self.mode.title;
         let title_padding_x = gfx.glyph_width();
         let title_width =
-            Gfx::measure_text(TITLE.chars()) as f32 * gfx.glyph_width() + title_padding_x * 2.0;
+            Gfx::measure_text(title.chars()) as f32 * gfx.glyph_width() + title_padding_x * 2.0;
 
         self.title_bounds = Rect::new(0.0, 0.0, title_width, gfx.tab_height()).floor();
 
@@ -139,7 +138,7 @@ impl CommandPalette {
             };
 
             if mousebind.button.is_some() && !self.bounds.contains_position(position) {
-                self.close();
+                self.close(line_pool);
                 continue;
             }
 
@@ -171,7 +170,7 @@ impl CommandPalette {
                     key: Key::Escape,
                     mods: 0,
                 } => {
-                    self.close();
+                    self.close(line_pool);
                 }
                 Keybind {
                     key: Key::Enter,
@@ -205,15 +204,7 @@ impl CommandPalette {
                     key: Key::Backspace,
                     mods: 0 | MOD_CTRL,
                 } => {
-                    let cursor = self.doc.get_cursor(CursorIndex::Main);
-                    let end = cursor.position;
-                    let mut start = self.doc.move_position(end, Position::new(-1, 0));
-
-                    if matches!(self.doc.get_char(start), '/' | '\\') {
-                        start = self.find_path_component_start(start);
-
-                        self.doc.delete(start, end, line_pool, time);
-                    } else {
+                    if !(self.mode.on_backspace)(self, line_pool, time) {
                         keybind_handler.unprocessed(window, keybind);
                     }
                 }
@@ -233,9 +224,7 @@ impl CommandPalette {
 
         window.clear_inputs();
 
-        if let Err(err) = self.update_results(line_pool, time) {
-            message("Error Finding Files", &err.to_string(), MessageKind::Ok);
-        }
+        self.update_results(line_pool, time);
 
         self.selected_result_index = self
             .selected_result_index
@@ -245,111 +234,24 @@ impl CommandPalette {
     fn submit(&mut self, editor: &mut Editor, line_pool: &mut LinePool, time: f32) {
         self.complete_result(line_pool, time);
 
-        if editor
-            .open_file(Path::new(&self.doc.to_string()), line_pool)
-            .is_ok()
-        {
-            self.close();
+        if (self.mode.on_submit)(self, editor, line_pool, time) {
+            self.close(line_pool);
         }
     }
 
     fn complete_result(&mut self, line_pool: &mut LinePool, time: f32) {
-        if let Some(result) = self.results.get(self.selected_result_index) {
-            let line_len = self.doc.get_line_len(0);
-            let end = Position::new(line_len, 0);
-            let start = self.find_path_component_start(end);
-
-            self.doc.delete(start, end, line_pool, time);
-
-            let line_len = self.doc.get_line_len(0);
-            let mut start = Position::new(line_len, 0);
-
-            for c in result.chars() {
-                self.doc.insert(start, &[c], line_pool, time);
-                start = self.doc.move_position(start, Position::new(1, 0));
-            }
-        }
+        (self.mode.on_complete_result)(self, line_pool, time);
     }
 
-    fn find_path_component_start(&self, position: Position) -> Position {
-        let mut start = position;
-
-        while start > Position::zero() {
-            let next_start = self.doc.move_position(start, Position::new(-1, 0));
-
-            if matches!(self.doc.get_char(next_start), '/' | '\\') {
-                break;
-            }
-
-            start = next_start;
-        }
-
-        start
-    }
-
-    fn update_results(&mut self, line_pool: &mut LinePool, time: f32) -> io::Result<()> {
+    fn update_results(&mut self, line_pool: &mut LinePool, time: f32) {
         if Some(self.doc.version()) == self.last_updated_version {
-            return Ok(());
+            return;
         }
 
         self.last_updated_version = Some(self.doc.version());
 
-        let mut path = PathBuf::new();
-        path.push(".");
-        path.push(self.doc.to_string());
-
-        let dir = if path.is_dir() {
-            let line_len = self.doc.get_line_len(0);
-            let last_char = self.doc.get_char(Position::new(line_len - 1, 0));
-
-            if line_len > 0 && !matches!(last_char, '/' | '\\' | '.') {
-                self.doc
-                    .insert(Position::new(line_len, 0), &['/'], line_pool, time);
-            }
-
-            path.as_path()
-        } else {
-            path.parent().unwrap_or(Path::new("."))
-        };
-
         self.results.clear();
-
-        for entry in read_dir(dir)? {
-            let entry = entry?;
-            let entry_path = entry.path();
-
-            if Self::does_path_match_prefix(&path, &entry_path) {
-                if let Some(result) = entry_path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .map(|str| str.to_owned())
-                {
-                    self.results.push(result);
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn does_path_match_prefix(prefix: &Path, path: &Path) -> bool {
-        for (prefix_component, path_component) in prefix.components().zip(path.components()) {
-            let Some(prefix_component) = prefix_component.as_os_str().to_str() else {
-                continue;
-            };
-
-            let Some(path_component) = path_component.as_os_str().to_str() else {
-                continue;
-            };
-
-            for (prefix_char, path_char) in prefix_component.chars().zip(path_component.chars()) {
-                if prefix_char.to_ascii_lowercase() != path_char.to_ascii_lowercase() {
-                    return false;
-                }
-            }
-        }
-
-        true
+        (self.mode.on_update_results)(self, line_pool, time);
     }
 
     pub fn draw(&mut self, theme: &Theme, gfx: &mut Gfx, is_focused: bool) {
@@ -386,7 +288,7 @@ impl CommandPalette {
         );
 
         gfx.add_text(
-            TITLE.chars(),
+            self.mode.title.chars(),
             gfx.glyph_width(),
             gfx.border_width() + gfx.tab_padding_y() + gfx.border_width(),
             &theme.normal,
@@ -425,11 +327,14 @@ impl CommandPalette {
         gfx.end();
     }
 
-    pub fn open(&mut self) {
+    pub fn open(&mut self, mode: CommandPaletteMode) {
+        self.last_updated_version = None;
+        self.mode = mode;
         self.state = CommandPaletteState::Active;
     }
 
-    fn close(&mut self) {
+    fn close(&mut self, line_pool: &mut LinePool) {
         self.state = CommandPaletteState::Inactive;
+        self.doc.clear(line_pool);
     }
 }

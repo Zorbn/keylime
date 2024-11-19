@@ -1,7 +1,7 @@
 use std::{io, path::Path};
 
 use crate::{
-    command_palette::CommandPalette,
+    command_palette::{file_mode::MODE_OPEN_FILE, search_mode::MODE_SEARCH, CommandPalette},
     dialog::{find_file, message, FindFileKind, MessageKind, MessageResponse},
     doc::{Doc, DocKind},
     gfx::Gfx,
@@ -118,7 +118,13 @@ impl Editor {
                     key: Key::P,
                     mods: MOD_CTRL,
                 } => {
-                    command_palette.open();
+                    command_palette.open(MODE_OPEN_FILE);
+                }
+                Keybind {
+                    key: Key::F,
+                    mods: MOD_CTRL,
+                } => {
+                    command_palette.open(MODE_SEARCH);
                 }
                 Keybind {
                     key: Key::O,
@@ -250,7 +256,7 @@ impl Editor {
         }
     }
 
-    fn get_tab_with_doc(&mut self, tab_index: usize) -> Option<(&mut Tab, &mut Doc)> {
+    pub fn get_tab_with_doc(&mut self, tab_index: usize) -> Option<(&mut Tab, &mut Doc)> {
         if let Some(tab) = self.tabs.get_mut(tab_index) {
             if let Some(Some(doc)) = self.docs.get_mut(tab.doc_index()) {
                 return Some((tab, doc));
@@ -258,6 +264,10 @@ impl Editor {
         }
 
         None
+    }
+
+    pub fn focused_tab_index(&self) -> usize {
+        self.focused_tab_index
     }
 
     pub fn open_file(&mut self, path: &Path, line_pool: &mut LinePool) -> io::Result<()> {

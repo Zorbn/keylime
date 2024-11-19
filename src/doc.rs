@@ -27,8 +27,10 @@ macro_rules! action_history {
     };
 }
 
+#[derive(Default)]
 enum LineEnding {
     Lf,
+    #[default]
     CrLf,
 }
 
@@ -68,7 +70,7 @@ impl Doc {
 
             lines,
             cursors: Vec::new(),
-            line_ending: LineEnding::CrLf,
+            line_ending: LineEnding::default(),
 
             undo_history: ActionHistory::new(),
             redo_history: ActionHistory::new(),
@@ -241,12 +243,20 @@ impl Doc {
         }
     }
 
-    pub fn get_line_len(&self, y: isize) -> isize {
+    pub fn get_line(&self, y: isize) -> Option<&Line> {
         if y < 0 || y >= self.lines.len() as isize {
-            return 0;
+            None
+        } else {
+            Some(&self.lines[y as usize])
         }
+    }
 
-        self.lines[y as usize].len() as isize
+    pub fn get_line_len(&self, y: isize) -> isize {
+        if let Some(line) = self.get_line(y) {
+            line.len() as isize
+        } else {
+            0
+        }
     }
 
     pub fn move_cursor(&mut self, index: CursorIndex, delta: Position, should_select: bool) {
@@ -708,6 +718,46 @@ impl Doc {
         self.insert(start, text, line_pool, time);
     }
 
+    pub fn search(&self, text: &[char], start: Position, do_wrap: bool) -> Option<Position> {
+        let start = self.clamp_position(start);
+
+        let mut x = start.x as usize;
+
+        for y in start.y..self.lines.len() as isize {
+            let line = &self.lines[y as usize];
+
+            let search_len = line.len().saturating_sub(text.len().saturating_sub(1));
+
+            while x < search_len {
+                let start_x = x as isize;
+                let mut found_text = true;
+
+                for c in text {
+                    if *c != line[x] {
+                        found_text = false;
+                        break;
+                    }
+
+                    x += 1;
+                }
+
+                if found_text {
+                    return Some(Position::new(start_x, y));
+                }
+
+                x += 1;
+            }
+
+            x = 0;
+        }
+
+        if do_wrap {
+            self.search(text, Position::zero(), false)
+        } else {
+            None
+        }
+    }
+
     pub fn get_char(&self, position: Position) -> char {
         let position = self.clamp_position(position);
         let line = &self.lines[position.y as usize];
@@ -791,31 +841,49 @@ impl Doc {
         self.cursors.truncate(1);
     }
 
-    pub fn load(&mut self, path: &Path, line_pool: &mut LinePool) -> io::Result<()> {
+    pub fn clear(&mut self, line_pool: &mut LinePool) {
         self.undo_history.clear();
         self.redo_history.clear();
 
         self.reset_cursors();
-        self.line_ending = LineEnding::Lf;
+        self.line_ending = LineEnding::default();
 
         self.unhighlighted_line_y = 0;
         self.is_saved = true;
         self.version = 0;
 
-        let string = read_to_string(path)?;
+        for line in self.lines.drain(..) {
+            line_pool.push(line);
+        }
+
+        self.lines.push(line_pool.pop());
+    }
+
+    pub fn load(&mut self, path: &Path, line_pool: &mut LinePool) -> io::Result<()> {
+        self.clear(line_pool);
 
         for line in self.lines.drain(..) {
             line_pool.push(line);
         }
 
+        let string = read_to_string(path)?;
+
         let mut current_line = line_pool.pop();
+        let mut last_char_was_cr = false;
 
         for c in string.chars() {
             match c {
                 '\r' => {
+                    last_char_was_cr = true;
                     self.line_ending = LineEnding::CrLf;
                 }
                 '\n' => {
+                    if !last_char_was_cr {
+                        self.line_ending = LineEnding::Lf;
+                    }
+
+                    last_char_was_cr = false;
+
                     if self.kind == DocKind::SingleLine {
                         break;
                     }
@@ -824,6 +892,7 @@ impl Doc {
                     current_line = line_pool.pop();
                 }
                 _ => {
+                    last_char_was_cr = false;
                     current_line.push(c);
                 }
             }
