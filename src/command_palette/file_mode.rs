@@ -72,25 +72,27 @@ fn on_complete_results_file(
     line_pool: &mut LinePool,
     time: f32,
 ) {
-    if let Some(result) = command_palette
+    let Some(result) = command_palette
         .results
         .get(command_palette.selected_result_index)
-    {
-        let line_len = command_palette.doc.get_line_len(0);
-        let end = Position::new(line_len, 0);
-        let start = find_path_component_start(command_palette, end);
+    else {
+        return;
+    };
 
-        command_palette.doc.delete(start, end, line_pool, time);
+    let line_len = command_palette.doc.get_line_len(0);
+    let end = Position::new(line_len, 0);
+    let start = find_path_component_start(command_palette, end);
 
-        let line_len = command_palette.doc.get_line_len(0);
-        let mut start = Position::new(line_len, 0);
+    command_palette.doc.delete(start, end, line_pool, time);
 
-        for c in result.chars() {
-            command_palette.doc.insert(start, &[c], line_pool, time);
-            start = command_palette
-                .doc
-                .move_position(start, Position::new(1, 0));
-        }
+    let line_len = command_palette.doc.get_line_len(0);
+    let mut start = Position::new(line_len, 0);
+
+    for c in result.chars() {
+        command_palette.doc.insert(start, &[c], line_pool, time);
+        start = command_palette
+            .doc
+            .move_position(start, Position::new(1, 0));
     }
 }
 
@@ -99,9 +101,7 @@ fn on_update_results_file(
     line_pool: &mut LinePool,
     time: f32,
 ) {
-    let mut path = PathBuf::new();
-    path.push(".");
-    path.push(command_palette.doc.to_string());
+    let path = get_command_palette_path(command_palette);
 
     let dir = if path.is_dir() {
         let line_len = command_palette.doc.get_line_len(0);
@@ -161,6 +161,14 @@ fn on_backspace_file(
     }
 }
 
+fn get_command_palette_path(command_palette: &CommandPalette) -> PathBuf {
+    let mut path = PathBuf::new();
+    path.push(".");
+    path.push(command_palette.doc.to_string());
+
+    path
+}
+
 fn find_path_component_start(command_palette: &CommandPalette, position: Position) -> Position {
     let mut start = position;
 
@@ -188,6 +196,10 @@ fn does_path_match_prefix(prefix: &Path, path: &Path) -> bool {
         let Some(path_component) = path_component.as_os_str().to_str() else {
             continue;
         };
+
+        if prefix_component.len() > path_component.len() {
+            return false;
+        }
 
         for (prefix_char, path_char) in prefix_component.chars().zip(path_component.chars()) {
             if prefix_char.to_ascii_lowercase() != path_char.to_ascii_lowercase() {

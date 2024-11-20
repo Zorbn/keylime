@@ -289,7 +289,7 @@ impl Editor {
                 "*".chars(),
                 text_x + text_width as f32 * gfx.glyph_width(),
                 tab_padding_y,
-                &theme.normal,
+                &theme.symbol,
             );
         }
 
