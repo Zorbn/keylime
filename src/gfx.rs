@@ -106,6 +106,15 @@ impl Color {
     pub fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self { r, g, b, a }
     }
+
+    pub fn from_hex(value: u32) -> Self {
+        Self {
+            r: (value >> 24) as u8,
+            g: (value >> 16) as u8,
+            b: (value >> 8) as u8,
+            a: value as u8,
+        }
+    }
 }
 
 const TAB_WIDTH: usize = 4;

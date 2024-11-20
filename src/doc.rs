@@ -740,8 +740,9 @@ impl Doc {
         let mut position = start;
         let mut match_index = 0;
 
-        let line = &self.lines[position.y as usize];
-        (position, _) = self.step_wrapped(line, start, position, step);
+        if is_reverse {
+            position.x += step;
+        }
 
         loop {
             let line = &self.lines[position.y as usize];

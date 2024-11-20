@@ -14,6 +14,7 @@ pub const MODE_SEARCH: &CommandPaletteMode = &CommandPaletteMode {
 pub const MODE_SEARCH_AND_REPLACE_START: &CommandPaletteMode = &CommandPaletteMode {
     title: "Search and Replace: Search",
     on_submit: on_submit_search_and_replace_start,
+    do_passthrough_result: true,
     ..CommandPaletteMode::default()
 };
 
@@ -78,24 +79,27 @@ fn on_submit_search_and_replace_end(
 
     if !has_shift && doc.cursors_len() == 1 {
         if let Some(Selection { start, end }) = doc.get_cursor(CursorIndex::Main).get_selection() {
-            let mut has_match = true;
+            let mut has_match = false;
             let mut position = start;
             let mut i = 0;
 
-            while position < end {
-                if doc.get_char(position) != search_term[i] {
-                    has_match = false;
-                    break;
-                }
+            if start.y == end.y && end.x - start.x == search_term.len() as isize {
+                while position < end {
+                    if doc.get_char(position) != search_term[i] {
+                        has_match = false;
+                        break;
+                    }
 
-                position = doc.move_position(position, Position::new(1, 0));
-                i += 1;
+                    position = doc.move_position(position, Position::new(1, 0));
+                    i += 1;
+                }
             }
 
             if has_match {
+                doc.insert_at_cursor(CursorIndex::Main, replace_term, line_pool, time);
+
                 let end = doc.move_position(start, Position::new(replace_term.len() as isize, 0));
 
-                doc.insert_at_cursor(CursorIndex::Main, replace_term, line_pool, time);
                 doc.jump_cursor(CursorIndex::Main, start, false);
                 doc.jump_cursor(CursorIndex::Main, end, true);
 
