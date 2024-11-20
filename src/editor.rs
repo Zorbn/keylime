@@ -1,7 +1,11 @@
 use std::{io, path::Path};
 
 use crate::{
-    command_palette::{file_mode::MODE_OPEN_FILE, search_mode::MODE_SEARCH, CommandPalette},
+    command_palette::{
+        file_mode::MODE_OPEN_FILE,
+        search_mode::{MODE_SEARCH, MODE_SEARCH_AND_REPLACE_START},
+        CommandPalette,
+    },
     dialog::{find_file, message, FindFileKind, MessageKind, MessageResponse},
     doc::{Doc, DocKind},
     gfx::Gfx,
@@ -125,6 +129,12 @@ impl Editor {
                     mods: MOD_CTRL,
                 } => {
                     command_palette.open(MODE_SEARCH);
+                }
+                Keybind {
+                    key: Key::H,
+                    mods: MOD_CTRL,
+                } => {
+                    command_palette.open(MODE_SEARCH_AND_REPLACE_START);
                 }
                 Keybind {
                     key: Key::O,

@@ -3,6 +3,7 @@ use std::{
     fs::{read_to_string, File},
     io::{self, Write},
     path::{Path, PathBuf},
+    vec::Drain,
 };
 
 use crate::{
@@ -38,6 +39,12 @@ enum LineEnding {
 pub enum DocKind {
     MultiLine,
     SingleLine,
+}
+
+enum StepStatus {
+    None,
+    Wrapped,
+    Done,
 }
 
 pub struct Doc {
@@ -720,6 +727,7 @@ impl Doc {
 
     pub fn search(&self, text: &[char], start: Position, is_reverse: bool) -> Option<Position> {
         let start = self.clamp_position(start);
+        let start = Position::new(start.x.min(self.get_line_len(start.y) - 1).max(0), start.y);
 
         let step = if is_reverse { -1 } else { 1 };
 
@@ -733,21 +741,20 @@ impl Doc {
         let mut match_index = 0;
 
         let line = &self.lines[position.y as usize];
-        (position, _) = self.step_wrapped(line, position, step);
+        (position, _) = self.step_wrapped(line, start, position, step);
 
         loop {
             let line = &self.lines[position.y as usize];
-            let did_wrap;
+            let status;
+            (position, status) = self.step_wrapped(line, start, position, step);
 
-            (position, did_wrap) = self.step_wrapped(line, position, step);
-
-            if did_wrap {
-                match_index = 0;
-                continue;
-            }
-
-            if position.x == start.x && position.y == start.y {
-                break;
+            match status {
+                StepStatus::None => {}
+                StepStatus::Wrapped => {
+                    match_index = 0;
+                    continue;
+                }
+                StepStatus::Done => break,
             }
 
             if text[(match_index as isize * step + text_start_index) as usize]
@@ -769,28 +776,38 @@ impl Doc {
         None
     }
 
-    // Positions returned by this function are in bounds unless wrapping occurred.
-    fn step_wrapped(&self, line: &Line, position: Position, step: isize) -> (Position, bool) {
+    // Positions returned by this function are in bounds as long as the status is None.
+    fn step_wrapped(
+        &self,
+        line: &Line,
+        start: Position,
+        position: Position,
+        step: isize,
+    ) -> (Position, StepStatus) {
         let mut x = position.x;
         let mut y = position.y;
-        let mut did_wrap = false;
+        let mut status = StepStatus::None;
 
         x = x.min(line.len() as isize);
         x += step;
 
+        if x == start.x && y == start.y {
+            return (position, StepStatus::Done);
+        }
+
         if x < 0 {
             x = isize::MAX;
             y -= 1;
-            did_wrap = true;
+            status = StepStatus::Wrapped;
         } else if x >= line.len() as isize {
             x = -1;
             y += 1;
-            did_wrap = true;
+            status = StepStatus::Wrapped;
         };
 
         y = y.rem_euclid(self.lines.len() as isize);
 
-        (Position::new(x, y), did_wrap)
+        (Position::new(x, y), status)
     }
 
     pub fn end(&self) -> Position {
@@ -883,7 +900,7 @@ impl Doc {
         self.cursors.truncate(1);
     }
 
-    pub fn clear(&mut self, line_pool: &mut LinePool) {
+    pub fn drain(&mut self, line_pool: &mut LinePool) -> Drain<Line> {
         self.undo_history.clear();
         self.redo_history.clear();
 
@@ -894,11 +911,15 @@ impl Doc {
         self.is_saved = true;
         self.version = 0;
 
-        for line in self.lines.drain(..) {
+        self.lines.push(line_pool.pop());
+
+        self.lines.drain(..self.lines.len() - 1)
+    }
+
+    pub fn clear(&mut self, line_pool: &mut LinePool) {
+        for line in self.drain(line_pool) {
             line_pool.push(line);
         }
-
-        self.lines.push(line_pool.pop());
     }
 
     pub fn load(&mut self, path: &Path, line_pool: &mut LinePool) -> io::Result<()> {

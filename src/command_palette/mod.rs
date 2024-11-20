@@ -8,7 +8,7 @@ use crate::{
     gfx::Gfx,
     key::Key,
     keybind::{Keybind, MOD_CTRL, MOD_SHIFT},
-    line_pool::LinePool,
+    line_pool::{Line, LinePool},
     mouse_button::MouseButton,
     mousebind::Mousebind,
     rect::Rect,
@@ -29,14 +29,23 @@ enum CommandPaletteState {
     Active,
 }
 
+#[derive(Clone, Copy)]
+pub enum CommandPaletteAction {
+    Stay,
+    Close,
+    Open(&'static CommandPaletteMode),
+}
+
 pub struct CommandPalette {
     state: CommandPaletteState,
-    mode: CommandPaletteMode,
+    mode: &'static CommandPaletteMode,
     tab: Tab,
     pub doc: Doc,
+    last_updated_version: Option<usize>,
+
     pub results: Vec<String>,
     pub selected_result_index: usize,
-    last_updated_version: Option<usize>,
+    pub previous_results: Vec<Line>,
 
     bounds: Rect,
     title_bounds: Rect,
@@ -53,8 +62,10 @@ impl CommandPalette {
             tab: Tab::new(0),
             doc: Doc::new(line_pool, DocKind::SingleLine),
             last_updated_version: None,
+
             results: Vec::new(),
             selected_result_index: 0,
+            previous_results: Vec::new(),
 
             bounds: Rect::zero(),
             title_bounds: Rect::zero(),
@@ -241,8 +252,25 @@ impl CommandPalette {
     ) {
         self.complete_result(line_pool, time);
 
-        if (self.mode.on_submit)(self, has_shift, editor, line_pool, time) {
-            self.close(line_pool);
+        let action = (self.mode.on_submit)(self, has_shift, editor, line_pool, time);
+
+        match action {
+            CommandPaletteAction::Stay => {}
+            CommandPaletteAction::Close | CommandPaletteAction::Open(_) => {
+                if self.mode.do_passthrough_result {
+                    for line in self.doc.drain(line_pool) {
+                        self.previous_results.push(line);
+                    }
+                } else {
+                    self.previous_results.clear();
+                }
+
+                self.close(line_pool);
+            }
+        }
+
+        if let CommandPaletteAction::Open(mode) = action {
+            self.open(mode);
         }
     }
 
@@ -335,7 +363,7 @@ impl CommandPalette {
         gfx.end();
     }
 
-    pub fn open(&mut self, mode: CommandPaletteMode) {
+    pub fn open(&mut self, mode: &'static CommandPaletteMode) {
         self.last_updated_version = None;
         self.mode = mode;
         self.state = CommandPaletteState::Active;

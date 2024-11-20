@@ -5,14 +5,15 @@ use std::{
 
 use crate::{cursor_index::CursorIndex, editor::Editor, line_pool::LinePool, position::Position};
 
-use super::{mode::CommandPaletteMode, CommandPalette};
+use super::{mode::CommandPaletteMode, CommandPalette, CommandPaletteAction};
 
-pub const MODE_OPEN_FILE: CommandPaletteMode = CommandPaletteMode {
+pub const MODE_OPEN_FILE: &CommandPaletteMode = &CommandPaletteMode {
     title: "Find File",
     on_submit: on_submit_open_file,
     on_complete_result: on_complete_results_file,
     on_update_results: on_update_results_file,
     on_backspace: on_backspace_file,
+    do_passthrough_result: false,
 };
 
 fn on_submit_open_file(
@@ -21,10 +22,15 @@ fn on_submit_open_file(
     editor: &mut Editor,
     line_pool: &mut LinePool,
     _: f32,
-) -> bool {
-    editor
+) -> CommandPaletteAction {
+    if editor
         .open_file(Path::new(&command_palette.doc.to_string()), line_pool)
         .is_ok()
+    {
+        CommandPaletteAction::Close
+    } else {
+        CommandPaletteAction::Stay
+    }
 }
 
 fn on_complete_results_file(

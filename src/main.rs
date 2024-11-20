@@ -40,7 +40,6 @@ use window::WindowRunner;
  * Per file type indentation.
  * Comment region: ctrl-/.
  * Indent-unindent region: ctrl-[, ctrl-], tab, shift-tab.
- * Search and search & replace.
  * Running commands and seeing output (very simple integrated terminal).
  * Configuration file: colors, fonts.
  * More command palette commands (go to line, open folder, new file/folder, recycle file/folder, etc).
