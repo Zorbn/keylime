@@ -123,25 +123,25 @@ impl Editor {
                     key: Key::P,
                     mods: MOD_CTRL,
                 } => {
-                    command_palette.open(MODE_OPEN_FILE);
+                    command_palette.open(MODE_OPEN_FILE, line_pool, time);
                 }
                 Keybind {
                     key: Key::F,
                     mods: MOD_CTRL,
                 } => {
-                    command_palette.open(MODE_SEARCH);
+                    command_palette.open(MODE_SEARCH, line_pool, time);
                 }
                 Keybind {
                     key: Key::H,
                     mods: MOD_CTRL,
                 } => {
-                    command_palette.open(MODE_SEARCH_AND_REPLACE_START);
+                    command_palette.open(MODE_SEARCH_AND_REPLACE_START, line_pool, time);
                 }
                 Keybind {
                     key: Key::G,
                     mods: MOD_CTRL,
                 } => {
-                    command_palette.open(MODE_GO_TO_LINE);
+                    command_palette.open(MODE_GO_TO_LINE, line_pool, time);
                 }
                 Keybind {
                     key: Key::O,

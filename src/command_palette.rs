@@ -325,7 +325,7 @@ impl CommandPalette {
         }
 
         if let CommandPaletteAction::Open(mode) = action {
-            self.open(mode);
+            self.open(mode, line_pool, time);
         }
     }
 
@@ -349,7 +349,7 @@ impl CommandPalette {
     }
 
     pub fn draw(&mut self, theme: &Theme, gfx: &mut Gfx, is_focused: bool) {
-        if !self.is_active() || self.last_updated_version.is_none() {
+        if !self.is_active() {
             return;
         }
 
@@ -424,10 +424,12 @@ impl CommandPalette {
         gfx.end();
     }
 
-    pub fn open(&mut self, mode: &'static CommandPaletteMode) {
+    pub fn open(&mut self, mode: &'static CommandPaletteMode, line_pool: &mut LinePool, time: f32) {
         self.last_updated_version = None;
         self.mode = mode;
         self.state = CommandPaletteState::Active;
+
+        self.update_results(line_pool, time);
     }
 
     fn close(&mut self, line_pool: &mut LinePool) {
