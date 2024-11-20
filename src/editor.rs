@@ -1,4 +1,4 @@
-use std::{io, path::Path};
+use std::{env::set_current_dir, io, path::Path};
 
 use crate::{
     command_palette::{
@@ -11,7 +11,7 @@ use crate::{
     doc::{Doc, DocKind},
     gfx::Gfx,
     key::Key,
-    keybind::{Keybind, MOD_CTRL},
+    keybind::{Keybind, MOD_CTRL, MOD_CTRL_SHIFT},
     line_pool::LinePool,
     mouse_button::MouseButton,
     mousebind::Mousebind,
@@ -150,6 +150,16 @@ impl Editor {
                     if let Ok(path) = find_file(FindFileKind::OpenFile) {
                         if let Err(err) = self.open_file(path.as_path(), line_pool) {
                             message("Error Opening File", &err.to_string(), MessageKind::Ok);
+                        }
+                    }
+                }
+                Keybind {
+                    key: Key::O,
+                    mods: MOD_CTRL_SHIFT,
+                } => {
+                    if let Ok(path) = find_file(FindFileKind::OpenFolder) {
+                        if let Err(err) = set_current_dir(path) {
+                            message("Error Opening Folder", &err.to_string(), MessageKind::Ok);
                         }
                     }
                 }

@@ -123,6 +123,10 @@ impl SyntaxHighlighter {
             i += 1;
         }
 
+        if i < line.len() && line[i] == '!' {
+            i += 1;
+        }
+
         HighlightResult::Token { end: i }
     }
 
