@@ -4,9 +4,11 @@ pub struct Theme {
     pub normal: Color,
     pub comment: Color,
     pub keyword: Color,
+    pub function: Color,
     pub number: Color,
     pub symbol: Color,
     pub string: Color,
+    pub preprocessor: Color,
     pub selection: Color,
     pub border: Color,
     pub background: Color,
@@ -18,9 +20,11 @@ impl Theme {
             HighlightKind::Normal => self.normal,
             HighlightKind::Comment => self.comment,
             HighlightKind::Keyword => self.keyword,
+            HighlightKind::Function => self.function,
             HighlightKind::Number => self.number,
             HighlightKind::Symbol => self.symbol,
             HighlightKind::String => self.string,
+            HighlightKind::Preprocessor => self.preprocessor,
         }
     }
 

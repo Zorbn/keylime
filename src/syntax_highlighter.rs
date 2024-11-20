@@ -7,9 +7,11 @@ pub enum HighlightKind {
     Normal,
     Comment,
     Keyword,
+    Function,
     Number,
     Symbol,
     String,
+    Preprocessor,
 }
 
 #[derive(Clone, Copy)]
@@ -312,6 +314,8 @@ impl SyntaxHighlighter {
                 if let HighlightResult::Token { end } = Self::match_identifier(line, x) {
                     let kind = if syntax.keywords.contains(&line[x..end]) {
                         HighlightKind::Keyword
+                    } else if end < line.len() && line[end] == '(' {
+                        HighlightKind::Function
                     } else {
                         HighlightKind::Normal
                     };
