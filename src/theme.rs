@@ -10,6 +10,7 @@ pub struct Theme {
     pub string: Color,
     pub preprocessor: Color,
     pub selection: Color,
+    pub line_number: Color,
     pub border: Color,
     pub background: Color,
 }

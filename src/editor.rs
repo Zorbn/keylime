@@ -73,7 +73,7 @@ impl Editor {
 
             tab_x += tab_width - gfx.border_width();
 
-            tab.layout(tab_bounds, doc_bounds);
+            tab.layout(tab_bounds, doc_bounds, doc, gfx);
         }
     }
 

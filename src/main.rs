@@ -9,6 +9,7 @@ mod cursor;
 mod cursor_index;
 mod deferred_call;
 mod dialog;
+mod digits;
 mod doc;
 mod editor;
 mod gfx;
@@ -39,6 +40,7 @@ use window::WindowRunner;
  * TODO:
  * Multiple panes (split view).
  * Per file type indentation.
+ * Trim trailing whitespace on save.
  * Comment region: ctrl-/.
  * Indent-unindent region: ctrl-[, ctrl-], tab, shift-tab.
  * Running commands and seeing output (very simple integrated terminal).

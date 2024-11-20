@@ -131,6 +131,8 @@ impl CommandPalette {
                 .expand_width_in(self.input_bounds)
                 .offset_by(self.bounds)
                 .floor(),
+            &self.doc,
+            gfx,
         );
     }
 

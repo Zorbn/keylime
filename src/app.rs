@@ -37,6 +37,7 @@ impl App {
         //     string: Color::new(163, 21, 21, 255),
         //     preprocessor: Color::new(175, 0, 219, 255),
         //     selection: Color::new(76, 173, 228, 125),
+        //     line_number: Color::new(110, 118, 129, 255),
         //     border: Color::new(229, 229, 229, 255),
         //     background: Color::new(245, 245, 245, 255),
         // };
@@ -51,6 +52,7 @@ impl App {
             string: Color::new(206, 145, 120, 255),
             preprocessor: Color::new(197, 134, 192, 255),
             selection: Color::new(76, 173, 228, 125),
+            line_number: Color::new(110, 118, 129, 255),
             border: Color::new(43, 43, 43, 255),
             background: Color::new(30, 30, 30, 255),
         };

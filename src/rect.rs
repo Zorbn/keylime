@@ -36,9 +36,19 @@ impl Rect {
         }
     }
 
+    pub fn shrink_left_by(&self, other: Rect) -> Rect {
+        let subtracted_width = (other.right() - self.x).max(0.0);
+
+        Rect::new(
+            self.x + subtracted_width,
+            self.y,
+            self.width - subtracted_width,
+            self.height,
+        )
+    }
+
     pub fn shrink_top_by(&self, other: Rect) -> Rect {
-        let other_bottom = other.y + other.height;
-        let subtracted_height = (other_bottom - self.y).max(0.0);
+        let subtracted_height = (other.bottom() - self.y).max(0.0);
 
         Rect::new(
             self.x,
@@ -46,6 +56,10 @@ impl Rect {
             self.width,
             self.height - subtracted_height,
         )
+    }
+
+    pub fn shift_x(&self, delta: f32) -> Rect {
+        Rect::new(self.x + delta, self.y, self.width, self.height)
     }
 
     pub fn shift_y(&self, delta: f32) -> Rect {

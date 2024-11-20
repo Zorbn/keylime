@@ -2,7 +2,8 @@ use crate::{
     action_history::ActionKind,
     camera::{Camera, RECENTER_DISTANCE},
     cursor_index::CursorIndex,
-    doc::Doc,
+    digits::get_digits,
+    doc::{Doc, DocKind},
     gfx::Gfx,
     key::Key,
     keybind::{Keybind, MOD_ALT, MOD_CTRL, MOD_SHIFT},
@@ -18,12 +19,16 @@ use crate::{
     window::Window,
 };
 
+const GUTTER_PADDING_WIDTH: f32 = 1.0;
+const GUTTER_BORDER_WIDTH: f32 = 1.0;
+
 pub struct Tab {
     doc_index: usize,
 
     pub camera: Camera,
 
     tab_bounds: Rect,
+    gutter_bounds: Rect,
     doc_bounds: Rect,
 }
 
@@ -35,6 +40,7 @@ impl Tab {
             camera: Camera::new(),
 
             tab_bounds: Rect::zero(),
+            gutter_bounds: Rect::zero(),
             doc_bounds: Rect::zero(),
         }
     }
@@ -47,9 +53,20 @@ impl Tab {
         self.camera.is_moving()
     }
 
-    pub fn layout(&mut self, tab_bounds: Rect, doc_bounds: Rect) {
+    pub fn layout(&mut self, tab_bounds: Rect, doc_bounds: Rect, doc: &Doc, gfx: &Gfx) {
         self.tab_bounds = tab_bounds;
-        self.doc_bounds = doc_bounds;
+
+        let gutter_width = if doc.kind() == DocKind::MultiLine {
+            let max_gutter_digits = (doc.lines().len() as f32).log10().floor() + 1.0;
+
+            (max_gutter_digits + GUTTER_PADDING_WIDTH * 2.0 + GUTTER_BORDER_WIDTH)
+                * gfx.glyph_width()
+        } else {
+            0.0
+        };
+
+        self.gutter_bounds = Rect::new(doc_bounds.x, doc_bounds.y, gutter_width, doc_bounds.height);
+        self.doc_bounds = doc_bounds.shrink_left_by(self.gutter_bounds);
     }
 
     pub fn update(
@@ -428,9 +445,11 @@ impl Tab {
         self.doc_bounds
     }
 
-    pub fn draw(&mut self, doc: &Doc, theme: &Theme, gfx: &mut Gfx, is_focused: bool) {
-        gfx.begin(Some(self.doc_bounds));
+    fn get_line_visual_y(index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
+        index as f32 * gfx.line_height() + gfx.line_padding() - sub_line_offset_y
+    }
 
+    pub fn draw(&mut self, doc: &Doc, theme: &Theme, gfx: &mut Gfx, is_focused: bool) {
         let camera_y = self.camera.y().floor();
 
         let min_y = (camera_y / gfx.line_height()) as usize;
@@ -439,13 +458,77 @@ impl Tab {
         let max_y = ((camera_y + gfx.height()) / gfx.line_height()) as usize + 1;
         let max_y = max_y.min(doc.lines().len());
 
+        if doc.kind() == DocKind::MultiLine {
+            gfx.begin(Some(self.gutter_bounds));
+
+            self.draw_gutter(doc, theme, gfx, sub_line_offset_y, min_y, max_y);
+
+            gfx.end();
+        }
+
+        gfx.begin(Some(self.doc_bounds));
+
+        self.draw_lines(doc, theme, gfx, sub_line_offset_y, min_y, max_y);
+        self.draw_cursors(doc, theme, gfx, is_focused, camera_y, min_y, max_y);
+
+        gfx.end();
+    }
+
+    fn draw_gutter(
+        &mut self,
+        doc: &Doc,
+        theme: &Theme,
+        gfx: &mut Gfx,
+        sub_line_offset_y: f32,
+        min_y: usize,
+        max_y: usize,
+    ) {
+        let cursor_y = doc.get_cursor(CursorIndex::Main).position.y;
+
+        let mut digits = [' '; 20];
+
+        for (i, y) in (min_y..max_y).enumerate() {
+            let digits = get_digits(y + 1, &mut digits);
+            let visual_y = Self::get_line_visual_y(i, sub_line_offset_y, gfx);
+
+            let width = digits.len() as f32 * gfx.glyph_width();
+            let visual_x = self.gutter_bounds.x + self.gutter_bounds.width
+                - width
+                - (GUTTER_PADDING_WIDTH + GUTTER_BORDER_WIDTH) * gfx.glyph_width();
+
+            let color = if y as isize == cursor_y {
+                &theme.normal
+            } else {
+                &theme.line_number
+            };
+
+            gfx.add_text(digits.iter().copied(), visual_x, visual_y, color);
+        }
+
+        gfx.add_rect(
+            self.gutter_bounds
+                .unoffset_by(self.gutter_bounds)
+                .right_border(gfx.border_width())
+                .shift_x(-GUTTER_BORDER_WIDTH * 0.5 * gfx.glyph_width()),
+            &theme.border,
+        );
+    }
+
+    fn draw_lines(
+        &mut self,
+        doc: &Doc,
+        theme: &Theme,
+        gfx: &mut Gfx,
+        sub_line_offset_y: f32,
+        min_y: usize,
+        max_y: usize,
+    ) {
         let lines = doc.lines();
         let highlighted_lines = doc.highlighted_lines();
 
         for (i, y) in (min_y..max_y).enumerate() {
             let line = &lines[y];
-
-            let visual_y = i as f32 * gfx.line_height() + gfx.line_padding() - sub_line_offset_y;
+            let visual_y = Self::get_line_visual_y(i, sub_line_offset_y, gfx);
 
             if y >= highlighted_lines.len() {
                 gfx.add_text(line.iter().copied(), 0.0, visual_y, &theme.normal);
@@ -465,7 +548,18 @@ impl Tab {
                 }
             }
         }
+    }
 
+    fn draw_cursors(
+        &mut self,
+        doc: &Doc,
+        theme: &Theme,
+        gfx: &mut Gfx,
+        is_focused: bool,
+        camera_y: f32,
+        min_y: usize,
+        max_y: usize,
+    ) {
         for index in doc.cursor_indices() {
             let Some(selection) = doc.get_cursor(index).get_selection() else {
                 continue;
@@ -513,7 +607,5 @@ impl Tab {
                 );
             }
         }
-
-        gfx.end();
     }
 }

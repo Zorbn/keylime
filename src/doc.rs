@@ -35,7 +35,7 @@ enum LineEnding {
     CrLf,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum DocKind {
     MultiLine,
     SingleLine,
@@ -985,6 +985,10 @@ impl Doc {
 
     pub fn is_saved(&self) -> bool {
         self.is_saved
+    }
+
+    pub fn kind(&self) -> DocKind {
+        self.kind
     }
 
     pub fn copy_at_cursors(&mut self, text: &mut Vec<char>) -> bool {
