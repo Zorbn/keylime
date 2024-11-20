@@ -9,12 +9,46 @@ use super::{mode::CommandPaletteMode, CommandPalette, CommandPaletteAction};
 
 pub const MODE_OPEN_FILE: &CommandPaletteMode = &CommandPaletteMode {
     title: "Find File",
+    on_open: on_open_file,
     on_submit: on_submit_open_file,
     on_complete_result: on_complete_results_file,
     on_update_results: on_update_results_file,
     on_backspace: on_backspace_file,
     ..CommandPaletteMode::default()
 };
+
+fn on_open_file(
+    command_palette: &mut CommandPalette,
+    editor: &mut Editor,
+    line_pool: &mut LinePool,
+    time: f32,
+) {
+    let focused_tab_index = editor.focused_tab_index();
+
+    let Some((_, doc)) = editor.get_tab_with_doc(focused_tab_index) else {
+        return;
+    };
+
+    let Some(path) = doc.path().and_then(|path| path.parent()) else {
+        return;
+    };
+
+    let command_doc = &mut command_palette.doc;
+
+    for component in path.components() {
+        let Some(str) = component.as_os_str().to_str() else {
+            continue;
+        };
+
+        for c in str.chars() {
+            let position = command_doc.end();
+            command_doc.insert(position, &[c], line_pool, time);
+        }
+
+        let position = command_doc.end();
+        command_doc.insert(position, &['/'], line_pool, time);
+    }
+}
 
 fn on_submit_open_file(
     command_palette: &mut CommandPalette,

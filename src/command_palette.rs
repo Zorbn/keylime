@@ -325,7 +325,7 @@ impl CommandPalette {
         }
 
         if let CommandPaletteAction::Open(mode) = action {
-            self.open(mode, line_pool, time);
+            self.open(mode, editor, line_pool, time);
         }
     }
 
@@ -424,11 +424,18 @@ impl CommandPalette {
         gfx.end();
     }
 
-    pub fn open(&mut self, mode: &'static CommandPaletteMode, line_pool: &mut LinePool, time: f32) {
+    pub fn open(
+        &mut self,
+        mode: &'static CommandPaletteMode,
+        editor: &mut Editor,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
         self.last_updated_version = None;
         self.mode = mode;
         self.state = CommandPaletteState::Active;
 
+        (self.mode.on_open)(self, editor, line_pool, time);
         self.update_results(line_pool, time);
     }
 

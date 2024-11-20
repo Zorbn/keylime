@@ -5,6 +5,7 @@ use super::CommandPaletteAction;
 #[derive(Clone, Copy)]
 pub struct CommandPaletteMode {
     pub title: &'static str,
+    pub on_open: fn(&mut CommandPalette, &mut Editor, &mut LinePool, f32),
     pub on_submit:
         fn(&mut CommandPalette, bool, &mut Editor, &mut LinePool, f32) -> CommandPaletteAction,
     pub on_complete_result: fn(&mut CommandPalette, &mut LinePool, f32),
@@ -17,6 +18,7 @@ impl CommandPaletteMode {
     pub const fn default() -> Self {
         Self {
             title: "Unnamed",
+            on_open: |_, _, _, _| {},
             on_submit: |_, _, _, _, _| CommandPaletteAction::Stay,
             on_complete_result: |_, _, _| {},
             on_update_results: |_, _, _| {},
