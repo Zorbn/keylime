@@ -221,7 +221,6 @@ impl Editor {
 
     pub fn draw(&mut self, theme: &Theme, gfx: &mut Gfx, is_focused: bool) {
         let tab_height = gfx.tab_height();
-        let tab_padding_y = gfx.tab_padding_y();
 
         gfx.begin(Some(self.bounds));
 
@@ -230,20 +229,7 @@ impl Editor {
                 continue;
             };
 
-            let tab_bounds = tab.tab_bounds();
-
-            gfx.add_rect(tab_bounds.left_border(gfx.border_width()), &theme.border);
-
-            let text_x = (tab_bounds.x + gfx.glyph_width() * 2.0).floor();
-
-            gfx.add_text(
-                doc.file_name().chars(),
-                text_x,
-                tab_padding_y,
-                &theme.normal,
-            );
-
-            gfx.add_rect(tab_bounds.right_border(gfx.border_width()), &theme.border);
+            Self::draw_tab(tab, doc, theme, gfx);
         }
 
         let focused_tab_bounds = if let Some(tab) = self.tabs.get(self.focused_tab_index) {
@@ -281,6 +267,33 @@ impl Editor {
         if let Some((tab, doc)) = self.get_tab_with_doc(self.focused_tab_index) {
             tab.draw(doc, theme, gfx, is_focused);
         }
+    }
+
+    fn draw_tab(tab: &Tab, doc: &Doc, theme: &Theme, gfx: &mut Gfx) {
+        let tab_padding_y = gfx.tab_padding_y();
+        let tab_bounds = tab.tab_bounds();
+
+        gfx.add_rect(tab_bounds.left_border(gfx.border_width()), &theme.border);
+
+        let text_x = (tab_bounds.x + gfx.glyph_width() * 2.0).floor();
+
+        let text_width = gfx.add_text(
+            doc.file_name().chars(),
+            text_x,
+            tab_padding_y,
+            &theme.normal,
+        );
+
+        if !doc.is_saved() {
+            gfx.add_text(
+                "*".chars(),
+                text_x + text_width as f32 * gfx.glyph_width(),
+                tab_padding_y,
+                &theme.normal,
+            );
+        }
+
+        gfx.add_rect(tab_bounds.right_border(gfx.border_width()), &theme.border);
     }
 
     pub fn get_tab_with_doc(&mut self, tab_index: usize) -> Option<(&mut Tab, &mut Doc)> {
