@@ -8,28 +8,19 @@ use super::{mode::CommandPaletteMode, CommandPalette, CommandPaletteAction};
 pub const MODE_SEARCH: &CommandPaletteMode = &CommandPaletteMode {
     title: "Search",
     on_submit: on_submit_search,
-    on_complete_result: |_, _, _| {},
-    on_update_results: |_, _, _| {},
-    on_backspace: |_, _, _| false,
-    do_passthrough_result: false,
+    ..CommandPaletteMode::default()
 };
 
 pub const MODE_SEARCH_AND_REPLACE_START: &CommandPaletteMode = &CommandPaletteMode {
     title: "Search and Replace: Search",
     on_submit: on_submit_search_and_replace_start,
-    on_complete_result: |_, _, _| {},
-    on_update_results: |_, _, _| {},
-    on_backspace: |_, _, _| false,
-    do_passthrough_result: true,
+    ..CommandPaletteMode::default()
 };
 
 pub const MODE_SEARCH_AND_REPLACE_END: &CommandPaletteMode = &CommandPaletteMode {
     title: "Search and Replace: Replace",
     on_submit: on_submit_search_and_replace_end,
-    on_complete_result: |_, _, _| {},
-    on_update_results: |_, _, _| {},
-    on_backspace: |_, _, _| false,
-    do_passthrough_result: false,
+    ..CommandPaletteMode::default()
 };
 
 fn on_submit_search(
@@ -85,7 +76,7 @@ fn on_submit_search_and_replace_end(
         return CommandPaletteAction::Stay;
     };
 
-    if doc.cursors_len() == 1 {
+    if !has_shift && doc.cursors_len() == 1 {
         if let Some(Selection { start, end }) = doc.get_cursor(CursorIndex::Main).get_selection() {
             let mut has_match = true;
             let mut position = start;

@@ -40,12 +40,12 @@ pub struct CommandPalette {
     state: CommandPaletteState,
     mode: &'static CommandPaletteMode,
     tab: Tab,
-    pub doc: Doc,
+    doc: Doc,
     last_updated_version: Option<usize>,
 
-    pub results: Vec<String>,
-    pub selected_result_index: usize,
-    pub previous_results: Vec<Line>,
+    results: Vec<String>,
+    selected_result_index: usize,
+    previous_results: Vec<Line>,
 
     bounds: Rect,
     title_bounds: Rect,

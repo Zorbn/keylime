@@ -12,3 +12,16 @@ pub struct CommandPaletteMode {
     pub on_backspace: fn(&mut CommandPalette, &mut LinePool, f32) -> bool,
     pub do_passthrough_result: bool,
 }
+
+impl CommandPaletteMode {
+    pub const fn default() -> Self {
+        Self {
+            title: "Unnamed",
+            on_submit: |_, _, _, _, _| CommandPaletteAction::Stay,
+            on_complete_result: |_, _, _| {},
+            on_update_results: |_, _, _| {},
+            on_backspace: |_, _, _| false,
+            do_passthrough_result: false,
+        }
+    }
+}

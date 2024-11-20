@@ -13,7 +13,7 @@ pub const MODE_OPEN_FILE: &CommandPaletteMode = &CommandPaletteMode {
     on_complete_result: on_complete_results_file,
     on_update_results: on_update_results_file,
     on_backspace: on_backspace_file,
-    do_passthrough_result: false,
+    ..CommandPaletteMode::default()
 };
 
 fn on_submit_open_file(
