@@ -2,6 +2,7 @@
 
 mod action_history;
 mod app;
+mod camera;
 mod char_category;
 mod command_palette;
 mod cursor;
@@ -43,7 +44,6 @@ use window::WindowRunner;
  * Running commands and seeing output (very simple integrated terminal).
  * Configuration file: colors, fonts.
  * More command palette commands (go to line, open folder, new file/folder, recycle file/folder, etc).
- * Factor camera logic out of Tab and also use it for scrolling in the command palette.
  * Simple auto-complete.
  */
 

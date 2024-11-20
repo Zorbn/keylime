@@ -179,6 +179,8 @@ pub struct Window {
     is_focused: bool,
 
     dpi: f32,
+    x: i32,
+    y: i32,
     width: i32,
     height: i32,
 
@@ -220,6 +222,8 @@ impl Window {
             is_focused: false,
 
             dpi: 1.0,
+            x: 0,
+            y: 0,
             width: DEFAULT_WIDTH,
             height: DEFAULT_HEIGHT,
 
@@ -497,6 +501,10 @@ impl Window {
                     SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOMOVE,
                 );
             }
+            WM_MOVE => {
+                self.x = transmute::<u32, i32>((lparam.0 & 0xffff) as u32);
+                self.y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xffff) as u32);
+            }
             WM_SIZE => {
                 let width = (lparam.0 & 0xffff) as i32;
                 let height = ((lparam.0 >> 16) & 0xffff) as i32;
@@ -601,7 +609,14 @@ impl Window {
                 let delta =
                     transmute::<u16, i16>(((wparam.0 >> 16) & 0xffff) as u16) as f32 / WHEEL_DELTA;
 
-                self.mouse_scrolls.push(MouseScroll { delta });
+                let x = transmute::<u32, i32>((lparam.0 & 0xffff) as u32);
+                let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xffff) as u32);
+
+                self.mouse_scrolls.push(MouseScroll {
+                    delta,
+                    x: (x - self.x) as f32,
+                    y: (y - self.y) as f32,
+                });
             }
             WM_CLIPBOARDUPDATE => {
                 if !self.did_just_copy {

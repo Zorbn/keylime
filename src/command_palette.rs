@@ -3,6 +3,7 @@ mod mode;
 pub mod search_mode;
 
 use crate::{
+    camera::{Camera, RECENTER_DISTANCE},
     doc::{Doc, DocKind},
     editor::Editor,
     gfx::Gfx,
@@ -36,6 +37,8 @@ pub enum CommandPaletteAction {
     Open(&'static CommandPaletteMode),
 }
 
+const MAX_VISIBLE_RESULTS: usize = 20;
+
 pub struct CommandPalette {
     state: CommandPaletteState,
     mode: &'static CommandPaletteMode,
@@ -52,6 +55,8 @@ pub struct CommandPalette {
     input_bounds: Rect,
     result_bounds: Rect,
     results_bounds: Rect,
+
+    camera: Camera,
 }
 
 impl CommandPalette {
@@ -72,11 +77,17 @@ impl CommandPalette {
             input_bounds: Rect::zero(),
             result_bounds: Rect::zero(),
             results_bounds: Rect::zero(),
+
+            camera: Camera::new(),
         }
     }
 
     pub fn is_active(&self) -> bool {
         self.state != CommandPaletteState::Inactive
+    }
+
+    pub fn is_animating(&self) -> bool {
+        self.camera.is_moving()
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
@@ -98,7 +109,7 @@ impl CommandPalette {
             0.0,
             0.0,
             self.input_bounds.width,
-            self.result_bounds.height * self.results.len() as f32,
+            self.result_bounds.height * self.results.len().min(MAX_VISIBLE_RESULTS) as f32,
         )
         .below(self.input_bounds)
         .shift_y(-gfx.border_width())
@@ -135,6 +146,8 @@ impl CommandPalette {
             return;
         }
 
+        let mut handled_selected_result_index = self.selected_result_index;
+
         let mut mouse_handler = window.get_mousebind_handler();
 
         while let Some(mousebind) = mouse_handler.next(window) {
@@ -160,17 +173,33 @@ impl CommandPalette {
                 continue;
             }
 
-            let clicked_result_index =
-                ((position.y - results_bounds.y) / self.result_bounds.height) as usize;
+            let clicked_result_index = ((position.y + self.camera.y() - results_bounds.y)
+                / self.result_bounds.height) as usize;
 
             if clicked_result_index >= self.results.len() {
                 continue;
             }
 
             self.selected_result_index = clicked_result_index;
+            handled_selected_result_index = self.selected_result_index;
 
             if mousebind.button.is_some() {
                 self.submit(mods & MOD_SHIFT != 0, editor, line_pool, time);
+            }
+        }
+
+        let mut mouse_scroll_handler = window.get_mouse_scroll_handler();
+
+        while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
+            let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
+
+            if self
+                .results_bounds
+                .offset_by(self.bounds)
+                .contains_position(position)
+            {
+                let delta = mouse_scroll.delta * self.result_bounds.height;
+                self.camera.scroll(delta);
             }
         }
 
@@ -241,6 +270,31 @@ impl CommandPalette {
         self.selected_result_index = self
             .selected_result_index
             .clamp(0, self.results.len().saturating_sub(1));
+
+        self.update_camera(handled_selected_result_index, dt);
+    }
+
+    fn update_camera(&mut self, handled_selected_result_index: usize, dt: f32) {
+        let target_y =
+            (self.selected_result_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
+        let max_y = (self.results.len() as f32 * self.result_bounds.height
+            - self.results_bounds.height)
+            .max(0.0);
+
+        let scroll_border_top = self.result_bounds.height * RECENTER_DISTANCE as f32;
+        let scroll_border_bottom = self.results_bounds.height - scroll_border_top;
+
+        let can_recenter = self.selected_result_index != handled_selected_result_index;
+
+        self.camera.update(
+            target_y,
+            max_y,
+            self.results_bounds.height,
+            scroll_border_top,
+            scroll_border_bottom,
+            can_recenter,
+            dt,
+        );
     }
 
     fn submit(
@@ -285,6 +339,9 @@ impl CommandPalette {
         }
 
         self.last_updated_version = Some(self.doc.version());
+
+        self.selected_result_index = 0;
+        self.camera.reset();
 
         self.results.clear();
         (self.mode.on_update_results)(self, line_pool, time);
@@ -347,9 +404,12 @@ impl CommandPalette {
 
         gfx.begin(Some(self.results_bounds.offset_by(self.bounds)));
 
+        let camera_y = self.camera.y().floor();
+
         for (i, result) in self.results.iter().enumerate() {
             let y = i as f32 * self.result_bounds.height
-                + (self.result_bounds.height - gfx.glyph_height()) / 2.0;
+                + (self.result_bounds.height - gfx.glyph_height()) / 2.0
+                - camera_y;
 
             let color = if i == self.selected_result_index {
                 &theme.keyword

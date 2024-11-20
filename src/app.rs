@@ -101,7 +101,7 @@ impl App {
     }
 
     pub fn update(&mut self, window: &mut Window) {
-        let (time, dt) = window.update(self.editor.is_animating());
+        let (time, dt) = window.update(self.is_animating());
 
         self.command_palette.update(
             &mut self.editor,
@@ -148,5 +148,9 @@ impl App {
 
     pub fn is_dark(&self) -> bool {
         self.theme.is_dark()
+    }
+
+    fn is_animating(&self) -> bool {
+        self.editor.is_animating() || self.command_palette.is_animating()
     }
 }

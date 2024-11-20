@@ -1,5 +1,6 @@
 use crate::{
     action_history::ActionKind,
+    camera::{Camera, RECENTER_DISTANCE},
     cursor_index::CursorIndex,
     doc::Doc,
     gfx::Gfx,
@@ -17,23 +18,10 @@ use crate::{
     window::Window,
 };
 
-#[derive(PartialEq, Eq)]
-enum CameraRecenterKind {
-    None,
-    OnScrollBorder,
-    OnCursor,
-}
-
-const SCROLL_SPEED: f32 = 30.0;
-const SCROLL_FRICTION: f32 = 0.0001;
-const RECENTER_DISTANCE: usize = 3;
-
 pub struct Tab {
     doc_index: usize,
 
-    camera_y: f32,
-    camera_velocity_y: f32,
-    camera_recenter_kind: CameraRecenterKind,
+    pub camera: Camera,
 
     tab_bounds: Rect,
     doc_bounds: Rect,
@@ -44,9 +32,7 @@ impl Tab {
         Self {
             doc_index,
 
-            camera_y: 0.0,
-            camera_velocity_y: 0.0,
-            camera_recenter_kind: CameraRecenterKind::None,
+            camera: Camera::new(),
 
             tab_bounds: Rect::zero(),
             doc_bounds: Rect::zero(),
@@ -58,7 +44,7 @@ impl Tab {
     }
 
     pub fn is_animating(&self) -> bool {
-        self.camera_velocity_y != 0.0
+        self.camera.is_moving()
     }
 
     pub fn layout(&mut self, tab_bounds: Rect, doc_bounds: Rect) {
@@ -76,7 +62,7 @@ impl Tab {
         time: f32,
         dt: f32,
     ) {
-        let old_cursor_position = doc.get_cursor(CursorIndex::Main).position;
+        let mut handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
 
         let mut char_handler = window.get_char_handler();
 
@@ -92,7 +78,7 @@ impl Tab {
                 mousebind.y - self.doc_bounds.y,
             );
 
-            let position = doc.visual_to_position(visual_position, self.camera_y, window.gfx());
+            let position = doc.visual_to_position(visual_position, self.camera.y(), window.gfx());
 
             match mousebind {
                 Mousebind {
@@ -104,6 +90,7 @@ impl Tab {
                     let mods = mousebind.mods;
 
                     doc.jump_cursors(position, is_drag || (mods & MOD_SHIFT != 0));
+                    handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
                 }
                 Mousebind {
                     button: Some(MouseButton::Left),
@@ -120,9 +107,12 @@ impl Tab {
         let mut mouse_scroll_handler = window.get_mouse_scroll_handler();
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
-            self.camera_recenter_kind = CameraRecenterKind::None;
-            self.camera_velocity_y -=
-                mouse_scroll.delta * window.gfx().line_height() * SCROLL_SPEED;
+            let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
+
+            if self.doc_bounds.contains_position(position) {
+                let delta = mouse_scroll.delta * window.gfx().line_height();
+                self.camera.scroll(delta);
+            }
         }
 
         let mut keybind_handler = window.get_keybind_handler();
@@ -391,10 +381,10 @@ impl Tab {
         }
 
         doc.combine_overlapping_cursors();
-        self.update_camera(doc, window, old_cursor_position, dt);
+        self.update_camera(doc, window, handled_cursor_position, dt);
 
         if let Some(syntax) = syntax {
-            doc.update_highlights(self.camera_y, window.gfx(), syntax);
+            doc.update_highlights(self.camera.y(), window.gfx(), syntax);
         }
     }
 
@@ -402,84 +392,32 @@ impl Tab {
         &mut self,
         doc: &Doc,
         window: &mut Window,
-        old_cursor_position: Position,
+        handled_cursor_position: Position,
         dt: f32,
     ) {
         let gfx = window.gfx();
 
         let new_cursor_position = doc.get_cursor(CursorIndex::Main).position;
         let new_cursor_visual_position =
-            doc.position_to_visual(new_cursor_position, self.camera_y, gfx);
-        let cursor_scroll_border = gfx.line_height() * RECENTER_DISTANCE as f32;
+            doc.position_to_visual(new_cursor_position, self.camera.y(), gfx);
 
-        if old_cursor_position != new_cursor_position {
-            let is_cursor_outside_border = new_cursor_visual_position.y < cursor_scroll_border
-                || new_cursor_visual_position.y
-                    > self.doc_bounds.height - gfx.line_height() - cursor_scroll_border;
+        let can_recenter = handled_cursor_position != new_cursor_position;
 
-            self.camera_recenter_kind = if is_cursor_outside_border {
-                CameraRecenterKind::OnScrollBorder
-            } else {
-                CameraRecenterKind::None
-            };
-        }
+        let target_y = new_cursor_visual_position.y + gfx.line_height() / 2.0;
+        let max_y = (doc.lines().len() - 1) as f32 * gfx.line_height();
 
-        if self.camera_recenter_kind != CameraRecenterKind::None {
-            let visual_distance = match self.camera_recenter_kind {
-                CameraRecenterKind::OnScrollBorder => {
-                    if new_cursor_visual_position.y < self.doc_bounds.height / 2.0 {
-                        new_cursor_visual_position.y - cursor_scroll_border
-                    } else {
-                        new_cursor_visual_position.y - self.doc_bounds.height
-                            + gfx.line_height()
-                            + cursor_scroll_border
-                    }
-                }
-                _ => {
-                    new_cursor_visual_position.y - self.doc_bounds.height / 2.0 + gfx.line_height()
-                }
-            };
+        let scroll_border_top = gfx.line_height() * RECENTER_DISTANCE as f32;
+        let scroll_border_bottom = self.doc_bounds.height - scroll_border_top - gfx.line_height();
 
-            // We can't move the camera past the top of the document,
-            // (eg. if the cursor is on the first line, it might be too close to the edge of the
-            // screen according to RECENTER_DISTANCE, but there's nothing we can do about it, so stop animating).
-            let visual_distance = (visual_distance + self.camera_y).max(0.0) - self.camera_y;
-
-            self.scroll_visual_distance(visual_distance);
-        }
-
-        self.camera_velocity_y *= SCROLL_FRICTION.powf(dt);
-
-        // We want the velocity to eventually be exactly zero so that we can stop animating.
-        if self.camera_velocity_y.abs() < 0.5 {
-            self.camera_velocity_y = 0.0;
-
-            // If we're recentering the camera then we must be done at this point.
-            self.camera_recenter_kind = CameraRecenterKind::None;
-        }
-
-        self.camera_y += self.camera_velocity_y * dt;
-        self.camera_y = self.camera_y.clamp(
-            0.0,
-            (doc.lines().len() - 1) as f32 * window.gfx().line_height(),
+        self.camera.update(
+            target_y,
+            max_y,
+            self.doc_bounds.height,
+            scroll_border_top,
+            scroll_border_bottom,
+            can_recenter,
+            dt,
         );
-    }
-
-    pub fn recenter(&mut self) {
-        self.camera_recenter_kind = CameraRecenterKind::OnCursor;
-    }
-
-    fn scroll_visual_distance(&mut self, visual_distance: f32) {
-        let f = SCROLL_FRICTION;
-        let t = 1.0; // Time to scroll to destination.
-
-        // Velocity of the camera is (v = starting velocity, f = friction factor): v * f^t
-        // Integrate to get position: y = (v * f^t) / ln(f)
-        // Add term so we start at zero: y = (v * f^t) / ln(f) - v / ln(f)
-        // Solve for v:
-        let v = (visual_distance * f.ln()) / (f.powf(t) - 1.0);
-
-        self.camera_velocity_y = v;
     }
 
     pub fn tab_bounds(&self) -> Rect {
@@ -493,7 +431,7 @@ impl Tab {
     pub fn draw(&mut self, doc: &Doc, theme: &Theme, gfx: &mut Gfx, is_focused: bool) {
         gfx.begin(Some(self.doc_bounds));
 
-        let camera_y = self.camera_y.floor();
+        let camera_y = self.camera.y().floor();
 
         let min_y = (camera_y / gfx.line_height()) as usize;
         let sub_line_offset_y = camera_y - min_y as f32 * gfx.line_height();
