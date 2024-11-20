@@ -3,6 +3,7 @@ use std::{io, path::Path};
 use crate::{
     command_palette::{
         file_mode::MODE_OPEN_FILE,
+        go_to_line_mode::MODE_GO_TO_LINE,
         search_mode::{MODE_SEARCH, MODE_SEARCH_AND_REPLACE_START},
         CommandPalette,
     },
@@ -135,6 +136,12 @@ impl Editor {
                     mods: MOD_CTRL,
                 } => {
                     command_palette.open(MODE_SEARCH_AND_REPLACE_START);
+                }
+                Keybind {
+                    key: Key::G,
+                    mods: MOD_CTRL,
+                } => {
+                    command_palette.open(MODE_GO_TO_LINE);
                 }
                 Keybind {
                     key: Key::O,

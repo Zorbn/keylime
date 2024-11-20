@@ -1,4 +1,5 @@
 pub mod file_mode;
+pub mod go_to_line_mode;
 mod mode;
 pub mod search_mode;
 

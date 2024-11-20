@@ -43,7 +43,7 @@ use window::WindowRunner;
  * Indent-unindent region: ctrl-[, ctrl-], tab, shift-tab.
  * Running commands and seeing output (very simple integrated terminal).
  * Configuration file: colors, fonts.
- * More command palette commands (go to line, open folder, new file/folder, recycle file/folder, etc).
+ * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
  * Simple auto-complete.
  */
 
