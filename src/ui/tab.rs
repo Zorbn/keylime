@@ -1,5 +1,5 @@
 use crate::{
-    config::theme::Theme,
+    config::{theme::Theme, Language},
     digits::get_digits,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
@@ -15,7 +15,6 @@ use crate::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
         line_pool::LinePool,
-        syntax_highlighter::Syntax,
     },
     ui::camera::{Camera, RECENTER_DISTANCE},
 };
@@ -76,7 +75,7 @@ impl Tab {
         window: &mut Window,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
-        syntax: Option<&Syntax>,
+        language: Option<&Language>,
         time: f32,
         dt: f32,
     ) {
@@ -259,7 +258,14 @@ impl Tab {
                     key: Key::Tab,
                     mods: 0,
                 } => {
-                    doc.insert_at_cursors(&['\t'], line_pool, time);
+                    if let Some(indent_width) = language.and_then(|language| language.indent_width)
+                    {
+                        for _ in 0..indent_width {
+                            doc.insert_at_cursors(&[' '], line_pool, time);
+                        }
+                    } else {
+                        doc.insert_at_cursors(&['\t'], line_pool, time);
+                    }
                 }
                 Keybind {
                     key: Key::PageUp,
@@ -401,7 +407,7 @@ impl Tab {
         doc.combine_overlapping_cursors();
         self.update_camera(doc, window, handled_cursor_position, dt);
 
-        if let Some(syntax) = syntax {
+        if let Some(syntax) = language.and_then(|language| language.syntax.as_ref()) {
             doc.update_highlights(self.camera.y(), window.gfx(), syntax);
         }
     }

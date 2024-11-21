@@ -16,7 +16,8 @@ use crate::{
         cursor_index::{CursorIndex, CursorIndices},
         line_pool::{Line, LinePool},
         selection::Selection,
-        syntax_highlighter::{HighlightedLine, Syntax, SyntaxHighlighter},
+        syntax::Syntax,
+        syntax_highlighter::{HighlightedLine, SyntaxHighlighter},
     },
 };
 

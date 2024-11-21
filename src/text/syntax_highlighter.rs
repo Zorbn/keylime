@@ -1,8 +1,10 @@
-use std::collections::HashSet;
+use serde::Deserialize;
 
 use crate::text::line_pool::Line;
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+use super::syntax::{Syntax, SyntaxRange};
+
+#[derive(Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum HighlightKind {
     Normal,
     Comment,
@@ -25,35 +27,6 @@ enum HighlightResult {
     Token { end: usize },
     Range { end: usize, is_finished: bool },
     None,
-}
-
-#[derive(Clone)]
-pub struct SyntaxRange {
-    pub start: String,
-    pub end: String,
-    pub escape: Option<char>,
-    pub max_length: Option<usize>,
-    pub kind: HighlightKind,
-}
-
-pub struct Syntax {
-    keywords: HashSet<Vec<char>>,
-    ranges: Vec<SyntaxRange>,
-}
-
-impl Syntax {
-    pub fn new(keywords: &[&str], ranges: &[SyntaxRange]) -> Self {
-        let mut keyword_vecs = HashSet::new();
-
-        for keyword in keywords {
-            keyword_vecs.insert(keyword.chars().collect());
-        }
-
-        Self {
-            keywords: keyword_vecs,
-            ranges: ranges.to_vec(),
-        }
-    }
 }
 
 #[derive(Clone)]

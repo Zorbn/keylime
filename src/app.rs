@@ -3,10 +3,7 @@ use crate::{
     geometry::rect::Rect,
     platform::window::Window,
     temp_buffer::TempBuffer,
-    text::{
-        line_pool::LinePool,
-        syntax_highlighter::{HighlightKind, Syntax, SyntaxRange},
-    },
+    text::line_pool::LinePool,
     ui::{command_palette::CommandPalette, editor::Editor},
 };
 
@@ -16,7 +13,6 @@ pub struct App {
     command_palette: CommandPalette,
     editor: Editor,
     config: Config,
-    syntax: Syntax,
 }
 
 impl App {
@@ -28,66 +24,12 @@ impl App {
         let editor = Editor::new(&mut line_pool);
         let config = Config::load().unwrap_or_default();
 
-        let syntax = Syntax::new(
-            &[
-                "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false",
-                "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut",
-                "pub", "ref", "return", "self", "Self", "static", "struct", "super", "trait",
-                "true", "type", "unsafe", "use", "where", "while",
-            ],
-            &[
-                SyntaxRange {
-                    start: "\"".into(),
-                    end: "\"".into(),
-                    escape: Some('\\'),
-                    max_length: None,
-                    kind: HighlightKind::String,
-                },
-                SyntaxRange {
-                    start: "'".into(),
-                    end: "'".into(),
-                    escape: Some('\\'),
-                    max_length: Some(1),
-                    kind: HighlightKind::String,
-                },
-                SyntaxRange {
-                    start: "#[".into(),
-                    end: "]".into(),
-                    escape: None,
-                    max_length: None,
-                    kind: HighlightKind::Preprocessor,
-                },
-                SyntaxRange {
-                    start: "#![".into(),
-                    end: "]".into(),
-                    escape: None,
-                    max_length: None,
-                    kind: HighlightKind::Preprocessor,
-                },
-                SyntaxRange {
-                    start: "//".into(),
-                    end: "\n".into(),
-                    escape: None,
-                    max_length: None,
-                    kind: HighlightKind::Comment,
-                },
-                SyntaxRange {
-                    start: "/*".into(),
-                    end: "*/".into(),
-                    escape: None,
-                    max_length: None,
-                    kind: HighlightKind::Comment,
-                },
-            ],
-        );
-
         Self {
             line_pool,
             text_buffer,
             command_palette,
             editor,
             config,
-            syntax,
         }
     }
 
@@ -107,7 +49,7 @@ impl App {
             window,
             &mut self.line_pool,
             &mut self.text_buffer,
-            &self.syntax,
+            &self.config,
             time,
             dt,
         );

@@ -1,3 +1,67 @@
-font = "Courier New"
+font = "Consolas"
 font_size = 13.0
-theme = "default_light"
+theme = "gruvbox_dark"
+test = "hello world"
+
+[language.rust]
+extensions = ["rs"]
+indent_width = 4
+
+[language.rust.syntax]
+keywords = [
+    "as",
+    "break",
+    "const",
+    "continue",
+    "crate",
+    "else",
+    "enum",
+    "extern",
+    "false",
+    "fn",
+    "for",
+    "if",
+    "impl",
+    "in",
+    "let",
+    "loop",
+    "match",
+    "mod",
+    "move",
+    "mut",
+    "pub",
+    "ref",
+    "return",
+    "self",
+    "Self",
+    "static",
+    "struct",
+    "super",
+    "trait",
+    "true",
+    "type",
+    "unsafe",
+    "use",
+    "where",
+    "while",
+]
+ranges = [
+    { start = '"', end = '"', escape = '\', kind = "String" },
+    { start = "'", end = "'", escape = '\', max_length = 1, kind = "String" },
+    { start = "#[", end = "]", kind = "Preprocessor" },
+    { start = "#![", end = "]", kind = "Preprocessor" },
+    { start = "//", end = "\n", kind = "Comment" },
+    { start = "/*", end = "*/", kind = "Comment" },
+]
+
+[language.toml]
+extensions = ["toml"]
+indent_width = 4
+
+[language.toml.syntax]
+keywords = []
+ranges = [
+    { start = '"', end = '"', escape = '\', kind = "String" },
+    { start = "'", end = "'", kind = "String" },
+    { start = "#", end = "\n", kind = "Comment" },
+]

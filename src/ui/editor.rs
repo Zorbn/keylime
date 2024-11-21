@@ -1,7 +1,7 @@
 use std::{env::set_current_dir, io, path::Path};
 
 use crate::{
-    config::theme::Theme,
+    config::{theme::Theme, Config},
     geometry::{rect::Rect, visual_position::VisualPosition},
     input::{
         key::Key,
@@ -18,7 +18,6 @@ use crate::{
     text::{
         doc::{Doc, DocKind},
         line_pool::LinePool,
-        syntax_highlighter::Syntax,
     },
     ui::{
         command_palette::{
@@ -90,7 +89,7 @@ impl Editor {
         window: &mut Window,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
-        syntax: &Syntax,
+        config: &Config,
         time: f32,
         dt: f32,
     ) {
@@ -220,7 +219,13 @@ impl Editor {
         }
 
         if let Some((tab, doc)) = self.get_tab_with_doc(self.focused_tab_index) {
-            tab.update(doc, window, line_pool, text_buffer, Some(syntax), time, dt);
+            let language = doc
+                .path()
+                .and_then(|path| path.extension())
+                .and_then(|extension| extension.to_str())
+                .and_then(|extension| config.get_language(extension));
+
+            tab.update(doc, window, line_pool, text_buffer, language, time, dt);
         }
 
         window.clear_inputs();
