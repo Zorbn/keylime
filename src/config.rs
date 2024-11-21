@@ -15,6 +15,7 @@ use crate::{
 };
 
 const CONFIG_PATH: &str = "config.toml";
+const DEFAULT_COMMENT: &str = "//";
 
 #[derive(Deserialize, Debug)]
 pub struct SyntaxDesc<'a> {
@@ -28,6 +29,7 @@ struct LanguageDesc<'a> {
     #[serde(borrow)]
     extensions: Vec<&'a str>,
     indent_width: Option<usize>,
+    comment: Option<&'a str>,
     syntax: Option<SyntaxDesc<'a>>,
 }
 
@@ -43,6 +45,7 @@ struct ConfigDesc<'a> {
 pub struct Language {
     pub indent_width: Option<usize>,
     pub syntax: Option<Syntax>,
+    pub comment: String,
 }
 
 pub struct Config {
@@ -128,6 +131,7 @@ impl Config {
 
             languages.push(Language {
                 indent_width: language.indent_width,
+                comment: language.comment.unwrap_or(DEFAULT_COMMENT).to_owned(),
                 syntax,
             });
 

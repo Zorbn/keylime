@@ -56,6 +56,7 @@ ranges = [
 [language.toml]
 extensions = ["toml"]
 indent_width = 4
+comment = "#"
 
 [language.toml.syntax]
 keywords = []

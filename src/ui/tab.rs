@@ -202,11 +202,13 @@ impl Tab {
                                 let mut start = doc.move_position(end, Position::new(-1, 0));
 
                                 for _ in 1..indent_width {
-                                    if doc.get_char(start) != ' ' {
+                                    let next_start = doc.move_position(start, Position::new(-1, 0));
+
+                                    if doc.get_char(next_start) != ' ' {
                                         break;
                                     }
 
-                                    start = doc.move_position(start, Position::new(-1, 0));
+                                    start = next_start;
                                 }
 
                                 start
@@ -422,6 +424,14 @@ impl Tab {
                     mods: MOD_CTRL,
                 } => {
                     doc.add_cursor_at_next_occurance();
+                }
+                Keybind {
+                    key: Key::ForwardSlash,
+                    mods: MOD_CTRL,
+                } => {
+                    if let Some(language) = language {
+                        doc.toggle_comments_at_cursors(&language.comment, line_pool, time);
+                    }
                 }
                 _ => keybind_handler.unprocessed(window, keybind),
             }

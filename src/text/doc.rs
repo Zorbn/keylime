@@ -268,6 +268,114 @@ impl Doc {
         }
     }
 
+    pub fn get_line_start(&self, y: isize) -> isize {
+        let Some(line) = self.get_line(y) else {
+            return 0;
+        };
+
+        let mut start = 0;
+
+        for c in line {
+            if !c.is_whitespace() {
+                break;
+            }
+
+            start += 1;
+        }
+
+        start
+    }
+
+    pub fn is_line_whitespace(&self, y: isize) -> bool {
+        self.get_line_start(y) == self.get_line_len(y)
+    }
+
+    pub fn comment_line(&mut self, comment: &str, y: isize, line_pool: &mut LinePool, time: f32) {
+        let mut position = Position::new(self.get_line_start(y), y);
+
+        for c in comment.chars() {
+            self.insert(position, &[c], line_pool, time);
+            position = self.move_position(position, Position::new(1, 0));
+        }
+
+        self.insert(position, &[' '], line_pool, time);
+    }
+
+    pub fn uncomment_line(
+        &mut self,
+        comment: &str,
+        y: isize,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) -> bool {
+        if !self.is_line_commented(comment, y) {
+            return false;
+        }
+
+        let start = Position::new(self.get_line_start(y), y);
+        let end = self.move_position(start, Position::new(comment.len() as isize, 0));
+
+        self.delete(start, end, line_pool, time);
+
+        if self.get_char(start) == ' ' {
+            let end = self.move_position(start, Position::new(1, 0));
+
+            self.delete(start, end, line_pool, time);
+        }
+
+        true
+    }
+
+    pub fn is_line_commented(&self, comment: &str, y: isize) -> bool {
+        let Some(line) = self.get_line(y) else {
+            return false;
+        };
+
+        let start = self.get_line_start(y) as usize;
+
+        if start + comment.len() >= line.len() {
+            return false;
+        }
+
+        for (i, c) in comment.chars().enumerate() {
+            if line[start + i] != c {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    pub fn toggle_comments_at_cursors(
+        &mut self,
+        comment: &str,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        for index in self.cursor_indices() {
+            let cursor = self.get_cursor(index);
+
+            let mut selection = cursor.get_selection().unwrap_or(Selection {
+                start: cursor.position,
+                end: cursor.position,
+            });
+
+            if selection.end.y > selection.start.y && selection.end.x == 0 {
+                selection.end.y -= 1;
+            }
+
+            for y in selection.start.y..=selection.end.y {
+                if self.is_line_whitespace(y) {
+                    continue;
+                }
+
+                if !self.uncomment_line(comment, y, line_pool, time) {
+                    self.comment_line(comment, y, line_pool, time);
+                }
+            }
+        }
+    }
+
     pub fn move_cursor(&mut self, index: CursorIndex, delta: Position, should_select: bool) {
         self.update_cursor_selection(index, should_select);
 
