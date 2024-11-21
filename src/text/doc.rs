@@ -880,6 +880,27 @@ impl Doc {
         position
     }
 
+    pub fn trim_trailing_whitespace(&mut self, line_pool: &mut LinePool, time: f32) {
+        for y in 0..self.lines.len() {
+            let line = &self.lines[y];
+            let mut whitespace_start = 0;
+
+            for (i, c) in line.iter().enumerate().rev() {
+                if !c.is_whitespace() {
+                    whitespace_start = i + 1;
+                    break;
+                }
+            }
+
+            if whitespace_start < line.len() {
+                let start = Position::new(whitespace_start as isize, y as isize);
+                let end = Position::new(line.len() as isize, y as isize);
+
+                self.delete(start, end, line_pool, time);
+            }
+        }
+    }
+
     pub fn save(&mut self, path: PathBuf) -> io::Result<()> {
         let string = self.to_string();
 

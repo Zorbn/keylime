@@ -17,7 +17,6 @@ use platform::window::WindowRunner;
 /*
  * TODO:
  * Multiple panes (split view).
- * Trim trailing whitespace on save.
  * Comment region: ctrl-/.
  * Indent-unindent region: ctrl-[, ctrl-], tab, shift-tab.
  * Running commands and seeing output (very simple integrated terminal).

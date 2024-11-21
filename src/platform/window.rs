@@ -112,7 +112,7 @@ impl WindowRunner {
             app.draw(window_handle);
         }
 
-        app.close();
+        app.close(self.window.time);
     }
 
     unsafe extern "system" fn window_proc(

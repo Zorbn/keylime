@@ -174,7 +174,7 @@ impl Editor {
                     mods: MOD_CTRL,
                 } => {
                     if let Some((_, doc)) = self.get_tab_with_doc(self.focused_tab_index) {
-                        Self::try_save_doc(doc);
+                        Self::try_save_doc(doc, line_pool, time);
                     }
                 }
                 Keybind {
@@ -188,14 +188,14 @@ impl Editor {
                     key: Key::W,
                     mods: MOD_CTRL,
                 } => {
-                    self.close_tab();
+                    self.close_tab(line_pool, time);
                 }
                 Keybind {
                     key: Key::R,
                     mods: MOD_CTRL,
                 } => {
                     if let Some((_, doc)) = self.get_tab_with_doc(self.focused_tab_index) {
-                        Self::reload_doc(doc, line_pool);
+                        Self::reload_doc(doc, line_pool, time);
                     }
                 }
                 Keybind {
@@ -338,13 +338,19 @@ impl Editor {
         Ok(())
     }
 
-    pub fn confirm_close_docs(&mut self, reason: &str) {
+    pub fn confirm_close_docs(&mut self, reason: &str, line_pool: &mut LinePool, time: f32) {
         for doc in self.docs.iter_mut().filter_map(|doc| doc.as_mut()) {
-            Self::confirm_close_doc(doc, reason, false);
+            Self::confirm_close_doc(doc, reason, false, line_pool, time);
         }
     }
 
-    fn confirm_close_doc(doc: &mut Doc, reason: &str, is_cancelable: bool) -> bool {
+    fn confirm_close_doc(
+        doc: &mut Doc,
+        reason: &str,
+        is_cancelable: bool,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) -> bool {
         if doc.is_saved() {
             true
         } else {
@@ -361,14 +367,14 @@ impl Editor {
             };
 
             match message("Unsaved Changes", &text, message_kind) {
-                MessageResponse::Yes => Self::try_save_doc(doc),
+                MessageResponse::Yes => Self::try_save_doc(doc, line_pool, time),
                 MessageResponse::No => true,
                 MessageResponse::Cancel => false,
             }
         }
     }
 
-    fn try_save_doc(doc: &mut Doc) -> bool {
+    fn try_save_doc(doc: &mut Doc, line_pool: &mut LinePool, time: f32) -> bool {
         let path = if let Some(path) = doc.path() {
             Ok(path.to_owned())
         } else {
@@ -379,6 +385,8 @@ impl Editor {
             return false;
         };
 
+        doc.trim_trailing_whitespace(line_pool, time);
+
         if let Err(err) = doc.save(path) {
             message("Failed to Save File", &err.to_string(), MessageKind::Ok);
             false
@@ -387,8 +395,8 @@ impl Editor {
         }
     }
 
-    fn reload_doc(doc: &mut Doc, line_pool: &mut LinePool) {
-        if !Self::confirm_close_doc(doc, "reloading", true) {
+    fn reload_doc(doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
+        if !Self::confirm_close_doc(doc, "reloading", true, line_pool, time) {
             return;
         }
 
@@ -441,7 +449,7 @@ impl Editor {
         }
     }
 
-    fn close_tab(&mut self) {
+    fn close_tab(&mut self, line_pool: &mut LinePool, time: f32) {
         let doc_index = if let Some(tab) = self.tabs.get(self.focused_tab_index) {
             tab.doc_index()
         } else {
@@ -462,7 +470,7 @@ impl Editor {
         }
 
         if let Some(Some(doc)) = self.docs.get_mut(doc_index).as_mut() {
-            if !Self::confirm_close_doc(doc, "closing", true) {
+            if !Self::confirm_close_doc(doc, "closing", true, line_pool, time) {
                 return;
             }
         }

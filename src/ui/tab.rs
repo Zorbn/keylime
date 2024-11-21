@@ -181,6 +181,10 @@ impl Tab {
                     key: Key::Backspace,
                     mods,
                 } => {
+                    let indent_width = language
+                        .and_then(|language| language.indent_width)
+                        .unwrap_or(1);
+
                     for index in doc.cursor_indices() {
                         let cursor = doc.get_cursor(index);
 
@@ -192,7 +196,18 @@ impl Tab {
                             let start = if mods & MOD_CTRL != 0 {
                                 doc.move_position_to_next_word(end, -1)
                             } else {
-                                doc.move_position(end, Position::new(-1, 0))
+                                let indent_width = (end.x - 1) % indent_width as isize + 1;
+                                let mut start = doc.move_position(end, Position::new(-1, 0));
+
+                                for _ in 1..indent_width {
+                                    if doc.get_char(start) != ' ' {
+                                        break;
+                                    }
+
+                                    start = doc.move_position(start, Position::new(-1, 0));
+                                }
+
+                                start
                             };
 
                             (start, end)

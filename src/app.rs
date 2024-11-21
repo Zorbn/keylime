@@ -76,8 +76,9 @@ impl App {
         gfx.end_frame();
     }
 
-    pub fn close(&mut self) {
-        self.editor.confirm_close_docs("exiting");
+    pub fn close(&mut self, time: f32) {
+        self.editor
+            .confirm_close_docs("exiting", &mut self.line_pool, time);
     }
 
     pub fn config(&self) -> &Config {
