@@ -7,7 +7,7 @@ use std::{
 };
 
 use crate::{
-    geometry::{position::Position, visual_position::VisualPosition},
+    geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     platform::gfx::Gfx,
     text::{
         action_history::{Action, ActionHistory, ActionKind},
@@ -1113,9 +1113,9 @@ impl Doc {
         }
     }
 
-    pub fn update_highlights(&mut self, camera_y: f32, gfx: &Gfx, syntax: &Syntax) {
+    pub fn update_highlights(&mut self, camera_y: f32, bounds: Rect, syntax: &Syntax, gfx: &Gfx) {
         let end = self.visual_to_position(
-            VisualPosition::new(0.0, camera_y + gfx.height()),
+            VisualPosition::new(0.0, camera_y + bounds.height),
             camera_y,
             gfx,
         );

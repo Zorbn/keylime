@@ -1,7 +1,6 @@
 font = "Consolas"
 font_size = 13.0
 theme = "gruvbox_dark"
-test = "hello world"
 
 [language.rust]
 extensions = ["rs"]

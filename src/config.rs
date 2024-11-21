@@ -7,7 +7,10 @@ use theme::Theme;
 
 use crate::{
     platform::dialog::{message, MessageKind},
-    text::syntax::{Syntax, SyntaxRange},
+    text::{
+        doc::Doc,
+        syntax::{Syntax, SyntaxRange},
+    },
     ui::color::Color,
 };
 
@@ -146,6 +149,13 @@ impl Config {
         self.extension_languages
             .get(extension)
             .and_then(|index| self.languages.get(*index))
+    }
+
+    pub fn get_language_for_doc<'a>(&'a self, doc: &Doc) -> Option<&'a Language> {
+        doc.path()
+            .and_then(|path| path.extension())
+            .and_then(|extension| extension.to_str())
+            .and_then(|extension| self.get_language(extension))
     }
 
     fn get_config_directory() -> PathBuf {

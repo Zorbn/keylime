@@ -219,19 +219,13 @@ impl Editor {
         }
 
         if let Some((tab, doc)) = self.get_tab_with_doc(self.focused_tab_index) {
-            let language = doc
-                .path()
-                .and_then(|path| path.extension())
-                .and_then(|extension| extension.to_str())
-                .and_then(|extension| config.get_language(extension));
-
-            tab.update(doc, window, line_pool, text_buffer, language, time, dt);
+            tab.update(doc, window, line_pool, text_buffer, config, time, dt);
         }
 
         window.clear_inputs();
     }
 
-    pub fn draw(&mut self, theme: &Theme, gfx: &mut Gfx, is_focused: bool) {
+    pub fn draw(&mut self, config: &Config, gfx: &mut Gfx, is_focused: bool) {
         let tab_height = gfx.tab_height();
 
         gfx.begin(Some(self.bounds));
@@ -241,13 +235,16 @@ impl Editor {
                 continue;
             };
 
-            Self::draw_tab(tab, doc, theme, gfx);
+            Self::draw_tab(tab, doc, &config.theme, gfx);
         }
 
         let focused_tab_bounds = if let Some(tab) = self.tabs.get(self.focused_tab_index) {
             let tab_bounds = tab.tab_bounds();
 
-            gfx.add_rect(tab_bounds.top_border(gfx.border_width()), &theme.keyword);
+            gfx.add_rect(
+                tab_bounds.top_border(gfx.border_width()),
+                &config.theme.keyword,
+            );
 
             tab_bounds
         } else {
@@ -261,7 +258,7 @@ impl Editor {
                 focused_tab_bounds.x,
                 tab_height,
             ),
-            &theme.border,
+            &config.theme.border,
         );
 
         gfx.add_rect(
@@ -271,13 +268,13 @@ impl Editor {
                 self.bounds.width,
                 tab_height,
             ),
-            &theme.border,
+            &config.theme.border,
         );
 
         gfx.end();
 
         if let Some((tab, doc)) = self.get_tab_with_doc(self.focused_tab_index) {
-            tab.draw(doc, theme, gfx, is_focused);
+            tab.draw(doc, config, gfx, is_focused);
         }
     }
 

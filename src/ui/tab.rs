@@ -1,5 +1,5 @@
 use crate::{
-    config::{theme::Theme, Language},
+    config::{theme::Theme, Config},
     digits::get_digits,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
@@ -75,10 +75,12 @@ impl Tab {
         window: &mut Window,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
-        language: Option<&Language>,
+        config: &Config,
         time: f32,
         dt: f32,
     ) {
+        let language = config.get_language_for_doc(doc);
+
         let mut handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
 
         let mut char_handler = window.get_char_handler();
@@ -427,10 +429,6 @@ impl Tab {
 
         doc.combine_overlapping_cursors();
         self.update_camera(doc, window, handled_cursor_position, dt);
-
-        if let Some(syntax) = language.and_then(|language| language.syntax.as_ref()) {
-            doc.update_highlights(self.camera.y(), window.gfx(), syntax);
-        }
     }
 
     fn update_camera(
@@ -477,27 +475,34 @@ impl Tab {
         index as f32 * gfx.line_height() + gfx.line_padding() - sub_line_offset_y
     }
 
-    pub fn draw(&mut self, doc: &Doc, theme: &Theme, gfx: &mut Gfx, is_focused: bool) {
+    pub fn draw(&mut self, doc: &mut Doc, config: &Config, gfx: &mut Gfx, is_focused: bool) {
+        if let Some(syntax) = config
+            .get_language_for_doc(doc)
+            .and_then(|language| language.syntax.as_ref())
+        {
+            doc.update_highlights(self.camera.y(), self.doc_bounds, syntax, gfx);
+        }
+
         let camera_y = self.camera.y().floor();
 
         let min_y = (camera_y / gfx.line_height()) as usize;
         let sub_line_offset_y = camera_y - min_y as f32 * gfx.line_height();
 
-        let max_y = ((camera_y + gfx.height()) / gfx.line_height()) as usize + 1;
+        let max_y = ((camera_y + self.doc_bounds.height) / gfx.line_height()) as usize + 1;
         let max_y = max_y.min(doc.lines().len());
 
         if doc.kind() == DocKind::MultiLine {
             gfx.begin(Some(self.gutter_bounds));
 
-            self.draw_gutter(doc, theme, gfx, sub_line_offset_y, min_y, max_y);
+            self.draw_gutter(doc, &config.theme, gfx, sub_line_offset_y, min_y, max_y);
 
             gfx.end();
         }
 
         gfx.begin(Some(self.doc_bounds));
 
-        self.draw_lines(doc, theme, gfx, sub_line_offset_y, min_y, max_y);
-        self.draw_cursors(doc, theme, gfx, is_focused, camera_y, min_y, max_y);
+        self.draw_lines(doc, &config.theme, gfx, sub_line_offset_y, min_y, max_y);
+        self.draw_cursors(doc, &config.theme, gfx, is_focused, camera_y, min_y, max_y);
 
         gfx.end();
     }

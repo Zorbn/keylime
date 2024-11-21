@@ -41,6 +41,7 @@ impl App {
             window,
             &mut self.line_pool,
             &mut self.text_buffer,
+            &self.config,
             time,
             dt,
         );
@@ -66,12 +67,11 @@ impl App {
         gfx.begin_frame(self.config.theme.background);
 
         self.editor.draw(
-            &self.config.theme,
+            &self.config,
             gfx,
             is_focused && !self.command_palette.is_active(),
         );
-        self.command_palette
-            .draw(&self.config.theme, gfx, is_focused);
+        self.command_palette.draw(&self.config, gfx, is_focused);
 
         gfx.end_frame();
     }

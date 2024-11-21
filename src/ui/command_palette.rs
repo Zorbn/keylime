@@ -4,7 +4,7 @@ mod mode;
 pub mod search_mode;
 
 use crate::{
-    config::theme::Theme,
+    config::Config,
     geometry::{
         rect::Rect,
         side::{SIDE_ALL, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
@@ -149,6 +149,7 @@ impl CommandPalette {
         window: &mut Window,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
+        config: &Config,
         time: f32,
         dt: f32,
     ) {
@@ -268,7 +269,7 @@ impl CommandPalette {
             window,
             line_pool,
             text_buffer,
-            None,
+            config,
             time,
             dt,
         );
@@ -357,7 +358,7 @@ impl CommandPalette {
         (self.mode.on_update_results)(self, line_pool, time);
     }
 
-    pub fn draw(&mut self, theme: &Theme, gfx: &mut Gfx, is_focused: bool) {
+    pub fn draw(&mut self, config: &Config, gfx: &mut Gfx, is_focused: bool) {
         if !self.is_active() {
             return;
         }
@@ -367,34 +368,34 @@ impl CommandPalette {
         gfx.add_bordered_rect(
             self.results_bounds,
             SIDE_ALL,
-            &theme.background,
-            &theme.border,
+            &config.theme.background,
+            &config.theme.border,
         );
 
         gfx.add_bordered_rect(
             self.input_bounds,
             SIDE_ALL,
-            &theme.background,
-            &theme.border,
+            &config.theme.background,
+            &config.theme.border,
         );
 
         gfx.add_bordered_rect(
             self.title_bounds,
             SIDE_LEFT | SIDE_RIGHT | SIDE_TOP,
-            &theme.background,
-            &theme.border,
+            &config.theme.background,
+            &config.theme.border,
         );
 
         gfx.add_rect(
             self.title_bounds.top_border(gfx.border_width()),
-            &theme.keyword,
+            &config.theme.keyword,
         );
 
         gfx.add_text(
             self.mode.title.chars(),
             gfx.glyph_width(),
             gfx.border_width() + gfx.tab_padding_y() + gfx.border_width(),
-            &theme.normal,
+            &config.theme.normal,
         );
 
         let doc_bounds = self.tab.doc_bounds();
@@ -404,30 +405,38 @@ impl CommandPalette {
                 .add_margin(gfx.border_width())
                 .unoffset_by(self.bounds),
             SIDE_ALL,
-            &theme.background,
-            &theme.border,
+            &config.theme.background,
+            &config.theme.border,
         );
 
         gfx.end();
 
-        self.tab.draw(&self.doc, theme, gfx, is_focused);
+        self.tab.draw(&mut self.doc, config, gfx, is_focused);
 
         gfx.begin(Some(self.results_bounds.offset_by(self.bounds)));
 
         let camera_y = self.camera.y().floor();
 
-        for (i, result) in self.results.iter().enumerate() {
-            let y = i as f32 * self.result_bounds.height
-                + (self.result_bounds.height - gfx.glyph_height()) / 2.0
-                - camera_y;
+        let min_y = (camera_y / self.result_bounds.height) as usize;
+        let sub_line_offset_y = camera_y - min_y as f32 * self.result_bounds.height;
 
-            let color = if i == self.selected_result_index {
-                &theme.keyword
+        let max_y =
+            ((camera_y + self.results_bounds.height) / self.result_bounds.height) as usize + 1;
+        let max_result_index = max_y.min(self.results.len());
+
+        for (i, y) in (min_y..max_result_index).enumerate() {
+            let visual_y = i as f32 * self.result_bounds.height
+                + (self.result_bounds.height - gfx.glyph_height()) / 2.0
+                - sub_line_offset_y;
+
+            let color = if y == self.selected_result_index {
+                &config.theme.keyword
             } else {
-                &theme.normal
+                &config.theme.normal
             };
 
-            gfx.add_text(result.chars(), gfx.glyph_width(), y, color);
+            let result = &self.results[y];
+            gfx.add_text(result.chars(), gfx.glyph_width(), visual_y, color);
         }
 
         gfx.end();
