@@ -1,4 +1,4 @@
-use crate::{position::Position, selection::Selection};
+use crate::{geometry::position::Position, text::selection::Selection};
 
 #[derive(Clone)]
 pub struct Cursor {

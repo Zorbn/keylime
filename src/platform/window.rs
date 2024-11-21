@@ -27,14 +27,17 @@ use windows::{
 
 use crate::{
     app::App,
+    config::Config,
     defer,
-    gfx::Gfx,
-    input_handlers::{CharHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
-    key::Key,
-    keybind::Keybind,
-    mouse_button::MouseButton,
-    mouse_scroll::MouseScroll,
-    mousebind::Mousebind,
+    input::{
+        input_handlers::{CharHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
+        key::Key,
+        keybind::Keybind,
+        mouse_button::MouseButton,
+        mouse_scroll::MouseScroll,
+        mousebind::Mousebind,
+    },
+    platform::gfx::Gfx,
 };
 
 const DEFAULT_DPI: f32 = 96.0;
@@ -479,14 +482,22 @@ impl Window {
 
                 let _ = SetWindowPos(hwnd, None, 0, 0, width, height, SWP_NOMOVE);
 
-                self.gfx = Some(Gfx::new(self).unwrap());
+                let Config {
+                    font, font_size, ..
+                } = app.config();
+
+                self.gfx = Some(Gfx::new(font, *font_size, self).unwrap());
             }
             WM_DPICHANGED => {
                 let dpi = (wparam.0 & 0xffff) as f32 / DEFAULT_DPI;
                 self.dpi = dpi;
 
                 if let Some(gfx) = &mut self.gfx {
-                    gfx.set_scale(dpi);
+                    let Config {
+                        font, font_size, ..
+                    } = app.config();
+
+                    gfx.update_font(font, *font_size, dpi);
                 }
 
                 let rect = *(lparam.0 as *const RECT);

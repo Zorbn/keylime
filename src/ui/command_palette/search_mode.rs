@@ -1,6 +1,7 @@
 use crate::{
-    camera::CameraRecenterKind, cursor_index::CursorIndex, doc::Doc, editor::Editor,
-    line_pool::LinePool, position::Position, selection::Selection, tab::Tab,
+    geometry::position::Position,
+    text::{cursor_index::CursorIndex, doc::Doc, line_pool::LinePool, selection::Selection},
+    ui::{camera::CameraRecenterKind, editor::Editor, tab::Tab},
 };
 
 use super::{mode::CommandPaletteMode, CommandPalette, CommandPaletteAction};

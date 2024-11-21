@@ -1,13 +1,13 @@
 use crate::{
-    command_palette::CommandPalette,
-    editor::Editor,
-    gfx::Color,
-    line_pool::LinePool,
-    rect::Rect,
-    syntax_highlighter::{HighlightKind, Syntax, SyntaxRange},
+    config::Config,
+    geometry::rect::Rect,
+    platform::window::Window,
     temp_buffer::TempBuffer,
-    theme::Theme,
-    window::Window,
+    text::{
+        line_pool::LinePool,
+        syntax_highlighter::{HighlightKind, Syntax, SyntaxRange},
+    },
+    ui::{command_palette::CommandPalette, editor::Editor},
 };
 
 pub struct App {
@@ -15,7 +15,7 @@ pub struct App {
     text_buffer: TempBuffer<char>,
     command_palette: CommandPalette,
     editor: Editor,
-    theme: Theme,
+    config: Config,
     syntax: Syntax,
 }
 
@@ -26,36 +26,7 @@ impl App {
 
         let command_palette = CommandPalette::new(&mut line_pool);
         let editor = Editor::new(&mut line_pool);
-
-        // let theme = Theme {
-        //     normal: Color::new(0, 0, 0, 255),
-        //     comment: Color::new(0, 128, 0, 255),
-        //     keyword: Color::new(0, 0, 255, 255),
-        //     function: Color::new(121, 94, 38, 255),
-        //     number: Color::new(9, 134, 88, 255),
-        //     symbol: Color::new(0, 0, 0, 255),
-        //     string: Color::new(163, 21, 21, 255),
-        //     preprocessor: Color::new(175, 0, 219, 255),
-        //     selection: Color::new(76, 173, 228, 125),
-        //     line_number: Color::new(110, 118, 129, 255),
-        //     border: Color::new(229, 229, 229, 255),
-        //     background: Color::new(245, 245, 245, 255),
-        // };
-
-        let theme = Theme {
-            normal: Color::new(204, 204, 204, 255),
-            comment: Color::new(106, 153, 85, 255),
-            keyword: Color::new(86, 156, 214, 255),
-            function: Color::new(220, 220, 170, 255),
-            number: Color::new(181, 206, 168, 255),
-            symbol: Color::new(204, 204, 204, 255),
-            string: Color::new(206, 145, 120, 255),
-            preprocessor: Color::new(197, 134, 192, 255),
-            selection: Color::new(76, 173, 228, 125),
-            line_number: Color::new(110, 118, 129, 255),
-            border: Color::new(43, 43, 43, 255),
-            background: Color::new(30, 30, 30, 255),
-        };
+        let config = Config::load().unwrap_or_default();
 
         let syntax = Syntax::new(
             &[
@@ -115,7 +86,7 @@ impl App {
             text_buffer,
             command_palette,
             editor,
-            theme,
+            config,
             syntax,
         }
     }
@@ -150,14 +121,15 @@ impl App {
         self.command_palette.layout(bounds, gfx);
         self.editor.layout(bounds, gfx);
 
-        gfx.begin_frame(self.theme.background);
+        gfx.begin_frame(self.config.theme.background);
 
         self.editor.draw(
-            &self.theme,
+            &self.config.theme,
             gfx,
             is_focused && !self.command_palette.is_active(),
         );
-        self.command_palette.draw(&self.theme, gfx, is_focused);
+        self.command_palette
+            .draw(&self.config.theme, gfx, is_focused);
 
         gfx.end_frame();
     }
@@ -166,8 +138,12 @@ impl App {
         self.editor.confirm_close_docs("exiting");
     }
 
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
+
     pub fn is_dark(&self) -> bool {
-        self.theme.is_dark()
+        self.config.theme.is_dark()
     }
 
     fn is_animating(&self) -> bool {

@@ -1,40 +1,18 @@
 #![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
 
-mod action_history;
 mod app;
-mod camera;
-mod char_category;
-mod command_palette;
-mod cursor;
-mod cursor_index;
+mod config;
 mod deferred_call;
-mod dialog;
 mod digits;
-mod doc;
-mod editor;
-mod gfx;
-mod input_handlers;
-mod key;
-mod keybind;
-mod line_pool;
-mod matrix;
-mod mouse_button;
-mod mouse_scroll;
-mod mousebind;
-mod position;
-mod rect;
-mod selection;
-mod side;
-mod syntax_highlighter;
-mod tab;
+mod geometry;
+mod input;
+mod platform;
 mod temp_buffer;
 mod text;
-mod theme;
-mod visual_position;
-mod window;
+mod ui;
 
 use app::App;
-use window::WindowRunner;
+use platform::window::WindowRunner;
 
 /*
  * TODO:
@@ -44,7 +22,6 @@ use window::WindowRunner;
  * Comment region: ctrl-/.
  * Indent-unindent region: ctrl-[, ctrl-], tab, shift-tab.
  * Running commands and seeing output (very simple integrated terminal).
- * Configuration file: colors, fonts.
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
  * Simple auto-complete.
  */

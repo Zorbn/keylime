@@ -3,7 +3,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{cursor_index::CursorIndex, editor::Editor, line_pool::LinePool, position::Position};
+use crate::{
+    geometry::position::Position, text::cursor_index::CursorIndex, text::line_pool::LinePool,
+    ui::editor::Editor,
+};
 
 use super::{mode::CommandPaletteMode, CommandPalette, CommandPaletteAction};
 

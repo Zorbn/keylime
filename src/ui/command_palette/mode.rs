@@ -1,4 +1,7 @@
-use crate::{command_palette::CommandPalette, editor::Editor, line_pool::LinePool};
+use crate::{
+    text::line_pool::LinePool,
+    ui::{command_palette::CommandPalette, editor::Editor},
+};
 
 use super::CommandPaletteAction;
 

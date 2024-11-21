@@ -1,4 +1,4 @@
-use crate::key::Key;
+use crate::input::key::Key;
 
 pub const MOD_SHIFT: u8 = 1 << 0;
 pub const MOD_CTRL: u8 = 1 << 1;

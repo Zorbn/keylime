@@ -1,4 +1,8 @@
-use crate::{camera::CameraRecenterKind, editor::Editor, line_pool::LinePool, position::Position};
+use crate::{
+    geometry::position::Position,
+    text::line_pool::LinePool,
+    ui::{camera::CameraRecenterKind, editor::Editor},
+};
 
 use super::{mode::CommandPaletteMode, CommandPalette, CommandPaletteAction};
 

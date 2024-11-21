@@ -7,16 +7,17 @@ use std::{
 };
 
 use crate::{
-    action_history::{Action, ActionHistory, ActionKind},
-    char_category::CharCategory,
-    cursor::Cursor,
-    cursor_index::{CursorIndex, CursorIndices},
-    gfx::Gfx,
-    line_pool::{Line, LinePool},
-    position::Position,
-    selection::Selection,
-    syntax_highlighter::{HighlightedLine, Syntax, SyntaxHighlighter},
-    visual_position::VisualPosition,
+    geometry::{position::Position, visual_position::VisualPosition},
+    platform::gfx::Gfx,
+    text::{
+        action_history::{Action, ActionHistory, ActionKind},
+        char_category::CharCategory,
+        cursor::Cursor,
+        cursor_index::{CursorIndex, CursorIndices},
+        line_pool::{Line, LinePool},
+        selection::Selection,
+        syntax_highlighter::{HighlightedLine, Syntax, SyntaxHighlighter},
+    },
 };
 
 macro_rules! action_history {

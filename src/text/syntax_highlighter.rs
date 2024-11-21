@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::line_pool::Line;
+use crate::text::line_pool::Line;
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum HighlightKind {

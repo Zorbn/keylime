@@ -17,11 +17,16 @@ use windows::{
 };
 
 use crate::{
-    matrix::ortho,
-    rect::Rect,
-    side::{SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
-    text::{AtlasDimensions, Text},
-    window::Window,
+    geometry::{
+        matrix::ortho,
+        rect::Rect,
+        side::{SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
+    },
+    platform::{
+        text::{AtlasDimensions, Text},
+        window::Window,
+    },
+    ui::color::Color,
 };
 
 const SHADER_CODE: &str = r#"
@@ -94,29 +99,6 @@ struct Vertex {
     a: f32,
 }
 
-#[derive(Clone, Copy)]
-pub struct Color {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
-    pub a: u8,
-}
-
-impl Color {
-    pub fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
-        Self { r, g, b, a }
-    }
-
-    pub fn from_hex(value: u32) -> Self {
-        Self {
-            r: (value >> 24) as u8,
-            g: (value >> 16) as u8,
-            b: (value >> 8) as u8,
-            a: value as u8,
-        }
-    }
-}
-
 const TAB_WIDTH: usize = 4;
 
 pub struct Gfx {
@@ -148,7 +130,7 @@ pub struct Gfx {
 }
 
 impl Gfx {
-    pub unsafe fn new(window: &Window) -> Result<Self> {
+    pub unsafe fn new(font_name: &str, font_size: f32, window: &Window) -> Result<Self> {
         let (device, context) = {
             let mut device_result = None;
             let mut context_result = None;
@@ -366,7 +348,8 @@ impl Gfx {
             uniform_buffer_result.unwrap()
         };
 
-        let (texture_data, atlas_dimensions) = Self::create_atlas_texture(&device, window.dpi())?;
+        let (texture_data, atlas_dimensions) =
+            Self::create_atlas_texture(&device, font_name, font_size, window.dpi())?;
 
         let gfx = Self {
             device,
@@ -410,9 +393,11 @@ impl Gfx {
 
     unsafe fn create_atlas_texture(
         device: &ID3D11Device,
+        font_name: &str,
+        font_size: f32,
         scale: f32,
     ) -> Result<(TextureData, AtlasDimensions)> {
-        let mut text = Text::new(scale)?;
+        let mut text = Text::new(font_name, font_size, scale)?;
         let atlas = text.generate_atlas().unwrap();
 
         let texture_data = Self::create_texture(
@@ -563,9 +548,11 @@ impl Gfx {
         Ok(())
     }
 
-    pub fn set_scale(&mut self, scale: f32) {
+    pub fn update_font(&mut self, font_name: &str, font_size: f32, scale: f32) {
         unsafe {
-            if let Ok(atlas_texture) = Self::create_atlas_texture(&self.device, scale) {
+            if let Ok(atlas_texture) =
+                Self::create_atlas_texture(&self.device, font_name, font_size, scale)
+            {
                 (self.texture_data, self.atlas_dimensions) = atlas_texture;
             }
         }

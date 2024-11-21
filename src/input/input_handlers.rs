@@ -1,4 +1,7 @@
-use crate::{keybind::Keybind, mouse_scroll::MouseScroll, mousebind::Mousebind, window::Window};
+use crate::{
+    input::{keybind::Keybind, mouse_scroll::MouseScroll, mousebind::Mousebind},
+    platform::window::Window,
+};
 
 macro_rules! define_handler {
     ($name:ident, $buffer:ident, $t:ident) => {

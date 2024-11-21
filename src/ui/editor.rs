@@ -1,27 +1,34 @@
 use std::{env::set_current_dir, io, path::Path};
 
 use crate::{
-    command_palette::{
-        file_mode::MODE_OPEN_FILE,
-        go_to_line_mode::MODE_GO_TO_LINE,
-        search_mode::{MODE_SEARCH, MODE_SEARCH_AND_REPLACE_START},
-        CommandPalette,
+    config::theme::Theme,
+    geometry::{rect::Rect, visual_position::VisualPosition},
+    input::{
+        key::Key,
+        keybind::{Keybind, MOD_CTRL, MOD_CTRL_SHIFT},
+        mouse_button::MouseButton,
+        mousebind::Mousebind,
     },
-    dialog::{find_file, message, FindFileKind, MessageKind, MessageResponse},
-    doc::{Doc, DocKind},
-    gfx::Gfx,
-    key::Key,
-    keybind::{Keybind, MOD_CTRL, MOD_CTRL_SHIFT},
-    line_pool::LinePool,
-    mouse_button::MouseButton,
-    mousebind::Mousebind,
-    rect::Rect,
-    syntax_highlighter::Syntax,
-    tab::Tab,
+    platform::{
+        dialog::{find_file, message, FindFileKind, MessageKind, MessageResponse},
+        gfx::Gfx,
+        window::Window,
+    },
     temp_buffer::TempBuffer,
-    theme::Theme,
-    visual_position::VisualPosition,
-    window::Window,
+    text::{
+        doc::{Doc, DocKind},
+        line_pool::LinePool,
+        syntax_highlighter::Syntax,
+    },
+    ui::{
+        command_palette::{
+            file_mode::MODE_OPEN_FILE,
+            go_to_line_mode::MODE_GO_TO_LINE,
+            search_mode::{MODE_SEARCH, MODE_SEARCH_AND_REPLACE_START},
+            CommandPalette,
+        },
+        tab::Tab,
+    },
 };
 
 pub struct Editor {

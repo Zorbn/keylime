@@ -1,4 +1,4 @@
-use crate::position::Position;
+use crate::geometry::position::Position;
 
 pub struct Selection {
     pub start: Position,

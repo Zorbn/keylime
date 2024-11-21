@@ -1,5 +1,8 @@
-use crate::{gfx::Color, syntax_highlighter::HighlightKind};
+use serde::Deserialize;
 
+use crate::{text::syntax_highlighter::HighlightKind, ui::color::Color};
+
+#[derive(Deserialize, Debug)]
 pub struct Theme {
     pub normal: Color,
     pub comment: Color,

@@ -4,22 +4,29 @@ mod mode;
 pub mod search_mode;
 
 use crate::{
-    camera::{Camera, RECENTER_DISTANCE},
-    doc::{Doc, DocKind},
-    editor::Editor,
-    gfx::Gfx,
-    key::Key,
-    keybind::{Keybind, MOD_CTRL, MOD_SHIFT},
-    line_pool::{Line, LinePool},
-    mouse_button::MouseButton,
-    mousebind::Mousebind,
-    rect::Rect,
-    side::{SIDE_ALL, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
-    tab::Tab,
+    config::theme::Theme,
+    geometry::{
+        rect::Rect,
+        side::{SIDE_ALL, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
+        visual_position::VisualPosition,
+    },
+    input::{
+        key::Key,
+        keybind::{Keybind, MOD_CTRL, MOD_SHIFT},
+        mouse_button::MouseButton,
+        mousebind::Mousebind,
+    },
+    platform::{gfx::Gfx, window::Window},
     temp_buffer::TempBuffer,
-    theme::Theme,
-    visual_position::VisualPosition,
-    window::Window,
+    text::{
+        doc::{Doc, DocKind},
+        line_pool::{Line, LinePool},
+    },
+    ui::{
+        camera::{Camera, RECENTER_DISTANCE},
+        editor::Editor,
+        tab::Tab,
+    },
 };
 
 use file_mode::MODE_OPEN_FILE;

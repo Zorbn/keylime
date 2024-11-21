@@ -1,4 +1,4 @@
-use crate::position::Position;
+use crate::geometry::position::Position;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ActionKind {
