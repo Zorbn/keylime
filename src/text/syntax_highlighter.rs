@@ -137,8 +137,9 @@ impl SyntaxHighlighter {
             if c.is_ascii_digit() {
                 has_digit = true;
                 i += 1;
+                continue;
             } else if c == '.' {
-                if has_dot {
+                if has_dot || !has_digit {
                     break;
                 }
 
