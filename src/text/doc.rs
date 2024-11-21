@@ -1168,6 +1168,58 @@ impl Doc {
         }
     }
 
+    pub fn add_cursor_at_next_occurance(&mut self) {
+        let cursor = self.get_cursor(CursorIndex::Main);
+
+        let Some(selection) = cursor.get_selection() else {
+            self.select_current_word_at_cursors();
+            return;
+        };
+
+        if selection.start.y != selection.end.y {
+            return;
+        }
+
+        let Some(line) = self.get_line(cursor.position.y) else {
+            return;
+        };
+
+        let Some(position) = self.search(
+            &line[selection.start.x as usize..selection.end.x as usize],
+            cursor.position,
+            false,
+        ) else {
+            return;
+        };
+
+        self.add_cursor(position);
+
+        let end = self.move_position(
+            position,
+            Position::new(selection.end.x - selection.start.x, 0),
+        );
+
+        self.jump_cursor(CursorIndex::Main, end, true);
+    }
+
+    fn select_current_word_at_cursors(&mut self) {
+        for index in self.cursor_indices() {
+            let line_len = self.get_line_len(self.get_cursor(index).position.y);
+
+            if self.get_cursor(index).position.x < line_len {
+                self.move_cursor(index, Position::new(1, 0), false);
+            }
+
+            if self.get_cursor(index).position.x > 0 {
+                self.move_cursor_to_next_word(index, -1, false);
+            }
+
+            if self.get_cursor(index).position.x < line_len {
+                self.move_cursor_to_next_word(index, 1, true);
+            }
+        }
+    }
+
     pub fn version(&self) -> usize {
         self.version
     }

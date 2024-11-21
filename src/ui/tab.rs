@@ -415,6 +415,12 @@ impl Tab {
 
                     doc.paste_at_cursors(text, was_copy_implicit, line_pool, time);
                 }
+                Keybind {
+                    key: Key::D,
+                    mods: MOD_CTRL,
+                } => {
+                    doc.add_cursor_at_next_occurance();
+                }
                 _ => keybind_handler.unprocessed(window, keybind),
             }
         }
