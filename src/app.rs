@@ -21,7 +21,7 @@ impl App {
         let text_buffer = TempBuffer::new();
 
         let command_palette = CommandPalette::new(&mut line_pool);
-        let editor = Editor::new(&mut line_pool);
+        let editor = Editor::new(&mut line_pool, 0.0);
         let config = Config::load().unwrap_or_default();
 
         Self {

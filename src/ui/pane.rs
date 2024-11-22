@@ -39,7 +39,7 @@ pub struct Pane {
 }
 
 impl Pane {
-    pub fn new(doc_list: &mut DocList, line_pool: &mut LinePool) -> Self {
+    pub fn new(doc_list: &mut DocList, line_pool: &mut LinePool, time: f32) -> Self {
         let mut pane = Self {
             tabs: Vec::new(),
             focused_tab_index: 0,
@@ -47,7 +47,7 @@ impl Pane {
         };
 
         let doc_index = doc_list.add(Doc::new(line_pool, DocKind::MultiLine));
-        pane.add_tab(doc_index);
+        pane.add_tab(doc_index, doc_list, line_pool, time);
 
         pane
     }
@@ -161,7 +161,8 @@ impl Pane {
                     mods: MOD_CTRL,
                 } => {
                     if let Ok(path) = find_file(FindFileKind::OpenFile) {
-                        if let Err(err) = self.open_file(path.as_path(), doc_list, line_pool) {
+                        if let Err(err) = self.open_file(path.as_path(), doc_list, line_pool, time)
+                        {
                             message("Error Opening File", &err.to_string(), MessageKind::Ok);
                         }
                     }
@@ -190,7 +191,7 @@ impl Pane {
                     mods: MOD_CTRL,
                 } => {
                     let doc_index = doc_list.add(Doc::new(line_pool, DocKind::MultiLine));
-                    self.add_tab(doc_index);
+                    self.add_tab(doc_index, doc_list, line_pool, time);
                 }
                 Keybind {
                     key: Key::W,
@@ -344,6 +345,7 @@ impl Pane {
         path: &Path,
         doc_list: &mut DocList,
         line_pool: &mut LinePool,
+        time: f32,
     ) -> io::Result<()> {
         let doc_index = doc_list.open_or_reuse(path, line_pool)?;
 
@@ -355,7 +357,7 @@ impl Pane {
             }
         }
 
-        self.add_tab(doc_index);
+        self.add_tab(doc_index, doc_list, line_pool, time);
 
         Ok(())
     }
@@ -370,8 +372,25 @@ impl Pane {
         }
     }
 
-    fn add_tab(&mut self, doc_index: usize) {
+    fn add_tab(
+        &mut self,
+        doc_index: usize,
+        doc_list: &mut DocList,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        if let Some((_, doc)) = self.get_tab_with_doc(self.focused_tab_index, doc_list) {
+            if doc.path().is_none() && doc.is_saved() {
+                self.close_tab(doc_list, line_pool, time);
+            }
+        }
+
         let tab = Tab::new(doc_index);
+
+        doc_list
+            .get_mut(doc_index)
+            .expect("tried to add a tab referencing a non-existent doc")
+            .add_usage();
 
         if self.focused_tab_index >= self.tabs.len() {
             self.tabs.push(tab);
@@ -388,23 +407,21 @@ impl Pane {
             return true;
         };
 
-        let doc_usage_count = self
-            .tabs
-            .iter()
-            .filter(|tab| tab.doc_index() == doc_index)
-            .count();
+        let Some(doc) = doc_list.get_mut(doc_index) else {
+            return true;
+        };
 
-        if doc_usage_count > 1 {
+        if doc.usages() > 1 {
+            doc.remove_usage();
+
             self.tabs.remove(self.focused_tab_index);
             self.clamp_focused_tab();
 
             return true;
         }
 
-        if let Some(doc) = doc_list.get_mut(doc_index) {
-            if !DocList::confirm_close(doc, "closing", true, line_pool, time) {
-                return false;
-            }
+        if !DocList::confirm_close(doc, "closing", true, line_pool, time) {
+            return false;
         }
 
         doc_list.remove(doc_index, line_pool);

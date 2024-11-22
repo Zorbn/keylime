@@ -554,7 +554,7 @@ impl Tab {
             let visual_y = Self::get_line_visual_y(i, sub_line_offset_y, gfx);
 
             let width = digits.len() as f32 * gfx.glyph_width();
-            let visual_x = self.gutter_bounds.x + self.gutter_bounds.width
+            let visual_x = self.gutter_bounds.width
                 - width
                 - (GUTTER_PADDING_WIDTH + GUTTER_BORDER_WIDTH) * gfx.glyph_width();
 

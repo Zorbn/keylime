@@ -24,7 +24,7 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(line_pool: &mut LinePool) -> Self {
+    pub fn new(line_pool: &mut LinePool, time: f32) -> Self {
         let mut editor = Self {
             doc_list: DocList::new(),
             panes: Vec::new(),
@@ -34,7 +34,7 @@ impl Editor {
 
         editor
             .panes
-            .push(Pane::new(&mut editor.doc_list, line_pool));
+            .push(Pane::new(&mut editor.doc_list, line_pool, time));
 
         editor
     }
@@ -88,16 +88,17 @@ impl Editor {
                     is_drag: false,
                     ..
                 } => {
-                    match self
+                    if let Some((i, _)) = self
                         .panes
                         .iter()
                         .enumerate()
                         .filter(|(_, pane)| pane.bounds().contains_position(visual_position))
                         .nth(0)
                     {
-                        Some((i, _)) => self.focused_pane_index = i,
-                        _ => mousebind_handler.unprocessed(window, mousebind),
+                        self.focused_pane_index = i;
                     }
+
+                    mousebind_handler.unprocessed(window, mousebind);
                 }
                 _ => mousebind_handler.unprocessed(window, mousebind),
             }
@@ -111,7 +112,7 @@ impl Editor {
                     key: Key::N,
                     mods: MOD_CTRL_ALT,
                 } => {
-                    self.add_pane(line_pool);
+                    self.add_pane(line_pool, time);
                 }
                 Keybind {
                     key: Key::W,
@@ -177,8 +178,8 @@ impl Editor {
         }
     }
 
-    fn add_pane(&mut self, line_pool: &mut LinePool) {
-        let pane = Pane::new(&mut self.doc_list, line_pool);
+    fn add_pane(&mut self, line_pool: &mut LinePool, time: f32) {
+        let pane = Pane::new(&mut self.doc_list, line_pool, time);
 
         if self.focused_pane_index >= self.panes.len() {
             self.panes.push(pane);

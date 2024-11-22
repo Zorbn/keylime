@@ -53,6 +53,7 @@ pub struct Doc {
     path: Option<PathBuf>,
     is_saved: bool,
     version: usize,
+    usages: usize,
 
     lines: Vec<Line>,
     cursors: Vec<Cursor>,
@@ -76,6 +77,7 @@ impl Doc {
             path: None,
             is_saved: true,
             version: 0,
+            usages: 0,
 
             lines,
             cursors: Vec::new(),
@@ -94,6 +96,18 @@ impl Doc {
         doc.reset_cursors();
 
         doc
+    }
+
+    pub fn add_usage(&mut self) {
+        self.usages += 1;
+    }
+
+    pub fn remove_usage(&mut self) {
+        self.usages -= 1;
+    }
+
+    pub fn usages(&self) -> usize {
+        self.usages
     }
 
     pub fn move_position(&self, position: Position, delta: Position) -> Position {

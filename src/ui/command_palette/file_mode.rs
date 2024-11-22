@@ -61,13 +61,14 @@ fn on_submit_open_file(
     pane: &mut Pane,
     doc_list: &mut DocList,
     line_pool: &mut LinePool,
-    _: f32,
+    time: f32,
 ) -> CommandPaletteAction {
     if pane
         .open_file(
             Path::new(&command_palette.doc.to_string()),
             doc_list,
             line_pool,
+            time,
         )
         .is_ok()
     {
