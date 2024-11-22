@@ -58,10 +58,6 @@ impl Rect {
         )
     }
 
-    pub fn shift_x(&self, delta: f32) -> Rect {
-        Rect::new(self.x + delta, self.y, self.width, self.height)
-    }
-
     pub fn shift_y(&self, delta: f32) -> Rect {
         Rect::new(self.x, self.y + delta, self.width, self.height)
     }

@@ -9,38 +9,38 @@ pub const RECENTER_DISTANCE: usize = 3;
 const SCROLL_SPEED: f32 = 30.0;
 const SCROLL_FRICTION: f32 = 0.0001;
 
-pub struct Camera {
-    y: f32,
-    velocity_y: f32,
+pub struct CameraAxis {
+    position: f32,
+    velocity: f32,
     recenter_kind: CameraRecenterKind,
 }
 
-impl Camera {
+impl CameraAxis {
     pub fn new() -> Self {
         Self {
-            y: 0.0,
-            velocity_y: 0.0,
+            position: 0.0,
+            velocity: 0.0,
             recenter_kind: CameraRecenterKind::None,
         }
     }
 
     pub fn is_moving(&self) -> bool {
-        self.velocity_y != 0.0
+        self.velocity != 0.0
     }
 
     pub fn update(
         &mut self,
-        target_y: f32,
-        max_y: f32,
-        height: f32,
-        scroll_border_top: f32,
-        scroll_border_bottom: f32,
+        target_position: f32,
+        max_position: f32,
+        view_size: f32,
+        min_scroll_border: f32,
+        max_scroll_border: f32,
         can_recenter: bool,
         dt: f32,
     ) {
         if can_recenter {
             let is_target_outside_border =
-                target_y < scroll_border_top || target_y > scroll_border_bottom;
+                target_position < min_scroll_border || target_position > max_scroll_border;
 
             self.recenter_kind = if is_target_outside_border {
                 CameraRecenterKind::OnScrollBorder
@@ -52,35 +52,35 @@ impl Camera {
         if self.recenter_kind != CameraRecenterKind::None {
             let visual_distance = match self.recenter_kind {
                 CameraRecenterKind::OnScrollBorder => {
-                    if target_y < height / 2.0 {
-                        target_y - scroll_border_top
+                    if target_position < view_size / 2.0 {
+                        target_position - min_scroll_border
                     } else {
-                        target_y - scroll_border_bottom
+                        target_position - max_scroll_border
                     }
                 }
-                _ => target_y - height / 2.0,
+                _ => target_position - view_size / 2.0,
             };
 
             // We can't move the camera past the top of the document,
             // (eg. if the cursor is on the first line, it might be too close to the edge of the
             // screen according to RECENTER_DISTANCE, but there's nothing we can do about it, so stop animating).
-            let visual_distance = (visual_distance + self.y).max(0.0) - self.y;
+            let visual_distance = (visual_distance + self.position).max(0.0) - self.position;
 
             self.scroll_visual_distance(visual_distance);
         }
 
-        self.velocity_y *= SCROLL_FRICTION.powf(dt);
+        self.velocity *= SCROLL_FRICTION.powf(dt);
 
         // We want the velocity to eventually be exactly zero so that we can stop animating.
-        if self.velocity_y.abs() < 0.5 {
-            self.velocity_y = 0.0;
+        if self.velocity.abs() < 0.5 {
+            self.velocity = 0.0;
 
             // If we're recentering the camera then we must be done at this point.
             self.recenter_kind = CameraRecenterKind::None;
         }
 
-        self.y += self.velocity_y * dt;
-        self.y = self.y.clamp(0.0, max_y);
+        self.position += self.velocity * dt;
+        self.position = self.position.clamp(0.0, max_position);
     }
 
     pub fn recenter(&mut self, recenter_kind: CameraRecenterKind) {
@@ -97,21 +97,53 @@ impl Camera {
         // Solve for v:
         let v = (visual_distance * f.ln()) / (f.powf(t) - 1.0);
 
-        self.velocity_y = v;
+        self.velocity = v;
     }
 
     pub fn scroll(&mut self, delta: f32) {
         self.recenter_kind = CameraRecenterKind::None;
-        self.velocity_y -= delta * SCROLL_SPEED;
+        self.velocity -= delta * SCROLL_SPEED;
     }
 
     pub fn reset(&mut self) {
-        self.y = 0.0;
-        self.velocity_y = 0.0;
+        self.position = 0.0;
+        self.velocity = 0.0;
         self.recenter_kind = CameraRecenterKind::None;
     }
 
+    pub fn reset_velocity(&mut self) {
+        self.velocity = 0.0;
+        self.recenter_kind = CameraRecenterKind::None;
+    }
+}
+
+pub struct Camera {
+    pub horizontal: CameraAxis,
+    pub vertical: CameraAxis,
+}
+
+impl Camera {
+    pub fn new() -> Self {
+        Self {
+            horizontal: CameraAxis::new(),
+            vertical: CameraAxis::new(),
+        }
+    }
+
+    pub fn is_moving(&self) -> bool {
+        self.horizontal.is_moving() || self.vertical.is_moving()
+    }
+
+    pub fn reset(&mut self) {
+        self.horizontal.reset();
+        self.vertical.reset();
+    }
+
+    pub fn x(&self) -> f32 {
+        self.horizontal.position
+    }
+
     pub fn y(&self) -> f32 {
-        self.y
+        self.vertical.position
     }
 }

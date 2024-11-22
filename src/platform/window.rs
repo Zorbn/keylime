@@ -264,7 +264,7 @@ impl Window {
                 let _ = GetMessageW(&mut msg, self.hwnd, 0, 0);
                 let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
-            };
+            }
 
             while PeekMessageW(&mut msg, self.hwnd, 0, 0, PM_REMOVE).as_bool() {
                 let _ = TranslateMessage(&msg);
@@ -614,17 +614,20 @@ impl Window {
                     ));
                 }
             }
-            WM_MOUSEWHEEL => {
+            WM_MOUSEWHEEL | WM_MOUSEHWHEEL => {
                 const WHEEL_DELTA: f32 = 120.0;
 
                 let delta =
                     transmute::<u16, i16>(((wparam.0 >> 16) & 0xffff) as u16) as f32 / WHEEL_DELTA;
+
+                let is_horizontal = msg == WM_MOUSEHWHEEL;
 
                 let x = transmute::<u32, i32>((lparam.0 & 0xffff) as u32);
                 let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xffff) as u32);
 
                 self.mouse_scrolls.push(MouseScroll {
                     delta,
+                    is_horizontal,
                     x: (x - self.x) as f32,
                     y: (y - self.y) as f32,
                 });

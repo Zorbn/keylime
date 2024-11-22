@@ -33,7 +33,10 @@ fn on_submit_go_to_line(
     };
 
     doc.jump_cursors(Position::new(0, line), false);
-    tab.camera.recenter(CameraRecenterKind::OnCursor);
+    tab.camera.vertical.recenter(CameraRecenterKind::OnCursor);
+    tab.camera
+        .horizontal
+        .recenter(CameraRecenterKind::OnScrollBorder);
 
     CommandPaletteAction::Close
 }

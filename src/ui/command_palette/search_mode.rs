@@ -126,6 +126,9 @@ fn search(search_term: &[char], tab: &mut Tab, doc: &mut Doc, has_shift: bool) {
         doc.jump_cursors(position, false);
         doc.jump_cursors(end, true);
 
-        tab.camera.recenter(CameraRecenterKind::OnCursor);
+        tab.camera.vertical.recenter(CameraRecenterKind::OnCursor);
+        tab.camera
+            .horizontal
+            .recenter(CameraRecenterKind::OnScrollBorder);
     }
 }

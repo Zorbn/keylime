@@ -1,3 +1,5 @@
+use core::f32;
+
 use crate::{
     config::{theme::Theme, Config},
     digits::get_digits,
@@ -20,7 +22,7 @@ use crate::{
 };
 
 const GUTTER_PADDING_WIDTH: f32 = 1.0;
-const GUTTER_BORDER_WIDTH: f32 = 1.0;
+const GUTTER_BORDER_WIDTH: f32 = 0.5;
 
 pub struct Tab {
     doc_index: usize,
@@ -97,7 +99,12 @@ impl Tab {
                 mousebind.y - self.doc_bounds.y,
             );
 
-            let position = doc.visual_to_position(visual_position, self.camera.y(), window.gfx());
+            let position = doc.visual_to_position(
+                visual_position,
+                self.camera.x(),
+                self.camera.y(),
+                window.gfx(),
+            );
 
             match mousebind {
                 Mousebind {
@@ -130,7 +137,14 @@ impl Tab {
 
             if self.doc_bounds.contains_position(position) {
                 let delta = mouse_scroll.delta * window.gfx().line_height();
-                self.camera.scroll(delta);
+
+                if mouse_scroll.is_horizontal {
+                    self.camera.vertical.reset_velocity();
+                    self.camera.horizontal.scroll(-delta);
+                } else {
+                    self.camera.horizontal.reset_velocity();
+                    self.camera.vertical.scroll(delta);
+                }
             }
         }
 
@@ -322,10 +336,16 @@ impl Tab {
                         let position = if mods & MOD_CTRL != 0 {
                             Position::new(0, 0)
                         } else {
-                            let mut position = doc.get_cursor(index).position;
-                            position.x = 0;
+                            let cursor = doc.get_cursor(index);
+                            let line_start_x = doc.get_line_start(cursor.position.y);
 
-                            position
+                            let x = if line_start_x == cursor.position.x {
+                                0
+                            } else {
+                                line_start_x
+                            };
+
+                            Position::new(x, cursor.position.y)
                         };
 
                         doc.jump_cursor(index, position, mods & MOD_SHIFT != 0);
@@ -458,6 +478,7 @@ impl Tab {
 
         doc.combine_overlapping_cursors();
         self.update_camera(doc, window, handled_cursor_position, dt);
+        self.update_horizontal_camera(doc, window, handled_cursor_position, dt);
     }
 
     fn update_camera(
@@ -471,7 +492,7 @@ impl Tab {
 
         let new_cursor_position = doc.get_cursor(CursorIndex::Main).position;
         let new_cursor_visual_position =
-            doc.position_to_visual(new_cursor_position, self.camera.y(), gfx);
+            doc.position_to_visual(new_cursor_position, self.camera.x(), self.camera.y(), gfx);
 
         let can_recenter = handled_cursor_position != new_cursor_position;
 
@@ -481,12 +502,44 @@ impl Tab {
         let scroll_border_top = gfx.line_height() * RECENTER_DISTANCE as f32;
         let scroll_border_bottom = self.doc_bounds.height - scroll_border_top - gfx.line_height();
 
-        self.camera.update(
+        self.camera.vertical.update(
             target_y,
             max_y,
             self.doc_bounds.height,
             scroll_border_top,
             scroll_border_bottom,
+            can_recenter,
+            dt,
+        );
+    }
+
+    fn update_horizontal_camera(
+        &mut self,
+        doc: &Doc,
+        window: &mut Window,
+        handled_cursor_position: Position,
+        dt: f32,
+    ) {
+        let gfx = window.gfx();
+
+        let new_cursor_position = doc.get_cursor(CursorIndex::Main).position;
+        let new_cursor_visual_position =
+            doc.position_to_visual(new_cursor_position, self.camera.x(), self.camera.y(), gfx);
+
+        let can_recenter = handled_cursor_position != new_cursor_position;
+
+        let target_x = new_cursor_visual_position.x + gfx.glyph_width() / 2.0;
+        let max_x = f32::MAX;
+
+        let scroll_border_left = gfx.glyph_width() * RECENTER_DISTANCE as f32;
+        let scroll_border_right = self.doc_bounds.width - scroll_border_left - gfx.glyph_width();
+
+        self.camera.horizontal.update(
+            target_x,
+            max_x,
+            self.doc_bounds.height,
+            scroll_border_left,
+            scroll_border_right,
             can_recenter,
             dt,
         );
@@ -509,9 +562,16 @@ impl Tab {
             .get_language_for_doc(doc)
             .and_then(|language| language.syntax.as_ref())
         {
-            doc.update_highlights(self.camera.y(), self.doc_bounds, syntax, gfx);
+            doc.update_highlights(
+                self.camera.x(),
+                self.camera.y(),
+                self.doc_bounds,
+                syntax,
+                gfx,
+            );
         }
 
+        let camera_x = self.camera.x().floor();
         let camera_y = self.camera.y().floor();
 
         let min_y = (camera_y / gfx.line_height()) as usize;
@@ -530,8 +590,25 @@ impl Tab {
 
         gfx.begin(Some(self.doc_bounds));
 
-        self.draw_lines(doc, &config.theme, gfx, sub_line_offset_y, min_y, max_y);
-        self.draw_cursors(doc, &config.theme, gfx, is_focused, camera_y, min_y, max_y);
+        self.draw_lines(
+            doc,
+            &config.theme,
+            gfx,
+            camera_x,
+            sub_line_offset_y,
+            min_y,
+            max_y,
+        );
+        self.draw_cursors(
+            doc,
+            &config.theme,
+            gfx,
+            is_focused,
+            camera_x,
+            camera_y,
+            min_y,
+            max_y,
+        );
 
         gfx.end();
     }
@@ -570,8 +647,7 @@ impl Tab {
         gfx.add_rect(
             self.gutter_bounds
                 .unoffset_by(self.gutter_bounds)
-                .right_border(gfx.border_width())
-                .shift_x(-GUTTER_BORDER_WIDTH * 0.5 * gfx.glyph_width()),
+                .right_border(gfx.border_width()),
             &theme.border,
         );
     }
@@ -581,6 +657,7 @@ impl Tab {
         doc: &Doc,
         theme: &Theme,
         gfx: &mut Gfx,
+        camera_x: f32,
         sub_line_offset_y: f32,
         min_y: usize,
         max_y: usize,
@@ -593,17 +670,20 @@ impl Tab {
             let visual_y = Self::get_line_visual_y(i, sub_line_offset_y, gfx);
 
             if y >= highlighted_lines.len() {
-                gfx.add_text(line.iter().copied(), 0.0, visual_y, &theme.normal);
+                let visual_x = -camera_x;
+
+                gfx.add_text(line.iter().copied(), visual_x, visual_y, &theme.normal);
             } else {
                 let mut x = 0;
                 let highlighted_line = &highlighted_lines[y];
 
                 for highlight in highlighted_line.highlights() {
+                    let visual_x = x as f32 * gfx.glyph_width() - camera_x;
                     let color = &theme.highlight_kind_to_color(highlight.kind);
 
                     x += gfx.add_text(
                         line[highlight.start..highlight.end].iter().copied(),
-                        x as f32 * gfx.glyph_width(),
+                        visual_x,
                         visual_y,
                         color,
                     );
@@ -618,6 +698,7 @@ impl Tab {
         theme: &Theme,
         gfx: &mut Gfx,
         is_focused: bool,
+        camera_x: f32,
         camera_y: f32,
         min_y: usize,
         max_y: usize,
@@ -632,7 +713,7 @@ impl Tab {
             let mut position = start;
 
             while position < end {
-                let highlight_position = doc.position_to_visual(position, camera_y, gfx);
+                let highlight_position = doc.position_to_visual(position, camera_x, camera_y, gfx);
 
                 let char = doc.get_char(position);
                 let char_width = Gfx::get_char_width(char);
@@ -656,11 +737,11 @@ impl Tab {
 
             for index in doc.cursor_indices() {
                 let cursor_position =
-                    doc.position_to_visual(doc.get_cursor(index).position, camera_y, gfx);
+                    doc.position_to_visual(doc.get_cursor(index).position, 0.0, camera_y, gfx);
 
                 gfx.add_rect(
                     Rect::new(
-                        (cursor_position.x - cursor_width / 2.0).max(0.0),
+                        (cursor_position.x - cursor_width / 2.0).max(0.0) - camera_x,
                         cursor_position.y,
                         cursor_width,
                         gfx.line_height(),

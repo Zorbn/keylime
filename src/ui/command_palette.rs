@@ -205,6 +205,10 @@ impl CommandPalette {
         let mut mouse_scroll_handler = window.get_mouse_scroll_handler();
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
+            if mouse_scroll.is_horizontal {
+                continue;
+            }
+
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
 
             if self
@@ -213,7 +217,7 @@ impl CommandPalette {
                 .contains_position(position)
             {
                 let delta = mouse_scroll.delta * self.result_bounds.height;
-                self.camera.scroll(delta);
+                self.camera.vertical.scroll(delta);
             }
         }
 
@@ -300,7 +304,7 @@ impl CommandPalette {
 
         let can_recenter = self.selected_result_index != handled_selected_result_index;
 
-        self.camera.update(
+        self.camera.vertical.update(
             target_y,
             max_y,
             self.results_bounds.height,

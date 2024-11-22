@@ -1115,6 +1115,7 @@ impl Doc {
     pub fn position_to_visual(
         &self,
         position: Position,
+        camera_x: f32,
         camera_y: f32,
         gfx: &Gfx,
     ) -> VisualPosition {
@@ -1124,14 +1125,20 @@ impl Doc {
         let visual_x = Gfx::measure_text(leading_text.iter().copied());
 
         VisualPosition::new(
-            visual_x as f32 * gfx.glyph_width(),
+            visual_x as f32 * gfx.glyph_width() - camera_x,
             position.y as f32 * gfx.line_height() - camera_y,
         )
     }
 
-    pub fn visual_to_position(&self, visual: VisualPosition, camera_y: f32, gfx: &Gfx) -> Position {
+    pub fn visual_to_position(
+        &self,
+        visual: VisualPosition,
+        camera_x: f32,
+        camera_y: f32,
+        gfx: &Gfx,
+    ) -> Position {
         let mut position = Position::new(
-            (visual.x / gfx.glyph_width()) as isize,
+            ((visual.x + camera_x) / gfx.glyph_width()) as isize,
             ((visual.y + camera_y) / gfx.line_height()) as isize,
         );
 
@@ -1380,9 +1387,17 @@ impl Doc {
         }
     }
 
-    pub fn update_highlights(&mut self, camera_y: f32, bounds: Rect, syntax: &Syntax, gfx: &Gfx) {
+    pub fn update_highlights(
+        &mut self,
+        camera_x: f32,
+        camera_y: f32,
+        bounds: Rect,
+        syntax: &Syntax,
+        gfx: &Gfx,
+    ) {
         let end = self.visual_to_position(
             VisualPosition::new(0.0, camera_y + bounds.height),
+            camera_x,
             camera_y,
             gfx,
         );
