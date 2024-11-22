@@ -24,13 +24,14 @@ use crate::{
     },
     ui::{
         camera::{Camera, RECENTER_DISTANCE},
-        editor::Editor,
         tab::Tab,
     },
 };
 
 use file_mode::MODE_OPEN_FILE;
 use mode::CommandPaletteMode;
+
+use super::{doc_list::DocList, editor::Editor, pane::Pane};
 
 #[derive(PartialEq, Eq)]
 enum CommandPaletteState {
@@ -157,6 +158,8 @@ impl CommandPalette {
             return;
         }
 
+        let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
+
         let mut handled_selected_result_index = self.selected_result_index;
 
         let mut mouse_handler = window.get_mousebind_handler();
@@ -195,7 +198,7 @@ impl CommandPalette {
             handled_selected_result_index = self.selected_result_index;
 
             if mousebind.button.is_some() {
-                self.submit(mods & MOD_SHIFT != 0, editor, line_pool, time);
+                self.submit(mods & MOD_SHIFT != 0, pane, doc_list, line_pool, time);
             }
         }
 
@@ -228,7 +231,7 @@ impl CommandPalette {
                     key: Key::Enter,
                     mods,
                 } => {
-                    self.submit(mods & MOD_SHIFT != 0, editor, line_pool, time);
+                    self.submit(mods & MOD_SHIFT != 0, pane, doc_list, line_pool, time);
                 }
                 Keybind {
                     key: Key::Tab,
@@ -311,13 +314,14 @@ impl CommandPalette {
     fn submit(
         &mut self,
         has_shift: bool,
-        editor: &mut Editor,
+        pane: &mut Pane,
+        doc_list: &mut DocList,
         line_pool: &mut LinePool,
         time: f32,
     ) {
         self.complete_result(line_pool, time);
 
-        let action = (self.mode.on_submit)(self, has_shift, editor, line_pool, time);
+        let action = (self.mode.on_submit)(self, has_shift, pane, doc_list, line_pool, time);
 
         match action {
             CommandPaletteAction::Stay => {}
@@ -335,7 +339,7 @@ impl CommandPalette {
         }
 
         if let CommandPaletteAction::Open(mode) = action {
-            self.open(mode, editor, line_pool, time);
+            self.open(mode, pane, doc_list, line_pool, time);
         }
     }
 
@@ -445,7 +449,8 @@ impl CommandPalette {
     pub fn open(
         &mut self,
         mode: &'static CommandPaletteMode,
-        editor: &mut Editor,
+        pane: &mut Pane,
+        doc_list: &mut DocList,
         line_pool: &mut LinePool,
         time: f32,
     ) {
@@ -453,7 +458,7 @@ impl CommandPalette {
         self.mode = mode;
         self.state = CommandPaletteState::Active;
 
-        (self.mode.on_open)(self, editor, line_pool, time);
+        (self.mode.on_open)(self, pane, doc_list, line_pool, time);
         self.update_results(line_pool, time);
     }
 

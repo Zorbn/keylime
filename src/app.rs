@@ -77,8 +77,7 @@ impl App {
     }
 
     pub fn close(&mut self, time: f32) {
-        self.editor
-            .confirm_close_docs("exiting", &mut self.line_pool, time);
+        self.editor.on_close(&mut self.line_pool, time);
     }
 
     pub fn config(&self) -> &Config {

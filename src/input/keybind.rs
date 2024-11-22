@@ -5,6 +5,7 @@ pub const MOD_CTRL: u8 = 1 << 1;
 pub const MOD_ALT: u8 = 1 << 2;
 
 pub const MOD_CTRL_SHIFT: u8 = MOD_CTRL | MOD_SHIFT;
+pub const MOD_CTRL_ALT: u8 = MOD_CTRL | MOD_ALT;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Keybind {

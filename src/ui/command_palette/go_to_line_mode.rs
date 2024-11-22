@@ -1,7 +1,7 @@
 use crate::{
     geometry::position::Position,
     text::line_pool::LinePool,
-    ui::{camera::CameraRecenterKind, editor::Editor},
+    ui::{camera::CameraRecenterKind, doc_list::DocList, pane::Pane},
 };
 
 use super::{mode::CommandPaletteMode, CommandPalette, CommandPaletteAction};
@@ -15,11 +15,12 @@ pub const MODE_GO_TO_LINE: &CommandPaletteMode = &CommandPaletteMode {
 fn on_submit_go_to_line(
     command_palette: &mut CommandPalette,
     _: bool,
-    editor: &mut Editor,
+    pane: &mut Pane,
+    doc_list: &mut DocList,
     _: &mut LinePool,
     _: f32,
 ) -> CommandPaletteAction {
-    let focused_tab_index = editor.focused_tab_index();
+    let focused_tab_index = pane.focused_tab_index();
 
     let line_text = command_palette.doc.to_string();
 
@@ -27,7 +28,7 @@ fn on_submit_go_to_line(
         return CommandPaletteAction::Close;
     };
 
-    let Some((tab, doc)) = editor.get_tab_with_doc(focused_tab_index) else {
+    let Some((tab, doc)) = pane.get_tab_with_doc(focused_tab_index, doc_list) else {
         return CommandPaletteAction::Close;
     };
 

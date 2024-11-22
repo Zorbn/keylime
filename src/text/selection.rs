@@ -1,7 +1,5 @@
 use crate::geometry::position::Position;
 
-use super::doc::Doc;
-
 #[derive(Clone, Copy)]
 pub struct Selection {
     pub start: Position,

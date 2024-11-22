@@ -4,8 +4,9 @@ use std::{
 };
 
 use crate::{
-    geometry::position::Position, text::cursor_index::CursorIndex, text::line_pool::LinePool,
-    ui::editor::Editor,
+    geometry::position::Position,
+    text::{cursor_index::CursorIndex, line_pool::LinePool},
+    ui::{doc_list::DocList, pane::Pane},
 };
 
 use super::{mode::CommandPaletteMode, CommandPalette, CommandPaletteAction};
@@ -22,13 +23,14 @@ pub const MODE_OPEN_FILE: &CommandPaletteMode = &CommandPaletteMode {
 
 fn on_open_file(
     command_palette: &mut CommandPalette,
-    editor: &mut Editor,
+    pane: &mut Pane,
+    doc_list: &mut DocList,
     line_pool: &mut LinePool,
     time: f32,
 ) {
-    let focused_tab_index = editor.focused_tab_index();
+    let focused_tab_index = pane.focused_tab_index();
 
-    let Some((_, doc)) = editor.get_tab_with_doc(focused_tab_index) else {
+    let Some((_, doc)) = pane.get_tab_with_doc(focused_tab_index, doc_list) else {
         return;
     };
 
@@ -56,12 +58,17 @@ fn on_open_file(
 fn on_submit_open_file(
     command_palette: &mut CommandPalette,
     _: bool,
-    editor: &mut Editor,
+    pane: &mut Pane,
+    doc_list: &mut DocList,
     line_pool: &mut LinePool,
     _: f32,
 ) -> CommandPaletteAction {
-    if editor
-        .open_file(Path::new(&command_palette.doc.to_string()), line_pool)
+    if pane
+        .open_file(
+            Path::new(&command_palette.doc.to_string()),
+            doc_list,
+            line_pool,
+        )
         .is_ok()
     {
         CommandPaletteAction::Close

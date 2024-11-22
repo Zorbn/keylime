@@ -1,7 +1,7 @@
 use crate::{
     geometry::position::Position,
     text::{cursor_index::CursorIndex, doc::Doc, line_pool::LinePool, selection::Selection},
-    ui::{camera::CameraRecenterKind, editor::Editor, tab::Tab},
+    ui::{camera::CameraRecenterKind, doc_list::DocList, pane::Pane, tab::Tab},
 };
 
 use super::{mode::CommandPaletteMode, CommandPalette, CommandPaletteAction};
@@ -28,17 +28,18 @@ pub const MODE_SEARCH_AND_REPLACE_END: &CommandPaletteMode = &CommandPaletteMode
 fn on_submit_search(
     command_palette: &mut CommandPalette,
     has_shift: bool,
-    editor: &mut Editor,
+    pane: &mut Pane,
+    doc_list: &mut DocList,
     _: &mut LinePool,
     _: f32,
 ) -> CommandPaletteAction {
-    let focused_tab_index = editor.focused_tab_index();
+    let focused_tab_index = pane.focused_tab_index();
 
     let Some(search_term) = command_palette.doc.get_line(0) else {
         return CommandPaletteAction::Stay;
     };
 
-    let Some((tab, doc)) = editor.get_tab_with_doc(focused_tab_index) else {
+    let Some((tab, doc)) = pane.get_tab_with_doc(focused_tab_index, doc_list) else {
         return CommandPaletteAction::Stay;
     };
 
@@ -50,7 +51,8 @@ fn on_submit_search(
 fn on_submit_search_and_replace_start(
     _: &mut CommandPalette,
     _: bool,
-    _: &mut Editor,
+    _: &mut Pane,
+    _: &mut DocList,
     _: &mut LinePool,
     _: f32,
 ) -> CommandPaletteAction {
@@ -60,11 +62,12 @@ fn on_submit_search_and_replace_start(
 fn on_submit_search_and_replace_end(
     command_palette: &mut CommandPalette,
     has_shift: bool,
-    editor: &mut Editor,
+    pane: &mut Pane,
+    doc_list: &mut DocList,
     line_pool: &mut LinePool,
     time: f32,
 ) -> CommandPaletteAction {
-    let focused_tab_index = editor.focused_tab_index();
+    let focused_tab_index = pane.focused_tab_index();
 
     let Some(search_term) = command_palette.previous_results.last() else {
         return CommandPaletteAction::Stay;
@@ -74,7 +77,7 @@ fn on_submit_search_and_replace_end(
         return CommandPaletteAction::Stay;
     };
 
-    let Some((tab, doc)) = editor.get_tab_with_doc(focused_tab_index) else {
+    let Some((tab, doc)) = pane.get_tab_with_doc(focused_tab_index, doc_list) else {
         return CommandPaletteAction::Stay;
     };
 
