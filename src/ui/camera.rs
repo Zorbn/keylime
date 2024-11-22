@@ -38,7 +38,7 @@ impl CameraAxis {
         can_recenter: bool,
         dt: f32,
     ) {
-        if can_recenter {
+        if can_recenter || self.recenter_kind == CameraRecenterKind::OnScrollBorder {
             let is_target_outside_border =
                 target_position < min_scroll_border || target_position > max_scroll_border;
 
