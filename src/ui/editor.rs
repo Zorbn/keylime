@@ -3,7 +3,7 @@ use crate::{
     geometry::{rect::Rect, visual_position::VisualPosition},
     input::{
         key::Key,
-        keybind::{Keybind, MOD_CTRL_ALT},
+        keybind::{Keybind, MOD_ALT, MOD_CTRL, MOD_CTRL_ALT},
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
@@ -122,18 +122,31 @@ impl Editor {
                 }
                 Keybind {
                     key: Key::PageUp,
-                    mods: MOD_CTRL_ALT,
+                    mods: MOD_CTRL | MOD_CTRL_ALT,
                 } => {
-                    if self.focused_pane_index > 0 {
+                    let pane = &self.panes[self.focused_pane_index];
+
+                    if (keybind.mods & MOD_ALT != 0 || pane.focused_tab_index() == 0)
+                        && self.focused_pane_index > 0
+                    {
                         self.focused_pane_index -= 1;
+                    } else {
+                        keybind_handler.unprocessed(window, keybind);
                     }
                 }
                 Keybind {
                     key: Key::PageDown,
-                    mods: MOD_CTRL_ALT,
+                    mods: MOD_CTRL | MOD_CTRL_ALT,
                 } => {
-                    if self.focused_pane_index < self.panes.len() - 1 {
+                    let pane = &self.panes[self.focused_pane_index];
+
+                    if (keybind.mods & MOD_ALT != 0
+                        || pane.focused_tab_index() == pane.tabs_len() - 1)
+                        && self.focused_pane_index < self.panes.len() - 1
+                    {
                         self.focused_pane_index += 1;
+                    } else {
+                        keybind_handler.unprocessed(window, keybind);
                     }
                 }
                 _ => keybind_handler.unprocessed(window, keybind),
@@ -153,7 +166,7 @@ impl Editor {
             dt,
         );
 
-        if !pane.has_tabs() {
+        if pane.tabs_len() == 0 {
             self.close_pane(line_pool, time);
         }
 

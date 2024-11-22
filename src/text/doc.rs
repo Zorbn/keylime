@@ -1273,6 +1273,10 @@ impl Doc {
         self.is_saved
     }
 
+    pub fn is_worthless(&self) -> bool {
+        self.path.is_none() && self.is_saved()
+    }
+
     pub fn kind(&self) -> DocKind {
         self.kind
     }

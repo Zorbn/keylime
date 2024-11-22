@@ -259,7 +259,10 @@ impl Pane {
             Self::draw_tab(tab, doc, &config.theme, gfx);
         }
 
-        let focused_tab_bounds = if let Some(tab) = self.tabs.get(self.focused_tab_index) {
+        let focused_tab_bounds = if let Some(tab) = is_focused
+            .then(|| self.tabs.get(self.focused_tab_index))
+            .flatten()
+        {
             let tab_bounds = tab.tab_bounds();
 
             gfx.add_rect(
@@ -379,8 +382,15 @@ impl Pane {
         line_pool: &mut LinePool,
         time: f32,
     ) {
+        let is_doc_worthless = doc_list
+            .get(doc_index)
+            .map(|doc| doc.is_worthless())
+            .unwrap_or(false);
+
         if let Some((_, doc)) = self.get_tab_with_doc(self.focused_tab_index, doc_list) {
-            if doc.path().is_none() && doc.is_saved() {
+            let is_focused_doc_worthless = doc.is_worthless();
+
+            if !is_doc_worthless && is_focused_doc_worthless {
                 self.close_tab(doc_list, line_pool, time);
             }
         }
@@ -446,8 +456,8 @@ impl Pane {
         true
     }
 
-    pub fn has_tabs(&self) -> bool {
-        !self.tabs.is_empty()
+    pub fn tabs_len(&self) -> usize {
+        self.tabs.len()
     }
 
     pub fn bounds(&self) -> Rect {
