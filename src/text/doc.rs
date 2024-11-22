@@ -49,6 +49,8 @@ enum StepStatus {
     Done,
 }
 
+const CURSOR_POSITION_HISTORY_THRESHOLD: isize = 10;
+
 pub struct Doc {
     path: Option<PathBuf>,
     is_saved: bool,
@@ -62,6 +64,9 @@ pub struct Doc {
     undo_history: ActionHistory,
     redo_history: ActionHistory,
     undo_char_buffer: Option<Vec<char>>,
+
+    cursor_position_undo_history: Vec<Position>,
+    cursor_position_redo_history: Vec<Position>,
 
     syntax_highlighter: SyntaxHighlighter,
     unhighlighted_line_y: isize,
@@ -86,6 +91,9 @@ impl Doc {
             undo_history: ActionHistory::new(),
             redo_history: ActionHistory::new(),
             undo_char_buffer: Some(Vec::new()),
+
+            cursor_position_undo_history: Vec::new(),
+            cursor_position_redo_history: Vec::new(),
 
             syntax_highlighter: SyntaxHighlighter::new(),
             unhighlighted_line_y: 0,
@@ -514,6 +522,45 @@ impl Doc {
         }
     }
 
+    pub fn undo_cursor_position(&mut self) {
+        let Some(position) = self.cursor_position_undo_history.pop() else {
+            return;
+        };
+
+        let cursor = self.get_cursor(CursorIndex::Main);
+        self.cursor_position_redo_history.push(cursor.position);
+
+        let cursor = self.get_cursor_mut(CursorIndex::Main);
+        cursor.position = position;
+    }
+
+    pub fn redo_cursor_position(&mut self) {
+        let Some(position) = self.cursor_position_redo_history.pop() else {
+            return;
+        };
+
+        let cursor = self.get_cursor(CursorIndex::Main);
+        self.cursor_position_undo_history.push(cursor.position);
+
+        let cursor = self.get_cursor_mut(CursorIndex::Main);
+        cursor.position = position;
+    }
+
+    fn update_cursor_position_history(&mut self, index: CursorIndex, last_position: Position) {
+        if !self.is_cursor_index_main(index) {
+            return;
+        }
+
+        let cursor = self.get_cursor_mut(index);
+
+        if (cursor.position.y - last_position.y).abs() < CURSOR_POSITION_HISTORY_THRESHOLD {
+            return;
+        }
+
+        self.cursor_position_redo_history.clear();
+        self.cursor_position_undo_history.push(last_position);
+    }
+
     pub fn move_cursor(&mut self, index: CursorIndex, delta: Position, should_select: bool) {
         self.update_cursor_selection(index, should_select);
 
@@ -521,8 +568,12 @@ impl Doc {
         let start_position = cursor.position;
         let desired_visual_x = cursor.desired_visual_x;
 
+        let last_position = cursor.position;
+
         self.get_cursor_mut(index).position =
             self.move_position_with_desired_visual_x(start_position, delta, Some(desired_visual_x));
+
+        self.update_cursor_position_history(index, last_position);
 
         if delta.x != 0 {
             self.update_cursor_desired_visual_x(index);
@@ -574,7 +625,11 @@ impl Doc {
     pub fn jump_cursor(&mut self, index: CursorIndex, position: Position, should_select: bool) {
         self.update_cursor_selection(index, should_select);
 
+        let last_position = self.get_cursor(index).position;
+
         self.get_cursor_mut(index).position = self.clamp_position(position);
+
+        self.update_cursor_position_history(index, last_position);
         self.update_cursor_desired_visual_x(index);
     }
 
@@ -628,6 +683,13 @@ impl Doc {
         index.unwrap_or(main_cursor_index)
     }
 
+    pub fn is_cursor_index_main(&self, index: CursorIndex) -> bool {
+        match index {
+            CursorIndex::Some(index) => index == self.get_main_cursor_index(),
+            CursorIndex::Main => true,
+        }
+    }
+
     pub fn remove_cursor(&mut self, index: CursorIndex) {
         if self.cursors.len() < 2 {
             return;
@@ -642,7 +704,7 @@ impl Doc {
         &self.cursors[index]
     }
 
-    pub fn get_cursor_mut(&mut self, index: CursorIndex) -> &mut Cursor {
+    fn get_cursor_mut(&mut self, index: CursorIndex) -> &mut Cursor {
         let index = self.unwrap_cursor_index(index);
         &mut self.cursors[index]
     }
@@ -1423,7 +1485,7 @@ impl Doc {
             let selection = cursor.get_selection();
 
             for other_index in self.cursor_indices() {
-                if index == other_index {
+                if self.unwrap_cursor_index(index) == self.unwrap_cursor_index(other_index) {
                     continue;
                 }
 

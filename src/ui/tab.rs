@@ -189,6 +189,12 @@ impl Tab {
                             Key::Right => doc.move_cursors_to_next_word(1, should_select),
                             _ => unreachable!(),
                         }
+                    } else if (mods & MOD_ALT != 0) && (key == Key::Left || key == Key::Right) {
+                        match key {
+                            Key::Left => doc.undo_cursor_position(),
+                            Key::Right => doc.redo_cursor_position(),
+                            _ => unreachable!(),
+                        }
                     } else {
                         doc.move_cursors(direction, should_select);
                     }
@@ -583,7 +589,15 @@ impl Tab {
         if doc.kind() == DocKind::MultiLine {
             gfx.begin(Some(self.gutter_bounds));
 
-            self.draw_gutter(doc, &config.theme, gfx, sub_line_offset_y, min_y, max_y);
+            self.draw_gutter(
+                doc,
+                &config.theme,
+                gfx,
+                sub_line_offset_y,
+                min_y,
+                max_y,
+                is_focused,
+            );
 
             gfx.end();
         }
@@ -621,6 +635,7 @@ impl Tab {
         sub_line_offset_y: f32,
         min_y: usize,
         max_y: usize,
+        is_focused: bool,
     ) {
         let cursor_y = doc.get_cursor(CursorIndex::Main).position.y;
 
@@ -635,7 +650,7 @@ impl Tab {
                 - width
                 - (GUTTER_PADDING_WIDTH + GUTTER_BORDER_WIDTH) * gfx.glyph_width();
 
-            let color = if y as isize == cursor_y {
+            let color = if is_focused && y as isize == cursor_y {
                 &theme.normal
             } else {
                 &theme.line_number

@@ -1,4 +1,4 @@
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug)]
 pub enum CursorIndex {
     Some(usize),
     Main,
