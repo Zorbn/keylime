@@ -88,6 +88,8 @@ fn on_submit_search_and_replace_end(
             let mut i = 0;
 
             if start.y == end.y && end.x - start.x == search_term.len() as isize {
+                has_match = true;
+
                 while position < end {
                     if doc.get_char(position) != search_term[i] {
                         has_match = false;
