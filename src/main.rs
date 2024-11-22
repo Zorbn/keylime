@@ -16,7 +16,6 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
- * Highlight binary literals 0b...
  * Running commands and seeing output (very simple integrated terminal).
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
  * Simple auto-complete.

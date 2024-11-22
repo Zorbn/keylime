@@ -103,11 +103,11 @@ impl SyntaxHighlighter {
         HighlightResult::Token { end: i }
     }
 
-    fn match_number_hex(line: &Line, start: usize) -> HighlightResult {
+    fn match_predicate(line: &Line, start: usize, predicate: fn(char) -> bool) -> HighlightResult {
         let mut i = start;
 
         while i < line.len() {
-            if !line[i].is_ascii_hexdigit() {
+            if !predicate(line[i]) {
                 if i == start {
                     return HighlightResult::None;
                 }
@@ -124,8 +124,17 @@ impl SyntaxHighlighter {
     fn match_number(line: &Line, start: usize) -> HighlightResult {
         let mut i = start;
 
-        if i + 2 < line.len() && line[i] == '0' && line[i + 1] == 'x' {
-            return Self::match_number_hex(line, start + 2);
+        if i + 2 < line.len() && line[i] == '0' {
+            let base_indicator = line[i + 1];
+            let digits_start = start + 2;
+
+            match base_indicator {
+                'x' => return Self::match_predicate(line, digits_start, |c| c.is_ascii_hexdigit()),
+                'b' => {
+                    return Self::match_predicate(line, digits_start, |c| matches!(c, '0' | '1'))
+                }
+                _ => {}
+            }
         }
 
         let mut has_digit = false;
