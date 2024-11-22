@@ -221,14 +221,17 @@ impl Tab {
                                 let indent_width = (end.x - 1) % indent_width as isize + 1;
                                 let mut start = doc.move_position(end, Position::new(-1, 0));
 
-                                for _ in 1..indent_width {
-                                    let next_start = doc.move_position(start, Position::new(-1, 0));
+                                if doc.get_char(start) == ' ' {
+                                    for _ in 1..indent_width {
+                                        let next_start =
+                                            doc.move_position(start, Position::new(-1, 0));
 
-                                    if doc.get_char(next_start) != ' ' {
-                                        break;
+                                        if doc.get_char(next_start) != ' ' {
+                                            break;
+                                        }
+
+                                        start = next_start;
                                     }
-
-                                    start = next_start;
                                 }
 
                                 start

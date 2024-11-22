@@ -3,13 +3,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{
-    geometry::position::Position,
-    text::{cursor_index::CursorIndex, line_pool::LinePool},
-    ui::{doc_list::DocList, pane::Pane},
-};
+use crate::{geometry::position::Position, text::cursor_index::CursorIndex};
 
-use super::{mode::CommandPaletteMode, CommandPalette, CommandPaletteAction};
+use super::{
+    mode::{CommandPaletteEventArgs, CommandPaletteMode},
+    CommandPalette, CommandPaletteAction,
+};
 
 pub const MODE_OPEN_FILE: &CommandPaletteMode = &CommandPaletteMode {
     title: "Find File",
@@ -22,11 +21,14 @@ pub const MODE_OPEN_FILE: &CommandPaletteMode = &CommandPaletteMode {
 };
 
 fn on_open_file(
-    command_palette: &mut CommandPalette,
-    pane: &mut Pane,
-    doc_list: &mut DocList,
-    line_pool: &mut LinePool,
-    time: f32,
+    CommandPaletteEventArgs {
+        command_palette,
+        pane,
+        doc_list,
+        line_pool,
+        time,
+        ..
+    }: CommandPaletteEventArgs,
 ) {
     let focused_tab_index = pane.focused_tab_index();
 
@@ -56,17 +58,22 @@ fn on_open_file(
 }
 
 fn on_submit_open_file(
-    command_palette: &mut CommandPalette,
+    CommandPaletteEventArgs {
+        command_palette,
+        pane,
+        doc_list,
+        config,
+        line_pool,
+        time,
+        ..
+    }: CommandPaletteEventArgs,
     _: bool,
-    pane: &mut Pane,
-    doc_list: &mut DocList,
-    line_pool: &mut LinePool,
-    time: f32,
 ) -> CommandPaletteAction {
     if pane
         .open_file(
             Path::new(&command_palette.doc.to_string()),
             doc_list,
+            config,
             line_pool,
             time,
         )
@@ -79,9 +86,12 @@ fn on_submit_open_file(
 }
 
 fn on_complete_results_file(
-    command_palette: &mut CommandPalette,
-    line_pool: &mut LinePool,
-    time: f32,
+    CommandPaletteEventArgs {
+        command_palette,
+        line_pool,
+        time,
+        ..
+    }: CommandPaletteEventArgs,
 ) {
     let Some(result) = command_palette
         .results
@@ -108,9 +118,12 @@ fn on_complete_results_file(
 }
 
 fn on_update_results_file(
-    command_palette: &mut CommandPalette,
-    line_pool: &mut LinePool,
-    time: f32,
+    CommandPaletteEventArgs {
+        command_palette,
+        line_pool,
+        time,
+        ..
+    }: CommandPaletteEventArgs,
 ) {
     let path = get_command_palette_path(command_palette);
 
@@ -153,9 +166,12 @@ fn on_update_results_file(
 }
 
 fn on_backspace_file(
-    command_palette: &mut CommandPalette,
-    line_pool: &mut LinePool,
-    time: f32,
+    CommandPaletteEventArgs {
+        command_palette,
+        line_pool,
+        time,
+        ..
+    }: CommandPaletteEventArgs,
 ) -> bool {
     let cursor = command_palette.doc.get_cursor(CursorIndex::Main);
     let end = cursor.position;

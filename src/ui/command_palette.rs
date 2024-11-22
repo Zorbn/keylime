@@ -29,7 +29,7 @@ use crate::{
 };
 
 use file_mode::MODE_OPEN_FILE;
-use mode::CommandPaletteMode;
+use mode::{CommandPaletteEventArgs, CommandPaletteMode};
 
 use super::{doc_list::DocList, editor::Editor, pane::Pane};
 
@@ -198,7 +198,14 @@ impl CommandPalette {
             handled_selected_result_index = self.selected_result_index;
 
             if mousebind.button.is_some() {
-                self.submit(mods & MOD_SHIFT != 0, pane, doc_list, line_pool, time);
+                self.submit(
+                    mods & MOD_SHIFT != 0,
+                    pane,
+                    doc_list,
+                    config,
+                    line_pool,
+                    time,
+                );
             }
         }
 
@@ -235,13 +242,20 @@ impl CommandPalette {
                     key: Key::Enter,
                     mods,
                 } => {
-                    self.submit(mods & MOD_SHIFT != 0, pane, doc_list, line_pool, time);
+                    self.submit(
+                        mods & MOD_SHIFT != 0,
+                        pane,
+                        doc_list,
+                        config,
+                        line_pool,
+                        time,
+                    );
                 }
                 Keybind {
                     key: Key::Tab,
                     mods: 0,
                 } => {
-                    self.complete_result(line_pool, time);
+                    self.complete_result(pane, doc_list, config, line_pool, time);
                 }
                 Keybind {
                     key: Key::Up,
@@ -263,7 +277,18 @@ impl CommandPalette {
                     key: Key::Backspace,
                     mods: 0 | MOD_CTRL,
                 } => {
-                    if !(self.mode.on_backspace)(self, line_pool, time) {
+                    let on_backspace = self.mode.on_backspace;
+
+                    let args = CommandPaletteEventArgs {
+                        command_palette: self,
+                        pane,
+                        doc_list,
+                        config,
+                        line_pool,
+                        time,
+                    };
+
+                    if !(on_backspace)(args) {
                         keybind_handler.unprocessed(window, keybind);
                     }
                 }
@@ -283,7 +308,7 @@ impl CommandPalette {
 
         window.clear_inputs();
 
-        self.update_results(line_pool, time);
+        self.update_results(pane, doc_list, config, line_pool, time);
 
         self.selected_result_index = self
             .selected_result_index
@@ -320,12 +345,24 @@ impl CommandPalette {
         has_shift: bool,
         pane: &mut Pane,
         doc_list: &mut DocList,
+        config: &Config,
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        self.complete_result(line_pool, time);
+        self.complete_result(pane, doc_list, config, line_pool, time);
 
-        let action = (self.mode.on_submit)(self, has_shift, pane, doc_list, line_pool, time);
+        let on_submit = self.mode.on_submit;
+
+        let args = CommandPaletteEventArgs {
+            command_palette: self,
+            pane,
+            doc_list,
+            config,
+            line_pool,
+            time,
+        };
+
+        let action = (on_submit)(args, has_shift);
 
         match action {
             CommandPaletteAction::Stay => {}
@@ -343,16 +380,42 @@ impl CommandPalette {
         }
 
         if let CommandPaletteAction::Open(mode) = action {
-            self.open(mode, pane, doc_list, line_pool, time);
+            self.open(mode, pane, doc_list, config, line_pool, time);
         }
     }
 
-    fn complete_result(&mut self, line_pool: &mut LinePool, time: f32) {
-        (self.mode.on_complete_result)(self, line_pool, time);
+    fn complete_result(
+        &mut self,
+        pane: &mut Pane,
+        doc_list: &mut DocList,
+        config: &Config,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        let on_complete_result = self.mode.on_complete_result;
+
+        let args = CommandPaletteEventArgs {
+            command_palette: self,
+            pane,
+            doc_list,
+            config,
+            line_pool,
+            time,
+        };
+
+        (on_complete_result)(args);
+
         self.selected_result_index = 0;
     }
 
-    fn update_results(&mut self, line_pool: &mut LinePool, time: f32) {
+    fn update_results(
+        &mut self,
+        pane: &mut Pane,
+        doc_list: &mut DocList,
+        config: &Config,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
         if Some(self.doc.version()) == self.last_updated_version {
             return;
         }
@@ -361,9 +424,20 @@ impl CommandPalette {
 
         self.selected_result_index = 0;
         self.camera.reset();
-
         self.results.clear();
-        (self.mode.on_update_results)(self, line_pool, time);
+
+        let on_update_results = self.mode.on_update_results;
+
+        let args = CommandPaletteEventArgs {
+            command_palette: self,
+            pane,
+            doc_list,
+            config,
+            line_pool,
+            time,
+        };
+
+        (on_update_results)(args);
     }
 
     pub fn draw(&mut self, config: &Config, gfx: &mut Gfx, is_focused: bool) {
@@ -455,6 +529,7 @@ impl CommandPalette {
         mode: &'static CommandPaletteMode,
         pane: &mut Pane,
         doc_list: &mut DocList,
+        config: &Config,
         line_pool: &mut LinePool,
         time: f32,
     ) {
@@ -462,8 +537,20 @@ impl CommandPalette {
         self.mode = mode;
         self.state = CommandPaletteState::Active;
 
-        (self.mode.on_open)(self, pane, doc_list, line_pool, time);
-        self.update_results(line_pool, time);
+        let on_open = self.mode.on_open;
+
+        let args = CommandPaletteEventArgs {
+            command_palette: self,
+            pane,
+            doc_list,
+            config,
+            line_pool,
+            time,
+        };
+
+        (on_open)(args);
+
+        self.update_results(pane, doc_list, config, line_pool, time);
     }
 
     fn close(&mut self, line_pool: &mut LinePool) {

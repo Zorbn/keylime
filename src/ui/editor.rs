@@ -24,7 +24,7 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(line_pool: &mut LinePool, time: f32) -> Self {
+    pub fn new(config: &Config, line_pool: &mut LinePool, time: f32) -> Self {
         let mut editor = Self {
             doc_list: DocList::new(),
             panes: Vec::new(),
@@ -34,7 +34,7 @@ impl Editor {
 
         editor
             .panes
-            .push(Pane::new(&mut editor.doc_list, line_pool, time));
+            .push(Pane::new(&mut editor.doc_list, config, line_pool, time));
 
         editor
     }
@@ -112,13 +112,13 @@ impl Editor {
                     key: Key::N,
                     mods: MOD_CTRL_ALT,
                 } => {
-                    self.add_pane(line_pool, time);
+                    self.add_pane(config, line_pool, time);
                 }
                 Keybind {
                     key: Key::W,
                     mods: MOD_CTRL_ALT,
                 } => {
-                    self.close_pane(line_pool, time);
+                    self.close_pane(config, line_pool, time);
                 }
                 Keybind {
                     key: Key::PageUp,
@@ -167,7 +167,7 @@ impl Editor {
         );
 
         if pane.tabs_len() == 0 {
-            self.close_pane(line_pool, time);
+            self.close_pane(config, line_pool, time);
         }
 
         window.clear_inputs();
@@ -191,8 +191,8 @@ impl Editor {
         }
     }
 
-    fn add_pane(&mut self, line_pool: &mut LinePool, time: f32) {
-        let pane = Pane::new(&mut self.doc_list, line_pool, time);
+    fn add_pane(&mut self, config: &Config, line_pool: &mut LinePool, time: f32) {
+        let pane = Pane::new(&mut self.doc_list, config, line_pool, time);
 
         if self.focused_pane_index >= self.panes.len() {
             self.panes.push(pane);
@@ -202,13 +202,17 @@ impl Editor {
         }
     }
 
-    fn close_pane(&mut self, line_pool: &mut LinePool, time: f32) {
+    fn close_pane(&mut self, config: &Config, line_pool: &mut LinePool, time: f32) {
         if self.panes.len() == 1 {
             return;
         }
 
-        if !self.panes[self.focused_pane_index].close_all_tabs(&mut self.doc_list, line_pool, time)
-        {
+        if !self.panes[self.focused_pane_index].close_all_tabs(
+            &mut self.doc_list,
+            config,
+            line_pool,
+            time,
+        ) {
             return;
         }
 
@@ -216,8 +220,9 @@ impl Editor {
         self.clamp_focused_pane();
     }
 
-    pub fn on_close(&mut self, line_pool: &mut LinePool, time: f32) {
-        self.doc_list.confirm_close_all("exiting", line_pool, time);
+    pub fn on_close(&mut self, config: &Config, line_pool: &mut LinePool, time: f32) {
+        self.doc_list
+            .confirm_close_all("exiting", config, line_pool, time);
     }
 
     pub fn get_focused_pane_and_doc_list(&mut self) -> (&mut Pane, &mut DocList) {

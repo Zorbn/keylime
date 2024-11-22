@@ -59,7 +59,10 @@ indent_width = 4
 comment = "#"
 
 [language.toml.syntax]
-keywords = []
+keywords = [
+    "true",
+    "false",
+]
 ranges = [
     { start = '"', end = '"', escape = '\', kind = "String" },
     { start = "'", end = "'", kind = "String" },

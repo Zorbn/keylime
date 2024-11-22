@@ -20,9 +20,10 @@ impl App {
         let mut line_pool = LinePool::new();
         let text_buffer = TempBuffer::new();
 
-        let command_palette = CommandPalette::new(&mut line_pool);
-        let editor = Editor::new(&mut line_pool, 0.0);
         let config = Config::load().unwrap_or_default();
+
+        let command_palette = CommandPalette::new(&mut line_pool);
+        let editor = Editor::new(&config, &mut line_pool, 0.0);
 
         Self {
             line_pool,
@@ -77,7 +78,8 @@ impl App {
     }
 
     pub fn close(&mut self, time: f32) {
-        self.editor.on_close(&mut self.line_pool, time);
+        self.editor
+            .on_close(&self.config, &mut self.line_pool, time);
     }
 
     pub fn config(&self) -> &Config {

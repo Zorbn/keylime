@@ -15,7 +15,8 @@ use crate::{
 };
 
 const CONFIG_PATH: &str = "config.toml";
-const DEFAULT_COMMENT: &str = "//";
+const DEFAULT_COMMENT: fn() -> &'static str = || "//";
+const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
 
 #[derive(Deserialize, Debug)]
 pub struct SyntaxDesc<'a> {
@@ -29,7 +30,8 @@ struct LanguageDesc<'a> {
     #[serde(borrow)]
     extensions: Vec<&'a str>,
     indent_width: Option<usize>,
-    comment: Option<&'a str>,
+    #[serde(default = "DEFAULT_COMMENT")]
+    comment: &'a str,
     syntax: Option<SyntaxDesc<'a>>,
 }
 
@@ -37,6 +39,8 @@ struct LanguageDesc<'a> {
 struct ConfigDesc<'a> {
     font: String,
     font_size: f32,
+    #[serde(default = "DEFAULT_TRIM_TRAILING_WHITESPACE")]
+    trim_trailing_whitespace: bool,
     theme: String,
     #[serde(default, borrow)]
     language: HashMap<&'a str, LanguageDesc<'a>>,
@@ -51,6 +55,7 @@ pub struct Language {
 pub struct Config {
     pub font: String,
     pub font_size: f32,
+    pub trim_trailing_whitespace: bool,
     pub theme: Theme,
     pub languages: Vec<Language>,
     pub extension_languages: HashMap<String, usize>,
@@ -131,7 +136,7 @@ impl Config {
 
             languages.push(Language {
                 indent_width: language.indent_width,
-                comment: language.comment.unwrap_or(DEFAULT_COMMENT).to_owned(),
+                comment: language.comment.to_owned(),
                 syntax,
             });
 
@@ -143,6 +148,7 @@ impl Config {
         Some(Config {
             font: config_desc.font,
             font_size: config_desc.font_size,
+            trim_trailing_whitespace: config_desc.trim_trailing_whitespace,
             theme,
             languages,
             extension_languages,
@@ -181,6 +187,7 @@ impl Default for Config {
         Self {
             font: "Consolas".into(),
             font_size: 13.0,
+            trim_trailing_whitespace: DEFAULT_TRIM_TRAILING_WHITESPACE(),
             theme: Theme {
                 normal: Color::from_hex(0x000000FF),
                 comment: Color::from_hex(0x008000FF),

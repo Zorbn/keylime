@@ -39,7 +39,12 @@ pub struct Pane {
 }
 
 impl Pane {
-    pub fn new(doc_list: &mut DocList, line_pool: &mut LinePool, time: f32) -> Self {
+    pub fn new(
+        doc_list: &mut DocList,
+        config: &Config,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) -> Self {
         let mut pane = Self {
             tabs: Vec::new(),
             focused_tab_index: 0,
@@ -47,7 +52,7 @@ impl Pane {
         };
 
         let doc_index = doc_list.add(Doc::new(line_pool, DocKind::MultiLine));
-        pane.add_tab(doc_index, doc_list, line_pool, time);
+        pane.add_tab(doc_index, doc_list, config, line_pool, time);
 
         pane
     }
@@ -130,13 +135,13 @@ impl Pane {
                     key: Key::P,
                     mods: MOD_CTRL,
                 } => {
-                    command_palette.open(MODE_OPEN_FILE, self, doc_list, line_pool, time);
+                    command_palette.open(MODE_OPEN_FILE, self, doc_list, config, line_pool, time);
                 }
                 Keybind {
                     key: Key::F,
                     mods: MOD_CTRL,
                 } => {
-                    command_palette.open(MODE_SEARCH, self, doc_list, line_pool, time);
+                    command_palette.open(MODE_SEARCH, self, doc_list, config, line_pool, time);
                 }
                 Keybind {
                     key: Key::H,
@@ -146,6 +151,7 @@ impl Pane {
                         MODE_SEARCH_AND_REPLACE_START,
                         self,
                         doc_list,
+                        config,
                         line_pool,
                         time,
                     );
@@ -154,14 +160,15 @@ impl Pane {
                     key: Key::G,
                     mods: MOD_CTRL,
                 } => {
-                    command_palette.open(MODE_GO_TO_LINE, self, doc_list, line_pool, time);
+                    command_palette.open(MODE_GO_TO_LINE, self, doc_list, config, line_pool, time);
                 }
                 Keybind {
                     key: Key::O,
                     mods: MOD_CTRL,
                 } => {
                     if let Ok(path) = find_file(FindFileKind::OpenFile) {
-                        if let Err(err) = self.open_file(path.as_path(), doc_list, line_pool, time)
+                        if let Err(err) =
+                            self.open_file(path.as_path(), doc_list, config, line_pool, time)
                         {
                             message("Error Opening File", &err.to_string(), MessageKind::Ok);
                         }
@@ -183,7 +190,7 @@ impl Pane {
                 } => {
                     if let Some((_, doc)) = self.get_tab_with_doc(self.focused_tab_index, doc_list)
                     {
-                        DocList::try_save(doc, line_pool, time);
+                        DocList::try_save(doc, config, line_pool, time);
                     }
                 }
                 Keybind {
@@ -191,21 +198,23 @@ impl Pane {
                     mods: MOD_CTRL,
                 } => {
                     let doc_index = doc_list.add(Doc::new(line_pool, DocKind::MultiLine));
-                    self.add_tab(doc_index, doc_list, line_pool, time);
+                    self.add_tab(doc_index, doc_list, config, line_pool, time);
                 }
                 Keybind {
                     key: Key::W,
                     mods: MOD_CTRL,
                 } => {
-                    self.close_tab(doc_list, line_pool, time);
+                    self.close_tab(doc_list, config, line_pool, time);
                 }
                 Keybind {
                     key: Key::R,
                     mods: MOD_CTRL,
                 } => {
-                    if let Some((_, doc)) = self.get_tab_with_doc(self.focused_tab_index, doc_list)
+                    if let Some((tab, doc)) =
+                        self.get_tab_with_doc(self.focused_tab_index, doc_list)
                     {
-                        DocList::reload(doc, line_pool, time);
+                        DocList::reload(doc, config, line_pool, time);
+                        tab.camera.recenter();
                     }
                 }
                 Keybind {
@@ -347,6 +356,7 @@ impl Pane {
         &mut self,
         path: &Path,
         doc_list: &mut DocList,
+        config: &Config,
         line_pool: &mut LinePool,
         time: f32,
     ) -> io::Result<()> {
@@ -360,7 +370,7 @@ impl Pane {
             }
         }
 
-        self.add_tab(doc_index, doc_list, line_pool, time);
+        self.add_tab(doc_index, doc_list, config, line_pool, time);
 
         Ok(())
     }
@@ -379,6 +389,7 @@ impl Pane {
         &mut self,
         doc_index: usize,
         doc_list: &mut DocList,
+        config: &Config,
         line_pool: &mut LinePool,
         time: f32,
     ) {
@@ -391,7 +402,7 @@ impl Pane {
             let is_focused_doc_worthless = doc.is_worthless();
 
             if !is_doc_worthless && is_focused_doc_worthless {
-                self.close_tab(doc_list, line_pool, time);
+                self.close_tab(doc_list, config, line_pool, time);
             }
         }
 
@@ -410,7 +421,13 @@ impl Pane {
         }
     }
 
-    fn close_tab(&mut self, doc_list: &mut DocList, line_pool: &mut LinePool, time: f32) -> bool {
+    fn close_tab(
+        &mut self,
+        doc_list: &mut DocList,
+        config: &Config,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) -> bool {
         let doc_index = if let Some(tab) = self.tabs.get(self.focused_tab_index) {
             tab.doc_index()
         } else {
@@ -430,7 +447,7 @@ impl Pane {
             return true;
         }
 
-        if !DocList::confirm_close(doc, "closing", true, line_pool, time) {
+        if !DocList::confirm_close(doc, "closing", true, config, line_pool, time) {
             return false;
         }
 
@@ -444,11 +461,12 @@ impl Pane {
     pub fn close_all_tabs(
         &mut self,
         doc_list: &mut DocList,
+        config: &Config,
         line_pool: &mut LinePool,
         time: f32,
     ) -> bool {
         while !self.tabs.is_empty() {
-            if !self.close_tab(doc_list, line_pool, time) {
+            if !self.close_tab(doc_list, config, line_pool, time) {
                 return false;
             }
         }

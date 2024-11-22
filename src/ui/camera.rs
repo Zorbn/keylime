@@ -134,6 +134,11 @@ impl Camera {
         self.horizontal.is_moving() || self.vertical.is_moving()
     }
 
+    pub fn recenter(&mut self) {
+        self.vertical.recenter(CameraRecenterKind::OnCursor);
+        self.horizontal.recenter(CameraRecenterKind::OnScrollBorder);
+    }
+
     pub fn reset(&mut self) {
         self.horizontal.reset();
         self.vertical.reset();

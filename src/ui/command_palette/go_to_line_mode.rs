@@ -1,10 +1,9 @@
-use crate::{
-    geometry::position::Position,
-    text::line_pool::LinePool,
-    ui::{camera::CameraRecenterKind, doc_list::DocList, pane::Pane},
-};
+use crate::geometry::position::Position;
 
-use super::{mode::CommandPaletteMode, CommandPalette, CommandPaletteAction};
+use super::{
+    mode::{CommandPaletteEventArgs, CommandPaletteMode},
+    CommandPaletteAction,
+};
 
 pub const MODE_GO_TO_LINE: &CommandPaletteMode = &CommandPaletteMode {
     title: "Go to Line",
@@ -13,12 +12,13 @@ pub const MODE_GO_TO_LINE: &CommandPaletteMode = &CommandPaletteMode {
 };
 
 fn on_submit_go_to_line(
-    command_palette: &mut CommandPalette,
+    CommandPaletteEventArgs {
+        command_palette,
+        pane,
+        doc_list,
+        ..
+    }: CommandPaletteEventArgs,
     _: bool,
-    pane: &mut Pane,
-    doc_list: &mut DocList,
-    _: &mut LinePool,
-    _: f32,
 ) -> CommandPaletteAction {
     let focused_tab_index = pane.focused_tab_index();
 
@@ -33,10 +33,7 @@ fn on_submit_go_to_line(
     };
 
     doc.jump_cursors(Position::new(0, line), false);
-    tab.camera.vertical.recenter(CameraRecenterKind::OnCursor);
-    tab.camera
-        .horizontal
-        .recenter(CameraRecenterKind::OnScrollBorder);
+    tab.camera.recenter();
 
     CommandPaletteAction::Close
 }

@@ -1,6 +1,7 @@
 use std::{io, path::Path};
 
 use crate::{
+    config::Config,
     platform::dialog::{find_file, message, FindFileKind, MessageKind, MessageResponse},
     text::{
         doc::{Doc, DocKind},
@@ -54,9 +55,15 @@ impl DocList {
         self.docs.get_mut(index).and_then(|doc| doc.as_mut())
     }
 
-    pub fn confirm_close_all(&mut self, reason: &str, line_pool: &mut LinePool, time: f32) {
+    pub fn confirm_close_all(
+        &mut self,
+        reason: &str,
+        config: &Config,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
         for doc in self.docs.iter_mut().filter_map(|doc| doc.as_mut()) {
-            Self::confirm_close(doc, reason, false, line_pool, time);
+            Self::confirm_close(doc, reason, false, config, line_pool, time);
         }
     }
 
@@ -64,6 +71,7 @@ impl DocList {
         doc: &mut Doc,
         reason: &str,
         is_cancelable: bool,
+        config: &Config,
         line_pool: &mut LinePool,
         time: f32,
     ) -> bool {
@@ -83,14 +91,14 @@ impl DocList {
             };
 
             match message("Unsaved Changes", &text, message_kind) {
-                MessageResponse::Yes => Self::try_save(doc, line_pool, time),
+                MessageResponse::Yes => Self::try_save(doc, config, line_pool, time),
                 MessageResponse::No => true,
                 MessageResponse::Cancel => false,
             }
         }
     }
 
-    pub fn try_save(doc: &mut Doc, line_pool: &mut LinePool, time: f32) -> bool {
+    pub fn try_save(doc: &mut Doc, config: &Config, line_pool: &mut LinePool, time: f32) -> bool {
         let path = if let Some(path) = doc.path() {
             Ok(path.to_owned())
         } else {
@@ -101,7 +109,9 @@ impl DocList {
             return false;
         };
 
-        doc.trim_trailing_whitespace(line_pool, time);
+        if config.trim_trailing_whitespace {
+            doc.trim_trailing_whitespace(line_pool, time);
+        }
 
         if let Err(err) = doc.save(path) {
             message("Failed to Save File", &err.to_string(), MessageKind::Ok);
@@ -111,8 +121,8 @@ impl DocList {
         }
     }
 
-    pub fn reload(doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
-        if !Self::confirm_close(doc, "reloading", true, line_pool, time) {
+    pub fn reload(doc: &mut Doc, config: &Config, line_pool: &mut LinePool, time: f32) {
+        if !Self::confirm_close(doc, "reloading", true, config, line_pool, time) {
             return;
         }
 

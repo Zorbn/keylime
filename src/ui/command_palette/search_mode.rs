@@ -1,10 +1,13 @@
 use crate::{
     geometry::position::Position,
-    text::{cursor_index::CursorIndex, doc::Doc, line_pool::LinePool, selection::Selection},
-    ui::{camera::CameraRecenterKind, doc_list::DocList, pane::Pane, tab::Tab},
+    text::{cursor_index::CursorIndex, doc::Doc, selection::Selection},
+    ui::tab::Tab,
 };
 
-use super::{mode::CommandPaletteMode, CommandPalette, CommandPaletteAction};
+use super::{
+    mode::{CommandPaletteEventArgs, CommandPaletteMode},
+    CommandPaletteAction,
+};
 
 pub const MODE_SEARCH: &CommandPaletteMode = &CommandPaletteMode {
     title: "Search",
@@ -26,12 +29,13 @@ pub const MODE_SEARCH_AND_REPLACE_END: &CommandPaletteMode = &CommandPaletteMode
 };
 
 fn on_submit_search(
-    command_palette: &mut CommandPalette,
+    CommandPaletteEventArgs {
+        command_palette,
+        pane,
+        doc_list,
+        ..
+    }: CommandPaletteEventArgs,
     has_shift: bool,
-    pane: &mut Pane,
-    doc_list: &mut DocList,
-    _: &mut LinePool,
-    _: f32,
 ) -> CommandPaletteAction {
     let focused_tab_index = pane.focused_tab_index();
 
@@ -48,24 +52,20 @@ fn on_submit_search(
     CommandPaletteAction::Stay
 }
 
-fn on_submit_search_and_replace_start(
-    _: &mut CommandPalette,
-    _: bool,
-    _: &mut Pane,
-    _: &mut DocList,
-    _: &mut LinePool,
-    _: f32,
-) -> CommandPaletteAction {
+fn on_submit_search_and_replace_start(_: CommandPaletteEventArgs, _: bool) -> CommandPaletteAction {
     CommandPaletteAction::Open(MODE_SEARCH_AND_REPLACE_END)
 }
 
 fn on_submit_search_and_replace_end(
-    command_palette: &mut CommandPalette,
+    CommandPaletteEventArgs {
+        command_palette,
+        pane,
+        doc_list,
+        line_pool,
+        time,
+        ..
+    }: CommandPaletteEventArgs,
     has_shift: bool,
-    pane: &mut Pane,
-    doc_list: &mut DocList,
-    line_pool: &mut LinePool,
-    time: f32,
 ) -> CommandPaletteAction {
     let focused_tab_index = pane.focused_tab_index();
 
@@ -128,9 +128,6 @@ fn search(search_term: &[char], tab: &mut Tab, doc: &mut Doc, has_shift: bool) {
         doc.jump_cursors(position, false);
         doc.jump_cursors(end, true);
 
-        tab.camera.vertical.recenter(CameraRecenterKind::OnCursor);
-        tab.camera
-            .horizontal
-            .recenter(CameraRecenterKind::OnScrollBorder);
+        tab.camera.recenter();
     }
 }
