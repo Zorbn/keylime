@@ -1,6 +1,11 @@
 pub mod theme;
 
-use std::{collections::HashMap, env::current_exe, fs::read_to_string, path::PathBuf};
+use std::{
+    collections::HashMap,
+    env::current_exe,
+    fs::{read_dir, read_to_string},
+    path::{Path, PathBuf},
+};
 
 use serde::Deserialize;
 use theme::Theme;
@@ -36,14 +41,12 @@ struct LanguageDesc<'a> {
 }
 
 #[derive(Deserialize, Debug)]
-struct ConfigDesc<'a> {
+struct ConfigDesc {
     font: String,
     font_size: f32,
     #[serde(default = "DEFAULT_TRIM_TRAILING_WHITESPACE")]
     trim_trailing_whitespace: bool,
     theme: String,
-    #[serde(default, borrow)]
-    language: HashMap<&'a str, LanguageDesc<'a>>,
 }
 
 pub struct Language {
@@ -68,31 +71,46 @@ impl Config {
         let mut path = PathBuf::new();
 
         path.push(&config_dir);
+        path.push("languages");
+
+        let mut languages = Vec::new();
+        let mut extension_languages = HashMap::new();
+
+        if let Ok(entries) = read_dir(&path) {
+            for entry in entries {
+                let Ok(entry) = entry else {
+                    continue;
+                };
+
+                let path = entry.path();
+                let language_desc_string = Self::load_file_string(&path)?;
+                let language_desc =
+                    Self::load_file_data::<LanguageDesc>(&path, &language_desc_string)?;
+
+                let language_index = languages.len();
+
+                let syntax = language_desc
+                    .syntax
+                    .map(|syntax| Syntax::new(&syntax.keywords, &syntax.ranges));
+
+                languages.push(Language {
+                    indent_width: language_desc.indent_width,
+                    comment: language_desc.comment.to_owned(),
+                    syntax,
+                });
+
+                for extension in language_desc.extensions {
+                    extension_languages.insert(extension.to_owned(), language_index);
+                }
+            }
+        }
+
+        path.clear();
+        path.push(&config_dir);
         path.push(CONFIG_PATH);
 
-        let config_desc_string = match read_to_string(&path) {
-            Ok(config_desc_string) => config_desc_string,
-            Err(err) => {
-                message(
-                    "Error Opening Config",
-                    &format!("Unable to open config: {}", err),
-                    MessageKind::Ok,
-                );
-                return None;
-            }
-        };
-
-        let config_desc = match basic_toml::from_str::<ConfigDesc>(&config_desc_string) {
-            Ok(config_desc) => config_desc,
-            Err(err) => {
-                message(
-                    "Error Loading Config",
-                    &format!("Unable to load config: {}", err),
-                    MessageKind::Ok,
-                );
-                return None;
-            }
-        };
+        let config_desc_string = Self::load_file_string(&path)?;
+        let config_desc = Self::load_file_data::<ConfigDesc>(&path, &config_desc_string)?;
 
         path.clear();
         path.push(&config_dir);
@@ -100,50 +118,8 @@ impl Config {
         path.push(&config_desc.theme);
         path.set_extension("toml");
 
-        let theme_string = match read_to_string(&path) {
-            Ok(theme_string) => theme_string,
-            Err(err) => {
-                message(
-                    "Error Opening Theme",
-                    &format!("Unable to open theme \"{}\": {}", config_desc.theme, err),
-                    MessageKind::Ok,
-                );
-                return None;
-            }
-        };
-
-        let theme = match basic_toml::from_str::<Theme>(&theme_string) {
-            Ok(theme) => theme,
-            Err(err) => {
-                message(
-                    "Error Loading Theme",
-                    &format!("Unable to load theme \"{}\": {}", config_desc.theme, err),
-                    MessageKind::Ok,
-                );
-                return None;
-            }
-        };
-
-        let mut languages = Vec::new();
-        let mut extension_languages = HashMap::new();
-
-        for (_, language) in config_desc.language {
-            let language_index = languages.len();
-
-            let syntax = language
-                .syntax
-                .map(|syntax| Syntax::new(&syntax.keywords, &syntax.ranges));
-
-            languages.push(Language {
-                indent_width: language.indent_width,
-                comment: language.comment.to_owned(),
-                syntax,
-            });
-
-            for extension in language.extensions {
-                extension_languages.insert(extension.to_owned(), language_index);
-            }
-        }
+        let theme_string = Self::load_file_string(&path)?;
+        let theme = Self::load_file_data(&path, &theme_string)?;
 
         Some(Config {
             font: config_desc.font,
@@ -153,6 +129,46 @@ impl Config {
             languages,
             extension_languages,
         })
+    }
+
+    fn load_file_string(path: &Path) -> Option<String> {
+        let file_name = path
+            .file_stem()
+            .and_then(|file_name| file_name.to_str())
+            .unwrap_or_default();
+
+        match read_to_string(path) {
+            Ok(string) => Some(string),
+            Err(err) => {
+                message(
+                    "Error Opening Config",
+                    &format!("Unable to open \"{}\": {}", file_name, err),
+                    MessageKind::Ok,
+                );
+
+                None
+            }
+        }
+    }
+
+    fn load_file_data<'a, T: Deserialize<'a> + 'a>(path: &Path, string: &'a str) -> Option<T> {
+        let file_name = path
+            .file_stem()
+            .and_then(|file_name| file_name.to_str())
+            .unwrap_or_default();
+
+        match basic_toml::from_str::<T>(string) {
+            Ok(data) => Some(data),
+            Err(err) => {
+                message(
+                    "Error Loading Config",
+                    &format!("Unable to load \"{}\": {}", file_name, err),
+                    MessageKind::Ok,
+                );
+
+                None
+            }
+        }
     }
 
     pub fn get_language(&self, extension: &str) -> Option<&Language> {
