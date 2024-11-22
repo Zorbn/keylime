@@ -1,12 +1,12 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Key {
     Null = 0x0,
-    Lbutton = 0x01,
-    Rbutton = 0x02,
+    LButton = 0x01,
+    RButton = 0x02,
     Cancel = 0x03,
-    Mbutton = 0x04,
-    Xbutton1 = 0x05,
-    Xbutton2 = 0x06,
+    MButton = 0x04,
+    XButton1 = 0x05,
+    XButton2 = 0x06,
     Backspace = 0x08,
     Tab = 0x09,
     Clear = 0x0C,
@@ -91,18 +91,20 @@ pub enum Key {
     RAlt = 0xA5,
     ForwardSlash = 0xBF,
     Grave = 0xC0,
+    LBracket = 0xDB,
+    RBracket = 0xDD,
 }
 
 impl Key {
     pub fn from(value: u32) -> Option<Key> {
         match value {
             0x0 => Some(Key::Null),
-            0x01 => Some(Key::Lbutton),
-            0x02 => Some(Key::Rbutton),
+            0x01 => Some(Key::LButton),
+            0x02 => Some(Key::RButton),
             0x03 => Some(Key::Cancel),
-            0x04 => Some(Key::Mbutton),
-            0x05 => Some(Key::Xbutton1),
-            0x06 => Some(Key::Xbutton2),
+            0x04 => Some(Key::MButton),
+            0x05 => Some(Key::XButton1),
+            0x06 => Some(Key::XButton2),
             0x08 => Some(Key::Backspace),
             0x09 => Some(Key::Tab),
             0x0C => Some(Key::Clear),
@@ -187,6 +189,8 @@ impl Key {
             0xA5 => Some(Key::RAlt),
             0xBF => Some(Key::ForwardSlash),
             0xC0 => Some(Key::Grave),
+            0xDB => Some(Key::LBracket),
+            0xDD => Some(Key::RBracket),
             _ => None,
         }
     }

@@ -355,14 +355,13 @@ impl Doc {
         for index in self.cursor_indices() {
             let cursor = self.get_cursor(index);
 
-            let mut selection = cursor.get_selection().unwrap_or(Selection {
-                start: cursor.position,
-                end: cursor.position,
-            });
-
-            if selection.end.y > selection.start.y && selection.end.x == 0 {
-                selection.end.y -= 1;
-            }
+            let selection = cursor
+                .get_selection()
+                .unwrap_or(Selection {
+                    start: cursor.position,
+                    end: cursor.position,
+                })
+                .trim_lines_without_selected_chars();
 
             for y in selection.start.y..=selection.end.y {
                 if self.is_line_whitespace(y) {
@@ -373,6 +372,131 @@ impl Doc {
                     self.comment_line(comment, y, line_pool, time);
                 }
             }
+        }
+    }
+
+    pub fn indent_lines_at_cursor(
+        &mut self,
+        index: CursorIndex,
+        indent_width: Option<usize>,
+        do_unindent: bool,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        let cursor = self.get_cursor(index);
+
+        let selection = cursor
+            .get_selection()
+            .unwrap_or(Selection {
+                start: cursor.position,
+                end: cursor.position,
+            })
+            .trim_lines_without_selected_chars();
+
+        for y in selection.start.y..=selection.end.y {
+            if self.is_line_whitespace(y) {
+                continue;
+            }
+
+            if do_unindent {
+                self.unindent_line(y, indent_width, line_pool, time);
+            } else {
+                self.indent_line(y, indent_width, line_pool, time);
+            }
+        }
+    }
+
+    pub fn indent_lines_at_cursors(
+        &mut self,
+        indent_width: Option<usize>,
+        do_unindent: bool,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        for index in self.cursor_indices() {
+            self.indent_lines_at_cursor(index, indent_width, do_unindent, line_pool, time);
+        }
+    }
+
+    fn indent_line(
+        &mut self,
+        y: isize,
+        indent_width: Option<usize>,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        let mut start = Position::new(0, y);
+
+        if let Some(indent_width) = indent_width {
+            for _ in 0..indent_width {
+                self.insert(start, &[' '], line_pool, time);
+                start = self.move_position(start, Position::new(1, 0));
+            }
+        } else {
+            self.insert(start, &['\t'], line_pool, time);
+        }
+    }
+
+    fn unindent_line(
+        &mut self,
+        y: isize,
+        indent_width: Option<usize>,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        let line_len = self.get_line_len(y);
+        let start = Position::new(0, y);
+        let mut end = start;
+
+        if self.get_char(end) == '\t' {
+            end = self.move_position(end, Position::new(1, 0));
+        } else {
+            let indent_width = indent_width.unwrap_or(1) as isize;
+
+            while end.x < line_len && end.x - start.x < indent_width && self.get_char(end) == ' ' {
+                end = self.move_position(end, Position::new(1, 0));
+            }
+        }
+
+        self.delete(start, end, line_pool, time);
+    }
+
+    fn indent(
+        &mut self,
+        mut start: Position,
+        indent_width: Option<usize>,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        if let Some(indent_width) = indent_width {
+            for _ in 0..indent_width {
+                self.insert(start, &[' '], line_pool, time);
+                start = self.move_position(start, Position::new(1, 0));
+            }
+        } else {
+            self.insert(start, &['\t'], line_pool, time);
+        }
+    }
+
+    fn indent_at_cursor(
+        &mut self,
+        index: CursorIndex,
+        indent_width: Option<usize>,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        let start = self.get_cursor(index).position;
+        self.indent(start, indent_width, line_pool, time);
+    }
+
+    pub fn indent_at_cursors(
+        &mut self,
+        indent_width: Option<usize>,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        for index in self.cursor_indices() {
+            self.indent_at_cursor(index, indent_width, line_pool, time);
         }
     }
 
@@ -720,27 +844,35 @@ impl Doc {
 
         // Shift the cursor:
         for index in self.cursor_indices() {
-            let cursor = self.get_cursor(index);
+            let cursor = self.get_cursor_mut(index);
 
-            let cursor_effect_end = end.min(cursor.position);
+            cursor.position = Self::shift_position_by_delete(start, end, cursor.position);
 
-            if cursor_effect_end <= start {
-                continue;
+            if let Some(selection_anchor) = cursor.selection_anchor {
+                cursor.selection_anchor =
+                    Some(Self::shift_position_by_delete(start, end, selection_anchor));
             }
 
-            if cursor_effect_end.y == cursor.position.y && cursor_effect_end.x <= cursor.position.x
-            {
-                let cursor = self.get_cursor_mut(index);
+            self.update_cursor_desired_visual_x(index);
+        }
+    }
 
-                cursor.position.x -= cursor_effect_end.x - start.x;
-                cursor.position.y -= cursor_effect_end.y - start.y;
+    fn shift_position_by_delete(start: Position, end: Position, position: Position) -> Position {
+        let influence_end = end.min(position);
 
-                self.update_cursor_desired_visual_x(index);
-            } else if cursor_effect_end.y < cursor.position.y {
-                let cursor = self.get_cursor_mut(index);
+        if influence_end <= start {
+            return position;
+        }
 
-                cursor.position.y -= cursor_effect_end.y - start.y;
-            }
+        if influence_end.y == position.y && influence_end.x <= position.x {
+            Position::new(
+                position.x - (influence_end.x - start.x),
+                position.y - (influence_end.y - start.y),
+            )
+        } else if influence_end.y < position.y {
+            Position::new(position.x, position.y - (influence_end.y - start.y))
+        } else {
+            position
         }
     }
 
@@ -802,20 +934,29 @@ impl Doc {
 
         // Shift the cursor:
         for index in self.cursor_indices() {
-            let cursor = self.get_cursor(index);
+            let cursor = self.get_cursor_mut(index);
 
-            if start.y == cursor.position.y && start.x <= cursor.position.x {
-                let cursor = self.get_cursor_mut(index);
+            cursor.position = Self::shift_position_by_insert(start, position, cursor.position);
 
-                cursor.position.x += position.x - start.x;
-                cursor.position.y += position.y - start.y;
-
-                self.update_cursor_desired_visual_x(index);
-            } else if start.y < cursor.position.y {
-                let cursor = self.get_cursor_mut(index);
-
-                cursor.position.y += position.y - start.y;
+            if let Some(selection_anchor) = cursor.selection_anchor {
+                cursor.selection_anchor = Some(Self::shift_position_by_insert(
+                    start,
+                    position,
+                    selection_anchor,
+                ));
             }
+
+            self.update_cursor_desired_visual_x(index);
+        }
+    }
+
+    fn shift_position_by_insert(start: Position, end: Position, position: Position) -> Position {
+        if start.y == position.y && start.x <= position.x {
+            Position::new(position.x + end.x - start.x, position.y + end.y - start.y)
+        } else if start.y < position.y {
+            Position::new(position.x, position.y + end.y - start.y)
+        } else {
+            position
         }
     }
 

@@ -275,15 +275,25 @@ impl Tab {
                 }
                 Keybind {
                     key: Key::Tab,
-                    mods: 0,
+                    mods,
                 } => {
-                    if let Some(indent_width) = language.and_then(|language| language.indent_width)
-                    {
-                        for _ in 0..indent_width {
-                            doc.insert_at_cursors(&[' '], line_pool, time);
+                    let indent_width = language.and_then(|language| language.indent_width);
+                    let do_unindent = mods & MOD_SHIFT != 0;
+
+                    for index in doc.cursor_indices() {
+                        let cursor = doc.get_cursor(index);
+
+                        if cursor.get_selection().is_some() || do_unindent {
+                            doc.indent_lines_at_cursor(
+                                index,
+                                indent_width,
+                                do_unindent,
+                                line_pool,
+                                time,
+                            );
+                        } else {
+                            doc.indent_at_cursors(indent_width, line_pool, time);
                         }
-                    } else {
-                        doc.insert_at_cursors(&['\t'], line_pool, time);
                     }
                 }
                 Keybind {
@@ -432,6 +442,15 @@ impl Tab {
                     if let Some(language) = language {
                         doc.toggle_comments_at_cursors(&language.comment, line_pool, time);
                     }
+                }
+                Keybind {
+                    key: Key::LBracket | Key::RBracket,
+                    mods: MOD_CTRL,
+                } => {
+                    let indent_width = language.and_then(|language| language.indent_width);
+                    let do_unindent = keybind.key == Key::LBracket;
+
+                    doc.indent_lines_at_cursors(indent_width, do_unindent, line_pool, time);
                 }
                 _ => keybind_handler.unprocessed(window, keybind),
             }
