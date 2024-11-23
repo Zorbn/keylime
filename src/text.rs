@@ -8,3 +8,4 @@ pub mod selection;
 pub mod syntax;
 pub mod syntax_highlighter;
 pub mod tokenizer;
+mod trie;

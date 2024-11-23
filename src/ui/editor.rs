@@ -214,7 +214,10 @@ impl Editor {
         );
 
         if let Some((tab, doc)) = pane.get_tab_with_doc(pane.focused_tab_index(), &self.doc_list) {
-            self.completion_results.clear();
+            for result in self.completion_results.drain(..) {
+                self.completion_result_pool.push(result);
+            }
+
             self.completion_prefix_len = 0;
 
             let position = doc.get_cursor(CursorIndex::Main).position;
@@ -232,14 +235,11 @@ impl Editor {
             {
                 self.completion_prefix_len = prefix.len();
 
-                for token in doc.tokens() {
-                    if token.len() > prefix.len() && token.starts_with(prefix) {
-                        let mut result = self.completion_result_pool.pop();
-                        result.extend_from_slice(token);
-
-                        self.completion_results.push(result);
-                    }
-                }
+                doc.tokens().traverse(
+                    prefix,
+                    &mut self.completion_results,
+                    &mut self.completion_result_pool,
+                );
             }
         }
 

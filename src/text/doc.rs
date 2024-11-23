@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     fmt::{Display, Write as _},
     fs::{read_to_string, File},
     io::{self, Write},
@@ -23,7 +22,7 @@ use crate::{
     },
 };
 
-use super::tokenizer::Tokenizer;
+use super::{tokenizer::Tokenizer, trie::Trie};
 
 macro_rules! action_history {
     ($self:ident, $action_kind:expr) => {
@@ -1468,7 +1467,7 @@ impl Doc {
         );
     }
 
-    pub fn tokens(&self) -> &HashSet<Line> {
+    pub fn tokens(&self) -> &Trie {
         self.tokenizer.tokens()
     }
 

@@ -1,26 +1,20 @@
-use std::collections::HashSet;
-
 use crate::text::syntax_highlighter::{HighlightResult, SyntaxHighlighter};
 
-use super::line_pool::{Line, LinePool};
+use super::{line_pool::Line, trie::Trie};
 
 pub struct Tokenizer {
-    tokens: HashSet<Line>,
-    token_pool: LinePool,
+    tokens: Trie,
 }
 
 impl Tokenizer {
     pub fn new() -> Self {
         Self {
-            tokens: HashSet::new(),
-            token_pool: LinePool::new(),
+            tokens: Trie::new(),
         }
     }
 
     pub fn tokenize(&mut self, lines: &[Line]) {
-        for token in self.tokens.drain() {
-            self.token_pool.push(token);
-        }
+        self.tokens.clear();
 
         for line in lines {
             let mut x = 0;
@@ -37,17 +31,12 @@ impl Tokenizer {
 
                 let token_chars = &line[start..end];
 
-                if !self.tokens.contains(token_chars) {
-                    let mut token = self.token_pool.pop();
-                    token.extend_from_slice(token_chars);
-
-                    self.tokens.insert(token);
-                }
+                self.tokens.insert(token_chars);
             }
         }
     }
 
-    pub fn tokens(&self) -> &HashSet<Line> {
+    pub fn tokens(&self) -> &Trie {
         &self.tokens
     }
 }
