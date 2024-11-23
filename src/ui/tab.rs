@@ -88,7 +88,31 @@ impl Tab {
         let mut char_handler = window.get_char_handler();
 
         while let Some(char) = char_handler.next(window) {
-            doc.insert_at_cursors(&[char], line_pool, time);
+            for index in doc.cursor_indices() {
+                let cursor = doc.get_cursor(index);
+
+                let current_char = doc.get_char(cursor.position);
+
+                let previous_position = doc.move_position(cursor.position, Position::new(-1, 0));
+                let previous_char = doc.get_char(previous_position);
+
+                if Self::is_matching_char(char) && char == current_char {
+                    doc.move_cursor(index, Position::new(1, 0), false);
+
+                    continue;
+                }
+
+                if let Some(matching_char) = Self::get_matching_char(char)
+                    .filter(|c| *c != '\'' || previous_char.is_whitespace())
+                {
+                    doc.insert_at_cursor(index, &[char, matching_char], line_pool, time);
+                    doc.move_cursor(index, Position::new(-1, 0), false);
+
+                    continue;
+                }
+
+                doc.insert_at_cursor(index, &[char], line_pool, time);
+            }
         }
 
         let mut mousebind_handler = window.get_mousebind_handler();
@@ -213,15 +237,16 @@ impl Tab {
                         let (start, end) = if let Some(selection) = cursor.get_selection() {
                             (selection.start, selection.end)
                         } else {
-                            let end = cursor.position;
+                            let mut end = cursor.position;
 
                             let start = if mods & MOD_CTRL != 0 {
                                 doc.move_position_to_next_word(end, -1)
                             } else {
                                 let indent_width = (end.x - 1) % indent_width as isize + 1;
                                 let mut start = doc.move_position(end, Position::new(-1, 0));
+                                let start_char = doc.get_char(start);
 
-                                if doc.get_char(start) == ' ' {
+                                if start_char == ' ' {
                                     for _ in 1..indent_width {
                                         let next_start =
                                             doc.move_position(start, Position::new(-1, 0));
@@ -232,6 +257,10 @@ impl Tab {
 
                                         start = next_start;
                                     }
+                                } else if Self::get_matching_char(start_char)
+                                    == Some(doc.get_char(cursor.position))
+                                {
+                                    end = doc.move_position(end, Position::new(1, 0));
                                 }
 
                                 start
@@ -292,8 +321,25 @@ impl Tab {
                             }
                         }
 
+                        let previous_position =
+                            doc.move_position(cursor.position, Position::new(-1, 0));
+                        let do_start_block = doc.get_char(previous_position) == '{'
+                            && doc.get_char(cursor.position) == '}';
+
                         doc.insert_at_cursor(index, &['\n'], line_pool, time);
                         doc.insert_at_cursor(index, &text_buffer, line_pool, time);
+
+                        if do_start_block {
+                            let indent_width = language.and_then(|language| language.indent_width);
+                            doc.indent_at_cursor(index, indent_width, line_pool, time);
+
+                            let cursor_position = doc.get_cursor(index).position;
+
+                            doc.insert_at_cursor(index, &['\n'], line_pool, time);
+                            doc.insert_at_cursor(index, &text_buffer, line_pool, time);
+
+                            doc.jump_cursor(index, cursor_position, false);
+                        }
                     }
                 }
                 Keybind {
@@ -486,11 +532,11 @@ impl Tab {
         }
 
         doc.combine_overlapping_cursors();
-        self.update_camera(doc, window, handled_cursor_position, dt);
-        self.update_horizontal_camera(doc, window, handled_cursor_position, dt);
+        self.update_camera_vertical(doc, window, handled_cursor_position, dt);
+        self.update_camera_horizontal(doc, window, handled_cursor_position, dt);
     }
 
-    fn update_camera(
+    fn update_camera_vertical(
         &mut self,
         doc: &Doc,
         window: &mut Window,
@@ -522,7 +568,7 @@ impl Tab {
         );
     }
 
-    fn update_horizontal_camera(
+    fn update_camera_horizontal(
         &mut self,
         doc: &Doc,
         window: &mut Window,
@@ -552,6 +598,21 @@ impl Tab {
             can_recenter,
             dt,
         );
+    }
+
+    fn get_matching_char(c: char) -> Option<char> {
+        match c {
+            '"' => Some('"'),
+            '\'' => Some('\''),
+            '(' => Some(')'),
+            '[' => Some(']'),
+            '{' => Some('}'),
+            _ => None,
+        }
+    }
+
+    fn is_matching_char(c: char) -> bool {
+        matches!(c, '"' | '\'' | ')' | ']' | '}')
     }
 
     pub fn tab_bounds(&self) -> Rect {

@@ -41,12 +41,12 @@ struct LanguageDesc<'a> {
 }
 
 #[derive(Deserialize, Debug)]
-struct ConfigDesc {
-    font: String,
+struct ConfigDesc<'a> {
+    font: &'a str,
     font_size: f32,
     #[serde(default = "DEFAULT_TRIM_TRAILING_WHITESPACE")]
     trim_trailing_whitespace: bool,
-    theme: String,
+    theme: &'a str,
 }
 
 pub struct Language {
@@ -115,14 +115,14 @@ impl Config {
         path.clear();
         path.push(&config_dir);
         path.push("themes");
-        path.push(&config_desc.theme);
+        path.push(config_desc.theme);
         path.set_extension("toml");
 
         let theme_string = Self::load_file_string(&path)?;
         let theme = Self::load_file_data(&path, &theme_string)?;
 
         Some(Config {
-            font: config_desc.font,
+            font: config_desc.font.to_owned(),
             font_size: config_desc.font_size,
             trim_trailing_whitespace: config_desc.trim_trailing_whitespace,
             theme,

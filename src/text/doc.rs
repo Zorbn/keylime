@@ -500,7 +500,7 @@ impl Doc {
         }
     }
 
-    fn indent_at_cursor(
+    pub fn indent_at_cursor(
         &mut self,
         index: CursorIndex,
         indent_width: Option<usize>,
@@ -1153,12 +1153,6 @@ impl Doc {
             '\n'
         } else {
             line[position.x as usize]
-        }
-    }
-
-    pub fn insert_at_cursors(&mut self, text: &[char], line_pool: &mut LinePool, time: f32) {
-        for index in self.cursor_indices() {
-            self.insert_at_cursor(index, text, line_pool, time);
         }
     }
 
