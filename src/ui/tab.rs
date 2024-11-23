@@ -27,6 +27,7 @@ pub struct Tab {
     doc_index: usize,
 
     pub camera: Camera,
+    handled_cursor_position: Position,
 
     tab_bounds: Rect,
     gutter_bounds: Rect,
@@ -39,6 +40,7 @@ impl Tab {
             doc_index,
 
             camera: Camera::new(),
+            handled_cursor_position: Position::zero(),
 
             tab_bounds: Rect::zero(),
             gutter_bounds: Rect::zero(),
@@ -78,11 +80,10 @@ impl Tab {
         text_buffer: &mut TempBuffer<char>,
         config: &Config,
         time: f32,
-        dt: f32,
     ) {
         let language = config.get_language_for_doc(doc);
 
-        let mut handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
+        self.handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
 
         let mut char_handler = window.get_char_handler();
 
@@ -115,7 +116,7 @@ impl Tab {
                     let mods = mousebind.mods;
 
                     doc.jump_cursors(position, is_drag || (mods & MOD_SHIFT != 0));
-                    handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
+                    self.handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
                 }
                 Mousebind {
                     button: Some(MouseButton::Left),
@@ -159,24 +160,22 @@ impl Tab {
         }
 
         doc.combine_overlapping_cursors();
-        self.update_camera_vertical(doc, window, handled_cursor_position, dt);
-        self.update_camera_horizontal(doc, window, handled_cursor_position, dt);
+        doc.update_tokens();
     }
 
-    fn update_camera_vertical(
-        &mut self,
-        doc: &Doc,
-        window: &mut Window,
-        handled_cursor_position: Position,
-        dt: f32,
-    ) {
+    pub fn update_camera(&mut self, doc: &Doc, window: &mut Window, dt: f32) {
         let gfx = window.gfx();
 
+        self.update_camera_vertical(doc, gfx, dt);
+        self.update_camera_horizontal(doc, gfx, dt);
+    }
+
+    fn update_camera_vertical(&mut self, doc: &Doc, gfx: &Gfx, dt: f32) {
         let new_cursor_position = doc.get_cursor(CursorIndex::Main).position;
         let new_cursor_visual_position =
             doc.position_to_visual(new_cursor_position, self.camera.x(), self.camera.y(), gfx);
 
-        let can_recenter = handled_cursor_position != new_cursor_position;
+        let can_recenter = self.handled_cursor_position != new_cursor_position;
 
         let target_y = new_cursor_visual_position.y + gfx.line_height() / 2.0;
         let max_y = (doc.lines().len() - 1) as f32 * gfx.line_height();
@@ -195,20 +194,12 @@ impl Tab {
         );
     }
 
-    fn update_camera_horizontal(
-        &mut self,
-        doc: &Doc,
-        window: &mut Window,
-        handled_cursor_position: Position,
-        dt: f32,
-    ) {
-        let gfx = window.gfx();
-
+    fn update_camera_horizontal(&mut self, doc: &Doc, gfx: &Gfx, dt: f32) {
         let new_cursor_position = doc.get_cursor(CursorIndex::Main).position;
         let new_cursor_visual_position =
             doc.position_to_visual(new_cursor_position, self.camera.x(), self.camera.y(), gfx);
 
-        let can_recenter = handled_cursor_position != new_cursor_position;
+        let can_recenter = self.handled_cursor_position != new_cursor_position;
 
         let target_x = new_cursor_visual_position.x + gfx.glyph_width() / 2.0;
         let max_x = f32::MAX;

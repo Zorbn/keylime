@@ -47,7 +47,7 @@ impl DocList {
         self.docs[index] = None;
     }
 
-    pub fn get(&mut self, index: usize) -> Option<&Doc> {
+    pub fn get(&self, index: usize) -> Option<&Doc> {
         self.docs.get(index).and_then(|doc| doc.as_ref())
     }
 

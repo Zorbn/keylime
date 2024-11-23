@@ -28,7 +28,7 @@ fn on_submit_go_to_line(
         return CommandPaletteAction::Close;
     };
 
-    let Some((tab, doc)) = pane.get_tab_with_doc(focused_tab_index, doc_list) else {
+    let Some((tab, doc)) = pane.get_tab_with_doc_mut(focused_tab_index, doc_list) else {
         return CommandPaletteAction::Close;
     };
 

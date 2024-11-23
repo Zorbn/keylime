@@ -72,7 +72,7 @@ impl Pane {
         let tab_height = gfx.tab_height();
 
         for i in 0..self.tabs.len() {
-            let Some((tab, doc)) = self.get_tab_with_doc(i, doc_list) else {
+            let Some((tab, doc)) = self.get_tab_with_doc_mut(i, doc_list) else {
                 return;
             };
 
@@ -97,7 +97,6 @@ impl Pane {
         text_buffer: &mut TempBuffer<char>,
         config: &Config,
         time: f32,
-        dt: f32,
     ) {
         let mut mousebind_handler = window.get_mousebind_handler();
 
@@ -188,7 +187,8 @@ impl Pane {
                     key: Key::S,
                     mods: MOD_CTRL,
                 } => {
-                    if let Some((_, doc)) = self.get_tab_with_doc(self.focused_tab_index, doc_list)
+                    if let Some((_, doc)) =
+                        self.get_tab_with_doc_mut(self.focused_tab_index, doc_list)
                     {
                         DocList::try_save(doc, config, line_pool, time);
                     }
@@ -211,7 +211,7 @@ impl Pane {
                     mods: MOD_CTRL,
                 } => {
                     if let Some((tab, doc)) =
-                        self.get_tab_with_doc(self.focused_tab_index, doc_list)
+                        self.get_tab_with_doc_mut(self.focused_tab_index, doc_list)
                     {
                         DocList::reload(doc, config, line_pool, time);
                         tab.camera.recenter();
@@ -237,8 +237,14 @@ impl Pane {
             }
         }
 
-        if let Some((tab, doc)) = self.get_tab_with_doc(self.focused_tab_index, doc_list) {
-            tab.update(doc, window, line_pool, text_buffer, config, time, dt);
+        if let Some((tab, doc)) = self.get_tab_with_doc_mut(self.focused_tab_index, doc_list) {
+            tab.update(doc, window, line_pool, text_buffer, config, time);
+        }
+    }
+
+    pub fn update_camera(&mut self, doc_list: &mut DocList, window: &mut Window, dt: f32) {
+        if let Some((tab, doc)) = self.get_tab_with_doc_mut(self.focused_tab_index, doc_list) {
+            tab.update_camera(doc, window, dt);
         }
     }
 
@@ -306,7 +312,7 @@ impl Pane {
 
         gfx.end();
 
-        if let Some((tab, doc)) = self.get_tab_with_doc(self.focused_tab_index, doc_list) {
+        if let Some((tab, doc)) = self.get_tab_with_doc_mut(self.focused_tab_index, doc_list) {
             tab.draw(doc, config, gfx, is_focused);
         }
     }
@@ -338,13 +344,27 @@ impl Pane {
         gfx.add_rect(tab_bounds.right_border(gfx.border_width()), &theme.border);
     }
 
-    pub fn get_tab_with_doc<'a>(
+    pub fn get_tab_with_doc_mut<'a>(
         &'a mut self,
         tab_index: usize,
         doc_list: &'a mut DocList,
     ) -> Option<(&'a mut Tab, &'a mut Doc)> {
         if let Some(tab) = self.tabs.get_mut(tab_index) {
             if let Some(doc) = doc_list.get_mut(tab.doc_index()) {
+                return Some((tab, doc));
+            }
+        }
+
+        None
+    }
+
+    pub fn get_tab_with_doc<'a>(
+        &'a self,
+        tab_index: usize,
+        doc_list: &'a DocList,
+    ) -> Option<(&'a Tab, &'a Doc)> {
+        if let Some(tab) = self.tabs.get(tab_index) {
+            if let Some(doc) = doc_list.get(tab.doc_index()) {
                 return Some((tab, doc));
             }
         }

@@ -43,7 +43,7 @@ fn on_submit_search(
         return CommandPaletteAction::Stay;
     };
 
-    let Some((tab, doc)) = pane.get_tab_with_doc(focused_tab_index, doc_list) else {
+    let Some((tab, doc)) = pane.get_tab_with_doc_mut(focused_tab_index, doc_list) else {
         return CommandPaletteAction::Stay;
     };
 
@@ -77,7 +77,7 @@ fn on_submit_search_and_replace_end(
         return CommandPaletteAction::Stay;
     };
 
-    let Some((tab, doc)) = pane.get_tab_with_doc(focused_tab_index, doc_list) else {
+    let Some((tab, doc)) = pane.get_tab_with_doc_mut(focused_tab_index, doc_list) else {
         return CommandPaletteAction::Stay;
     };
 

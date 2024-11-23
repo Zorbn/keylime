@@ -23,7 +23,7 @@ pub struct Highlight {
     pub kind: HighlightKind,
 }
 
-enum HighlightResult {
+pub enum HighlightResult {
     Token { end: usize },
     Range { end: usize, is_finished: bool },
     None,
@@ -77,7 +77,7 @@ impl SyntaxHighlighter {
         }
     }
 
-    fn match_identifier(line: &Line, start: usize) -> HighlightResult {
+    pub fn match_identifier(line: &Line, start: usize) -> HighlightResult {
         let mut i = start;
 
         if line[i] != '_' && !line[i].is_alphabetic() {

@@ -296,15 +296,8 @@ impl CommandPalette {
             }
         }
 
-        self.tab.update(
-            &mut self.doc,
-            window,
-            line_pool,
-            text_buffer,
-            config,
-            time,
-            dt,
-        );
+        self.tab
+            .update(&mut self.doc, window, line_pool, text_buffer, config, time);
 
         window.clear_inputs();
 

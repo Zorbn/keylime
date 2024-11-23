@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    geometry::{rect::Rect, visual_position::VisualPosition},
+    geometry::{rect::Rect, side::SIDE_ALL, visual_position::VisualPosition},
     input::{
         key::Key,
         keybind::{Keybind, MOD_ALT, MOD_CTRL, MOD_CTRL_ALT},
@@ -9,7 +9,11 @@ use crate::{
     },
     platform::{gfx::Gfx, window::Window},
     temp_buffer::TempBuffer,
-    text::line_pool::LinePool,
+    text::{
+        cursor_index::CursorIndex,
+        line_pool::{Line, LinePool},
+        selection::Selection,
+    },
     ui::command_palette::CommandPalette,
 };
 
@@ -20,7 +24,14 @@ pub struct Editor {
     // There should always be at least one pane.
     panes: Vec<Pane>,
     focused_pane_index: usize,
+
     bounds: Rect,
+    completion_result_bounds: Rect,
+    completion_results_bounds: Rect,
+
+    completion_results: Vec<Line>,
+    completion_result_pool: LinePool,
+    completion_prefix_len: usize,
 }
 
 impl Editor {
@@ -29,7 +40,14 @@ impl Editor {
             doc_list: DocList::new(),
             panes: Vec::new(),
             focused_pane_index: 0,
+
             bounds: Rect::zero(),
+            completion_result_bounds: Rect::zero(),
+            completion_results_bounds: Rect::zero(),
+
+            completion_results: Vec::new(),
+            completion_result_pool: LinePool::new(),
+            completion_prefix_len: 0,
         };
 
         editor
@@ -63,6 +81,36 @@ impl Editor {
             pane.layout(pane_bounds, gfx, &mut self.doc_list);
             pane_bounds.x += pane_bounds.width;
         }
+
+        self.completion_result_bounds =
+            Rect::new(0.0, 0.0, gfx.glyph_width() * 20.0, gfx.line_height() * 1.25);
+
+        self.completion_results_bounds = Rect::zero();
+
+        if self.completion_results.is_empty() {
+            return;
+        }
+
+        let focused_pane = &self.panes[self.focused_pane_index];
+
+        let Some((tab, doc)) =
+            focused_pane.get_tab_with_doc(focused_pane.focused_tab_index(), &self.doc_list)
+        else {
+            return;
+        };
+
+        let cursor_position = doc.get_cursor(CursorIndex::Main).position;
+        let cursor_visual_position = doc
+            .position_to_visual(cursor_position, tab.camera.x(), tab.camera.y(), gfx)
+            .offset_by(tab.doc_bounds());
+
+        self.completion_results_bounds = Rect::new(
+            cursor_visual_position.x - self.completion_prefix_len as f32 * gfx.glyph_width(),
+            cursor_visual_position.y + gfx.line_height(),
+            self.completion_result_bounds.width,
+            self.completion_result_bounds.height * self.completion_results.len() as f32,
+        )
+        .add_margin(gfx.border_width());
     }
 
     pub fn update(
@@ -163,11 +211,44 @@ impl Editor {
             text_buffer,
             config,
             time,
-            dt,
         );
+
+        if let Some((tab, doc)) = pane.get_tab_with_doc(pane.focused_tab_index(), &self.doc_list) {
+            self.completion_results.clear();
+            self.completion_prefix_len = 0;
+
+            let position = doc.get_cursor(CursorIndex::Main).position;
+            let word_selection = doc.select_current_word_at_position(position);
+            let word_selection = Selection {
+                start: word_selection.start,
+                end: word_selection.end.min(position),
+            };
+
+            if let Some(prefix) = doc
+                .get_line(position.y)
+                .filter(|_| word_selection.start.y == word_selection.end.y)
+                .map(|line| &line[word_selection.start.x as usize..word_selection.end.x as usize])
+                .filter(|prefix| !prefix.is_empty())
+            {
+                self.completion_prefix_len = prefix.len();
+
+                for token in doc.tokens() {
+                    if token.len() > prefix.len() && token.starts_with(prefix) {
+                        let mut result = self.completion_result_pool.pop();
+                        result.extend_from_slice(token);
+
+                        self.completion_results.push(result);
+                    }
+                }
+            }
+        }
 
         if pane.tabs_len() == 0 {
             self.close_pane(config, line_pool, time);
+        }
+
+        for pane in &mut self.panes {
+            pane.update_camera(&mut self.doc_list, window, dt);
         }
 
         window.clear_inputs();
@@ -179,6 +260,31 @@ impl Editor {
 
             pane.draw(&mut self.doc_list, config, gfx, is_focused);
         }
+
+        gfx.begin(Some(self.bounds));
+
+        gfx.add_bordered_rect(
+            self.completion_results_bounds,
+            SIDE_ALL,
+            &config.theme.background,
+            &config.theme.border,
+        );
+
+        for (i, result) in self.completion_results.iter().enumerate() {
+            let result_bounds = self
+                .completion_result_bounds
+                .offset_by(self.completion_results_bounds)
+                .shift_y(i as f32 * self.completion_result_bounds.height);
+
+            gfx.add_text(
+                result.iter().copied(),
+                result_bounds.x + gfx.glyph_width() / 2.0,
+                result_bounds.y + (result_bounds.height - gfx.glyph_height()) / 2.0,
+                &config.theme.normal,
+            );
+        }
+
+        gfx.end();
     }
 
     fn clamp_focused_pane(&mut self) {

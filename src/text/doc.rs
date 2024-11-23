@@ -1,8 +1,10 @@
 use std::{
+    collections::HashSet,
     fmt::{Display, Write as _},
     fs::{read_to_string, File},
     io::{self, Write},
     path::{Path, PathBuf},
+    time::Instant,
     vec::Drain,
 };
 
@@ -20,6 +22,8 @@ use crate::{
         syntax_highlighter::{HighlightedLine, SyntaxHighlighter},
     },
 };
+
+use super::tokenizer::Tokenizer;
 
 macro_rules! action_history {
     ($self:ident, $action_kind:expr) => {
@@ -70,6 +74,8 @@ pub struct Doc {
 
     syntax_highlighter: SyntaxHighlighter,
     unhighlighted_line_y: isize,
+    tokenizer: Tokenizer,
+    needs_tokenization: bool,
 
     kind: DocKind,
 }
@@ -97,6 +103,8 @@ impl Doc {
 
             syntax_highlighter: SyntaxHighlighter::new(),
             unhighlighted_line_y: 0,
+            tokenizer: Tokenizer::new(),
+            needs_tokenization: false,
 
             kind,
         };
@@ -857,8 +865,9 @@ impl Doc {
         }
     }
 
-    fn mark_line_unhighlighted(&mut self, y: isize) {
+    fn mark_line_dirty(&mut self, y: isize) {
         self.unhighlighted_line_y = self.unhighlighted_line_y.min(y);
+        self.needs_tokenization = true;
     }
 
     pub fn delete(&mut self, start: Position, end: Position, line_pool: &mut LinePool, time: f32) {
@@ -877,7 +886,7 @@ impl Doc {
             self.redo_history.clear();
         }
 
-        self.mark_line_unhighlighted(start.y);
+        self.mark_line_dirty(start.y);
         self.is_saved = false;
         self.version += 1;
 
@@ -968,7 +977,7 @@ impl Doc {
             self.redo_history.clear();
         }
 
-        self.mark_line_unhighlighted(start.y);
+        self.mark_line_dirty(start.y);
         self.is_saved = false;
         self.version += 1;
 
@@ -1257,7 +1266,7 @@ impl Doc {
         self.reset_cursors();
         self.line_ending = LineEnding::default();
 
-        self.unhighlighted_line_y = 0;
+        self.mark_line_dirty(0);
         self.is_saved = true;
         self.version = 0;
 
@@ -1443,6 +1452,26 @@ impl Doc {
         }
     }
 
+    pub fn update_tokens(&mut self) {
+        if !self.needs_tokenization {
+            return;
+        }
+
+        let start = Instant::now();
+
+        self.needs_tokenization = false;
+        self.tokenizer.tokenize(&self.lines);
+
+        println!(
+            "tokenization time: {}ms",
+            start.elapsed().as_secs_f32() * 1000.0
+        );
+    }
+
+    pub fn tokens(&self) -> &HashSet<Line> {
+        self.tokenizer.tokens()
+    }
+
     pub fn update_highlights(
         &mut self,
         camera_x: f32,
@@ -1540,21 +1569,37 @@ impl Doc {
         self.jump_cursor(CursorIndex::Main, end, true);
     }
 
+    pub fn select_current_word_at_position(&self, mut position: Position) -> Selection {
+        let line_len = self.get_line_len(position.y);
+
+        if position.x < line_len {
+            position = self.move_position(position, Position::new(1, 0));
+        }
+
+        if position.x > 0 {
+            position = self.move_position_to_next_word(position, -1);
+        }
+
+        let start = position;
+
+        if position.x < line_len {
+            position = self.move_position_to_next_word(position, 1);
+        }
+
+        let end = position;
+
+        Selection { start, end }
+    }
+
     fn select_current_word_at_cursors(&mut self) {
         for index in self.cursor_indices() {
-            let line_len = self.get_line_len(self.get_cursor(index).position.y);
+            let position = self.get_cursor(index).position;
+            let selection = self.select_current_word_at_position(position);
 
-            if self.get_cursor(index).position.x < line_len {
-                self.move_cursor(index, Position::new(1, 0), false);
-            }
+            let cursor = self.get_cursor_mut(index);
 
-            if self.get_cursor(index).position.x > 0 {
-                self.move_cursor_to_next_word(index, -1, false);
-            }
-
-            if self.get_cursor(index).position.x < line_len {
-                self.move_cursor_to_next_word(index, 1, true);
-            }
+            cursor.selection_anchor = Some(selection.start);
+            cursor.position = selection.end;
         }
     }
 
