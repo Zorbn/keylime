@@ -214,10 +214,6 @@ impl Editor {
 
         let pane = &mut self.panes[self.focused_pane_index];
 
-        let handled_doc_version = pane
-            .get_tab_with_doc(pane.focused_tab_index(), &self.doc_list)
-            .map(|(_, doc)| doc.version());
-
         let result_input = self.completion_result_list.update(window, dt);
 
         match result_input {
@@ -234,13 +230,23 @@ impl Editor {
                         );
                     }
                 }
+
+                Self::clear_completions(
+                    &mut self.completion_result_list,
+                    &mut self.completion_result_pool,
+                );
             }
             ResultListInput::Close => {
-                for result in self.completion_result_list.drain() {
-                    self.completion_result_pool.push(result);
-                }
+                Self::clear_completions(
+                    &mut self.completion_result_list,
+                    &mut self.completion_result_pool,
+                );
             }
         }
+
+        let handled_doc_version = pane
+            .get_tab_with_doc(pane.focused_tab_index(), &self.doc_list)
+            .map(|(_, doc)| doc.version());
 
         pane.update(
             &mut self.doc_list,
@@ -266,9 +272,10 @@ impl Editor {
                 self.completion_prefix.clear();
                 self.completion_prefix.extend_from_slice(prefix);
 
-                for result in self.completion_result_list.drain() {
-                    self.completion_result_pool.push(result);
-                }
+                Self::clear_completions(
+                    &mut self.completion_result_list,
+                    &mut self.completion_result_pool,
+                );
 
                 if !prefix.is_empty() {
                     doc.tokens().traverse(
@@ -325,6 +332,15 @@ impl Editor {
 
         doc.get_line(prefix_end.y)
             .map(|line| &line[prefix_start.x as usize..prefix_end.x as usize])
+    }
+
+    fn clear_completions(
+        completion_result_list: &mut ResultList<Line>,
+        completion_result_pool: &mut LinePool,
+    ) {
+        for result in completion_result_list.drain() {
+            completion_result_pool.push(result);
+        }
     }
 
     fn clamp_focused_pane(&mut self) {
