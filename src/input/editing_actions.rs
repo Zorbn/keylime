@@ -206,7 +206,7 @@ fn handle_arrow(key: Key, mods: u8, doc: &mut Doc) {
 
     let should_select = mods & MOD_SHIFT != 0;
 
-    if (mods & MOD_CTRL != 0) && (mods & MOD_ALT != 0) && (key == Key::Up || key == Key::Down) {
+    if (mods & MOD_CTRL != 0) && (mods & MOD_ALT != 0) && matches!(key, Key::Up | Key::Down) {
         let cursor = doc.get_cursor(CursorIndex::Main);
 
         let position = doc.move_position_with_desired_visual_x(
@@ -224,14 +224,31 @@ fn handle_arrow(key: Key, mods: u8, doc: &mut Doc) {
             Key::Right => doc.move_cursors_to_next_word(1, should_select),
             _ => unreachable!(),
         }
-    } else if (mods & MOD_ALT != 0) && (key == Key::Left || key == Key::Right) {
+    } else if (mods & MOD_ALT != 0) && matches!(key, Key::Left | Key::Right) {
         match key {
             Key::Left => doc.undo_cursor_position(),
             Key::Right => doc.redo_cursor_position(),
             _ => unreachable!(),
         }
     } else {
-        doc.move_cursors(direction, should_select);
+        for index in doc.cursor_indices() {
+            let cursor = doc.get_cursor(index);
+
+            match cursor.get_selection() {
+                Some(selection) if !should_select => {
+                    if matches!(key, Key::Left | Key::Up) {
+                        doc.jump_cursor(index, selection.start, false);
+                    } else if matches!(key, Key::Right | Key::Down) {
+                        doc.jump_cursor(index, selection.end, false);
+                    }
+
+                    if matches!(key, Key::Up | Key::Down) {
+                        doc.move_cursor(index, direction, false);
+                    }
+                }
+                _ => doc.move_cursor(index, direction, should_select),
+            }
+        }
     }
 }
 
