@@ -382,9 +382,9 @@ impl Pane {
     ) -> io::Result<()> {
         let doc_index = doc_list.open_or_reuse(path, line_pool)?;
 
-        for tab in &self.tabs {
+        for (i, tab) in self.tabs.iter().enumerate() {
             if tab.doc_index() == doc_index {
-                self.focused_tab_index = doc_index;
+                self.focused_tab_index = i;
 
                 return Ok(());
             }

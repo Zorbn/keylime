@@ -136,8 +136,8 @@ impl DocList {
     }
 
     pub fn open_or_reuse(&mut self, path: &Path, line_pool: &mut LinePool) -> io::Result<usize> {
-        for (i, doc) in self.docs.iter().filter_map(|doc| doc.as_ref()).enumerate() {
-            if doc.path() == Some(path) {
+        for (i, doc) in self.docs.iter().enumerate() {
+            if doc.as_ref().and_then(|doc| doc.path()) == Some(path) {
                 return Ok(i);
             }
         }
