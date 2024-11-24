@@ -1,3 +1,4 @@
+mod pair_visitor;
 pub mod theme;
 
 use std::{
@@ -7,6 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use pair_visitor::deserialize_pairs;
 use serde::Deserialize;
 use theme::Theme;
 
@@ -28,8 +30,8 @@ const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
 pub struct SyntaxDesc<'a> {
     #[serde(borrow, default)]
     pub keywords: Vec<&'a str>,
-    #[serde(borrow, default)]
-    pub prefixes: HashMap<&'a str, HighlightKind>,
+    #[serde(borrow, default, deserialize_with = "deserialize_pairs")]
+    pub prefixes: Vec<(&'a str, HighlightKind)>,
     #[serde(default)]
     pub ranges: Vec<SyntaxRange>,
 }

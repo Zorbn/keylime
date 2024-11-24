@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use serde::Deserialize;
 
@@ -15,14 +15,14 @@ pub struct SyntaxRange {
 
 pub struct Syntax {
     pub keywords: HashSet<Vec<char>>,
-    pub prefixes: HashMap<Vec<char>, HighlightKind>,
+    pub prefixes: Vec<(Vec<char>, HighlightKind)>,
     pub ranges: Vec<SyntaxRange>,
 }
 
 impl Syntax {
     pub fn new(
         keywords: &[&str],
-        prefixes: &HashMap<&str, HighlightKind>,
+        prefixes: &[(&str, HighlightKind)],
         ranges: &[SyntaxRange],
     ) -> Self {
         let mut keyword_vecs = HashSet::new();
@@ -31,10 +31,10 @@ impl Syntax {
             keyword_vecs.insert(keyword.chars().collect());
         }
 
-        let mut prefix_vecs = HashMap::new();
+        let mut prefix_vecs = Vec::new();
 
         for (prefix, kind) in prefixes {
-            prefix_vecs.insert(prefix.chars().collect(), *kind);
+            prefix_vecs.push((prefix.chars().collect(), *kind));
         }
 
         Self {

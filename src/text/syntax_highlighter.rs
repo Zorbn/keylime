@@ -300,10 +300,20 @@ impl SyntaxHighlighter {
                 }
 
                 if let HighlightResult::Token { end } = Self::match_identifier(line, x) {
-                    let prefix_kind = self.highlighted_lines[y]
+                    let mut prefix_kind = None;
+
+                    if let Some(last) = self.highlighted_lines[y]
                         .highlights
                         .last()
-                        .and_then(|last| syntax.prefixes.get(&line[last.start..last.end]));
+                        .map(|last| &line[last.start..last.end])
+                    {
+                        for (prefix, kind) in &syntax.prefixes {
+                            if last.ends_with(prefix) {
+                                prefix_kind = Some(kind);
+                                break;
+                            }
+                        }
+                    }
 
                     let kind = if let Some(prefix_kind) = prefix_kind {
                         *prefix_kind
