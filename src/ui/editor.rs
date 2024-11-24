@@ -214,6 +214,10 @@ impl Editor {
 
         let pane = &mut self.panes[self.focused_pane_index];
 
+        let handled_doc_version = pane
+            .get_tab_with_doc(pane.focused_tab_index(), &self.doc_list)
+            .map(|(_, doc)| doc.version());
+
         let result_input = self.completion_result_list.update(window, dt);
 
         match result_input {
@@ -248,7 +252,14 @@ impl Editor {
             time,
         );
 
-        if let Some((_, doc)) = pane.get_tab_with_doc(pane.focused_tab_index(), &self.doc_list) {
+        if let Some((_, doc)) = pane
+            .get_tab_with_doc(pane.focused_tab_index(), &self.doc_list)
+            .filter(|(_, doc)| {
+                handled_doc_version
+                    .map(|handled_doc_version| handled_doc_version != doc.version())
+                    .unwrap_or(true)
+            })
+        {
             if let Some(prefix) =
                 Self::get_completion_prefix(doc).filter(|prefix| self.completion_prefix != *prefix)
             {
