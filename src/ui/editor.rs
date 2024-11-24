@@ -298,16 +298,18 @@ impl Editor {
             return Some(&[]);
         }
 
-        let mut prefix_start = doc.move_position(prefix_end, Position::new(-1, 0));
+        let mut prefix_start = prefix_end;
 
         while prefix_start.x > 0 {
-            let c = doc.get_char(prefix_start);
+            let next_start = doc.move_position(prefix_start, Position::new(-1, 0));
+
+            let c = doc.get_char(next_start);
 
             if !c.is_alphanumeric() && c != '_' {
                 break;
             }
 
-            prefix_start = doc.move_position(prefix_start, Position::new(-1, 0));
+            prefix_start = next_start;
         }
 
         doc.get_line(prefix_end.y)
