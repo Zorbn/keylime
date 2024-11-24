@@ -14,4 +14,8 @@ impl VisualPosition {
     pub fn offset_by(&self, rect: Rect) -> VisualPosition {
         VisualPosition::new(self.x + rect.x, self.y + rect.y)
     }
+
+    pub fn floor(&self) -> VisualPosition {
+        VisualPosition::new(self.x.floor(), self.y.floor())
+    }
 }

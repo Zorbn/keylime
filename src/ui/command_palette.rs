@@ -22,16 +22,18 @@ use crate::{
         doc::{Doc, DocKind},
         line_pool::{Line, LinePool},
     },
-    ui::{
-        camera::{Camera, RECENTER_DISTANCE},
-        tab::Tab,
-    },
+    ui::tab::Tab,
 };
 
 use file_mode::MODE_OPEN_FILE;
 use mode::{CommandPaletteEventArgs, CommandPaletteMode};
 
-use super::{doc_list::DocList, editor::Editor, pane::Pane};
+use super::{
+    doc_list::DocList,
+    editor::Editor,
+    pane::Pane,
+    result_list::{ResultList, ResultListInput},
+};
 
 #[derive(PartialEq, Eq)]
 enum CommandPaletteState {
@@ -55,17 +57,12 @@ pub struct CommandPalette {
     doc: Doc,
     last_updated_version: Option<usize>,
 
-    results: Vec<String>,
-    selected_result_index: usize,
+    result_list: ResultList<String>,
     previous_results: Vec<Line>,
 
     bounds: Rect,
     title_bounds: Rect,
     input_bounds: Rect,
-    result_bounds: Rect,
-    results_bounds: Rect,
-
-    camera: Camera,
 }
 
 impl CommandPalette {
@@ -77,17 +74,12 @@ impl CommandPalette {
             doc: Doc::new(line_pool, DocKind::SingleLine),
             last_updated_version: None,
 
-            results: Vec::new(),
-            selected_result_index: 0,
+            result_list: ResultList::new(MAX_VISIBLE_RESULTS),
             previous_results: Vec::new(),
 
             bounds: Rect::zero(),
             title_bounds: Rect::zero(),
             input_bounds: Rect::zero(),
-            result_bounds: Rect::zero(),
-            results_bounds: Rect::zero(),
-
-            camera: Camera::new(),
         }
     }
 
@@ -96,7 +88,7 @@ impl CommandPalette {
     }
 
     pub fn is_animating(&self) -> bool {
-        self.camera.is_moving()
+        self.result_list.is_animating()
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
@@ -112,25 +104,22 @@ impl CommandPalette {
             .shift_y(-gfx.border_width())
             .floor();
 
-        self.result_bounds = Rect::new(0.0, 0.0, self.input_bounds.width, gfx.line_height() * 1.25);
-
-        self.results_bounds = Rect::new(
-            0.0,
-            0.0,
-            self.input_bounds.width,
-            self.result_bounds.height * self.results.len().min(MAX_VISIBLE_RESULTS) as f32,
-        )
-        .below(self.input_bounds)
-        .shift_y(-gfx.border_width())
-        .floor();
+        self.result_list.layout(
+            Rect::new(0.0, 0.0, self.input_bounds.width, 0.0)
+                .below(self.input_bounds)
+                .shift_y(-gfx.border_width()),
+            gfx,
+        );
 
         self.bounds = self
             .title_bounds
             .expand_to_include(self.input_bounds)
-            .expand_to_include(self.results_bounds)
+            .expand_to_include(self.result_list.bounds())
             .center_x_in(bounds)
             .offset_by(Rect::new(0.0, gfx.tab_height() * 2.0, 0.0, 0.0))
             .floor();
+
+        self.result_list.offset_by(self.bounds);
 
         self.tab.layout(
             Rect::zero(),
@@ -160,8 +149,6 @@ impl CommandPalette {
 
         let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
 
-        let mut handled_selected_result_index = self.selected_result_index;
-
         let mut mouse_handler = window.get_mousebind_handler();
 
         while let Some(mousebind) = mouse_handler.next(window) {
@@ -169,10 +156,10 @@ impl CommandPalette {
 
             let Mousebind {
                 button: None | Some(MouseButton::Left),
-                mods,
                 ..
             } = mousebind
             else {
+                mouse_handler.unprocessed(window, mousebind);
                 continue;
             };
 
@@ -181,98 +168,13 @@ impl CommandPalette {
                 continue;
             }
 
-            let results_bounds = self.results_bounds.offset_by(self.bounds);
-
-            if !results_bounds.contains_position(position) {
-                continue;
-            }
-
-            let clicked_result_index = ((position.y + self.camera.y() - results_bounds.y)
-                / self.result_bounds.height) as usize;
-
-            if clicked_result_index >= self.results.len() {
-                continue;
-            }
-
-            self.selected_result_index = clicked_result_index;
-            handled_selected_result_index = self.selected_result_index;
-
-            if mousebind.button.is_some() {
-                self.submit(
-                    mods & MOD_SHIFT != 0,
-                    pane,
-                    doc_list,
-                    config,
-                    line_pool,
-                    time,
-                );
-            }
-        }
-
-        let mut mouse_scroll_handler = window.get_mouse_scroll_handler();
-
-        while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
-            if mouse_scroll.is_horizontal {
-                continue;
-            }
-
-            let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
-
-            if self
-                .results_bounds
-                .offset_by(self.bounds)
-                .contains_position(position)
-            {
-                let delta = mouse_scroll.delta * self.result_bounds.height;
-                self.camera.vertical.scroll(delta);
-            }
+            mouse_handler.unprocessed(window, mousebind);
         }
 
         let mut keybind_handler = window.get_keybind_handler();
 
         while let Some(keybind) = keybind_handler.next(window) {
             match keybind {
-                Keybind {
-                    key: Key::Escape,
-                    mods: 0,
-                } => {
-                    self.close(line_pool);
-                }
-                Keybind {
-                    key: Key::Enter,
-                    mods,
-                } => {
-                    self.submit(
-                        mods & MOD_SHIFT != 0,
-                        pane,
-                        doc_list,
-                        config,
-                        line_pool,
-                        time,
-                    );
-                }
-                Keybind {
-                    key: Key::Tab,
-                    mods: 0,
-                } => {
-                    self.complete_result(pane, doc_list, config, line_pool, time);
-                }
-                Keybind {
-                    key: Key::Up,
-                    mods: 0,
-                } => {
-                    if self.selected_result_index > 0 {
-                        self.selected_result_index -= 1;
-                    }
-                }
-                Keybind {
-                    key: Key::Down,
-                    mods: 0,
-                } => {
-                    if self.selected_result_index < self.results.len() - 1 {
-                        self.selected_result_index += 1;
-                    }
-                }
                 Keybind {
                     key: Key::Backspace,
                     mods: 0 | MOD_CTRL,
@@ -296,41 +198,32 @@ impl CommandPalette {
             }
         }
 
+        let result_input = self.result_list.update(window, dt);
+
+        match result_input {
+            ResultListInput::None => {}
+            ResultListInput::Complete => {
+                self.complete_result(pane, doc_list, config, line_pool, time)
+            }
+            ResultListInput::Submit { mods } => {
+                self.submit(
+                    mods & MOD_SHIFT != 0,
+                    pane,
+                    doc_list,
+                    config,
+                    line_pool,
+                    time,
+                );
+            }
+            ResultListInput::Close => self.close(line_pool),
+        }
+
         self.tab
             .update(&mut self.doc, window, line_pool, text_buffer, config, time);
 
         window.clear_inputs();
 
         self.update_results(pane, doc_list, config, line_pool, time);
-
-        self.selected_result_index = self
-            .selected_result_index
-            .clamp(0, self.results.len().saturating_sub(1));
-
-        self.update_camera(handled_selected_result_index, dt);
-    }
-
-    fn update_camera(&mut self, handled_selected_result_index: usize, dt: f32) {
-        let target_y =
-            (self.selected_result_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
-        let max_y = (self.results.len() as f32 * self.result_bounds.height
-            - self.results_bounds.height)
-            .max(0.0);
-
-        let scroll_border_top = self.result_bounds.height * RECENTER_DISTANCE as f32;
-        let scroll_border_bottom = self.results_bounds.height - scroll_border_top;
-
-        let can_recenter = self.selected_result_index != handled_selected_result_index;
-
-        self.camera.vertical.update(
-            target_y,
-            max_y,
-            self.results_bounds.height,
-            scroll_border_top,
-            scroll_border_bottom,
-            can_recenter,
-            dt,
-        );
     }
 
     fn submit(
@@ -398,7 +291,7 @@ impl CommandPalette {
 
         (on_complete_result)(args);
 
-        self.selected_result_index = 0;
+        self.result_list.drain();
     }
 
     fn update_results(
@@ -415,9 +308,7 @@ impl CommandPalette {
 
         self.last_updated_version = Some(self.doc.version());
 
-        self.selected_result_index = 0;
-        self.camera.reset();
-        self.results.clear();
+        self.result_list.drain();
 
         let on_update_results = self.mode.on_update_results;
 
@@ -439,13 +330,6 @@ impl CommandPalette {
         }
 
         gfx.begin(Some(self.bounds));
-
-        gfx.add_bordered_rect(
-            self.results_bounds,
-            SIDE_ALL,
-            &config.theme.background,
-            &config.theme.border,
-        );
 
         gfx.add_bordered_rect(
             self.input_bounds,
@@ -488,33 +372,7 @@ impl CommandPalette {
 
         self.tab.draw(&mut self.doc, config, gfx, is_focused);
 
-        gfx.begin(Some(self.results_bounds.offset_by(self.bounds)));
-
-        let camera_y = self.camera.y().floor();
-
-        let min_y = (camera_y / self.result_bounds.height) as usize;
-        let sub_line_offset_y = camera_y - min_y as f32 * self.result_bounds.height;
-
-        let max_y =
-            ((camera_y + self.results_bounds.height) / self.result_bounds.height) as usize + 1;
-        let max_result_index = max_y.min(self.results.len());
-
-        for (i, y) in (min_y..max_result_index).enumerate() {
-            let visual_y = i as f32 * self.result_bounds.height
-                + (self.result_bounds.height - gfx.glyph_height()) / 2.0
-                - sub_line_offset_y;
-
-            let color = if y == self.selected_result_index {
-                &config.theme.keyword
-            } else {
-                &config.theme.normal
-            };
-
-            let result = &self.results[y];
-            gfx.add_text(result.chars(), gfx.glyph_width(), visual_y, color);
-        }
-
-        gfx.end();
+        self.result_list.draw(config, gfx, |result| result.chars());
     }
 
     pub fn open(

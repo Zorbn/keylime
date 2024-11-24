@@ -3,7 +3,6 @@ use std::{
     fs::{read_to_string, File},
     io::{self, Write},
     path::{Path, PathBuf},
-    time::Instant,
     vec::Drain,
 };
 
@@ -1044,6 +1043,12 @@ impl Doc {
         }
     }
 
+    pub fn insert_at_cursors(&mut self, text: &[char], line_pool: &mut LinePool, time: f32) {
+        for index in self.cursor_indices() {
+            self.insert_at_cursor(index, text, line_pool, time);
+        }
+    }
+
     pub fn insert_at_cursor(
         &mut self,
         index: CursorIndex,
@@ -1179,8 +1184,7 @@ impl Doc {
     pub fn position_to_visual(
         &self,
         position: Position,
-        camera_x: f32,
-        camera_y: f32,
+        camera_position: VisualPosition,
         gfx: &Gfx,
     ) -> VisualPosition {
         let position = self.clamp_position(position);
@@ -1189,21 +1193,20 @@ impl Doc {
         let visual_x = Gfx::measure_text(leading_text.iter().copied());
 
         VisualPosition::new(
-            visual_x as f32 * gfx.glyph_width() - camera_x,
-            position.y as f32 * gfx.line_height() - camera_y,
+            visual_x as f32 * gfx.glyph_width() - camera_position.x,
+            position.y as f32 * gfx.line_height() - camera_position.y,
         )
     }
 
     pub fn visual_to_position(
         &self,
         visual: VisualPosition,
-        camera_x: f32,
-        camera_y: f32,
+        camera_position: VisualPosition,
         gfx: &Gfx,
     ) -> Position {
         let mut position = Position::new(
-            ((visual.x + camera_x) / gfx.glyph_width()) as isize,
-            ((visual.y + camera_y) / gfx.line_height()) as isize,
+            ((visual.x + camera_position.x) / gfx.glyph_width()) as isize,
+            ((visual.y + camera_position.y) / gfx.line_height()) as isize,
         );
 
         let desired_x = position.x;
@@ -1456,15 +1459,8 @@ impl Doc {
             return;
         }
 
-        let start = Instant::now();
-
         self.needs_tokenization = false;
         self.tokenizer.tokenize(&self.lines);
-
-        println!(
-            "tokenization time: {}ms",
-            start.elapsed().as_secs_f32() * 1000.0
-        );
     }
 
     pub fn tokens(&self) -> &Trie {
@@ -1473,16 +1469,14 @@ impl Doc {
 
     pub fn update_highlights(
         &mut self,
-        camera_x: f32,
-        camera_y: f32,
+        camera_position: VisualPosition,
         bounds: Rect,
         syntax: &Syntax,
         gfx: &Gfx,
     ) {
         let end = self.visual_to_position(
-            VisualPosition::new(0.0, camera_y + bounds.height),
-            camera_x,
-            camera_y,
+            VisualPosition::new(0.0, camera_position.y + bounds.height),
+            camera_position,
             gfx,
         );
 

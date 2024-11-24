@@ -99,12 +99,8 @@ impl Tab {
                 mousebind.y - self.doc_bounds.y,
             );
 
-            let position = doc.visual_to_position(
-                visual_position,
-                self.camera.x(),
-                self.camera.y(),
-                window.gfx(),
-            );
+            let position =
+                doc.visual_to_position(visual_position, self.camera.position(), window.gfx());
 
             match mousebind {
                 Mousebind {
@@ -173,7 +169,7 @@ impl Tab {
     fn update_camera_vertical(&mut self, doc: &Doc, gfx: &Gfx, dt: f32) {
         let new_cursor_position = doc.get_cursor(CursorIndex::Main).position;
         let new_cursor_visual_position =
-            doc.position_to_visual(new_cursor_position, self.camera.x(), self.camera.y(), gfx);
+            doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
 
         let can_recenter = self.handled_cursor_position != new_cursor_position;
 
@@ -197,7 +193,7 @@ impl Tab {
     fn update_camera_horizontal(&mut self, doc: &Doc, gfx: &Gfx, dt: f32) {
         let new_cursor_position = doc.get_cursor(CursorIndex::Main).position;
         let new_cursor_visual_position =
-            doc.position_to_visual(new_cursor_position, self.camera.x(), self.camera.y(), gfx);
+            doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
 
         let can_recenter = self.handled_cursor_position != new_cursor_position;
 
@@ -235,22 +231,15 @@ impl Tab {
             .get_language_for_doc(doc)
             .and_then(|language| language.syntax.as_ref())
         {
-            doc.update_highlights(
-                self.camera.x(),
-                self.camera.y(),
-                self.doc_bounds,
-                syntax,
-                gfx,
-            );
+            doc.update_highlights(self.camera.position(), self.doc_bounds, syntax, gfx);
         }
 
-        let camera_x = self.camera.x().floor();
-        let camera_y = self.camera.y().floor();
+        let camera_position = self.camera.position().floor();
 
-        let min_y = (camera_y / gfx.line_height()) as usize;
-        let sub_line_offset_y = camera_y - min_y as f32 * gfx.line_height();
+        let min_y = (camera_position.y / gfx.line_height()) as usize;
+        let sub_line_offset_y = camera_position.y - min_y as f32 * gfx.line_height();
 
-        let max_y = ((camera_y + self.doc_bounds.height) / gfx.line_height()) as usize + 1;
+        let max_y = ((camera_position.y + self.doc_bounds.height) / gfx.line_height()) as usize + 1;
         let max_y = max_y.min(doc.lines().len());
 
         if doc.kind() == DocKind::MultiLine {
@@ -275,7 +264,7 @@ impl Tab {
             doc,
             &config.theme,
             gfx,
-            camera_x,
+            camera_position,
             sub_line_offset_y,
             min_y,
             max_y,
@@ -285,8 +274,7 @@ impl Tab {
             &config.theme,
             gfx,
             is_focused,
-            camera_x,
-            camera_y,
+            camera_position,
             min_y,
             max_y,
         );
@@ -339,7 +327,7 @@ impl Tab {
         doc: &Doc,
         theme: &Theme,
         gfx: &mut Gfx,
-        camera_x: f32,
+        camera_position: VisualPosition,
         sub_line_offset_y: f32,
         min_y: usize,
         max_y: usize,
@@ -352,7 +340,7 @@ impl Tab {
             let visual_y = Self::get_line_visual_y(i, sub_line_offset_y, gfx);
 
             if y >= highlighted_lines.len() {
-                let visual_x = -camera_x;
+                let visual_x = -camera_position.x;
 
                 gfx.add_text(line.iter().copied(), visual_x, visual_y, &theme.normal);
             } else {
@@ -360,7 +348,7 @@ impl Tab {
                 let highlighted_line = &highlighted_lines[y];
 
                 for highlight in highlighted_line.highlights() {
-                    let visual_x = x as f32 * gfx.glyph_width() - camera_x;
+                    let visual_x = x as f32 * gfx.glyph_width() - camera_position.x;
                     let color = &theme.highlight_kind_to_color(highlight.kind);
 
                     x += gfx.add_text(
@@ -380,8 +368,7 @@ impl Tab {
         theme: &Theme,
         gfx: &mut Gfx,
         is_focused: bool,
-        camera_x: f32,
-        camera_y: f32,
+        camera_position: VisualPosition,
         min_y: usize,
         max_y: usize,
     ) {
@@ -395,7 +382,7 @@ impl Tab {
             let mut position = start;
 
             while position < end {
-                let highlight_position = doc.position_to_visual(position, camera_x, camera_y, gfx);
+                let highlight_position = doc.position_to_visual(position, camera_position, gfx);
 
                 let char = doc.get_char(position);
                 let char_width = Gfx::get_char_width(char);
@@ -418,12 +405,15 @@ impl Tab {
             let cursor_width = (gfx.glyph_width() * 0.25).ceil();
 
             for index in doc.cursor_indices() {
-                let cursor_position =
-                    doc.position_to_visual(doc.get_cursor(index).position, 0.0, camera_y, gfx);
+                let cursor_position = doc.position_to_visual(
+                    doc.get_cursor(index).position,
+                    VisualPosition::new(0.0, camera_position.y),
+                    gfx,
+                );
 
                 gfx.add_rect(
                     Rect::new(
-                        (cursor_position.x - cursor_width / 2.0).max(0.0) - camera_x,
+                        (cursor_position.x - cursor_width / 2.0).max(0.0) - camera_position.x,
                         cursor_position.y,
                         cursor_width,
                         gfx.line_height(),

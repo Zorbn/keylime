@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    geometry::{rect::Rect, side::SIDE_ALL, visual_position::VisualPosition},
+    geometry::{rect::Rect, visual_position::VisualPosition},
     input::{
         key::Key,
         keybind::{Keybind, MOD_ALT, MOD_CTRL, MOD_CTRL_ALT},
@@ -17,7 +17,13 @@ use crate::{
     ui::command_palette::CommandPalette,
 };
 
-use super::{doc_list::DocList, pane::Pane};
+use super::{
+    doc_list::DocList,
+    pane::Pane,
+    result_list::{ResultList, ResultListInput},
+};
+
+const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
 
 pub struct Editor {
     doc_list: DocList,
@@ -26,12 +32,10 @@ pub struct Editor {
     focused_pane_index: usize,
 
     bounds: Rect,
-    completion_result_bounds: Rect,
-    completion_results_bounds: Rect,
 
-    completion_results: Vec<Line>,
+    completion_result_list: ResultList<Line>,
     completion_result_pool: LinePool,
-    completion_prefix_len: usize,
+    completion_prefix: Vec<char>,
 }
 
 impl Editor {
@@ -42,12 +46,10 @@ impl Editor {
             focused_pane_index: 0,
 
             bounds: Rect::zero(),
-            completion_result_bounds: Rect::zero(),
-            completion_results_bounds: Rect::zero(),
 
-            completion_results: Vec::new(),
+            completion_result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS),
             completion_result_pool: LinePool::new(),
-            completion_prefix_len: 0,
+            completion_prefix: Vec::new(),
         };
 
         editor
@@ -58,6 +60,10 @@ impl Editor {
     }
 
     pub fn is_animating(&self) -> bool {
+        if self.completion_result_list.is_animating() {
+            return true;
+        }
+
         for pane in &self.panes {
             if pane.is_animating() {
                 return true;
@@ -82,15 +88,6 @@ impl Editor {
             pane_bounds.x += pane_bounds.width;
         }
 
-        self.completion_result_bounds =
-            Rect::new(0.0, 0.0, gfx.glyph_width() * 20.0, gfx.line_height() * 1.25);
-
-        self.completion_results_bounds = Rect::zero();
-
-        if self.completion_results.is_empty() {
-            return;
-        }
-
         let focused_pane = &self.panes[self.focused_pane_index];
 
         let Some((tab, doc)) =
@@ -101,16 +98,29 @@ impl Editor {
 
         let cursor_position = doc.get_cursor(CursorIndex::Main).position;
         let cursor_visual_position = doc
-            .position_to_visual(cursor_position, tab.camera.x(), tab.camera.y(), gfx)
+            .position_to_visual(cursor_position, tab.camera.position(), gfx)
             .offset_by(tab.doc_bounds());
 
-        self.completion_results_bounds = Rect::new(
-            cursor_visual_position.x - self.completion_prefix_len as f32 * gfx.glyph_width(),
-            cursor_visual_position.y + gfx.line_height(),
-            self.completion_result_bounds.width,
-            self.completion_result_bounds.height * self.completion_results.len() as f32,
-        )
-        .add_margin(gfx.border_width());
+        let min_y = self.completion_result_list.min_visible_result_index();
+        let max_y = self.completion_result_list.max_visible_result_index();
+        let mut longest_visible_result = 0;
+
+        for y in min_y..max_y {
+            longest_visible_result =
+                longest_visible_result.max(self.completion_result_list.results[y].len());
+        }
+
+        self.completion_result_list.layout(
+            Rect::new(
+                cursor_visual_position.x
+                    - (self.completion_prefix.len() as f32 + 1.0) * gfx.glyph_width()
+                    + gfx.border_width(),
+                cursor_visual_position.y + gfx.line_height(),
+                (longest_visible_result as f32 + 2.0) * gfx.glyph_width(),
+                0.0,
+            ),
+            gfx,
+        );
     }
 
     pub fn update(
@@ -203,6 +213,30 @@ impl Editor {
 
         let pane = &mut self.panes[self.focused_pane_index];
 
+        let result_input = self.completion_result_list.update(window, dt);
+
+        match result_input {
+            ResultListInput::None => {}
+            ResultListInput::Complete | ResultListInput::Submit { .. } => {
+                if let Some(result) = self.completion_result_list.get_selected_result() {
+                    if let Some((_, doc)) =
+                        pane.get_tab_with_doc_mut(pane.focused_tab_index(), &mut self.doc_list)
+                    {
+                        doc.insert_at_cursors(
+                            &result[self.completion_prefix.len()..],
+                            line_pool,
+                            time,
+                        );
+                    }
+                }
+            }
+            ResultListInput::Close => {
+                for result in self.completion_result_list.drain() {
+                    self.completion_result_pool.push(result);
+                }
+            }
+        }
+
         pane.update(
             &mut self.doc_list,
             command_palette,
@@ -213,13 +247,7 @@ impl Editor {
             time,
         );
 
-        if let Some((tab, doc)) = pane.get_tab_with_doc(pane.focused_tab_index(), &self.doc_list) {
-            for result in self.completion_results.drain(..) {
-                self.completion_result_pool.push(result);
-            }
-
-            self.completion_prefix_len = 0;
-
+        if let Some((_, doc)) = pane.get_tab_with_doc(pane.focused_tab_index(), &self.doc_list) {
             let position = doc.get_cursor(CursorIndex::Main).position;
             let word_selection = doc.select_current_word_at_position(position);
             let word_selection = Selection {
@@ -231,15 +259,22 @@ impl Editor {
                 .get_line(position.y)
                 .filter(|_| word_selection.start.y == word_selection.end.y)
                 .map(|line| &line[word_selection.start.x as usize..word_selection.end.x as usize])
-                .filter(|prefix| !prefix.is_empty())
+                .filter(|prefix| self.completion_prefix != *prefix)
             {
-                self.completion_prefix_len = prefix.len();
+                self.completion_prefix.clear();
+                self.completion_prefix.extend_from_slice(prefix);
 
-                doc.tokens().traverse(
-                    prefix,
-                    &mut self.completion_results,
-                    &mut self.completion_result_pool,
-                );
+                for result in self.completion_result_list.drain() {
+                    self.completion_result_pool.push(result);
+                }
+
+                if !prefix.is_empty() {
+                    doc.tokens().traverse(
+                        prefix,
+                        &mut self.completion_result_list.results,
+                        &mut self.completion_result_pool,
+                    );
+                }
             }
         }
 
@@ -261,30 +296,8 @@ impl Editor {
             pane.draw(&mut self.doc_list, config, gfx, is_focused);
         }
 
-        gfx.begin(Some(self.bounds));
-
-        gfx.add_bordered_rect(
-            self.completion_results_bounds,
-            SIDE_ALL,
-            &config.theme.background,
-            &config.theme.border,
-        );
-
-        for (i, result) in self.completion_results.iter().enumerate() {
-            let result_bounds = self
-                .completion_result_bounds
-                .offset_by(self.completion_results_bounds)
-                .shift_y(i as f32 * self.completion_result_bounds.height);
-
-            gfx.add_text(
-                result.iter().copied(),
-                result_bounds.x + gfx.glyph_width() / 2.0,
-                result_bounds.y + (result_bounds.height - gfx.glyph_height()) / 2.0,
-                &config.theme.normal,
-            );
-        }
-
-        gfx.end();
+        self.completion_result_list
+            .draw(config, gfx, |result| result.iter().copied());
     }
 
     fn clamp_focused_pane(&mut self) {

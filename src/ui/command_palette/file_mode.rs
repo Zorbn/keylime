@@ -93,10 +93,7 @@ fn on_complete_results_file(
         ..
     }: CommandPaletteEventArgs,
 ) {
-    let Some(result) = command_palette
-        .results
-        .get(command_palette.selected_result_index)
-    else {
+    let Some(result) = command_palette.result_list.get_selected_result() else {
         return;
     };
 
@@ -159,7 +156,7 @@ fn on_update_results_file(
                 .and_then(|name| name.to_str())
                 .map(|str| str.to_owned())
             {
-                command_palette.results.push(result);
+                command_palette.result_list.results.push(result);
             }
         }
     }

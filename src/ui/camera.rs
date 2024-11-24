@@ -1,3 +1,5 @@
+use crate::geometry::visual_position::VisualPosition;
+
 #[derive(PartialEq, Eq)]
 pub enum CameraRecenterKind {
     None,
@@ -144,11 +146,11 @@ impl Camera {
         self.vertical.reset();
     }
 
-    pub fn x(&self) -> f32 {
-        self.horizontal.position
-    }
-
     pub fn y(&self) -> f32 {
         self.vertical.position
+    }
+
+    pub fn position(&self) -> VisualPosition {
+        VisualPosition::new(self.horizontal.position, self.vertical.position)
     }
 }
