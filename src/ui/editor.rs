@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    geometry::{rect::Rect, visual_position::VisualPosition},
+    geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
         key::Key,
         keybind::{Keybind, MOD_ALT, MOD_CTRL, MOD_CTRL_ALT},
@@ -11,8 +11,8 @@ use crate::{
     temp_buffer::TempBuffer,
     text::{
         cursor_index::CursorIndex,
+        doc::Doc,
         line_pool::{Line, LinePool},
-        selection::Selection,
     },
     ui::command_palette::CommandPalette,
 };
@@ -102,7 +102,8 @@ impl Editor {
             .offset_by(tab.doc_bounds());
 
         let min_y = self.completion_result_list.min_visible_result_index();
-        let max_y = self.completion_result_list.max_visible_result_index();
+        let max_y =
+            (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.completion_result_list.results.len());
         let mut longest_visible_result = 0;
 
         for y in min_y..max_y {
@@ -248,18 +249,8 @@ impl Editor {
         );
 
         if let Some((_, doc)) = pane.get_tab_with_doc(pane.focused_tab_index(), &self.doc_list) {
-            let position = doc.get_cursor(CursorIndex::Main).position;
-            let word_selection = doc.select_current_word_at_position(position);
-            let word_selection = Selection {
-                start: word_selection.start,
-                end: word_selection.end.min(position),
-            };
-
-            if let Some(prefix) = doc
-                .get_line(position.y)
-                .filter(|_| word_selection.start.y == word_selection.end.y)
-                .map(|line| &line[word_selection.start.x as usize..word_selection.end.x as usize])
-                .filter(|prefix| self.completion_prefix != *prefix)
+            if let Some(prefix) =
+                Self::get_completion_prefix(doc).filter(|prefix| self.completion_prefix != *prefix)
             {
                 self.completion_prefix.clear();
                 self.completion_prefix.extend_from_slice(prefix);
@@ -298,6 +289,29 @@ impl Editor {
 
         self.completion_result_list
             .draw(config, gfx, |result| result.iter().copied());
+    }
+
+    fn get_completion_prefix(doc: &Doc) -> Option<&[char]> {
+        let prefix_end = doc.get_cursor(CursorIndex::Main).position;
+
+        if prefix_end.x == 0 {
+            return Some(&[]);
+        }
+
+        let mut prefix_start = doc.move_position(prefix_end, Position::new(-1, 0));
+
+        while prefix_start.x > 0 {
+            let c = doc.get_char(prefix_start);
+
+            if !c.is_alphanumeric() && c != '_' {
+                break;
+            }
+
+            prefix_start = doc.move_position(prefix_start, Position::new(-1, 0));
+        }
+
+        doc.get_line(prefix_end.y)
+            .map(|line| &line[prefix_start.x as usize..prefix_end.x as usize])
     }
 
     fn clamp_focused_pane(&mut self) {

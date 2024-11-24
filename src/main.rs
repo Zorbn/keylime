@@ -18,9 +18,6 @@ use platform::window::WindowRunner;
  * TODO:
  * Running commands and seeing output (very simple integrated terminal).
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
- * Simple auto-complete.
- *     - Fix prefix check, it currently skips trailing spaces leading to weird behavior when you press space with completion results,
- *     - Integrate auto complete results from multiple files,
  */
 
 fn main() {

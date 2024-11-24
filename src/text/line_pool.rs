@@ -12,10 +12,6 @@ impl LinePool {
     }
 
     pub fn pop(&mut self) -> Line {
-        if self.available.is_empty() {
-            println!("pool is empty")
-        }
-
         self.available.pop().unwrap_or_default()
     }
 
