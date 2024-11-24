@@ -299,7 +299,14 @@ impl SyntaxHighlighter {
                 }
 
                 if let HighlightResult::Token { end } = Self::match_identifier(line, x) {
-                    let kind = if syntax.keywords.contains(&line[x..end]) {
+                    let prefix_kind = self.highlighted_lines[y]
+                        .highlights
+                        .last()
+                        .and_then(|last| syntax.prefixes.get(&line[last.start..last.end]));
+
+                    let kind = if let Some(prefix_kind) = prefix_kind {
+                        *prefix_kind
+                    } else if syntax.keywords.contains(&line[x..end]) {
                         HighlightKind::Keyword
                     } else if end < line.len() && line[end] == '(' {
                         HighlightKind::Function

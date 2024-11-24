@@ -15,6 +15,7 @@ use crate::{
     text::{
         doc::Doc,
         syntax::{Syntax, SyntaxRange},
+        syntax_highlighter::HighlightKind,
     },
     ui::color::Color,
 };
@@ -25,8 +26,11 @@ const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
 
 #[derive(Deserialize, Debug)]
 pub struct SyntaxDesc<'a> {
-    #[serde(borrow)]
+    #[serde(borrow, default)]
     pub keywords: Vec<&'a str>,
+    #[serde(borrow, default)]
+    pub prefixes: HashMap<&'a str, HighlightKind>,
+    #[serde(default)]
     pub ranges: Vec<SyntaxRange>,
 }
 
@@ -91,7 +95,7 @@ impl Config {
 
                 let syntax = language_desc
                     .syntax
-                    .map(|syntax| Syntax::new(&syntax.keywords, &syntax.ranges));
+                    .map(|syntax| Syntax::new(&syntax.keywords, &syntax.prefixes, &syntax.ranges));
 
                 languages.push(Language {
                     indent_width: language_desc.indent_width,
