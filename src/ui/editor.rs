@@ -14,10 +14,10 @@ use crate::{
         doc::Doc,
         line_pool::{Line, LinePool},
     },
-    ui::command_palette::CommandPalette,
 };
 
 use super::{
+    command_palette::CommandPalette,
     doc_list::DocList,
     pane::Pane,
     result_list::{ResultList, ResultListInput},

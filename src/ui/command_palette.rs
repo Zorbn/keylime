@@ -22,18 +22,18 @@ use crate::{
         doc::{Doc, DocKind},
         line_pool::{Line, LinePool},
     },
-    ui::tab::Tab,
 };
-
-use file_mode::MODE_OPEN_FILE;
-use mode::{CommandPaletteEventArgs, CommandPaletteMode};
 
 use super::{
     doc_list::DocList,
     editor::Editor,
     pane::Pane,
     result_list::{ResultList, ResultListInput},
+    tab::Tab,
 };
+
+use file_mode::MODE_OPEN_FILE;
+use mode::{CommandPaletteEventArgs, CommandPaletteMode};
 
 #[derive(PartialEq, Eq)]
 enum CommandPaletteState {

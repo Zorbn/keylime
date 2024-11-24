@@ -9,19 +9,20 @@ use std::{
 use crate::{
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     platform::gfx::Gfx,
-    text::{
-        action_history::{Action, ActionHistory, ActionKind},
-        char_category::CharCategory,
-        cursor::Cursor,
-        cursor_index::{CursorIndex, CursorIndices},
-        line_pool::{Line, LinePool},
-        selection::Selection,
-        syntax::Syntax,
-        syntax_highlighter::{HighlightedLine, SyntaxHighlighter},
-    },
 };
 
-use super::{tokenizer::Tokenizer, trie::Trie};
+use super::{
+    action_history::{Action, ActionHistory, ActionKind},
+    char_category::CharCategory,
+    cursor::Cursor,
+    cursor_index::{CursorIndex, CursorIndices},
+    line_pool::{Line, LinePool},
+    selection::Selection,
+    syntax::Syntax,
+    syntax_highlighter::{HighlightedLine, SyntaxHighlighter},
+    tokenizer::Tokenizer,
+    trie::Trie,
+};
 
 macro_rules! action_history {
     ($self:ident, $action_kind:expr) => {

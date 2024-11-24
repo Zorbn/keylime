@@ -22,11 +22,12 @@ use crate::{
         rect::Rect,
         side::{SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     },
-    platform::{
-        text::{AtlasDimensions, Text},
-        window::Window,
-    },
     ui::color::Color,
+};
+
+use super::{
+    text::{AtlasDimensions, Text},
+    window::Window,
 };
 
 const SHADER_CODE: &str = r#"

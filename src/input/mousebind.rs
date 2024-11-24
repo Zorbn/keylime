@@ -1,4 +1,4 @@
-use crate::input::{
+use super::{
     keybind::{MOD_ALT, MOD_CTRL, MOD_SHIFT},
     mouse_button::MouseButton,
 };

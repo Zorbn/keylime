@@ -1,8 +1,9 @@
 use serde::Deserialize;
 
-use crate::text::line_pool::Line;
-
-use super::syntax::{Syntax, SyntaxRange};
+use super::{
+    line_pool::Line,
+    syntax::{Syntax, SyntaxRange},
+};
 
 #[derive(Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum HighlightKind {

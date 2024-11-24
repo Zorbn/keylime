@@ -17,8 +17,9 @@ use crate::{
         doc::{Doc, DocKind},
         line_pool::LinePool,
     },
-    ui::camera::{Camera, RECENTER_DISTANCE},
 };
+
+use super::camera::{Camera, RECENTER_DISTANCE};
 
 const GUTTER_PADDING_WIDTH: f32 = 1.0;
 const GUTTER_BORDER_WIDTH: f32 = 0.5;

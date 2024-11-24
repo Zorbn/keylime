@@ -37,8 +37,9 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::Mousebind,
     },
-    platform::gfx::Gfx,
 };
+
+use super::gfx::Gfx;
 
 const DEFAULT_DPI: f32 = 96.0;
 

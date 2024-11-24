@@ -1,10 +1,10 @@
 use crate::{
     config::Config,
     text::line_pool::LinePool,
-    ui::{command_palette::CommandPalette, doc_list::DocList, pane::Pane},
+    ui::{doc_list::DocList, pane::Pane},
 };
 
-use super::CommandPaletteAction;
+use super::{CommandPalette, CommandPaletteAction};
 
 pub struct CommandPaletteEventArgs<'a> {
     pub command_palette: &'a mut CommandPalette,

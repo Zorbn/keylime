@@ -1,6 +1,8 @@
-use crate::text::syntax_highlighter::{HighlightResult, SyntaxHighlighter};
-
-use super::{line_pool::Line, trie::Trie};
+use super::{
+    line_pool::Line,
+    syntax_highlighter::{HighlightResult, SyntaxHighlighter},
+    trie::Trie,
+};
 
 pub struct Tokenizer {
     tokens: Trie,

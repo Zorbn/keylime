@@ -1,4 +1,4 @@
-use crate::geometry::visual_position::VisualPosition;
+use super::visual_position::VisualPosition;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Rect {
