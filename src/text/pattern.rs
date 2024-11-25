@@ -15,6 +15,20 @@ struct PartialPatternMatch {
     end: usize,
 }
 
+impl PartialPatternMatch {
+    pub fn combine_with_existing_capture(
+        &self,
+        capture_start: Option<usize>,
+        capture_end: Option<usize>,
+    ) -> Self {
+        Self {
+            capture_start: capture_start.or(self.capture_start),
+            capture_end: capture_end.or(self.capture_end),
+            end: self.end,
+        }
+    }
+}
+
 #[derive(Debug)]
 enum PatternModifier {
     OneOrMore,        // +
@@ -192,10 +206,10 @@ impl Pattern {
         let mut capture_start = None;
         let mut capture_end = None;
 
-        let mut part_i = 0;
+        let mut part_index = 0;
 
-        while part_i < parts.len() {
-            let part = &parts[part_i];
+        while part_index < parts.len() {
+            let part = &parts[part_index];
 
             match part {
                 PatternPart::CaptureStart => {
@@ -205,55 +219,13 @@ impl Pattern {
                     capture_end = Some(i);
                 }
                 PatternPart::Modifier(modifier) => {
-                    let next_part = &parts[part_i + 1];
+                    let next_part = &parts[part_index + 1];
+                    let remaining_parts = &parts[part_index + 2..];
 
-                    match modifier {
-                        PatternModifier::OneOrMore => {
-                            let one_or_more_start = i;
-
-                            while Self::match_literal_or_class(text, i, next_part) {
-                                i += 1;
-                            }
-
-                            if i == one_or_more_start {
-                                return None;
-                            }
-                        }
-                        PatternModifier::ZeroOrMoreGreedy => {
-                            while Self::match_literal_or_class(text, i, next_part) {
-                                i += 1;
-                            }
-                        }
-                        PatternModifier::ZeroOrMoreFrugal => {
-                            let remaining_parts = &parts[part_i + 2..];
-
-                            loop {
-                                if let Some(pattern_match) =
-                                    Self::match_parts(text, remaining_parts, i)
-                                {
-                                    return Some(PartialPatternMatch {
-                                        capture_start: capture_start
-                                            .or(pattern_match.capture_start),
-                                        capture_end: capture_end.or(pattern_match.capture_end),
-                                        end: pattern_match.end,
-                                    });
-                                }
-
-                                if Self::match_literal_or_class(text, i, next_part) {
-                                    i += 1;
-                                } else {
-                                    break;
-                                }
-                            }
-                        }
-                        PatternModifier::ZeroOrOne => {
-                            if Self::match_literal_or_class(text, i, next_part) {
-                                i += 1;
-                            }
-                        }
-                    }
-
-                    part_i += 1;
+                    return Self::match_modifier(text, modifier, next_part, remaining_parts, i)
+                        .map(|pattern_match| {
+                            pattern_match.combine_with_existing_capture(capture_start, capture_end)
+                        });
                 }
                 _ => {
                     if Self::match_literal_or_class(text, i, part) {
@@ -264,7 +236,7 @@ impl Pattern {
                 }
             }
 
-            part_i += 1;
+            part_index += 1;
         }
 
         Some(PartialPatternMatch {
@@ -272,6 +244,101 @@ impl Pattern {
             capture_end,
             end: i,
         })
+    }
+
+    fn match_modifier(
+        text: &[char],
+        modifier: &PatternModifier,
+        next_part: &PatternPart,
+        remaining_parts: &[PatternPart],
+        start: usize,
+    ) -> Option<PartialPatternMatch> {
+        match modifier {
+            PatternModifier::OneOrMore => {
+                Self::match_modifier_one_or_more(text, next_part, remaining_parts, start)
+            }
+            PatternModifier::ZeroOrMoreGreedy => {
+                Self::match_modifier_zero_or_more_greedy(text, next_part, remaining_parts, start)
+            }
+            PatternModifier::ZeroOrMoreFrugal => {
+                Self::match_modifier_zero_or_more_frugal(text, next_part, remaining_parts, start)
+            }
+            PatternModifier::ZeroOrOne => {
+                Self::match_modifier_zero_or_one(text, next_part, remaining_parts, start)
+            }
+        }
+    }
+
+    fn match_modifier_one_or_more(
+        text: &[char],
+        next_part: &PatternPart,
+        remaining_parts: &[PatternPart],
+        mut i: usize,
+    ) -> Option<PartialPatternMatch> {
+        if !Self::match_literal_or_class(text, i, next_part) {
+            return None;
+        }
+
+        i += 1;
+
+        Self::match_modifier_zero_or_more_greedy(text, next_part, remaining_parts, i)
+    }
+
+    fn match_modifier_zero_or_more_greedy(
+        text: &[char],
+        next_part: &PatternPart,
+        remaining_parts: &[PatternPart],
+        mut i: usize,
+    ) -> Option<PartialPatternMatch> {
+        let mut pattern_match: Option<PartialPatternMatch> = None;
+
+        loop {
+            pattern_match = Self::match_parts(text, remaining_parts, i).or(pattern_match);
+
+            if Self::match_literal_or_class(text, i, next_part) {
+                i += 1;
+            } else {
+                break;
+            }
+        }
+
+        pattern_match
+    }
+
+    fn match_modifier_zero_or_more_frugal(
+        text: &[char],
+        next_part: &PatternPart,
+        remaining_parts: &[PatternPart],
+        mut i: usize,
+    ) -> Option<PartialPatternMatch> {
+        loop {
+            if let Some(pattern_match) = Self::match_parts(text, remaining_parts, i) {
+                return Some(pattern_match);
+            }
+
+            if Self::match_literal_or_class(text, i, next_part) {
+                i += 1;
+            } else {
+                return None;
+            }
+        }
+    }
+
+    fn match_modifier_zero_or_one(
+        text: &[char],
+        next_part: &PatternPart,
+        remaining_parts: &[PatternPart],
+        mut i: usize,
+    ) -> Option<PartialPatternMatch> {
+        let mut pattern_match = Self::match_parts(text, remaining_parts, i);
+
+        if Self::match_literal_or_class(text, i, next_part) {
+            i += 1;
+
+            pattern_match = Self::match_parts(text, remaining_parts, i).or(pattern_match);
+        }
+
+        pattern_match
     }
 
     fn match_literal_or_class(text: &[char], index: usize, part: &PatternPart) -> bool {

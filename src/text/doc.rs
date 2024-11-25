@@ -1087,6 +1087,7 @@ impl Doc {
 
         loop {
             let line = &self.lines[position.y as usize];
+            let last_position = position;
             let status;
             (position, status) = self.step_wrapped(line, start, position, step);
 
@@ -1112,6 +1113,7 @@ impl Doc {
                 }
             } else {
                 match_index = 0;
+                position = last_position;
             }
         }
 

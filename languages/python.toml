@@ -43,8 +43,8 @@ keywords = [
 tokens = [
     { pattern = "#%.*", kind = "Comment" },
     { pattern = "([%a_][%w_]*)%(", kind = "Function" },
-    { pattern = "0x%x*", kind = "Number" },
-    { pattern = "0b[01]*", kind = "Number" },
+    { pattern = "0x%x+", kind = "Number" },
+    { pattern = "0b[01]+", kind = "Number" },
     { pattern = "%d[%d_.]*", kind = "Number" },
     { pattern = "[!=&,><./:@^|;{}()%%%*%+%-%?%[%]]", kind = "Symbol" },
 ]
