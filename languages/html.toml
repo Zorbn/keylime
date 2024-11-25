@@ -2,8 +2,12 @@ extensions = ["html", "xml"]
 indent_width = 4
 
 [syntax]
-prefixes = { "<" = "Keyword", "</" = "Keyword", "<!" = "Keyword" }
+tokens = [
+    { pattern = "<(%w+)", kind = "Keyword" },
+    { pattern = "</(%w+)", kind = "Keyword" },
+    { pattern = "<!(%w+)", kind = "Keyword" },
+]
 ranges = [
     { start = '"', end = '"', kind = "String" },
-    { start = "<!--", end = "-->", kind = "Comment" },
+    { start = "<!%-%-", end = "%-%->", kind = "Comment" },
 ]

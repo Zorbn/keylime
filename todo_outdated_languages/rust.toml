@@ -1,0 +1,50 @@
+extensions = ["rs"]
+indent_width = 4
+
+[syntax]
+keywords = [
+    "as",
+    "break",
+    "const",
+    "continue",
+    "crate",
+    "else",
+    "enum",
+    "extern",
+    "false",
+    "fn",
+    "for",
+    "if",
+    "impl",
+    "in",
+    "let",
+    "loop",
+    "match",
+    "mod",
+    "move",
+    "mut",
+    "pub",
+    "ref",
+    "return",
+    "self",
+    "Self",
+    "static",
+    "struct",
+    "super",
+    "trait",
+    "true",
+    "type",
+    "unsafe",
+    "use",
+    "where",
+    "while",
+]
+prefixes = { "'" = "Preprocessor" }
+ranges = [
+    { start = '"', end = '"', escape = '\', kind = "String" },
+    { start = "'", end = "'", escape = '\', max_length = 1, kind = "String" },
+    { start = "#[", end = "]", kind = "Preprocessor" },
+    { start = "#![", end = "]", kind = "Preprocessor" },
+    { start = "//", end = "\n", kind = "Comment" },
+    { start = "/*", end = "*/", kind = "Comment" },
+]

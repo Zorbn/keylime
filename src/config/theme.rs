@@ -11,7 +11,7 @@ pub struct Theme {
     pub number: Color,
     pub symbol: Color,
     pub string: Color,
-    pub preprocessor: Color,
+    pub meta: Color,
     pub selection: Color,
     pub line_number: Color,
     pub border: Color,
@@ -28,7 +28,7 @@ impl Theme {
             HighlightKind::Number => self.number,
             HighlightKind::Symbol => self.symbol,
             HighlightKind::String => self.string,
-            HighlightKind::Preprocessor => self.preprocessor,
+            HighlightKind::Meta => self.meta,
         }
     }
 

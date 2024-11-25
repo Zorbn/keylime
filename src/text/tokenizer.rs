@@ -22,13 +22,13 @@ impl Tokenizer {
             let mut x = 0;
 
             while x < line.len() {
-                let HighlightResult::Token { end } = SyntaxHighlighter::match_identifier(line, x)
+                let HighlightResult::Token { start, end } =
+                    SyntaxHighlighter::match_identifier(line, x)
                 else {
                     x += 1;
                     continue;
                 };
 
-                let start = x;
                 x = end;
 
                 let token_chars = &line[start..end];

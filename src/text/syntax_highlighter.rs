@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 use super::{
     line_pool::Line,
-    syntax::{Syntax, SyntaxRange},
+    syntax::{Syntax, SyntaxRange, SyntaxToken},
 };
 
 #[derive(Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
@@ -14,7 +14,7 @@ pub enum HighlightKind {
     Number,
     Symbol,
     String,
-    Preprocessor,
+    Meta,
 }
 
 #[derive(Clone, Copy)]
@@ -25,8 +25,15 @@ pub struct Highlight {
 }
 
 pub enum HighlightResult {
-    Token { end: usize },
-    Range { end: usize, is_finished: bool },
+    Token {
+        start: usize,
+        end: usize,
+    },
+    Range {
+        start: usize,
+        end: usize,
+        is_finished: bool,
+    },
     None,
 }
 
@@ -101,85 +108,19 @@ impl SyntaxHighlighter {
             i += 1;
         }
 
-        HighlightResult::Token { end: i }
+        HighlightResult::Token { start, end: i }
     }
 
-    fn match_predicate(line: &Line, start: usize, predicate: fn(char) -> bool) -> HighlightResult {
-        let mut i = start;
-
-        while i < line.len() {
-            if !predicate(line[i]) {
-                if i == start {
-                    return HighlightResult::None;
-                }
-
-                break;
-            }
-
-            i += 1;
+    // TODO: Consider replacing line/[char] + start arguments with just a line/[char] that
+    // the caller can slice like &line[start..] here and in the pattern code.
+    fn match_token(line: &Line, start: usize, token: &SyntaxToken) -> HighlightResult {
+        match token.pattern.match_text(line, start) {
+            Some(pattern_match) => HighlightResult::Token {
+                start: pattern_match.start,
+                end: pattern_match.end,
+            },
+            None => HighlightResult::None,
         }
-
-        HighlightResult::Token { end: i }
-    }
-
-    fn match_number(line: &Line, start: usize) -> HighlightResult {
-        let mut i = start;
-
-        if i + 2 < line.len() && line[i] == '0' {
-            let base_indicator = line[i + 1];
-            let digits_start = start + 2;
-
-            match base_indicator {
-                'x' => return Self::match_predicate(line, digits_start, |c| c.is_ascii_hexdigit()),
-                'b' => {
-                    return Self::match_predicate(line, digits_start, |c| matches!(c, '0' | '1'))
-                }
-                _ => {}
-            }
-        }
-
-        let mut has_digit = false;
-        let mut has_dot = false;
-
-        while i < line.len() {
-            let c = line[i];
-
-            if c.is_ascii_digit() {
-                has_digit = true;
-                i += 1;
-                continue;
-            } else if c == '.' {
-                if has_dot || !has_digit {
-                    break;
-                }
-
-                has_dot = true;
-                i += 1;
-                continue;
-            }
-
-            break;
-        }
-
-        if has_digit {
-            HighlightResult::Token { end: i }
-        } else {
-            HighlightResult::None
-        }
-    }
-
-    fn match_text(line: &Line, start: usize, text: &str) -> bool {
-        let mut i = start;
-
-        for c in text.chars() {
-            if i >= line.len() || c != line[i] {
-                return false;
-            }
-
-            i += 1;
-        }
-
-        true
     }
 
     fn match_range(
@@ -191,39 +132,31 @@ impl SyntaxHighlighter {
         let mut i = start;
 
         if !is_in_progress {
-            if !Self::match_text(line, i, &range.start) {
-                return HighlightResult::None;
+            match range.start.match_text(line, start) {
+                Some(pattern_match) => i = pattern_match.end,
+                None => return HighlightResult::None,
             }
-
-            i += range.start.len();
         }
 
-        let mut unescaped_len = 0;
-        let max_len = range.max_length.unwrap_or(usize::MAX);
-
         while i < line.len() {
-            if unescaped_len > max_len {
-                return HighlightResult::None;
-            }
-
             if Some(line[i]) == range.escape {
                 i += 2;
-                unescaped_len += 1;
                 continue;
             }
 
-            if Self::match_text(line, i, &range.end) {
+            if let Some(pattern_match) = range.end.match_text(line, i) {
                 return HighlightResult::Range {
-                    end: i + range.end.len(),
+                    start,
+                    end: pattern_match.end,
                     is_finished: true,
                 };
             }
 
             i += 1;
-            unescaped_len += 1;
         }
 
         HighlightResult::Range {
+            start,
             end: i.min(line.len()),
             is_finished: false,
         }
@@ -248,11 +181,14 @@ impl SyntaxHighlighter {
                 if let Some(unfinished_range_index) = last_highlighted_line.unfinished_range_index {
                     let range = &syntax.ranges[unfinished_range_index];
 
-                    if let HighlightResult::Range { end, is_finished } =
-                        Self::match_range(line, x, range, true)
+                    if let HighlightResult::Range {
+                        start,
+                        end,
+                        is_finished,
+                    } = Self::match_range(line, x, range, true)
                     {
                         self.highlighted_lines[y].push(Highlight {
-                            start: x,
+                            start,
                             end,
                             kind: range.kind,
                         });
@@ -267,89 +203,68 @@ impl SyntaxHighlighter {
             }
 
             'tokenize: while x < line.len() {
-                if line[x].is_whitespace() {
-                    self.highlighted_lines[y].push(Highlight {
-                        start: x,
-                        end: x + 1,
-                        kind: HighlightKind::Normal,
-                    });
-                    x += 1;
+                if !line[x].is_whitespace() {
+                    for (i, range) in syntax.ranges.iter().enumerate() {
+                        let HighlightResult::Range {
+                            start,
+                            end,
+                            is_finished,
+                        } = Self::match_range(line, x, range, false)
+                        else {
+                            continue;
+                        };
 
-                    continue;
-                }
+                        self.highlighted_lines[y].push(Highlight {
+                            start,
+                            end,
+                            kind: range.kind,
+                        });
+                        x = end;
 
-                for (i, range) in syntax.ranges.iter().enumerate() {
-                    let HighlightResult::Range { end, is_finished } =
-                        Self::match_range(line, x, range, false)
-                    else {
-                        continue;
-                    };
-
-                    self.highlighted_lines[y].push(Highlight {
-                        start: x,
-                        end,
-                        kind: range.kind,
-                    });
-                    x = end;
-
-                    if !is_finished && range.end != "\n" {
-                        self.highlighted_lines[y].unfinished_range_index = Some(i);
-                    }
-
-                    continue 'tokenize;
-                }
-
-                if let HighlightResult::Token { end } = Self::match_identifier(line, x) {
-                    let mut prefix_kind = None;
-
-                    if let Some(last) = self.highlighted_lines[y]
-                        .highlights
-                        .last()
-                        .map(|last| &line[last.start..last.end])
-                    {
-                        for (prefix, kind) in &syntax.prefixes {
-                            if last.ends_with(prefix) {
-                                prefix_kind = Some(kind);
-                                break;
-                            }
+                        if !is_finished {
+                            self.highlighted_lines[y].unfinished_range_index = Some(i);
                         }
+
+                        continue 'tokenize;
                     }
 
-                    let kind = if let Some(prefix_kind) = prefix_kind {
-                        *prefix_kind
-                    } else if syntax.keywords.contains(&line[x..end]) {
-                        HighlightKind::Keyword
-                    } else if end < line.len() && line[end] == '(' {
-                        HighlightKind::Function
-                    } else {
-                        HighlightKind::Normal
-                    };
+                    for token in &syntax.tokens {
+                        let HighlightResult::Token { start, end } =
+                            Self::match_token(line, x, token)
+                        else {
+                            continue;
+                        };
 
-                    self.highlighted_lines[y].push(Highlight {
-                        start: x,
-                        end,
-                        kind,
-                    });
-                    x = end;
+                        self.highlighted_lines[y].push(Highlight {
+                            start,
+                            end,
+                            kind: token.kind,
+                        });
+                        x = end;
 
-                    continue;
-                }
+                        continue 'tokenize;
+                    }
 
-                if let HighlightResult::Token { end } = Self::match_number(line, x) {
-                    self.highlighted_lines[y].push(Highlight {
-                        start: x,
-                        end,
-                        kind: HighlightKind::Number,
-                    });
-                    x = end;
+                    if let HighlightResult::Token { start, end } = Self::match_identifier(line, x) {
+                        let identifier = &line[start..end];
 
-                    continue;
+                        let kind = if syntax.keywords.contains(identifier) {
+                            HighlightKind::Keyword
+                        } else {
+                            HighlightKind::Normal
+                        };
+
+                        self.highlighted_lines[y].push(Highlight { start, end, kind });
+                        x = end;
+
+                        continue;
+                    }
                 }
 
                 self.highlighted_lines[y].push(Highlight {
                     start: x,
                     end: x + 1,
-                    kind: HighlightKind::Symbol,
+                    kind: HighlightKind::Normal,
                 });
                 x += 1;
             }

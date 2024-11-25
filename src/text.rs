@@ -4,6 +4,7 @@ mod cursor;
 pub mod cursor_index;
 pub mod doc;
 pub mod line_pool;
+mod pattern;
 pub mod selection;
 pub mod syntax;
 pub mod syntax_highlighter;

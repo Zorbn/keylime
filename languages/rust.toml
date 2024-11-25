@@ -39,12 +39,20 @@ keywords = [
     "where",
     "while",
 ]
-prefixes = { "'" = "Preprocessor" }
+tokens = [
+    { pattern = "//%.*", kind = "Comment" },
+    { pattern = "([%a_][%w_]*)%(", kind = "Function" },
+    { pattern = "([%a_][%w_]*)<%.->%(", kind = "Function" },
+    { pattern = "([%a_][%w_]*)::<%.->%(", kind = "Function" },
+    { pattern = "0x%x*", kind = "Number" },
+    { pattern = "0b[01]*", kind = "Number" },
+    { pattern = "%d[%d_.]*", kind = "Number" },
+    { pattern = "'\\?%.'", kind = "String" },
+    { pattern = "'%l+", kind = "Meta" },
+]
 ranges = [
     { start = '"', end = '"', escape = '\', kind = "String" },
-    { start = "'", end = "'", escape = '\', max_length = 1, kind = "String" },
-    { start = "#[", end = "]", kind = "Preprocessor" },
-    { start = "#![", end = "]", kind = "Preprocessor" },
-    { start = "//", end = "\n", kind = "Comment" },
-    { start = "/*", end = "*/", kind = "Comment" },
+    { start = '#%[', end = '%]', kind = "Meta" },
+    { start = '#!%[', end = '%]', kind = "Meta" },
+    { start = '/%*', end = '%*/', kind = "Comment" },
 ]

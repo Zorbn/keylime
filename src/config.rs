@@ -1,14 +1,12 @@
-mod pair_visitor;
 pub mod theme;
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env::current_exe,
     fs::{read_dir, read_to_string},
     path::{Path, PathBuf},
 };
 
-use pair_visitor::deserialize_pairs;
 use serde::Deserialize;
 use theme::Theme;
 
@@ -16,8 +14,7 @@ use crate::{
     platform::dialog::{message, MessageKind},
     text::{
         doc::Doc,
-        syntax::{Syntax, SyntaxRange},
-        syntax_highlighter::HighlightKind,
+        syntax::{Syntax, SyntaxRange, SyntaxToken},
     },
     ui::color::Color,
 };
@@ -27,13 +24,29 @@ const DEFAULT_COMMENT: fn() -> &'static str = || "//";
 const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
 
 #[derive(Deserialize, Debug)]
-pub struct SyntaxDesc<'a> {
-    #[serde(borrow, default)]
-    pub keywords: Vec<&'a str>,
-    #[serde(borrow, default, deserialize_with = "deserialize_pairs")]
-    pub prefixes: Vec<(&'a str, HighlightKind)>,
+struct SyntaxDesc<'a> {
+    #[serde(default, borrow)]
+    keywords: Vec<&'a str>,
     #[serde(default)]
-    pub ranges: Vec<SyntaxRange>,
+    tokens: Vec<SyntaxToken>,
+    #[serde(default)]
+    ranges: Vec<SyntaxRange>,
+}
+
+impl<'a> SyntaxDesc<'a> {
+    pub fn get_syntax(self) -> Syntax {
+        let mut keywords = HashSet::new();
+
+        for keyword in self.keywords {
+            keywords.insert(keyword.chars().collect());
+        }
+
+        Syntax {
+            keywords,
+            tokens: self.tokens,
+            ranges: self.ranges,
+        }
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -95,14 +108,12 @@ impl Config {
 
                 let language_index = languages.len();
 
-                let syntax = language_desc
-                    .syntax
-                    .map(|syntax| Syntax::new(&syntax.keywords, &syntax.prefixes, &syntax.ranges));
-
                 languages.push(Language {
                     indent_width: language_desc.indent_width,
                     comment: language_desc.comment.to_owned(),
-                    syntax,
+                    syntax: language_desc
+                        .syntax
+                        .map(|syntax_desc| syntax_desc.get_syntax()),
                 });
 
                 for extension in language_desc.extensions {
@@ -218,7 +229,7 @@ impl Default for Config {
                 number: Color::from_hex(0x098658FF),
                 symbol: Color::from_hex(0x000000FF),
                 string: Color::from_hex(0xA31515FF),
-                preprocessor: Color::from_hex(0xAF00DBFF),
+                meta: Color::from_hex(0xAF00DBFF),
                 selection: Color::from_hex(0x4CADE47F),
                 line_number: Color::from_hex(0x6E7681FF),
                 border: Color::from_hex(0xE5E5E5FF),
