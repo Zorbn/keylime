@@ -198,7 +198,7 @@ impl CommandPalette {
             }
         }
 
-        let result_input = self.result_list.update(window, dt);
+        let result_input = self.result_list.update(window, true, dt);
 
         match result_input {
             ResultListInput::None => {}

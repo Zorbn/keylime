@@ -59,7 +59,7 @@ impl<T> ResultList<T> {
         self.results_bounds = self.results_bounds.offset_by(bounds);
     }
 
-    pub fn update(&mut self, window: &mut Window, dt: f32) -> ResultListInput {
+    pub fn update(&mut self, window: &mut Window, is_focused: bool, dt: f32) -> ResultListInput {
         let mut input = ResultListInput::None;
 
         self.selected_result_index = self
@@ -116,7 +116,7 @@ impl<T> ResultList<T> {
             self.camera.vertical.scroll(delta);
         }
 
-        if !self.results.is_empty() {
+        if is_focused {
             self.handle_keybinds(&mut input, window);
         }
 

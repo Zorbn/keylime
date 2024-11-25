@@ -212,7 +212,10 @@ impl Editor {
             }
         }
 
-        let result_input = self.completion_result_list.update(window, dt);
+        let are_results_focused = !self.completion_result_list.results.is_empty();
+        let result_input = self
+            .completion_result_list
+            .update(window, are_results_focused, dt);
 
         match result_input {
             ResultListInput::None => {}
