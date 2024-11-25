@@ -213,6 +213,7 @@ impl Editor {
         }
 
         let are_results_focused = !self.completion_result_list.results.is_empty();
+
         let result_input = self
             .completion_result_list
             .update(window, are_results_focused, dt);
@@ -280,8 +281,10 @@ impl Editor {
             pane.draw(&mut self.doc_list, config, gfx, is_focused);
         }
 
-        self.completion_result_list
-            .draw(config, gfx, |result| result.iter().copied());
+        if self.is_cursor_visible(gfx) {
+            self.completion_result_list
+                .draw(config, gfx, |result| result.iter().copied());
+        }
     }
 
     fn get_completion_prefix(doc: &Doc) -> Option<&[char]> {
@@ -370,6 +373,23 @@ impl Editor {
             .map(|(_, doc)| (doc.version(), doc.get_cursor(CursorIndex::Main).position))
             .map(|info| (Some(info.0), Some(info.1)))
             .unwrap_or_default()
+    }
+
+    fn is_cursor_visible(&self, gfx: &Gfx) -> bool {
+        let pane = &self.panes[self.focused_pane_index];
+
+        let Some((tab, doc)) = pane.get_tab_with_doc(pane.focused_tab_index(), &self.doc_list)
+        else {
+            return false;
+        };
+
+        let cursor_position = doc.get_cursor(CursorIndex::Main).position;
+        let cursor_visual_position = doc
+            .position_to_visual(cursor_position, tab.camera.position(), gfx)
+            .shift_y(gfx.line_height())
+            .offset_by(tab.doc_bounds());
+
+        tab.doc_bounds().contains_position(cursor_visual_position)
     }
 
     fn clamp_focused_pane(&mut self) {
