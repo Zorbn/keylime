@@ -212,14 +212,14 @@ impl Editor {
             }
         }
 
-        let pane = &mut self.panes[self.focused_pane_index];
-
         let result_input = self.completion_result_list.update(window, dt);
 
         match result_input {
             ResultListInput::None => {}
             ResultListInput::Complete | ResultListInput::Submit { .. } => {
                 if let Some(result) = self.completion_result_list.get_selected_result() {
+                    let pane = &mut self.panes[self.focused_pane_index];
+
                     if let Some((_, doc)) =
                         pane.get_tab_with_doc_mut(pane.focused_tab_index(), &mut self.doc_list)
                     {
@@ -244,9 +244,8 @@ impl Editor {
             }
         }
 
-        let handled_doc_version = pane
-            .get_tab_with_doc(pane.focused_tab_index(), &self.doc_list)
-            .map(|(_, doc)| doc.version());
+        let handled_doc_info = self.get_doc_info();
+        let pane = &mut self.panes[self.focused_pane_index];
 
         pane.update(
             &mut self.doc_list,
@@ -258,35 +257,6 @@ impl Editor {
             time,
         );
 
-        if let Some((_, doc)) = pane
-            .get_tab_with_doc(pane.focused_tab_index(), &self.doc_list)
-            .filter(|(_, doc)| {
-                handled_doc_version
-                    .map(|handled_doc_version| handled_doc_version != doc.version())
-                    .unwrap_or(true)
-            })
-        {
-            if let Some(prefix) =
-                Self::get_completion_prefix(doc).filter(|prefix| self.completion_prefix != *prefix)
-            {
-                self.completion_prefix.clear();
-                self.completion_prefix.extend_from_slice(prefix);
-
-                Self::clear_completions(
-                    &mut self.completion_result_list,
-                    &mut self.completion_result_pool,
-                );
-
-                if !prefix.is_empty() {
-                    doc.tokens().traverse(
-                        prefix,
-                        &mut self.completion_result_list.results,
-                        &mut self.completion_result_pool,
-                    );
-                }
-            }
-        }
-
         if pane.tabs_len() == 0 {
             self.close_pane(config, line_pool, time);
         }
@@ -294,6 +264,8 @@ impl Editor {
         for pane in &mut self.panes {
             pane.update_camera(&mut self.doc_list, window, dt);
         }
+
+        self.update_completions(handled_doc_info);
 
         window.clear_inputs();
     }
@@ -341,6 +313,60 @@ impl Editor {
         for result in completion_result_list.drain() {
             completion_result_pool.push(result);
         }
+    }
+
+    fn update_completions(
+        &mut self,
+        (handled_version, handled_position): (Option<usize>, Option<Position>),
+    ) {
+        let (version, position) = self.get_doc_info();
+
+        let is_version_different = version != handled_version;
+        let is_position_different = position != handled_position;
+
+        if is_version_different || is_position_different {
+            self.completion_prefix.clear();
+
+            Self::clear_completions(
+                &mut self.completion_result_list,
+                &mut self.completion_result_pool,
+            );
+        }
+
+        if !is_version_different {
+            return;
+        }
+
+        let pane = &mut self.panes[self.focused_pane_index];
+
+        let Some((_, doc)) = pane.get_tab_with_doc(pane.focused_tab_index(), &self.doc_list) else {
+            return;
+        };
+
+        let Some(prefix) =
+            Self::get_completion_prefix(doc).filter(|prefix| self.completion_prefix != *prefix)
+        else {
+            return;
+        };
+
+        self.completion_prefix.extend_from_slice(prefix);
+
+        if !prefix.is_empty() {
+            doc.tokens().traverse(
+                prefix,
+                &mut self.completion_result_list.results,
+                &mut self.completion_result_pool,
+            );
+        }
+    }
+
+    fn get_doc_info(&self) -> (Option<usize>, Option<Position>) {
+        let pane = &self.panes[self.focused_pane_index];
+
+        pane.get_tab_with_doc(pane.focused_tab_index(), &self.doc_list)
+            .map(|(_, doc)| (doc.version(), doc.get_cursor(CursorIndex::Main).position))
+            .map(|info| (Some(info.0), Some(info.1)))
+            .unwrap_or_default()
     }
 
     fn clamp_focused_pane(&mut self) {
