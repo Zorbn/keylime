@@ -49,6 +49,7 @@ tokens = [
     { pattern = "%d[%d_.]*", kind = "Number" },
     { pattern = "'\\?%.'", kind = "String" },
     { pattern = "'%l+", kind = "Meta" },
+    { pattern = "[!=&,><./:@^|;{}()%%%*%+%-%?%[%]]", kind = "Symbol" },
 ]
 ranges = [
     { start = '"', end = '"', escape = '\', kind = "String" },

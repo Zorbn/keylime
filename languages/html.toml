@@ -6,6 +6,7 @@ tokens = [
     { pattern = "<(%w+)", kind = "Keyword" },
     { pattern = "</(%w+)", kind = "Keyword" },
     { pattern = "<!(%w+)", kind = "Keyword" },
+    { pattern = "[<>/!=]", kind = "Symbol" },
 ]
 ranges = [
     { start = '"', end = '"', kind = "String" },

@@ -4,8 +4,8 @@ comment = "#"
 
 [syntax]
 keywords = ["true", "false"]
+tokens = [{ pattern = "#%.*", kind = "Comment" }]
 ranges = [
     { start = '"', end = '"', escape = '\', kind = "String" },
     { start = "'", end = "'", kind = "String" },
-    { start = "#", end = "\n", kind = "Comment" },
 ]
