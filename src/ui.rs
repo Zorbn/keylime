@@ -6,3 +6,4 @@ pub mod editor;
 mod pane;
 mod result_list;
 pub mod tab;
+pub mod terminal;

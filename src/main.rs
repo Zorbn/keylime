@@ -12,7 +12,7 @@ mod text;
 mod ui;
 
 use app::App;
-use platform::{pty::Pty, window::WindowRunner};
+use platform::window::WindowRunner;
 
 /*
  * TODO:
@@ -25,8 +25,6 @@ use platform::{pty::Pty, window::WindowRunner};
 
 fn main() {
     println!("Hello, world!");
-
-    let mut pty = Pty::new(40, 24).unwrap();
 
     let app = App::new();
     let mut window = WindowRunner::new(app).unwrap();

@@ -7,7 +7,9 @@ use std::{
 use windows::{
     core::{w, Result},
     Win32::{
-        Foundation::{GlobalFree, BOOL, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, RECT, WPARAM},
+        Foundation::{
+            GlobalFree, BOOL, FALSE, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, RECT, WPARAM,
+        },
         Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE},
         System::{
             Com::{
@@ -18,6 +20,7 @@ use windows::{
             Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE},
             Ole::CF_UNICODETEXT,
             Performance::{QueryPerformanceCounter, QueryPerformanceFrequency},
+            Threading::INFINITE,
         },
         UI::{
             HiDpi::GetDpiForWindow, Input::KeyboardAndMouse::GetKeyState, WindowsAndMessaging::*,
@@ -39,7 +42,7 @@ use crate::{
     },
 };
 
-use super::gfx::Gfx;
+use super::{gfx::Gfx, pty::Pty};
 
 const DEFAULT_DPI: f32 = 96.0;
 
@@ -255,16 +258,17 @@ impl Window {
         self.mouse_scrolls.clear();
     }
 
-    pub fn update(&mut self, is_animating: bool) -> (f32, f32) {
+    pub fn update(&mut self, is_animating: bool, pty: Option<&Pty>) -> (f32, f32) {
         self.clear_inputs();
 
         unsafe {
             let mut msg = MSG::default();
 
             if !is_animating {
-                let _ = GetMessageW(&mut msg, self.hwnd, 0, 0);
-                let _ = TranslateMessage(&msg);
-                DispatchMessageW(&msg);
+                let handles = pty.map(|pty| [pty.hprocess, pty.event]);
+                let handles = handles.as_ref().map(|handles| handles.as_slice());
+
+                MsgWaitForMultipleObjects(handles, FALSE, INFINITE, QS_ALLINPUT);
             }
 
             while PeekMessageW(&mut msg, self.hwnd, 0, 0, PM_REMOVE).as_bool() {

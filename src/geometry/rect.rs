@@ -58,6 +58,12 @@ impl Rect {
         )
     }
 
+    pub fn shrink_bottom_by(&self, other: Rect) -> Rect {
+        let height = (self.bottom() - other.y - self.y).max(0.0);
+
+        Rect::new(self.x, self.y, self.width, height)
+    }
+
     pub fn shift_y(&self, delta: f32) -> Rect {
         Rect::new(self.x, self.y + delta, self.width, self.height)
     }
