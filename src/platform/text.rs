@@ -170,7 +170,7 @@ impl Text {
                 height: atlas_height,
                 glyph_offset_x: desired_bounds.left as f32,
                 glyph_step_x: self.glyph_width.ceil(),
-                glyph_width: self.glyph_width,
+                glyph_width: self.glyph_width.floor(),
                 glyph_height: (desired_bounds.bottom - desired_bounds.top) as f32,
                 line_height: self.line_height,
             },
