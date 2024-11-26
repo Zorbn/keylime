@@ -59,13 +59,33 @@ impl<T> ResultList<T> {
         self.results_bounds = self.results_bounds.offset_by(bounds);
     }
 
-    pub fn update(&mut self, window: &mut Window, is_focused: bool, dt: f32) -> ResultListInput {
+    pub fn update(
+        &mut self,
+        window: &mut Window,
+        is_visible: bool,
+        is_focused: bool,
+        dt: f32,
+    ) -> ResultListInput {
         let mut input = ResultListInput::None;
 
         self.selected_result_index = self
             .selected_result_index
             .clamp(0, self.results.len().saturating_sub(1));
 
+        if is_visible {
+            self.handle_mouse_inputs(&mut input, window);
+        }
+
+        if is_focused {
+            self.handle_keybinds(&mut input, window);
+        }
+
+        self.update_camera(dt);
+
+        input
+    }
+
+    fn handle_mouse_inputs(&mut self, input: &mut ResultListInput, window: &mut Window) {
         let mut mouse_handler = window.get_mousebind_handler();
 
         while let Some(mousebind) = mouse_handler.next(window) {
@@ -98,7 +118,7 @@ impl<T> ResultList<T> {
             self.mark_selected_result_handled();
 
             if mousebind.button.is_some() {
-                input = ResultListInput::Submit { mods };
+                *input = ResultListInput::Submit { mods };
             }
         }
 
@@ -115,14 +135,6 @@ impl<T> ResultList<T> {
             let delta = mouse_scroll.delta * self.result_bounds.height;
             self.camera.vertical.scroll(delta);
         }
-
-        if is_focused {
-            self.handle_keybinds(&mut input, window);
-        }
-
-        self.update_camera(dt);
-
-        input
     }
 
     fn handle_keybinds(&mut self, input: &mut ResultListInput, window: &mut Window) {
