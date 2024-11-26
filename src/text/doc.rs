@@ -44,6 +44,7 @@ enum LineEnding {
 pub enum DocKind {
     MultiLine,
     SingleLine,
+    Output,
 }
 
 enum StepStatus {
@@ -846,6 +847,10 @@ impl Doc {
     }
 
     pub fn add_cursors_to_action_history(&mut self, action_kind: ActionKind, time: f32) {
+        if self.kind == DocKind::Output {
+            return;
+        }
+
         for index in self.cursor_indices() {
             let Cursor {
                 position,
@@ -899,15 +904,17 @@ impl Doc {
 
         self.collect_chars(start, end, &mut undo_char_buffer);
 
-        let deleted_chars_start = action_history!(self, action_kind).deleted_chars.len();
+        if self.kind != DocKind::Output {
+            let deleted_chars_start = action_history!(self, action_kind).deleted_chars.len();
 
-        action_history!(self, action_kind)
-            .deleted_chars
-            .extend_from_slice(&undo_char_buffer);
+            action_history!(self, action_kind)
+                .deleted_chars
+                .extend_from_slice(&undo_char_buffer);
+
+            action_history!(self, action_kind).push_delete(start, deleted_chars_start, time);
+        }
 
         self.undo_char_buffer = Some(undo_char_buffer);
-
-        action_history!(self, action_kind).push_delete(start, deleted_chars_start, time);
 
         if start.y == end.y {
             self.lines[start.y as usize].drain(start.x as usize..end.x as usize);
@@ -1014,7 +1021,9 @@ impl Doc {
             position.x += 1;
         }
 
-        action_history!(self, action_kind).push_insert(start, position, time);
+        if self.kind != DocKind::Output {
+            action_history!(self, action_kind).push_insert(start, position, time);
+        }
 
         // Shift the cursor:
         for index in self.cursor_indices() {

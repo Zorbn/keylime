@@ -24,7 +24,7 @@ impl Terminal {
     pub fn new(line_pool: &mut LinePool) -> Self {
         Self {
             tab: Tab::new(0),
-            doc: Doc::new(line_pool, DocKind::MultiLine),
+            doc: Doc::new(line_pool, DocKind::Output),
             pty: Pty::new(40, 24).ok(),
 
             bounds: Rect::zero(),
@@ -32,7 +32,7 @@ impl Terminal {
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
-        let height = gfx.line_height() * 15.0;
+        let height = (gfx.line_height() * 15.0).floor();
 
         self.bounds = Rect::new(bounds.x, bounds.bottom() - height, bounds.width, height);
 
@@ -55,7 +55,7 @@ impl Terminal {
         let mut char_handler = window.get_char_handler();
 
         while let Some(c) = char_handler.next(window) {
-            pty.input.push(c);
+            pty.input.push(c as u32);
         }
 
         let mut keybind_handler = window.get_keybind_handler();
@@ -65,8 +65,13 @@ impl Terminal {
                 Keybind {
                     key: Key::Enter, ..
                 } => {
-                    pty.input.push('\r');
-                    pty.input.push('\n');
+                    pty.input.extend_from_slice(&['\r' as u32, '\n' as u32]);
+                }
+                Keybind {
+                    key: Key::Backspace,
+                    ..
+                } => {
+                    pty.input.extend_from_slice(&[0x7F]);
                 }
                 _ => {}
             }
@@ -75,8 +80,12 @@ impl Terminal {
         pty.flush();
 
         if let Ok(mut output) = pty.output.try_lock() {
-            let start = self.doc.end();
-            self.doc.insert(start, &output, line_pool, time);
+            for c in output.iter() {
+                if let Some(c) = char::from_u32(*c) {
+                    let start = self.doc.end();
+                    self.doc.insert(start, &[c], line_pool, time);
+                }
+            }
 
             output.clear();
         }

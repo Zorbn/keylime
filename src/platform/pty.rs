@@ -21,8 +21,8 @@ use windows::{
 use crate::text::utf32::{utf32_to_utf8, utf8_to_utf32};
 
 pub struct Pty {
-    pub output: Arc<Mutex<Vec<char>>>,
-    pub input: Vec<char>,
+    pub output: Arc<Mutex<Vec<u32>>>,
+    pub input: Vec<u32>,
     input_bytes: Vec<u8>,
 
     read_thread_join: Option<JoinHandle<()>>,
@@ -184,7 +184,7 @@ impl Pty {
     }
 
     fn run_read_thread(
-        output: Arc<Mutex<Vec<char>>>,
+        output: Arc<Mutex<Vec<u32>>>,
         stdout: HANDLE,
         event: HANDLE,
     ) -> JoinHandle<()> {
