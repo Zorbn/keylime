@@ -134,6 +134,13 @@ impl Editor {
         time: f32,
         dt: f32,
     ) {
+        let mut char_handler = window.get_char_handler();
+
+        let was_char_typed = char_handler
+            .next(window)
+            .map(|c| char_handler.unprocessed(window, c))
+            .is_some();
+
         let mut mousebind_handler = window.get_mousebind_handler();
 
         while let Some(mousebind) = mousebind_handler.next(window) {
@@ -252,7 +259,7 @@ impl Editor {
             }
         }
 
-        let handled_doc_info = self.get_doc_info();
+        let handled_position = self.get_cursor_position();
         let pane = &mut self.panes[self.focused_pane_index];
 
         pane.update(
@@ -273,7 +280,7 @@ impl Editor {
             pane.update_camera(&mut self.doc_list, window, dt);
         }
 
-        self.update_completions(handled_doc_info);
+        self.update_completions(was_char_typed, handled_position);
 
         window.clear_inputs();
     }
@@ -325,16 +332,12 @@ impl Editor {
         }
     }
 
-    fn update_completions(
-        &mut self,
-        (handled_version, handled_position): (Option<usize>, Option<Position>),
-    ) {
-        let (version, position) = self.get_doc_info();
+    fn update_completions(&mut self, was_char_typed: bool, handled_position: Option<Position>) {
+        let position = self.get_cursor_position();
 
-        let is_version_different = version != handled_version;
         let is_position_different = position != handled_position;
 
-        if is_version_different || is_position_different {
+        if was_char_typed || is_position_different {
             self.completion_prefix.clear();
 
             Self::clear_completions(
@@ -343,7 +346,7 @@ impl Editor {
             );
         }
 
-        if !is_version_different {
+        if !was_char_typed {
             return;
         }
 
@@ -370,13 +373,11 @@ impl Editor {
         }
     }
 
-    fn get_doc_info(&self) -> (Option<usize>, Option<Position>) {
+    fn get_cursor_position(&self) -> Option<Position> {
         let pane = &self.panes[self.focused_pane_index];
 
         pane.get_tab_with_doc(pane.focused_tab_index(), &self.doc_list)
-            .map(|(_, doc)| (doc.version(), doc.get_cursor(CursorIndex::Main).position))
-            .map(|info| (Some(info.0), Some(info.1)))
-            .unwrap_or_default()
+            .map(|(_, doc)| doc.get_cursor(CursorIndex::Main).position)
     }
 
     fn is_cursor_visible(&self, gfx: &Gfx) -> bool {
