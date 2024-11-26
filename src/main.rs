@@ -12,17 +12,21 @@ mod text;
 mod ui;
 
 use app::App;
-use platform::window::WindowRunner;
+use platform::{pty::Pty, window::WindowRunner};
 
 /*
  * TODO:
  * Running commands and seeing output (very simple integrated terminal).
+ * Have backup shells for the integrated terminal (if pwsh isn't available).
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
  * Directory-wide search.
+ * Unit testing for patterns and text editing functions.
  */
 
 fn main() {
     println!("Hello, world!");
+
+    let mut pty = Pty::new(40, 24).unwrap();
 
     let app = App::new();
     let mut window = WindowRunner::new(app).unwrap();
