@@ -98,7 +98,7 @@ impl Editor {
 
         let cursor_position = doc.get_cursor(CursorIndex::Main).position;
         let cursor_visual_position = doc
-            .position_to_visual(cursor_position, tab.camera.position(), gfx)
+            .position_to_visual(cursor_position, tab.camera.position().floor(), gfx)
             .offset_by(tab.doc_bounds());
 
         let min_y = self.completion_result_list.min_visible_result_index();
@@ -136,7 +136,7 @@ impl Editor {
     ) {
         let mut char_handler = window.get_char_handler();
 
-        let was_char_typed = char_handler
+        let mut should_open_completions = char_handler
             .next(window)
             .map(|c| char_handler.unprocessed(window, c))
             .is_some();
@@ -174,6 +174,14 @@ impl Editor {
 
         while let Some(keybind) = keybind_handler.next(window) {
             match keybind {
+                Keybind {
+                    key: Key::Backspace,
+                    ..
+                } => {
+                    should_open_completions = true;
+
+                    keybind_handler.unprocessed(window, keybind);
+                }
                 Keybind {
                     key: Key::N,
                     mods: MOD_CTRL_ALT,
@@ -280,7 +288,7 @@ impl Editor {
             pane.update_camera(&mut self.doc_list, window, dt);
         }
 
-        self.update_completions(was_char_typed, handled_position);
+        self.update_completions(should_open_completions, handled_position);
 
         window.clear_inputs();
     }
@@ -332,12 +340,16 @@ impl Editor {
         }
     }
 
-    fn update_completions(&mut self, was_char_typed: bool, handled_position: Option<Position>) {
+    fn update_completions(
+        &mut self,
+        should_open_completions: bool,
+        handled_position: Option<Position>,
+    ) {
         let position = self.get_cursor_position();
 
         let is_position_different = position != handled_position;
 
-        if was_char_typed || is_position_different {
+        if should_open_completions || is_position_different {
             self.completion_prefix.clear();
 
             Self::clear_completions(
@@ -346,7 +358,7 @@ impl Editor {
             );
         }
 
-        if !was_char_typed {
+        if !should_open_completions {
             return;
         }
 

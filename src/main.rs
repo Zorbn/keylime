@@ -18,6 +18,7 @@ use platform::window::WindowRunner;
  * TODO:
  * Running commands and seeing output (very simple integrated terminal).
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
+ * Directory-wide search.
  */
 
 fn main() {
