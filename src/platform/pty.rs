@@ -27,6 +27,9 @@ pub struct Pty {
 
     read_thread_join: Option<JoinHandle<()>>,
 
+    width: isize,
+    height: isize,
+
     hpcon: HPCON,
     pub(super) hprocess: HANDLE,
     pub(super) event: HANDLE,
@@ -147,6 +150,9 @@ impl Pty {
 
             read_thread_join: Some(read_thread_join),
 
+            width,
+            height,
+
             hpcon,
             hprocess: process_info.hProcess,
             event,
@@ -180,6 +186,9 @@ impl Pty {
                 },
             )
             .unwrap();
+
+            self.width = width;
+            self.height = height;
         }
     }
 
@@ -215,6 +224,14 @@ impl Pty {
                 }
             }
         })
+    }
+
+    pub fn width(&self) -> isize {
+        self.width
+    }
+
+    pub fn height(&self) -> isize {
+        self.height
     }
 }
 
