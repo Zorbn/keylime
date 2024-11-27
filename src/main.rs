@@ -17,7 +17,6 @@ use platform::window::WindowRunner;
 /*
  * TODO:
  * Running commands and seeing output (very simple integrated terminal).
- *    - Limit max number of lines in the output,
  *    - Allow focusing either the terminal or the editor using the mouse and keybinds.
  *    - Add colors for output,
  *    - Have a list of fallback shells (if pwsh isn't available try powershell, then cmd, etc).

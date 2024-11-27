@@ -12,7 +12,7 @@ const SCROLL_SPEED: f32 = 30.0;
 const SCROLL_FRICTION: f32 = 0.0001;
 
 pub struct CameraAxis {
-    position: f32,
+    pub position: f32,
     velocity: f32,
     recenter_kind: CameraRecenterKind,
 }

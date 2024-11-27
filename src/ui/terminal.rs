@@ -7,10 +7,13 @@ use crate::{
     text::{
         doc::{Doc, DocKind},
         line_pool::LinePool,
+        selection::Selection,
     },
 };
 
 use super::tab::Tab;
+
+const MAX_SCROLLBACK_LINES: usize = 100;
 
 pub struct Terminal {
     tab: Tab,
@@ -23,6 +26,10 @@ pub struct Terminal {
     grid_cursor: Position,
     grid_width: isize,
     grid_height: isize,
+
+    doc_cursor_backups: Vec<(Position, Option<Selection>)>,
+
+    is_cursor_visible: bool,
 
     bounds: Rect,
 }
@@ -40,6 +47,10 @@ impl Terminal {
             grid_cursor: Position::zero(),
             grid_width,
             grid_height,
+
+            doc_cursor_backups: Vec::new(),
+
+            is_cursor_visible: false,
 
             bounds: Rect::zero(),
         }
@@ -95,16 +106,20 @@ impl Terminal {
 
         self.expand_doc_to_grid_size(line_pool, time);
 
+        self.tab
+            .update(&mut self.doc, window, line_pool, text_buffer, config, time);
+
+        self.backup_doc_cursor_positions();
+
         if let Ok(mut output) = pty.output.try_lock() {
-            self.handle_control_sequences(&output, line_pool, time);
+            self.handle_control_sequences(window, &output, line_pool, time);
 
             output.clear();
         }
 
-        self.pty = Some(pty);
+        self.restore_doc_cursor_positions();
 
-        self.tab
-            .update(&mut self.doc, window, line_pool, text_buffer, config, time);
+        self.pty = Some(pty);
 
         self.tab.update_camera(&self.doc, window, dt);
     }
@@ -115,6 +130,7 @@ impl Terminal {
 
     fn handle_control_sequences(
         &mut self,
+        window: &mut Window,
         mut output: &[u32],
         line_pool: &mut LinePool,
         time: f32,
@@ -165,6 +181,25 @@ impl Terminal {
                             let start = self.doc.end();
                             self.doc.insert(start, &[' '], line_pool, time);
                         }
+
+                        let gfx = window.gfx();
+
+                        let camera_offset_y = self.tab.camera.vertical.position
+                            - self.doc.lines().len() as f32 * gfx.line_height();
+
+                        let max_lines = self.grid_height as usize + MAX_SCROLLBACK_LINES;
+
+                        if self.doc.lines().len() > max_lines {
+                            let excess_lines = self.doc.lines().len() - max_lines;
+
+                            let start = Position::zero();
+                            let end = Position::new(0, excess_lines as isize);
+
+                            self.doc.delete(start, end, line_pool, time);
+                        }
+
+                        self.tab.camera.vertical.position =
+                            self.doc.lines().len() as f32 * gfx.line_height() + camera_offset_y;
                     } else {
                         self.move_cursor(Position::new(0, 1));
                     }
@@ -214,8 +249,8 @@ impl Terminal {
                 match output.first() {
                     Some(&LOWERCASE_L) => {
                         if parameters.first() == Some(&25) {
-                            // Hide cursor, ignored.
-                            println!("hiding cursor");
+                            self.is_cursor_visible = false;
+
                             Some(&output[1..])
                         } else {
                             None
@@ -223,8 +258,9 @@ impl Terminal {
                     }
                     Some(&LOWERCASE_H) => {
                         if parameters.first() == Some(&25) {
-                            // Show cursor, ignored.
-                            println!("showing cursor");
+                            self.is_cursor_visible = true;
+                            self.jump_doc_cursors_to_grid_cursor();
+
                             Some(&output[1..])
                         } else {
                             None
@@ -398,7 +434,74 @@ impl Terminal {
         )
     }
 
+    fn doc_position_to_grid_position(&self, position: Position) -> Position {
+        Position::new(
+            position.x,
+            position.y - (self.doc.lines().len() as isize - self.grid_height),
+        )
+    }
+
+    fn backup_doc_cursor_positions(&mut self) {
+        self.doc_cursor_backups.clear();
+
+        for index in self.doc.cursor_indices() {
+            let cursor = self.doc.get_cursor(index);
+
+            let position = self.doc_position_to_grid_position(cursor.position);
+
+            let selection = cursor.get_selection().map(|selection| Selection {
+                start: self.doc_position_to_grid_position(selection.start),
+                end: self.doc_position_to_grid_position(selection.end),
+            });
+
+            self.doc_cursor_backups.push((position, selection));
+        }
+    }
+
+    fn restore_doc_cursor_positions(&mut self) {
+        for (index, (position, selection)) in
+            self.doc.cursor_indices().zip(&self.doc_cursor_backups)
+        {
+            let Some(selection) = selection else {
+                self.doc
+                    .jump_cursor(index, self.grid_position_to_doc_position(*position), false);
+
+                continue;
+            };
+
+            if *position == selection.start {
+                self.doc.jump_cursor(
+                    index,
+                    self.grid_position_to_doc_position(selection.end),
+                    false,
+                );
+                self.doc.jump_cursor(
+                    index,
+                    self.grid_position_to_doc_position(selection.start),
+                    true,
+                );
+            } else {
+                self.doc.jump_cursor(
+                    index,
+                    self.grid_position_to_doc_position(selection.start),
+                    false,
+                );
+                self.doc.jump_cursor(
+                    index,
+                    self.grid_position_to_doc_position(selection.end),
+                    true,
+                );
+            }
+        }
+    }
+
     fn jump_doc_cursors_to_grid_cursor(&mut self) {
+        if !self.is_cursor_visible {
+            return;
+        }
+
+        self.doc_cursor_backups.clear();
+
         let doc_position = self.grid_position_to_doc_position(self.grid_cursor);
         self.doc.jump_cursors(doc_position, false);
     }
