@@ -17,7 +17,11 @@ use platform::window::WindowRunner;
 /*
  * TODO:
  * Running commands and seeing output (very simple integrated terminal).
- * Have backup shells for the integrated terminal (if pwsh isn't available).
+ *    - Make sure cursor motions are bounded by the pty's size relative to the bottom of the output (scrolling is supported),
+ *    - Limit max number of lines in the output,
+ *    - Allow focusing either the terminal or the editor using the mouse and keybinds.
+ *    - Add colors for output,
+ *    - Have a list of fallback shells (if pwsh isn't available try powershell, then cmd, etc).
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
  * Directory-wide search.
  * Unit testing for patterns and text editing functions.
