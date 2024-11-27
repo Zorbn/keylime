@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-use super::tab::Tab;
+use super::{camera::CameraRecenterKind, tab::Tab};
 
 const MAX_SCROLLBACK_LINES: usize = 100;
 
@@ -90,7 +90,7 @@ impl Terminal {
                 Keybind {
                     key: Key::Enter, ..
                 } => {
-                    pty.input.extend_from_slice(&['\r' as u32, '\n' as u32]);
+                    pty.input.push('\r' as u32);
                 }
                 Keybind {
                     key: Key::Backspace,
@@ -200,6 +200,11 @@ impl Terminal {
 
                         self.tab.camera.vertical.position =
                             self.doc.lines().len() as f32 * gfx.line_height() + camera_offset_y;
+
+                        self.tab
+                            .camera
+                            .vertical
+                            .recenter(CameraRecenterKind::OnScrollBorder);
                     } else {
                         self.move_cursor(Position::new(0, 1));
                     }
@@ -210,10 +215,8 @@ impl Terminal {
                 _ => {}
             }
 
-            if let Some(c) = char::from_u32(output[0]).filter(|c| !c.is_ascii_control()) {
+            if let Some(c) = char::from_u32(output[0]) {
                 self.insert_at_cursor(&[c], line_pool, time);
-            } else {
-                println!("unknown char: {:#x}", output[0]);
             }
 
             output = &output[1..];
