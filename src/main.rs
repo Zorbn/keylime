@@ -19,7 +19,6 @@ use platform::window::WindowRunner;
  * Running commands and seeing output (very simple integrated terminal).
  *    - Allow focusing either the terminal or the editor using the mouse and keybinds,
  *    - Support ctrl-c/v to and from terminal,
- *    - Add colors for output,
  *    - Have a list of fallback shells (if pwsh isn't available try powershell, then cmd, etc).
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
  * Directory-wide search.

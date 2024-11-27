@@ -29,6 +29,7 @@ impl Theme {
             HighlightKind::Symbol => self.symbol,
             HighlightKind::String => self.string,
             HighlightKind::Meta => self.meta,
+            HighlightKind::Custom(color) => color,
         }
     }
 

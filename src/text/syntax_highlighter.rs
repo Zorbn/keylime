@@ -1,5 +1,7 @@
 use serde::Deserialize;
 
+use crate::ui::color::Color;
+
 use super::{
     line_pool::Line,
     syntax::{Syntax, SyntaxRange, SyntaxToken},
@@ -15,6 +17,8 @@ pub enum HighlightKind {
     Symbol,
     String,
     Meta,
+    // TODO: Replace with special highlight kinds and theme colors for each terminal color.
+    Custom(Color),
 }
 
 #[derive(Clone, Copy)]
@@ -277,6 +281,24 @@ impl SyntaxHighlighter {
                 kind: HighlightKind::Normal,
             });
             x = default_end;
+        }
+    }
+
+    pub fn highlight_line_from_colors(&mut self, colors: &[Color], y: usize) {
+        if self.highlighted_lines.len() <= y {
+            self.highlighted_lines.resize(y + 1, HighlightedLine::new());
+        }
+
+        let highlighted_line = &mut self.highlighted_lines[y];
+
+        highlighted_line.clear();
+
+        for (x, color) in colors.iter().enumerate() {
+            highlighted_line.push(Highlight {
+                start: x,
+                end: x + 1,
+                kind: HighlightKind::Custom(*color),
+            });
         }
     }
 

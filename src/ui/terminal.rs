@@ -11,9 +11,19 @@ use crate::{
     },
 };
 
-use super::{camera::CameraRecenterKind, tab::Tab};
+use super::{camera::CameraRecenterKind, color::Color, tab::Tab};
 
 const MAX_SCROLLBACK_LINES: usize = 100;
+
+// TODO: Replace these with theme colors.
+const COLOR_BLACK: Color = Color::from_hex(0x000000FF);
+const COLOR_RED: Color = Color::from_hex(0xFF0000FF);
+const COLOR_GREEN: Color = Color::from_hex(0x00FF00FF);
+const COLOR_YELLOW: Color = Color::from_hex(0xFFFF00FF);
+const COLOR_BLUE: Color = Color::from_hex(0x0000FFFF);
+const COLOR_MAGENTA: Color = Color::from_hex(0xFF00FFFF);
+const COLOR_CYAN: Color = Color::from_hex(0x007DFFFF);
+const COLOR_WHITE: Color = Color::from_hex(0xFFFFFFFF);
 
 pub struct Terminal {
     tab: Tab,
@@ -26,18 +36,30 @@ pub struct Terminal {
     grid_cursor: Position,
     grid_width: isize,
     grid_height: isize,
+    grid_line_colors: Vec<Vec<Color>>,
 
     doc_cursor_backups: Vec<(Position, Option<Selection>)>,
 
     is_cursor_visible: bool,
+    foreground_color: Color,
 
     bounds: Rect,
 }
 
 impl Terminal {
     pub fn new(line_pool: &mut LinePool) -> Self {
-        let grid_width = 240;
-        let grid_height = 24;
+        let grid_width = 240isize;
+        let grid_height = 24isize;
+
+        let mut grid_line_colors = Vec::with_capacity(grid_height as usize);
+
+        for y in 0..grid_height {
+            grid_line_colors.push(Vec::with_capacity(grid_width as usize));
+
+            for _ in 0..grid_width {
+                grid_line_colors[y as usize].push(COLOR_WHITE);
+            }
+        }
 
         Self {
             tab: Tab::new(0),
@@ -47,10 +69,12 @@ impl Terminal {
             grid_cursor: Position::zero(),
             grid_width,
             grid_height,
+            grid_line_colors,
 
             doc_cursor_backups: Vec::new(),
 
             is_cursor_visible: false,
+            foreground_color: COLOR_WHITE,
 
             bounds: Rect::zero(),
         }
@@ -156,6 +180,11 @@ impl Terminal {
                         output = remaining;
                         continue;
                     }
+                }
+                // Bell:
+                0x7 => {
+                    output = &output[1..];
+                    continue;
                 }
                 // Backspace:
                 0x8 => {
@@ -281,7 +310,40 @@ impl Terminal {
 
                 match output.first() {
                     Some(&LOWERCASE_M) => {
-                        // Set text formatting, ignored.
+                        // Set text formatting.
+                        for parameter in parameters {
+                            match *parameter {
+                                0 => {
+                                    self.foreground_color = COLOR_WHITE;
+                                }
+                                30 | 90 => {
+                                    self.foreground_color = COLOR_BLACK;
+                                }
+                                31 | 91 => {
+                                    self.foreground_color = COLOR_RED;
+                                }
+                                32 | 92 => {
+                                    self.foreground_color = COLOR_GREEN;
+                                }
+                                33 | 93 => {
+                                    self.foreground_color = COLOR_YELLOW;
+                                }
+                                34 | 94 => {
+                                    self.foreground_color = COLOR_BLUE;
+                                }
+                                35 | 95 => {
+                                    self.foreground_color = COLOR_MAGENTA;
+                                }
+                                36 | 96 => {
+                                    self.foreground_color = COLOR_CYAN;
+                                }
+                                37 | 97 => {
+                                    self.foreground_color = COLOR_WHITE;
+                                }
+                                _ => {}
+                            }
+                        }
+
                         Some(&output[1..])
                     }
                     Some(&UPPERCASE_H) => {
@@ -541,10 +603,18 @@ impl Terminal {
                 self.doc.insert(position, &[*c], line_pool, time);
             }
 
+            self.grid_line_colors[position.y as usize][position.x as usize] = self.foreground_color;
             position = next_position;
         }
 
         self.jump_doc_cursors_to_grid_cursor();
+
+        let doc_start = self.grid_position_to_doc_position(start);
+
+        self.doc.highlight_line_from_colors(
+            &self.grid_line_colors[start.y as usize],
+            doc_start.y as usize,
+        );
     }
 
     fn delete(&mut self, start: Position, end: Position, line_pool: &mut LinePool, time: f32) {

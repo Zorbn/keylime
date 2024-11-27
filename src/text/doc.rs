@@ -9,6 +9,7 @@ use std::{
 use crate::{
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     platform::gfx::Gfx,
+    ui::color::Color,
 };
 
 use super::{
@@ -1500,6 +1501,11 @@ impl Doc {
         );
 
         self.unhighlighted_line_y = end.y + 1;
+    }
+
+    pub fn highlight_line_from_colors(&mut self, colors: &[Color], y: usize) {
+        self.syntax_highlighter
+            .highlight_line_from_colors(colors, y);
     }
 
     pub fn highlighted_lines(&self) -> &[HighlightedLine] {

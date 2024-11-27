@@ -1,6 +1,6 @@
 use serde::{de::Error, Deserialize, Deserializer};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Color {
     pub r: u8,
     pub g: u8,
@@ -9,7 +9,7 @@ pub struct Color {
 }
 
 impl Color {
-    pub fn from_hex(value: u32) -> Self {
+    pub const fn from_hex(value: u32) -> Self {
         Self {
             r: (value >> 24) as u8,
             g: (value >> 16) as u8,
