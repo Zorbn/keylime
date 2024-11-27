@@ -7,7 +7,7 @@ use crate::{
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
-    platform::{gfx::Gfx, window::Window},
+    platform::gfx::Gfx,
     temp_buffer::TempBuffer,
     text::{
         cursor_index::CursorIndex,
@@ -17,10 +17,11 @@ use crate::{
 };
 
 use super::{
-    command_palette::CommandPalette,
     doc_list::DocList,
     pane::Pane,
     result_list::{ResultList, ResultListInput},
+    widget::Widget,
+    Ui, UiHandle,
 };
 
 const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
@@ -31,25 +32,25 @@ pub struct Editor {
     panes: Vec<Pane>,
     focused_pane_index: usize,
 
-    bounds: Rect,
-
     completion_result_list: ResultList<Line>,
     completion_result_pool: LinePool,
     completion_prefix: Vec<char>,
+
+    pub widget: Widget,
 }
 
 impl Editor {
-    pub fn new(config: &Config, line_pool: &mut LinePool, time: f32) -> Self {
+    pub fn new(ui: &mut Ui, config: &Config, line_pool: &mut LinePool, time: f32) -> Self {
         let mut editor = Self {
             doc_list: DocList::new(),
             panes: Vec::new(),
             focused_pane_index: 0,
 
-            bounds: Rect::zero(),
-
             completion_result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS),
             completion_result_pool: LinePool::new(),
             completion_prefix: Vec::new(),
+
+            widget: Widget::new(ui, true),
         };
 
         editor
@@ -74,14 +75,10 @@ impl Editor {
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
-        self.bounds = bounds;
+        self.widget.layout(bounds);
 
-        let mut pane_bounds = Rect::new(
-            self.bounds.x,
-            self.bounds.y,
-            (self.bounds.width / self.panes.len() as f32).ceil(),
-            self.bounds.height,
-        );
+        let mut pane_bounds = self.widget.bounds();
+        pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
 
         for pane in &mut self.panes {
             pane.layout(pane_bounds, gfx, &mut self.doc_list);
@@ -126,26 +123,25 @@ impl Editor {
 
     pub fn update(
         &mut self,
-        command_palette: &mut CommandPalette,
-        window: &mut Window,
+        ui: &mut UiHandle,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
         config: &Config,
         time: f32,
         dt: f32,
     ) {
-        let mut char_handler = window.get_char_handler();
+        let mut char_handler = self.widget.get_char_handler(ui);
 
         let mut should_open_completions = char_handler
-            .next(window)
-            .map(|c| char_handler.unprocessed(window, c))
+            .next(ui.window)
+            .map(|c| char_handler.unprocessed(ui.window, c))
             .is_some();
 
-        let mut mousebind_handler = window.get_mousebind_handler();
+        let mut mousebind_handler = self.widget.get_mousebind_handler(ui);
 
-        while let Some(mousebind) = mousebind_handler.next(window) {
+        while let Some(mousebind) = mousebind_handler.next(ui.window) {
             let visual_position =
-                VisualPosition::new(mousebind.x - self.bounds.x, mousebind.y - self.bounds.y);
+                VisualPosition::new(mousebind.x, mousebind.y).unoffset_by(self.widget.bounds());
 
             match mousebind {
                 Mousebind {
@@ -164,15 +160,15 @@ impl Editor {
                         self.focused_pane_index = i;
                     }
 
-                    mousebind_handler.unprocessed(window, mousebind);
+                    mousebind_handler.unprocessed(ui.window, mousebind);
                 }
-                _ => mousebind_handler.unprocessed(window, mousebind),
+                _ => mousebind_handler.unprocessed(ui.window, mousebind),
             }
         }
 
-        let mut keybind_handler = window.get_keybind_handler();
+        let mut keybind_handler = self.widget.get_keybind_handler(ui);
 
-        while let Some(keybind) = keybind_handler.next(window) {
+        while let Some(keybind) = keybind_handler.next(ui.window) {
             match keybind {
                 Keybind {
                     key: Key::Backspace,
@@ -180,7 +176,7 @@ impl Editor {
                 } => {
                     should_open_completions = true;
 
-                    keybind_handler.unprocessed(window, keybind);
+                    keybind_handler.unprocessed(ui.window, keybind);
                 }
                 Keybind {
                     key: Key::N,
@@ -205,7 +201,7 @@ impl Editor {
                     {
                         self.focused_pane_index -= 1;
                     } else {
-                        keybind_handler.unprocessed(window, keybind);
+                        keybind_handler.unprocessed(ui.window, keybind);
                     }
                 }
                 Keybind {
@@ -220,18 +216,19 @@ impl Editor {
                     {
                         self.focused_pane_index += 1;
                     } else {
-                        keybind_handler.unprocessed(window, keybind);
+                        keybind_handler.unprocessed(ui.window, keybind);
                     }
                 }
-                _ => keybind_handler.unprocessed(window, keybind),
+                _ => keybind_handler.unprocessed(ui.window, keybind),
             }
         }
 
-        let are_results_visible = self.is_cursor_visible(window.gfx());
+        let are_results_visible = self.is_cursor_visible(ui.gfx());
         let are_results_focused = !self.completion_result_list.results.is_empty();
 
         let result_input = self.completion_result_list.update(
-            window,
+            &self.widget,
+            ui,
             are_results_visible,
             are_results_focused,
             dt,
@@ -271,9 +268,9 @@ impl Editor {
         let pane = &mut self.panes[self.focused_pane_index];
 
         pane.update(
+            &self.widget,
+            ui,
             &mut self.doc_list,
-            command_palette,
-            window,
             line_pool,
             text_buffer,
             config,
@@ -285,15 +282,16 @@ impl Editor {
         }
 
         for pane in &mut self.panes {
-            pane.update_camera(&mut self.doc_list, window, dt);
+            pane.update_camera(ui, &mut self.doc_list, dt);
         }
 
         self.update_completions(should_open_completions, handled_position);
-
-        window.clear_inputs();
     }
 
-    pub fn draw(&mut self, config: &Config, gfx: &mut Gfx, is_focused: bool) {
+    pub fn draw(&mut self, ui: &mut UiHandle, config: &Config) {
+        let is_focused = self.widget.is_focused(ui);
+        let gfx = ui.gfx();
+
         for (i, pane) in self.panes.iter_mut().enumerate() {
             let is_focused = is_focused && i == self.focused_pane_index;
 

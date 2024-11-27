@@ -4,15 +4,18 @@ use crate::{
     platform::{pty::Pty, window::Window},
     temp_buffer::TempBuffer,
     text::line_pool::LinePool,
-    ui::{command_palette::CommandPalette, editor::Editor, terminal::Terminal},
+    ui::{command_palette::CommandPalette, editor::Editor, terminal::Terminal, Ui},
 };
 
 pub struct App {
     line_pool: LinePool,
     text_buffer: TempBuffer<char>,
-    command_palette: CommandPalette,
-    terminal: Terminal,
+
+    ui: Ui,
     editor: Editor,
+    terminal: Terminal,
+    command_palette: CommandPalette,
+
     config: Config,
 }
 
@@ -23,16 +26,20 @@ impl App {
 
         let config = Config::load().unwrap_or_default();
 
-        let command_palette = CommandPalette::new(&mut line_pool);
-        let terminal = Terminal::new(&mut line_pool);
-        let editor = Editor::new(&config, &mut line_pool, 0.0);
+        let mut ui = Ui::new();
+        let editor = Editor::new(&mut ui, &config, &mut line_pool, 0.0);
+        let terminal = Terminal::new(&mut ui, &mut line_pool);
+        let command_palette = CommandPalette::new(&mut ui, &mut line_pool);
 
         Self {
             line_pool,
             text_buffer,
-            command_palette,
-            terminal,
+
+            ui,
             editor,
+            terminal,
+            command_palette,
+
             config,
         }
     }
@@ -40,9 +47,16 @@ impl App {
     pub fn update(&mut self, window: &mut Window) {
         let (time, dt) = window.update(self.is_animating(), self.pty());
 
-        self.command_palette.update(
-            &mut self.editor,
-            window,
+        let mut ui = self.ui.get_handle(window);
+
+        ui.update(&mut [
+            &mut self.editor.widget,
+            &mut self.terminal.widget,
+            &mut self.command_palette.widget,
+        ]);
+
+        self.editor.update(
+            &mut ui,
             &mut self.line_pool,
             &mut self.text_buffer,
             &self.config,
@@ -51,7 +65,7 @@ impl App {
         );
 
         self.terminal.update(
-            window,
+            &mut ui,
             &mut self.line_pool,
             &mut self.text_buffer,
             &self.config,
@@ -59,9 +73,9 @@ impl App {
             dt,
         );
 
-        self.editor.update(
-            &mut self.command_palette,
-            window,
+        self.command_palette.update(
+            &mut ui,
+            &mut self.editor,
             &mut self.line_pool,
             &mut self.text_buffer,
             &self.config,
@@ -71,8 +85,9 @@ impl App {
     }
 
     pub fn draw(&mut self, window: &mut Window) {
-        let is_focused = window.is_focused();
-        let gfx = window.gfx();
+        let mut ui = self.ui.get_handle(window);
+        let gfx = ui.gfx();
+
         let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
 
         self.command_palette.layout(bounds, gfx);
@@ -84,21 +99,11 @@ impl App {
 
         gfx.begin_frame(self.config.theme.background);
 
-        self.editor.draw(
-            &self.config,
-            gfx,
-            // TODO: Editor and terminal should not be focused at once.
-            is_focused && !self.command_palette.is_active(),
-        );
-        self.terminal.draw(
-            &self.config,
-            gfx,
-            // TODO: Editor and terminal should not be focused at once.
-            is_focused && !self.command_palette.is_active(),
-        );
-        self.command_palette.draw(&self.config, gfx, is_focused);
+        self.editor.draw(&mut ui, &self.config);
+        self.terminal.draw(&mut ui, &self.config);
+        self.command_palette.draw(&mut ui, &self.config);
 
-        gfx.end_frame();
+        ui.gfx().end_frame();
     }
 
     pub fn close(&mut self, time: f32) {

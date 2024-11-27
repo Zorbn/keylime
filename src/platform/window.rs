@@ -105,15 +105,11 @@ impl WindowRunner {
     }
 
     pub fn run(&mut self) {
-        let WindowRunner {
-            window: window_handle,
-            app,
-            ..
-        } = self;
+        let WindowRunner { window, app, .. } = self;
 
-        while window_handle.is_running() {
-            app.update(window_handle);
-            app.draw(window_handle);
+        while window.is_running() {
+            app.update(window);
+            app.draw(window);
         }
 
         app.close(self.window.time);
@@ -251,7 +247,7 @@ impl Window {
         })
     }
 
-    pub fn clear_inputs(&mut self) {
+    fn clear_inputs(&mut self) {
         self.chars_typed.clear();
         self.keybinds_typed.clear();
         self.mousebinds_pressed.clear();

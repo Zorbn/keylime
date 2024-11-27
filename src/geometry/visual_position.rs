@@ -15,6 +15,10 @@ impl VisualPosition {
         VisualPosition::new(self.x + rect.x, self.y + rect.y)
     }
 
+    pub fn unoffset_by(&self, rect: Rect) -> VisualPosition {
+        VisualPosition::new(self.x - rect.x, self.y - rect.y)
+    }
+
     pub fn shift_y(&self, delta: f32) -> VisualPosition {
         VisualPosition::new(self.x, self.y + delta)
     }

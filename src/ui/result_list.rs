@@ -4,10 +4,14 @@ use crate::{
     config::Config,
     geometry::{rect::Rect, side::SIDE_ALL, visual_position::VisualPosition},
     input::{key::Key, keybind::Keybind, mouse_button::MouseButton, mousebind::Mousebind},
-    platform::{gfx::Gfx, window::Window},
+    platform::gfx::Gfx,
 };
 
-use super::camera::{Camera, RECENTER_DISTANCE};
+use super::{
+    camera::{Camera, RECENTER_DISTANCE},
+    widget::Widget,
+    UiHandle,
+};
 
 pub enum ResultListInput {
     None,
@@ -61,7 +65,8 @@ impl<T> ResultList<T> {
 
     pub fn update(
         &mut self,
-        window: &mut Window,
+        widget: &Widget,
+        ui: &mut UiHandle,
         is_visible: bool,
         is_focused: bool,
         dt: f32,
@@ -73,11 +78,11 @@ impl<T> ResultList<T> {
             .clamp(0, self.results.len().saturating_sub(1));
 
         if is_visible {
-            self.handle_mouse_inputs(&mut input, window);
+            self.handle_mouse_inputs(&mut input, widget, ui);
         }
 
         if is_focused {
-            self.handle_keybinds(&mut input, window);
+            self.handle_keybinds(&mut input, widget, ui);
         }
 
         self.update_camera(dt);
@@ -85,10 +90,15 @@ impl<T> ResultList<T> {
         input
     }
 
-    fn handle_mouse_inputs(&mut self, input: &mut ResultListInput, window: &mut Window) {
-        let mut mouse_handler = window.get_mousebind_handler();
+    fn handle_mouse_inputs(
+        &mut self,
+        input: &mut ResultListInput,
+        widget: &Widget,
+        ui: &mut UiHandle,
+    ) {
+        let mut mouse_handler = widget.get_mousebind_handler(ui);
 
-        while let Some(mousebind) = mouse_handler.next(window) {
+        while let Some(mousebind) = mouse_handler.next(ui.window) {
             let position = VisualPosition::new(mousebind.x, mousebind.y);
             let results_bounds = self.results_bounds;
 
@@ -98,12 +108,12 @@ impl<T> ResultList<T> {
                 ..
             } = mousebind
             else {
-                mouse_handler.unprocessed(window, mousebind);
+                mouse_handler.unprocessed(ui.window, mousebind);
                 continue;
             };
 
             if !results_bounds.contains_position(position) {
-                mouse_handler.unprocessed(window, mousebind);
+                mouse_handler.unprocessed(ui.window, mousebind);
                 continue;
             }
 
@@ -122,13 +132,13 @@ impl<T> ResultList<T> {
             }
         }
 
-        let mut mouse_scroll_handler = window.get_mouse_scroll_handler();
+        let mut mouse_scroll_handler = widget.get_mouse_scroll_handler(ui);
 
-        while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
+        while let Some(mouse_scroll) = mouse_scroll_handler.next(ui.window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
 
             if mouse_scroll.is_horizontal || !self.results_bounds.contains_position(position) {
-                mouse_scroll_handler.unprocessed(window, mouse_scroll);
+                mouse_scroll_handler.unprocessed(ui.window, mouse_scroll);
                 continue;
             }
 
@@ -137,10 +147,10 @@ impl<T> ResultList<T> {
         }
     }
 
-    fn handle_keybinds(&mut self, input: &mut ResultListInput, window: &mut Window) {
-        let mut keybind_handler = window.get_keybind_handler();
+    fn handle_keybinds(&mut self, input: &mut ResultListInput, widget: &Widget, ui: &mut UiHandle) {
+        let mut keybind_handler = widget.get_keybind_handler(ui);
 
-        while let Some(keybind) = keybind_handler.next(window) {
+        while let Some(keybind) = keybind_handler.next(ui.window) {
             match keybind {
                 Keybind {
                     key: Key::Escape,
@@ -170,7 +180,7 @@ impl<T> ResultList<T> {
                         self.selected_result_index += 1;
                     }
                 }
-                _ => keybind_handler.unprocessed(window, keybind),
+                _ => keybind_handler.unprocessed(ui.window, keybind),
             }
         }
     }

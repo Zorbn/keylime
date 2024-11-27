@@ -12,7 +12,6 @@ use crate::{
     platform::{
         dialog::{find_file, message, FindFileKind, MessageKind},
         gfx::Gfx,
-        window::Window,
     },
     temp_buffer::TempBuffer,
     text::{
@@ -21,16 +20,7 @@ use crate::{
     },
 };
 
-use super::{
-    command_palette::{
-        file_mode::MODE_OPEN_FILE,
-        go_to_line_mode::MODE_GO_TO_LINE,
-        search_mode::{MODE_SEARCH, MODE_SEARCH_AND_REPLACE_START},
-        CommandPalette,
-    },
-    doc_list::DocList,
-    tab::Tab,
-};
+use super::{doc_list::DocList, tab::Tab, widget::Widget, UiHandle};
 
 pub struct Pane {
     tabs: Vec<Tab>,
@@ -90,17 +80,17 @@ impl Pane {
 
     pub fn update(
         &mut self,
+        widget: &Widget,
+        ui: &mut UiHandle,
         doc_list: &mut DocList,
-        command_palette: &mut CommandPalette,
-        window: &mut Window,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
         config: &Config,
         time: f32,
     ) {
-        let mut mousebind_handler = window.get_mousebind_handler();
+        let mut mousebind_handler = widget.get_mousebind_handler(ui);
 
-        while let Some(mousebind) = mousebind_handler.next(window) {
+        while let Some(mousebind) = mousebind_handler.next(ui.window) {
             let visual_position =
                 VisualPosition::new(mousebind.x - self.bounds.x, mousebind.y - self.bounds.y);
 
@@ -119,48 +109,17 @@ impl Pane {
                         .nth(0)
                     {
                         Some((i, _)) => self.focused_tab_index = i,
-                        _ => mousebind_handler.unprocessed(window, mousebind),
+                        _ => mousebind_handler.unprocessed(ui.window, mousebind),
                     }
                 }
-                _ => mousebind_handler.unprocessed(window, mousebind),
+                _ => mousebind_handler.unprocessed(ui.window, mousebind),
             }
         }
 
-        let mut keybind_handler = window.get_keybind_handler();
+        let mut keybind_handler = widget.get_keybind_handler(ui);
 
-        while let Some(keybind) = keybind_handler.next(window) {
+        while let Some(keybind) = keybind_handler.next(ui.window) {
             match keybind {
-                Keybind {
-                    key: Key::P,
-                    mods: MOD_CTRL,
-                } => {
-                    command_palette.open(MODE_OPEN_FILE, self, doc_list, config, line_pool, time);
-                }
-                Keybind {
-                    key: Key::F,
-                    mods: MOD_CTRL,
-                } => {
-                    command_palette.open(MODE_SEARCH, self, doc_list, config, line_pool, time);
-                }
-                Keybind {
-                    key: Key::H,
-                    mods: MOD_CTRL,
-                } => {
-                    command_palette.open(
-                        MODE_SEARCH_AND_REPLACE_START,
-                        self,
-                        doc_list,
-                        config,
-                        line_pool,
-                        time,
-                    );
-                }
-                Keybind {
-                    key: Key::G,
-                    mods: MOD_CTRL,
-                } => {
-                    command_palette.open(MODE_GO_TO_LINE, self, doc_list, config, line_pool, time);
-                }
                 Keybind {
                     key: Key::O,
                     mods: MOD_CTRL,
@@ -233,18 +192,18 @@ impl Pane {
                         self.focused_tab_index += 1;
                     }
                 }
-                _ => keybind_handler.unprocessed(window, keybind),
+                _ => keybind_handler.unprocessed(ui.window, keybind),
             }
         }
 
         if let Some((tab, doc)) = self.get_tab_with_doc_mut(self.focused_tab_index, doc_list) {
-            tab.update(doc, window, line_pool, text_buffer, config, time);
+            tab.update(widget, ui, doc, line_pool, text_buffer, config, time);
         }
     }
 
-    pub fn update_camera(&mut self, doc_list: &mut DocList, window: &mut Window, dt: f32) {
+    pub fn update_camera(&mut self, ui: &mut UiHandle, doc_list: &mut DocList, dt: f32) {
         if let Some((tab, doc)) = self.get_tab_with_doc_mut(self.focused_tab_index, doc_list) {
-            tab.update_camera(doc, window, dt);
+            tab.update_camera(ui, doc, dt);
         }
     }
 

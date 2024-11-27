@@ -8,15 +8,12 @@ use crate::{
     geometry::{
         rect::Rect,
         side::{SIDE_ALL, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
-        visual_position::VisualPosition,
     },
     input::{
         key::Key,
         keybind::{Keybind, MOD_CTRL, MOD_SHIFT},
-        mouse_button::MouseButton,
-        mousebind::Mousebind,
     },
-    platform::{gfx::Gfx, window::Window},
+    platform::gfx::Gfx,
     temp_buffer::TempBuffer,
     text::{
         doc::{Doc, DocKind},
@@ -30,16 +27,14 @@ use super::{
     pane::Pane,
     result_list::{ResultList, ResultListInput},
     tab::Tab,
+    widget::Widget,
+    Ui, UiHandle,
 };
 
 use file_mode::MODE_OPEN_FILE;
+use go_to_line_mode::MODE_GO_TO_LINE;
 use mode::{CommandPaletteEventArgs, CommandPaletteMode};
-
-#[derive(PartialEq, Eq)]
-enum CommandPaletteState {
-    Inactive,
-    Active,
-}
+use search_mode::{MODE_SEARCH, MODE_SEARCH_AND_REPLACE_START};
 
 #[derive(Clone, Copy)]
 pub enum CommandPaletteAction {
@@ -51,7 +46,6 @@ pub enum CommandPaletteAction {
 const MAX_VISIBLE_RESULTS: usize = 20;
 
 pub struct CommandPalette {
-    state: CommandPaletteState,
     mode: &'static CommandPaletteMode,
     tab: Tab,
     doc: Doc,
@@ -60,15 +54,15 @@ pub struct CommandPalette {
     result_list: ResultList<String>,
     previous_results: Vec<Line>,
 
-    bounds: Rect,
     title_bounds: Rect,
     input_bounds: Rect,
+
+    pub widget: Widget,
 }
 
 impl CommandPalette {
-    pub fn new(line_pool: &mut LinePool) -> Self {
+    pub fn new(ui: &mut Ui, line_pool: &mut LinePool) -> Self {
         Self {
-            state: CommandPaletteState::Inactive,
             mode: MODE_OPEN_FILE,
             tab: Tab::new(0),
             doc: Doc::new(line_pool, DocKind::SingleLine),
@@ -77,14 +71,11 @@ impl CommandPalette {
             result_list: ResultList::new(MAX_VISIBLE_RESULTS),
             previous_results: Vec::new(),
 
-            bounds: Rect::zero(),
             title_bounds: Rect::zero(),
             input_bounds: Rect::zero(),
-        }
-    }
 
-    pub fn is_active(&self) -> bool {
-        self.state != CommandPaletteState::Inactive
+            widget: Widget::new(ui, false),
+        }
     }
 
     pub fn is_animating(&self) -> bool {
@@ -111,22 +102,23 @@ impl CommandPalette {
             gfx,
         );
 
-        self.bounds = self
-            .title_bounds
-            .expand_to_include(self.input_bounds)
-            .expand_to_include(self.result_list.bounds())
-            .center_x_in(bounds)
-            .offset_by(Rect::new(0.0, gfx.tab_height() * 2.0, 0.0, 0.0))
-            .floor();
+        self.widget.layout(
+            self.title_bounds
+                .expand_to_include(self.input_bounds)
+                .expand_to_include(self.result_list.bounds())
+                .center_x_in(bounds)
+                .offset_by(Rect::new(0.0, gfx.tab_height() * 2.0, 0.0, 0.0))
+                .floor(),
+        );
 
-        self.result_list.offset_by(self.bounds);
+        self.result_list.offset_by(self.widget.bounds());
 
         self.tab.layout(
             Rect::zero(),
             Rect::new(0.0, 0.0, gfx.glyph_width() * 10.0, gfx.line_height())
                 .center_in(self.input_bounds)
                 .expand_width_in(self.input_bounds)
-                .offset_by(self.bounds)
+                .offset_by(self.widget.bounds())
                 .floor(),
             &self.doc,
             gfx,
@@ -135,45 +127,64 @@ impl CommandPalette {
 
     pub fn update(
         &mut self,
+        ui: &mut UiHandle,
         editor: &mut Editor,
-        window: &mut Window,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
         config: &Config,
         time: f32,
         dt: f32,
     ) {
-        if !self.is_active() {
-            return;
+        // TODO: Clean up this check.
+        if self.widget.is_visible && self.widget.id() != ui.inner.focused_widget_id {
+            self.close(ui, line_pool);
         }
 
         let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
 
-        let mut mouse_handler = window.get_mousebind_handler();
+        let mut global_keybind_handler = ui.window.get_keybind_handler();
 
-        while let Some(mousebind) = mouse_handler.next(window) {
-            let position = VisualPosition::new(mousebind.x, mousebind.y);
-
-            let Mousebind {
-                button: None | Some(MouseButton::Left),
-                ..
-            } = mousebind
-            else {
-                mouse_handler.unprocessed(window, mousebind);
-                continue;
-            };
-
-            if mousebind.button.is_some() && !self.bounds.contains_position(position) {
-                self.close(line_pool);
-                continue;
+        while let Some(keybind) = global_keybind_handler.next(ui.window) {
+            match keybind {
+                Keybind {
+                    key: Key::P,
+                    mods: MOD_CTRL,
+                } => {
+                    self.open(ui, MODE_OPEN_FILE, pane, doc_list, config, line_pool, time);
+                }
+                Keybind {
+                    key: Key::F,
+                    mods: MOD_CTRL,
+                } => {
+                    self.open(ui, MODE_SEARCH, pane, doc_list, config, line_pool, time);
+                }
+                Keybind {
+                    key: Key::H,
+                    mods: MOD_CTRL,
+                } => {
+                    self.open(
+                        ui,
+                        MODE_SEARCH_AND_REPLACE_START,
+                        pane,
+                        doc_list,
+                        config,
+                        line_pool,
+                        time,
+                    );
+                }
+                Keybind {
+                    key: Key::G,
+                    mods: MOD_CTRL,
+                } => {
+                    self.open(ui, MODE_GO_TO_LINE, pane, doc_list, config, line_pool, time);
+                }
+                _ => global_keybind_handler.unprocessed(ui.window, keybind),
             }
-
-            mouse_handler.unprocessed(window, mousebind);
         }
 
-        let mut keybind_handler = window.get_keybind_handler();
+        let mut keybind_handler = self.widget.get_keybind_handler(ui);
 
-        while let Some(keybind) = keybind_handler.next(window) {
+        while let Some(keybind) = keybind_handler.next(ui.window) {
             match keybind {
                 Keybind {
                     key: Key::Backspace,
@@ -191,14 +202,14 @@ impl CommandPalette {
                     };
 
                     if !(on_backspace)(args) {
-                        keybind_handler.unprocessed(window, keybind);
+                        keybind_handler.unprocessed(ui.window, keybind);
                     }
                 }
-                _ => keybind_handler.unprocessed(window, keybind),
+                _ => keybind_handler.unprocessed(ui.window, keybind),
             }
         }
 
-        let result_input = self.result_list.update(window, true, true, dt);
+        let result_input = self.result_list.update(&self.widget, ui, true, true, dt);
 
         match result_input {
             ResultListInput::None => {}
@@ -207,6 +218,7 @@ impl CommandPalette {
             }
             ResultListInput::Submit { mods } => {
                 self.submit(
+                    ui,
                     mods & MOD_SHIFT != 0,
                     pane,
                     doc_list,
@@ -215,19 +227,25 @@ impl CommandPalette {
                     time,
                 );
             }
-            ResultListInput::Close => self.close(line_pool),
+            ResultListInput::Close => self.close(ui, line_pool),
         }
 
-        self.tab
-            .update(&mut self.doc, window, line_pool, text_buffer, config, time);
-
-        window.clear_inputs();
+        self.tab.update(
+            &self.widget,
+            ui,
+            &mut self.doc,
+            line_pool,
+            text_buffer,
+            config,
+            time,
+        );
 
         self.update_results(pane, doc_list, config, line_pool, time);
     }
 
     fn submit(
         &mut self,
+        ui: &mut UiHandle,
         has_shift: bool,
         pane: &mut Pane,
         doc_list: &mut DocList,
@@ -261,12 +279,12 @@ impl CommandPalette {
                     self.previous_results.clear();
                 }
 
-                self.close(line_pool);
+                self.close(ui, line_pool);
             }
         }
 
         if let CommandPaletteAction::Open(mode) = action {
-            self.open(mode, pane, doc_list, config, line_pool, time);
+            self.open(ui, mode, pane, doc_list, config, line_pool, time);
         }
     }
 
@@ -324,12 +342,15 @@ impl CommandPalette {
         (on_update_results)(args);
     }
 
-    pub fn draw(&mut self, config: &Config, gfx: &mut Gfx, is_focused: bool) {
-        if !self.is_active() {
+    pub fn draw(&mut self, ui: &mut UiHandle, config: &Config) {
+        if !self.widget.is_visible {
             return;
         }
 
-        gfx.begin(Some(self.bounds));
+        let is_focused = self.widget.is_focused(ui);
+        let gfx = ui.gfx();
+
+        gfx.begin(Some(self.widget.bounds()));
 
         gfx.add_bordered_rect(
             self.input_bounds,
@@ -362,7 +383,7 @@ impl CommandPalette {
         gfx.add_bordered_rect(
             doc_bounds
                 .add_margin(gfx.border_width())
-                .unoffset_by(self.bounds),
+                .unoffset_by(self.widget.bounds()),
             SIDE_ALL,
             &config.theme.background,
             &config.theme.border,
@@ -377,6 +398,7 @@ impl CommandPalette {
 
     pub fn open(
         &mut self,
+        ui: &mut UiHandle,
         mode: &'static CommandPaletteMode,
         pane: &mut Pane,
         doc_list: &mut DocList,
@@ -386,7 +408,8 @@ impl CommandPalette {
     ) {
         self.last_updated_version = None;
         self.mode = mode;
-        self.state = CommandPaletteState::Active;
+        self.widget.take_focus(ui);
+        self.widget.is_visible = true;
 
         let on_open = self.mode.on_open;
 
@@ -404,8 +427,9 @@ impl CommandPalette {
         self.update_results(pane, doc_list, config, line_pool, time);
     }
 
-    fn close(&mut self, line_pool: &mut LinePool) {
-        self.state = CommandPaletteState::Inactive;
+    fn close(&mut self, ui: &mut UiHandle, line_pool: &mut LinePool) {
+        self.widget.is_visible = false;
+        self.widget.release_focus(ui);
         self.doc.clear(line_pool);
     }
 }

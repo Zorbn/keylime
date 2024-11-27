@@ -2,7 +2,7 @@ use crate::{
     config::Config,
     geometry::{position::Position, rect::Rect},
     input::{key::Key, keybind::Keybind},
-    platform::{gfx::Gfx, pty::Pty, window::Window},
+    platform::{gfx::Gfx, pty::Pty},
     temp_buffer::TempBuffer,
     text::{
         doc::{Doc, DocKind},
@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-use super::{camera::CameraRecenterKind, color::Color, tab::Tab};
+use super::{camera::CameraRecenterKind, color::Color, tab::Tab, widget::Widget, Ui, UiHandle};
 
 const MAX_SCROLLBACK_LINES: usize = 100;
 
@@ -43,11 +43,11 @@ pub struct Terminal {
     is_cursor_visible: bool,
     foreground_color: Color,
 
-    bounds: Rect,
+    pub widget: Widget,
 }
 
 impl Terminal {
-    pub fn new(line_pool: &mut LinePool) -> Self {
+    pub fn new(ui: &mut Ui, line_pool: &mut LinePool) -> Self {
         let grid_width = 240isize;
         let grid_height = 24isize;
 
@@ -76,21 +76,27 @@ impl Terminal {
             is_cursor_visible: false,
             foreground_color: COLOR_WHITE,
 
-            bounds: Rect::zero(),
+            widget: Widget::new(ui, true),
         }
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
         let height = (gfx.line_height() * 15.0).floor();
 
-        self.bounds = Rect::new(bounds.x, bounds.bottom() - height, bounds.width, height);
+        self.widget.layout(Rect::new(
+            bounds.x,
+            bounds.bottom() - height,
+            bounds.width,
+            height,
+        ));
 
-        self.tab.layout(Rect::zero(), self.bounds, &self.doc, gfx);
+        self.tab
+            .layout(Rect::zero(), self.widget.bounds(), &self.doc, gfx);
     }
 
     pub fn update(
         &mut self,
-        window: &mut Window,
+        ui: &mut UiHandle,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
         config: &Config,
@@ -101,15 +107,15 @@ impl Terminal {
             return;
         };
 
-        let mut char_handler = window.get_char_handler();
+        let mut char_handler = self.widget.get_char_handler(ui);
 
-        while let Some(c) = char_handler.next(window) {
+        while let Some(c) = char_handler.next(ui.window) {
             pty.input.push(c as u32);
         }
 
-        let mut keybind_handler = window.get_keybind_handler();
+        let mut keybind_handler = self.widget.get_keybind_handler(ui);
 
-        while let Some(keybind) = keybind_handler.next(window) {
+        while let Some(keybind) = keybind_handler.next(ui.window) {
             match keybind {
                 Keybind {
                     key: Key::Enter, ..
@@ -130,13 +136,20 @@ impl Terminal {
 
         self.expand_doc_to_grid_size(line_pool, time);
 
-        self.tab
-            .update(&mut self.doc, window, line_pool, text_buffer, config, time);
+        self.tab.update(
+            &self.widget,
+            ui,
+            &mut self.doc,
+            line_pool,
+            text_buffer,
+            config,
+            time,
+        );
 
         self.backup_doc_cursor_positions();
 
         if let Ok(mut output) = pty.output.try_lock() {
-            self.handle_control_sequences(window, &output, line_pool, time);
+            self.handle_control_sequences(ui, &output, line_pool, time);
 
             output.clear();
         }
@@ -145,16 +158,19 @@ impl Terminal {
 
         self.pty = Some(pty);
 
-        self.tab.update_camera(&self.doc, window, dt);
+        self.tab.update_camera(ui, &self.doc, dt);
     }
 
-    pub fn draw(&mut self, config: &Config, gfx: &mut Gfx, is_focused: bool) {
+    pub fn draw(&mut self, ui: &mut UiHandle, config: &Config) {
+        let is_focused = self.widget.is_focused(ui);
+        let gfx = ui.gfx();
+
         self.tab.draw(&mut self.doc, config, gfx, is_focused);
     }
 
     fn handle_control_sequences(
         &mut self,
-        window: &mut Window,
+        ui: &mut UiHandle,
         mut output: &[u32],
         line_pool: &mut LinePool,
         time: f32,
@@ -211,7 +227,7 @@ impl Terminal {
                             self.doc.insert(start, &[' '], line_pool, time);
                         }
 
-                        let gfx = window.gfx();
+                        let gfx = ui.gfx();
 
                         let camera_offset_y = self.tab.camera.vertical.position
                             - self.doc.lines().len() as f32 * gfx.line_height();
@@ -637,7 +653,7 @@ impl Terminal {
     }
 
     pub fn bounds(&self) -> Rect {
-        self.bounds
+        self.widget.bounds()
     }
 
     pub fn is_animating(&self) -> bool {
