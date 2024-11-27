@@ -85,8 +85,4 @@ impl Widget {
     pub fn bounds(&self) -> Rect {
         self.bounds
     }
-
-    pub fn id(&self) -> usize {
-        self.id
-    }
 }

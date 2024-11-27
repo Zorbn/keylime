@@ -1,7 +1,11 @@
 use crate::{
     config::Config,
     geometry::{position::Position, rect::Rect},
-    input::{key::Key, keybind::Keybind},
+    input::{
+        editing_actions::handle_copy,
+        key::Key,
+        keybind::{Keybind, MOD_ALT, MOD_CTRL, MOD_SHIFT},
+    },
     platform::{gfx::Gfx, pty::Pty},
     temp_buffer::TempBuffer,
     text::{
@@ -12,6 +16,26 @@ use crate::{
 };
 
 use super::{camera::CameraRecenterKind, color::Color, tab::Tab, widget::Widget, Ui, UiHandle};
+
+const ZERO: u32 = '0' as u32;
+const ONE: u32 = '1' as u32;
+const TWO: u32 = '2' as u32;
+const THREE: u32 = '3' as u32;
+const FOUR: u32 = '4' as u32;
+const FIVE: u32 = '5' as u32;
+const SIX: u32 = '6' as u32;
+const NINE: u32 = '9' as u32;
+const SEMICOLON: u32 = ';' as u32;
+const QUESTION_MARK: u32 = '?' as u32;
+const LEFT_BRACKET: u32 = '[' as u32;
+const LOWERCASE_L: u32 = 'l' as u32;
+const LOWERCASE_H: u32 = 'h' as u32;
+const LOWERCASE_M: u32 = 'm' as u32;
+const UPPERCASE_C: u32 = 'C' as u32;
+const UPPERCASE_H: u32 = 'H' as u32;
+const UPPERCASE_J: u32 = 'J' as u32;
+const UPPERCASE_K: u32 = 'K' as u32;
+const UPPERCASE_X: u32 = 'X' as u32;
 
 const MAX_SCROLLBACK_LINES: usize = 100;
 
@@ -123,10 +147,70 @@ impl Terminal {
                     pty.input.push('\r' as u32);
                 }
                 Keybind {
-                    key: Key::Backspace,
-                    ..
+                    key: Key::Escape, ..
                 } => {
-                    pty.input.extend_from_slice(&[0x7F]);
+                    pty.input.push(0x1B);
+                }
+                Keybind { key: Key::Tab, .. } => {
+                    pty.input.push('\t' as u32);
+                }
+                Keybind {
+                    key: Key::Backspace,
+                    mods,
+                } => {
+                    let key_char = if mods & MOD_CTRL != 0 { 0x8 } else { 0x7F };
+
+                    pty.input.extend_from_slice(&[key_char]);
+                }
+                Keybind {
+                    key: Key::Up | Key::Down | Key::Left | Key::Right | Key::Home | Key::End,
+                    mods,
+                } => {
+                    let key_char = match keybind.key {
+                        Key::Up => 'A',
+                        Key::Down => 'B',
+                        Key::Left => 'D',
+                        Key::Right => 'C',
+                        Key::Home => 'H',
+                        Key::End => 'F',
+                        _ => unreachable!(),
+                    };
+
+                    pty.input.extend_from_slice(&[0x1B, LEFT_BRACKET]);
+
+                    if mods != 0 {
+                        pty.input.extend_from_slice(&[ONE, SEMICOLON]);
+                    }
+
+                    if mods & MOD_SHIFT != 0 && mods & MOD_CTRL != 0 {
+                        pty.input.push(SIX);
+                    } else if mods & MOD_SHIFT != 0 && mods & MOD_ALT != 0 {
+                        pty.input.push(FOUR);
+                    } else if mods & MOD_SHIFT != 0 {
+                        pty.input.push(TWO);
+                    } else if mods & MOD_CTRL != 0 {
+                        pty.input.push(FIVE);
+                    } else if mods & MOD_ALT != 0 {
+                        pty.input.push(THREE);
+                    }
+
+                    pty.input.push(key_char as u32);
+                }
+                Keybind {
+                    key: Key::C | Key::X,
+                    mods: MOD_CTRL,
+                } => {
+                    handle_copy(ui.window, &mut self.doc, text_buffer);
+                }
+                Keybind {
+                    key: Key::V,
+                    mods: MOD_CTRL,
+                } => {
+                    let text = ui.window.get_clipboard().unwrap_or(&[]);
+
+                    for c in text {
+                        pty.input.push(*c as u32);
+                    }
                 }
                 _ => {}
             }
@@ -274,16 +358,6 @@ impl Terminal {
         line_pool: &mut LinePool,
         time: f32,
     ) -> Option<&'a [u32]> {
-        const QUESTION_MARK: u32 = '?' as u32;
-        const LOWERCASE_L: u32 = 'l' as u32;
-        const LOWERCASE_H: u32 = 'h' as u32;
-        const LOWERCASE_M: u32 = 'm' as u32;
-        const UPPERCASE_C: u32 = 'C' as u32;
-        const UPPERCASE_H: u32 = 'H' as u32;
-        const UPPERCASE_J: u32 = 'J' as u32;
-        const UPPERCASE_K: u32 = 'K' as u32;
-        const UPPERCASE_X: u32 = 'X' as u32;
-
         match output.first() {
             Some(&QUESTION_MARK) => {
                 output = &output[1..];
@@ -417,9 +491,6 @@ impl Terminal {
     }
 
     fn handle_control_sequences_osc(mut output: &[u32]) -> Option<&[u32]> {
-        const ZERO: u32 = '0' as u32;
-        const SEMICOLON: u32 = ';' as u32;
-
         if output.starts_with(&[ZERO, SEMICOLON]) {
             output = &output[2..];
 
@@ -446,8 +517,6 @@ impl Terminal {
         mut output: &'a [u32],
         parameter_buffer: &'b mut [usize; 16],
     ) -> (&'a [u32], &'b [usize]) {
-        const SEMICOLON: u32 = ';' as u32;
-
         let mut parameter_count = 0;
 
         loop {
@@ -468,9 +537,6 @@ impl Terminal {
     }
 
     fn parse_numeric_parameter(mut output: &[u32]) -> (&[u32], usize) {
-        const ZERO: u32 = '0' as u32;
-        const NINE: u32 = '9' as u32;
-
         let mut parameter = 0;
 
         while matches!(output[0], ZERO..=NINE) {

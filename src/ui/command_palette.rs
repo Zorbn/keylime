@@ -135,8 +135,7 @@ impl CommandPalette {
         time: f32,
         dt: f32,
     ) {
-        // TODO: Clean up this check.
-        if self.widget.is_visible && self.widget.id() != ui.inner.focused_widget_id {
+        if self.widget.is_visible && !self.widget.is_focused(ui) {
             self.close(ui, line_pool);
         }
 

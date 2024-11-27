@@ -146,10 +146,7 @@ pub fn handle_keybind(
             key: Key::C,
             mods: MOD_CTRL,
         } => {
-            let mut text_buffer = text_buffer.get_mut();
-            let was_copy_implicit = doc.copy_at_cursors(&mut text_buffer);
-
-            let _ = window.set_clipboard(&text_buffer, was_copy_implicit);
+            handle_copy(window, doc, text_buffer);
         }
         Keybind {
             key: Key::X,
@@ -161,10 +158,7 @@ pub fn handle_keybind(
             key: Key::V,
             mods: MOD_CTRL,
         } => {
-            let was_copy_implicit = window.was_copy_implicit();
-            let text = window.get_clipboard().unwrap_or(&[]);
-
-            doc.paste_at_cursors(text, was_copy_implicit, line_pool, time);
+            handle_paste(window, doc, line_pool, time);
         }
         Keybind {
             key: Key::D,
@@ -462,6 +456,20 @@ fn handle_cut(
         doc.delete(start, end, line_pool, time);
         doc.end_cursor_selection(index);
     }
+}
+
+pub fn handle_copy(window: &mut Window, doc: &mut Doc, text_buffer: &mut TempBuffer<char>) {
+    let mut text_buffer = text_buffer.get_mut();
+    let was_copy_implicit = doc.copy_at_cursors(&mut text_buffer);
+
+    let _ = window.set_clipboard(&text_buffer, was_copy_implicit);
+}
+
+fn handle_paste(window: &mut Window, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
+    let was_copy_implicit = window.was_copy_implicit();
+    let text = window.get_clipboard().unwrap_or(&[]);
+
+    doc.paste_at_cursors(text, was_copy_implicit, line_pool, time);
 }
 
 fn get_matching_char(c: char) -> Option<char> {
