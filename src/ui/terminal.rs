@@ -5,7 +5,6 @@ use crate::{
     platform::{gfx::Gfx, pty::Pty, window::Window},
     temp_buffer::TempBuffer,
     text::{
-        cursor_index::CursorIndex,
         doc::{Doc, DocKind},
         line_pool::LinePool,
     },
@@ -18,15 +17,29 @@ pub struct Terminal {
     doc: Doc,
     pty: Option<Pty>,
 
+    // The position of the terminal's cursor, which follows different rules
+    // compared to the document's cursor for compatibility reasons, and may be
+    // different from the document's cursor position is the user is selecting text.
+    grid_cursor: Position,
+    grid_width: isize,
+    grid_height: isize,
+
     bounds: Rect,
 }
 
 impl Terminal {
     pub fn new(line_pool: &mut LinePool) -> Self {
+        let grid_width = 240;
+        let grid_height = 24;
+
         Self {
             tab: Tab::new(0),
             doc: Doc::new(line_pool, DocKind::Output),
-            pty: Pty::new(240, 24).ok(),
+            pty: Pty::new(grid_width, grid_height).ok(),
+
+            grid_cursor: Position::zero(),
+            grid_width,
+            grid_height,
 
             bounds: Rect::zero(),
         }
@@ -49,7 +62,7 @@ impl Terminal {
         time: f32,
         dt: f32,
     ) {
-        let Some(pty) = self.pty.as_mut() else {
+        let Some(mut pty) = self.pty.take() else {
             return;
         };
 
@@ -78,24 +91,17 @@ impl Terminal {
             }
         }
 
-        let mut mousebind_handler = window.get_mousebind_handler();
-
-        while mousebind_handler.next(window).is_some() {}
-
         pty.flush();
 
+        self.expand_doc_to_grid_size(line_pool, time);
+
         if let Ok(mut output) = pty.output.try_lock() {
-            Self::handle_control_sequences(
-                &output,
-                &mut self.doc,
-                pty.width(),
-                pty.height(),
-                line_pool,
-                time,
-            );
+            self.handle_control_sequences(&output, line_pool, time);
 
             output.clear();
         }
+
+        self.pty = Some(pty);
 
         self.tab
             .update(&mut self.doc, window, line_pool, text_buffer, config, time);
@@ -108,44 +114,18 @@ impl Terminal {
     }
 
     fn handle_control_sequences(
+        &mut self,
         mut output: &[u32],
-        doc: &mut Doc,
-        width: isize,
-        height: isize,
         line_pool: &mut LinePool,
         time: f32,
     ) {
         while !output.is_empty() {
-            let cursor_position = doc.get_cursor(CursorIndex::Main).position;
-
-            while (doc.lines().len() as isize) < height {
-                let start = doc.end();
-                doc.insert(start, &['\n'], line_pool, time);
-            }
-
-            for y in (doc.lines().len() as isize - height)..(doc.lines().len() as isize) {
-                while doc.get_line_len(y) < width {
-                    let start = Position::new(doc.get_line_len(y), y);
-                    doc.insert(start, &[' '], line_pool, time);
-                }
-            }
-
-            doc.jump_cursors(cursor_position, false);
-
             // Backspace:
             match output[0] {
                 0x1B => {
                     if let Some(remaining) = output
                         .starts_with(&[0x1B, '[' as u32])
-                        .then(|| {
-                            Self::handle_control_sequences_csi(
-                                &output[2..],
-                                doc,
-                                height,
-                                line_pool,
-                                time,
-                            )
-                        })
+                        .then(|| self.handle_control_sequences_csi(&output[2..], line_pool, time))
                         .flatten()
                     {
                         output = remaining;
@@ -163,31 +143,31 @@ impl Terminal {
                 }
                 // Backspace:
                 0x8 => {
-                    doc.move_cursors(Position::new(-1, 0), false);
+                    self.move_cursor(Position::new(-1, 0));
+
                     output = &output[1..];
                     continue;
                 }
                 // Carriage Return:
                 0xD => {
-                    let cursor_position = doc.get_cursor(CursorIndex::Main).position;
-                    doc.jump_cursors(Position::new(0, cursor_position.y), false);
+                    self.jump_cursor(Position::new(0, self.grid_cursor.y));
 
                     output = &output[1..];
                     continue;
                 }
                 // Newline:
                 0xA => {
-                    let cursor_position = doc.get_cursor(CursorIndex::Main).position;
+                    if self.grid_cursor.y == self.grid_height - 1 {
+                        let start = self.doc.end();
+                        self.doc.insert(start, &['\n'], line_pool, time);
 
-                    if cursor_position.y == doc.lines().len() as isize - 1 {
-                        let start = doc.end();
-                        doc.insert(start, &['\n'], line_pool, time);
+                        for _ in 0..self.grid_width {
+                            let start = self.doc.end();
+                            self.doc.insert(start, &[' '], line_pool, time);
+                        }
+                    } else {
+                        self.move_cursor(Position::new(0, 1));
                     }
-
-                    doc.jump_cursors(
-                        Position::new(cursor_position.x, cursor_position.y + 1),
-                        false,
-                    );
 
                     output = &output[1..];
                     continue;
@@ -196,11 +176,7 @@ impl Terminal {
             }
 
             if let Some(c) = char::from_u32(output[0]).filter(|c| !c.is_ascii_control()) {
-                let start = doc.get_cursor(CursorIndex::Main).position;
-                let end = doc.move_position(start, Position::new(1, 0));
-
-                doc.delete(start, end, line_pool, time);
-                doc.insert_at_cursors(&[c], line_pool, time);
+                self.insert_at_cursor(&[c], line_pool, time);
             } else {
                 println!("unknown char: {:#x}", output[0]);
             }
@@ -210,9 +186,8 @@ impl Terminal {
     }
 
     fn handle_control_sequences_csi<'a>(
+        &mut self,
         mut output: &'a [u32],
-        doc: &mut Doc,
-        height: isize,
         line_pool: &mut LinePool,
         time: f32,
     ) -> Option<&'a [u32]> {
@@ -274,32 +249,24 @@ impl Terminal {
                         let y = parameters.first().copied().unwrap_or(1).saturating_sub(1);
                         let x = parameters.get(1).copied().unwrap_or(1).saturating_sub(1);
 
-                        let y = (doc.lines().len() as isize - height).max(0) + y as isize;
-
-                        doc.jump_cursors(Position::new(x as isize, y), false);
+                        self.jump_cursor(Position::new(x as isize, y as isize));
 
                         Some(&output[1..])
                     }
                     Some(&UPPERCASE_C) => {
                         let distance = parameters.first().copied().unwrap_or(0);
 
-                        doc.move_cursors(Position::new(distance as isize, 0), false);
+                        self.move_cursor(Position::new(distance as isize, 0));
 
                         Some(&output[1..])
                     }
                     Some(&UPPERCASE_J) => {
                         if parameters.first() == Some(&2) {
                             // Clear screen.
-                            doc.clear(line_pool);
+                            let start = Position::zero();
+                            let end = Position::new(self.grid_width, self.grid_height - 1);
 
-                            let cursor_position = doc.get_cursor(CursorIndex::Main).position;
-
-                            let end = doc.end();
-                            let start = Position::new(0, doc.end().y - height);
-
-                            Self::clear_range(start, end, doc, line_pool, time);
-
-                            doc.jump_cursors(cursor_position, false);
+                            self.delete(start, end, line_pool, time);
 
                             Some(&output[1..])
                         } else {
@@ -308,12 +275,10 @@ impl Terminal {
                     }
                     Some(&UPPERCASE_K) => {
                         // Clear line after the cursor.
-                        let start = doc.get_cursor(CursorIndex::Main).position;
-                        let end = Position::new(doc.get_line_len(start.y), start.y);
+                        let start = self.grid_cursor;
+                        let end = Position::new(self.grid_width, start.y);
 
-                        Self::clear_range(start, end, doc, line_pool, time);
-
-                        doc.jump_cursors(start, false);
+                        self.delete(start, end, line_pool, time);
 
                         Some(&output[1..])
                     }
@@ -321,12 +286,10 @@ impl Terminal {
                         let distance = parameters.first().copied().unwrap_or(0);
 
                         // Clear characters after the cursor.
-                        let start = doc.get_cursor(CursorIndex::Main).position;
-                        let end = doc.move_position(start, Position::new(distance as isize, 0));
+                        let start = self.grid_cursor;
+                        let end = self.move_position(start, Position::new(distance as isize, 0));
 
-                        Self::clear_range(start, end, doc, line_pool, time);
-
-                        doc.jump_cursors(start, false);
+                        self.delete(start, end, line_pool, time);
 
                         Some(&output[1..])
                     }
@@ -401,22 +364,91 @@ impl Terminal {
         (output, parameter)
     }
 
-    fn clear_range(
-        start: Position,
-        end: Position,
-        doc: &mut Doc,
-        line_pool: &mut LinePool,
-        time: f32,
-    ) {
+    fn expand_doc_to_grid_size(&mut self, line_pool: &mut LinePool, time: f32) {
+        while (self.doc.lines().len() as isize) < self.grid_height {
+            let start = self.doc.end();
+            self.doc.insert(start, &['\n'], line_pool, time);
+        }
+
+        for y in 0..self.grid_height {
+            let y = self.doc.lines().len() as isize - self.grid_height + y;
+
+            while self.doc.get_line_len(y) < self.grid_width {
+                let start = Position::new(self.doc.get_line_len(y), y);
+                self.doc.insert(start, &[' '], line_pool, time);
+            }
+        }
+    }
+
+    fn clamp_position(&self, position: Position) -> Position {
+        Position::new(
+            position.x.clamp(0, self.grid_width - 1),
+            position.y.clamp(0, self.grid_height - 1),
+        )
+    }
+
+    fn move_position(&self, position: Position, delta: Position) -> Position {
+        self.clamp_position(Position::new(position.x + delta.x, position.y + delta.y))
+    }
+
+    fn grid_position_to_doc_position(&self, position: Position) -> Position {
+        Position::new(
+            position.x,
+            self.doc.lines().len() as isize - self.grid_height + position.y,
+        )
+    }
+
+    fn jump_doc_cursors_to_grid_cursor(&mut self) {
+        let doc_position = self.grid_position_to_doc_position(self.grid_cursor);
+        self.doc.jump_cursors(doc_position, false);
+    }
+
+    fn move_cursor(&mut self, delta: Position) {
+        self.jump_cursor(Position::new(
+            self.grid_cursor.x + delta.x,
+            self.grid_cursor.y + delta.y,
+        ));
+    }
+
+    fn jump_cursor(&mut self, position: Position) {
+        self.grid_cursor = self.clamp_position(position);
+
+        self.jump_doc_cursors_to_grid_cursor();
+    }
+
+    fn insert_at_cursor(&mut self, text: &[char], line_pool: &mut LinePool, time: f32) {
+        self.insert(self.grid_cursor, text, line_pool, time);
+        self.move_cursor(Position::new(text.len() as isize, 0));
+    }
+
+    fn insert(&mut self, start: Position, text: &[char], line_pool: &mut LinePool, time: f32) {
         let mut position = start;
 
-        while position < end {
-            let next_position = doc.move_position(position, Position::new(1, 0));
+        for c in text {
+            let next_position = self.move_position(position, Position::new(1, 0));
 
-            doc.delete(position, next_position, line_pool, time);
-            doc.insert(position, &[' '], line_pool, time);
+            {
+                let position = self.grid_position_to_doc_position(position);
+                let next_position = self.grid_position_to_doc_position(next_position);
+
+                self.doc.delete(position, next_position, line_pool, time);
+                self.doc.insert(position, &[*c], line_pool, time);
+            }
 
             position = next_position;
+        }
+
+        self.jump_doc_cursors_to_grid_cursor();
+    }
+
+    fn delete(&mut self, start: Position, end: Position, line_pool: &mut LinePool, time: f32) {
+        for y in start.y..=end.y {
+            let start_x = if y == start.y { start.x } else { 0 };
+            let end_x = if y == end.y { end.x } else { self.grid_width };
+
+            for x in start_x..end_x {
+                self.insert(Position::new(x, y), &[' '], line_pool, time);
+            }
         }
     }
 

@@ -17,7 +17,6 @@ use platform::window::WindowRunner;
 /*
  * TODO:
  * Running commands and seeing output (very simple integrated terminal).
- *    - Make sure cursor motions are bounded by the pty's size relative to the bottom of the output (scrolling is supported),
  *    - Limit max number of lines in the output,
  *    - Allow focusing either the terminal or the editor using the mouse and keybinds.
  *    - Add colors for output,
