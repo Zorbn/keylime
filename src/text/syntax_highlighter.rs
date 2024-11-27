@@ -302,6 +302,13 @@ impl SyntaxHighlighter {
         }
     }
 
+    pub fn recycle_highlighted_lines_up_to_y(&mut self, y: usize) {
+        for _ in 0..y {
+            let highlighted_line = self.highlighted_lines.remove(0);
+            self.highlighted_lines.push(highlighted_line);
+        }
+    }
+
     pub fn highlighted_lines(&self) -> &[HighlightedLine] {
         &self.highlighted_lines
     }

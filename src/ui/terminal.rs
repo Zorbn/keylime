@@ -105,17 +105,16 @@ impl Terminal {
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
-        let height = (gfx.line_height() * 15.0).floor();
+        let doc_bounds = Rect::new(0.0, 0.0, bounds.width, gfx.line_height() * 15.0)
+            .at_bottom_of(bounds)
+            .floor();
+        let tab_bounds = Rect::new(0.0, 0.0, bounds.width, gfx.tab_height())
+            .above(doc_bounds)
+            .floor();
 
-        self.widget.layout(Rect::new(
-            bounds.x,
-            bounds.bottom() - height,
-            bounds.width,
-            height,
-        ));
+        self.widget.layout(tab_bounds.expand_to_include(tab_bounds));
 
-        self.tab
-            .layout(Rect::zero(), self.widget.bounds(), &self.doc, gfx);
+        self.tab.layout(tab_bounds, doc_bounds, &self.doc, gfx);
     }
 
     pub fn update(
@@ -250,6 +249,18 @@ impl Terminal {
         let gfx = ui.gfx();
 
         self.tab.draw(&mut self.doc, config, gfx, is_focused);
+
+        gfx.begin(Some(self.widget.bounds()));
+
+        gfx.add_rect(
+            self.tab
+                .tab_bounds()
+                .top_border(gfx.border_width())
+                .unoffset_by(self.widget.bounds()),
+            &config.theme.border,
+        );
+
+        gfx.end();
     }
 
     fn handle_control_sequences(
@@ -325,6 +336,7 @@ impl Terminal {
                             let end = Position::new(0, excess_lines as isize);
 
                             self.doc.delete(start, end, line_pool, time);
+                            self.doc.recycle_highlighted_lines_up_to_y(excess_lines);
                         }
 
                         self.tab.camera.vertical.position =

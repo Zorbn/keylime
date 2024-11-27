@@ -1503,6 +1503,10 @@ impl Doc {
         self.unhighlighted_line_y = end.y + 1;
     }
 
+    pub fn recycle_highlighted_lines_up_to_y(&mut self, y: usize) {
+        self.syntax_highlighter.recycle_highlighted_lines_up_to_y(y);
+    }
+
     pub fn highlight_line_from_colors(&mut self, colors: &[Color], y: usize) {
         self.syntax_highlighter
             .highlight_line_from_colors(colors, y);
