@@ -26,9 +26,10 @@ pub fn handle_char(c: char, doc: &mut Doc, line_pool: &mut LinePool, time: f32) 
             continue;
         }
 
-        if let Some(matching_char) =
-            get_matching_char(c).filter(|c| *c != '\'' || previous_char.is_whitespace())
-        {
+        if let Some(matching_char) = get_matching_char(c).filter(|c| {
+            (current_char == *c || current_char.is_whitespace())
+                && (*c != '\'' || previous_char.is_whitespace())
+        }) {
             doc.insert_at_cursor(index, &[c, matching_char], line_pool, time);
             doc.move_cursor(index, Position::new(-1, 0), false);
 
