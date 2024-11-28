@@ -19,7 +19,7 @@ impl TerminalPane {
     ) -> Self {
         let mut inner = Pane::new();
 
-        let doc_index = doc_list.add(Doc::new(line_pool, DocKind::Output));
+        let doc_index = doc_list.add(Doc::new(line_pool, Some("Terminal"), DocKind::Output));
         emulators.push(TerminalEmulator::new());
         inner.add_tab(doc_index, doc_list);
 

@@ -65,7 +65,7 @@ impl CommandPalette {
         Self {
             mode: MODE_OPEN_FILE,
             tab: Tab::new(0),
-            doc: Doc::new(line_pool, DocKind::SingleLine),
+            doc: Doc::new(line_pool, None, DocKind::SingleLine),
             last_updated_version: None,
 
             result_list: ResultList::new(MAX_VISIBLE_RESULTS),

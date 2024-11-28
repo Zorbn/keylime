@@ -20,10 +20,13 @@ const THREE: u32 = '3' as u32;
 const FOUR: u32 = '4' as u32;
 const FIVE: u32 = '5' as u32;
 const SIX: u32 = '6' as u32;
+const EIGHT: u32 = '8' as u32;
 const NINE: u32 = '9' as u32;
 const SEMICOLON: u32 = ';' as u32;
 const QUESTION_MARK: u32 = '?' as u32;
 const LEFT_BRACKET: u32 = '[' as u32;
+const RIGHT_BRACKET: u32 = ']' as u32;
+const BACK_SLASH: u32 = '\\' as u32;
 const LOWERCASE_L: u32 = 'l' as u32;
 const LOWERCASE_H: u32 = 'h' as u32;
 const LOWERCASE_M: u32 = 'm' as u32;
@@ -228,7 +231,7 @@ impl TerminalEmulator {
             match output[0] {
                 0x1B => {
                     if let Some(remaining) = output
-                        .starts_with(&[0x1B, '[' as u32])
+                        .starts_with(&[0x1B, LEFT_BRACKET])
                         .then(|| {
                             self.handle_control_sequences_csi(doc, &output[2..], line_pool, time)
                         })
@@ -239,7 +242,7 @@ impl TerminalEmulator {
                     }
 
                     if let Some(remaining) = output
-                        .starts_with(&[0x1B, ']' as u32])
+                        .starts_with(&[0x1B, RIGHT_BRACKET])
                         .then(|| Self::handle_control_sequences_osc(&output[2..]))
                         .flatten()
                     {
@@ -472,6 +475,18 @@ impl TerminalEmulator {
                 }
 
                 output = &output[1..];
+            }
+
+            Some(output)
+        } else if output.starts_with(&[EIGHT, SEMICOLON]) {
+            output = &output[3..];
+
+            while !output.is_empty() && !output.starts_with(&[0x1B, BACK_SLASH]) {
+                output = &output[1..];
+            }
+
+            if !output.is_empty() {
+                output = &output[2..];
             }
 
             Some(output)

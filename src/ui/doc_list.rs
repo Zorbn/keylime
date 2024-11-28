@@ -142,7 +142,7 @@ impl DocList {
             }
         }
 
-        let mut doc = Doc::new(line_pool, DocKind::MultiLine);
+        let mut doc = Doc::new(line_pool, None, DocKind::MultiLine);
 
         doc.load(path, line_pool)?;
 

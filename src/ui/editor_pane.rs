@@ -29,7 +29,7 @@ impl EditorPane {
     pub fn new(doc_list: &mut DocList, line_pool: &mut LinePool) -> Self {
         let mut inner = Pane::new();
 
-        let doc_index = doc_list.add(Doc::new(line_pool, DocKind::MultiLine));
+        let doc_index = doc_list.add(Doc::new(line_pool, None, DocKind::MultiLine));
         inner.add_tab(doc_index, doc_list);
 
         Self { inner }
@@ -86,7 +86,7 @@ impl EditorPane {
                     key: Key::N,
                     mods: MOD_CTRL,
                 } => {
-                    let doc_index = doc_list.add(Doc::new(line_pool, DocKind::MultiLine));
+                    let doc_index = doc_list.add(Doc::new(line_pool, None, DocKind::MultiLine));
                     self.add_tab(doc_index, doc_list, config, line_pool, time);
                 }
                 Keybind {

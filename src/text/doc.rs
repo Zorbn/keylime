@@ -57,6 +57,7 @@ enum StepStatus {
 const CURSOR_POSITION_HISTORY_THRESHOLD: isize = 10;
 
 pub struct Doc {
+    display_name: Option<&'static str>,
     path: Option<PathBuf>,
     is_saved: bool,
     version: usize,
@@ -82,10 +83,15 @@ pub struct Doc {
 }
 
 impl Doc {
-    pub fn new(line_pool: &mut LinePool, kind: DocKind) -> Self {
+    pub fn new(
+        line_pool: &mut LinePool,
+        display_name: Option<&'static str>,
+        kind: DocKind,
+    ) -> Self {
         let lines = vec![line_pool.pop()];
 
         let mut doc = Self {
+            display_name,
             path: None,
             is_saved: true,
             version: 0,
@@ -1353,11 +1359,12 @@ impl Doc {
             .as_ref()
             .and_then(|path| path.file_name())
             .and_then(|name| name.to_str())
+            .or(self.display_name)
             .unwrap_or(DEFAULT_NAME)
     }
 
     pub fn is_saved(&self) -> bool {
-        self.is_saved
+        self.is_saved || self.kind == DocKind::Output
     }
 
     pub fn is_worthless(&self) -> bool {
