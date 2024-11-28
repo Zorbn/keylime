@@ -54,7 +54,8 @@ tokens = [
     { pattern = "#%.*", kind = "Meta" },
     { pattern = "([%a_][%w_]*)%(", kind = "Function" },
     { pattern = "0x%x+", kind = "Number" },
-    { pattern = "%d[%d.]*", kind = "Number" },
+    { pattern = "(%d+.?%d*)[^.]", kind = "Number" },
+    { pattern = "%d+", kind = "Number" },
     { pattern = "[!=&,><./:@^|;{}()%%%*%+%-%?%[%]]", kind = "Symbol" },
 ]
 ranges = [

@@ -8,7 +8,8 @@ tokens = [
     { pattern = "#%.*", kind = "Comment" },
     { pattern = "0x%x+", kind = "Number" },
     { pattern = "0b[01]+", kind = "Number" },
-    { pattern = "%d[%d_.]*", kind = "Number" },
+    { pattern = "(%d[%d_]*.?[%d_]*)[^.]", kind = "Number" },
+    { pattern = "%d[%d_]*", kind = "Number" },
 ]
 ranges = [
     { start = '"', end = '"', escape = '\', kind = "String" },

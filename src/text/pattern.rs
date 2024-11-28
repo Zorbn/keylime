@@ -56,7 +56,7 @@ enum PatternPart {
     CaptureStart, // (
     CaptureEnd,   // )
     Literal(PatternLiteral),
-    Class(Vec<PatternLiteral>), // []
+    Class(Vec<PatternLiteral>, bool), // [] or [^]
     Modifier(PatternModifier),
 }
 
@@ -126,9 +126,9 @@ impl Pattern {
                     parts.push(modified);
                 }
                 '[' => {
-                    let class = Self::parse_class(&mut chars)?;
+                    let (class, is_positive) = Self::parse_class(&mut chars)?;
 
-                    parts.push(PatternPart::Class(class));
+                    parts.push(PatternPart::Class(class, is_positive));
                 }
                 _ => parts.push(PatternPart::Literal(PatternLiteral::Char(c))),
             }
@@ -145,11 +145,19 @@ impl Pattern {
         Ok(Self { parts })
     }
 
-    fn parse_class(chars: &mut Chars<'_>) -> Result<Vec<PatternLiteral>, &'static str> {
+    fn parse_class(chars: &mut Chars<'_>) -> Result<(Vec<PatternLiteral>, bool), &'static str> {
         let mut class = Vec::new();
         let mut is_escaped = false;
+        let mut is_positive = true;
+        let mut is_first = true;
 
         for c in chars.by_ref() {
+            if is_first && c == '^' {
+                is_positive = false;
+            }
+
+            is_first = false;
+
             if is_escaped {
                 is_escaped = false;
 
@@ -161,7 +169,7 @@ impl Pattern {
             match c {
                 '%' => is_escaped = true,
                 ']' => {
-                    return Ok(class);
+                    return Ok((class, is_positive));
                 }
                 _ => class.push(PatternLiteral::Char(c)),
             }
@@ -342,13 +350,19 @@ impl Pattern {
     }
 
     fn match_literal_or_class(text: &[char], index: usize, part: &PatternPart) -> bool {
-        let Some(c) = text.get(index) else {
-            return false;
-        };
-
         match part {
-            PatternPart::Literal(literal) => Self::match_literal(*c, literal),
-            PatternPart::Class(literals) => {
+            PatternPart::Literal(literal) => {
+                let Some(c) = text.get(index) else {
+                    return false;
+                };
+
+                Self::match_literal(*c, literal)
+            }
+            PatternPart::Class(literals, is_positive) => {
+                let Some(c) = text.get(index) else {
+                    return !is_positive;
+                };
+
                 let mut has_match = false;
 
                 for literal in literals {
@@ -358,7 +372,7 @@ impl Pattern {
                     }
                 }
 
-                has_match
+                has_match == *is_positive
             }
             _ => false,
         }
