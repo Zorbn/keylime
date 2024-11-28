@@ -5,7 +5,7 @@ use std::{
 };
 
 use windows::{
-    core::{w, Result, PWSTR},
+    core::{Result, HSTRING, PWSTR},
     Win32::{
         Foundation::{CloseHandle, FALSE, HANDLE},
         Storage::FileSystem::{ReadFile, WriteFile},
@@ -35,14 +35,14 @@ pub struct Pty {
 }
 
 impl Pty {
-    pub fn new(width: isize, height: isize) -> Result<Self> {
+    pub fn new(width: isize, height: isize, child_paths: &[&str]) -> Result<Self> {
         // Used to communicate with the child process.
         let mut output_read = HANDLE::default();
         let mut input_write = HANDLE::default();
 
         let hpcon;
         let event;
-        let mut process_info = PROCESS_INFORMATION::default();
+        let process_info;
 
         unsafe {
             // Closed after creating the child process.
@@ -65,71 +65,7 @@ impl Pty {
             CloseHandle(input_read)?;
             CloseHandle(output_write)?;
 
-            let mut bytes_required = 0;
-            let _ = InitializeProcThreadAttributeList(
-                LPPROC_THREAD_ATTRIBUTE_LIST(null_mut()),
-                1,
-                0,
-                &mut bytes_required,
-            );
-
-            let process_heap = GetProcessHeap()?;
-
-            let attribute_list = LPPROC_THREAD_ATTRIBUTE_LIST(HeapAlloc(
-                process_heap,
-                HEAP_FLAGS(0),
-                bytes_required,
-            ));
-
-            InitializeProcThreadAttributeList(attribute_list, 1, 0, &mut bytes_required)
-                .inspect_err(|_| {
-                    let _ = HeapFree(process_heap, HEAP_FLAGS(0), Some(attribute_list.0));
-                })?;
-
-            UpdateProcThreadAttribute(
-                attribute_list,
-                0,
-                PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE as usize,
-                Some(hpcon.0 as *mut _),
-                size_of::<HPCON>(),
-                None,
-                None,
-            )
-            .inspect_err(|_| {
-                let _ = HeapFree(process_heap, HEAP_FLAGS(0), Some(attribute_list.0));
-            })?;
-
-            let mut startup_info = STARTUPINFOEXW::default();
-            startup_info.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
-            startup_info.lpAttributeList = attribute_list;
-
-            let child_application = w!("C:\\Program Files\\PowerShell\\7\\pwsh.exe");
-            let child_application_len = child_application.len() + 1;
-
-            let command = HeapAlloc(
-                process_heap,
-                HEAP_FLAGS(0),
-                size_of::<u16>() * child_application_len,
-            );
-
-            copy_nonoverlapping(child_application.0, command as _, child_application_len);
-
-            CreateProcessW(
-                None,
-                PWSTR(command as _),
-                None,
-                None,
-                FALSE,
-                EXTENDED_STARTUPINFO_PRESENT,
-                None,
-                None,
-                &startup_info.StartupInfo,
-                &mut process_info,
-            )
-            .inspect_err(|_| {
-                let _ = HeapFree(process_heap, HEAP_FLAGS(0), Some(command));
-                let _ = HeapFree(process_heap, HEAP_FLAGS(0), Some(attribute_list.0));
-            })?;
+            process_info = Self::create_process(hpcon, child_paths)?;
 
             event = CreateEventW(None, FALSE, FALSE, None)?;
         }
@@ -152,6 +88,101 @@ impl Pty {
 
             stdin: input_write,
         })
+    }
+
+    unsafe fn create_process(hpcon: HPCON, child_paths: &[&str]) -> Result<PROCESS_INFORMATION> {
+        let mut process_info = PROCESS_INFORMATION::default();
+        let mut child_result = Ok(());
+
+        let process_heap = GetProcessHeap()?;
+        let startup_info = Self::create_process_startup_info(hpcon)?;
+
+        for child_path in child_paths {
+            let child_application = HSTRING::from(*child_path);
+            let child_application = child_application.as_wide();
+            let child_application_len = child_application.len() + 1;
+
+            let command = HeapAlloc(
+                process_heap,
+                HEAP_FLAGS(0),
+                size_of::<u16>() * child_application_len,
+            );
+
+            copy_nonoverlapping(
+                child_application.as_ptr(),
+                command as _,
+                child_application_len,
+            );
+
+            child_result = CreateProcessW(
+                None,
+                PWSTR(command as _),
+                None,
+                None,
+                FALSE,
+                EXTENDED_STARTUPINFO_PRESENT,
+                None,
+                None,
+                &startup_info.StartupInfo,
+                &mut process_info,
+            );
+
+            if child_result.is_err() {
+                let _ = HeapFree(process_heap, HEAP_FLAGS(0), Some(command));
+            } else {
+                break;
+            }
+        }
+
+        child_result
+            .inspect_err(|_| {
+                let _ = HeapFree(
+                    process_heap,
+                    HEAP_FLAGS(0),
+                    Some(startup_info.lpAttributeList.0),
+                );
+            })
+            .map(|_| process_info)
+    }
+
+    unsafe fn create_process_startup_info(hpcon: HPCON) -> Result<STARTUPINFOEXW> {
+        let process_heap = GetProcessHeap()?;
+
+        let mut bytes_required = 0;
+        let _ = InitializeProcThreadAttributeList(
+            LPPROC_THREAD_ATTRIBUTE_LIST(null_mut()),
+            1,
+            0,
+            &mut bytes_required,
+        );
+
+        let attribute_list =
+            LPPROC_THREAD_ATTRIBUTE_LIST(HeapAlloc(process_heap, HEAP_FLAGS(0), bytes_required));
+
+        InitializeProcThreadAttributeList(attribute_list, 1, 0, &mut bytes_required).inspect_err(
+            |_| {
+                let _ = HeapFree(process_heap, HEAP_FLAGS(0), Some(attribute_list.0));
+            },
+        )?;
+
+        UpdateProcThreadAttribute(
+            attribute_list,
+            0,
+            PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE as usize,
+            Some(hpcon.0 as *mut _),
+            size_of::<HPCON>(),
+            None,
+            None,
+        )
+        .inspect_err(|_| {
+            let _ = HeapFree(process_heap, HEAP_FLAGS(0), Some(attribute_list.0));
+        })?;
+
+        let mut startup_info = STARTUPINFOEXW::default();
+        startup_info.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
+        startup_info.lpAttributeList = attribute_list;
+
+        Ok(startup_info)
     }
 
     pub fn flush(&mut self) {

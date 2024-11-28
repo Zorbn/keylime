@@ -83,8 +83,14 @@ impl TerminalEmulator {
         let grid_width = MIN_GRID_WIDTH;
         let grid_height = MIN_GRID_HEIGHT;
 
+        let shells = [
+            "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+            "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "C:\\Windows\\system32\\cmd.exe",
+        ];
+
         let mut emulator = Self {
-            pty: Pty::new(grid_width, grid_height).ok(),
+            pty: Pty::new(grid_width, grid_height, &shells).ok(),
 
             grid_cursor: Position::zero(),
             grid_width,

@@ -17,7 +17,6 @@ use platform::window::WindowRunner;
 /*
  * TODO:
  * Running commands and seeing output (very simple integrated terminal).
- *    - Have a list of fallback shells (if pwsh isn't available try powershell, then cmd, etc),
  *    - Move terminal colors to theme,
  *    - Add config option for terminal height in lines (excluding the tab bar),
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
