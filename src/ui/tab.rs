@@ -100,10 +100,23 @@ impl Tab {
         let mut mousebind_handler = widget.get_mousebind_handler(ui);
 
         while let Some(mousebind) = mousebind_handler.next(ui.window) {
+            let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
+
+            if !self
+                .doc_bounds
+                .contains_position(VisualPosition::new(mousebind.x, mousebind.y))
+            {
+                mousebind_handler.unprocessed(ui.window, mousebind);
+                continue;
+            }
+
+            // The mouse position is shifted over by half
+            // a glyph to make the cursor line up with the mouse.
             let visual_position = VisualPosition::new(
-                mousebind.x - self.doc_bounds.x,
-                mousebind.y - self.doc_bounds.y,
-            );
+                visual_position.x + ui.gfx().glyph_width() / 2.0,
+                visual_position.y,
+            )
+            .unoffset_by(self.doc_bounds);
 
             let position =
                 doc.visual_to_position(visual_position, self.camera.position(), ui.gfx());

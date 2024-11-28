@@ -1128,8 +1128,11 @@ impl Doc {
                     ));
                 }
             } else {
+                if match_index > 0 {
+                    position = last_position;
+                }
+
                 match_index = 0;
-                position = last_position;
             }
         }
 
