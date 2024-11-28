@@ -19,7 +19,6 @@ use platform::window::WindowRunner;
  * Running commands and seeing output (very simple integrated terminal).
  *    - Have a list of fallback shells (if pwsh isn't available try powershell, then cmd, etc),
  *    - Move terminal colors to theme,
- *    - Resize the pty when the size of the terminal changes,
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
  * Directory-wide search.
  * Unit testing for patterns and text editing functions.

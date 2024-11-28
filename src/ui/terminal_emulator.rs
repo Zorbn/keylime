@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    geometry::position::Position,
+    geometry::{position::Position, rect::Rect},
     input::{
         editing_actions::handle_copy,
         key::Key,
@@ -37,6 +37,8 @@ const UPPERCASE_K: u32 = 'K' as u32;
 const UPPERCASE_X: u32 = 'X' as u32;
 
 const MAX_SCROLLBACK_LINES: usize = 100;
+const MIN_GRID_WIDTH: isize = 80;
+const MIN_GRID_HEIGHT: isize = 24;
 
 // TODO: Replace these with theme colors.
 pub const COLOR_BLACK: Color = Color::from_hex(0x0C0C0CFF);
@@ -78,26 +80,16 @@ pub struct TerminalEmulator {
 
 impl TerminalEmulator {
     pub fn new() -> Self {
-        let grid_width = 240isize;
-        let grid_height = 24isize;
+        let grid_width = MIN_GRID_WIDTH;
+        let grid_height = MIN_GRID_HEIGHT;
 
-        let mut grid_line_colors = Vec::with_capacity(grid_height as usize);
-
-        for y in 0..grid_height {
-            grid_line_colors.push(Vec::with_capacity(grid_width as usize));
-
-            for _ in 0..grid_width {
-                grid_line_colors[y as usize].push((COLOR_WHITE, COLOR_BLACK));
-            }
-        }
-
-        Self {
+        let mut emulator = Self {
             pty: Pty::new(grid_width, grid_height).ok(),
 
             grid_cursor: Position::zero(),
             grid_width,
             grid_height,
-            grid_line_colors,
+            grid_line_colors: Vec::new(),
 
             doc_cursor_backups: Vec::new(),
 
@@ -105,7 +97,11 @@ impl TerminalEmulator {
             foreground_color: COLOR_WHITE,
             background_color: COLOR_BLACK,
             are_colors_swapped: false,
-        }
+        };
+
+        emulator.resize_grid_line_colors();
+
+        emulator
     }
 
     pub fn update_input(
@@ -250,9 +246,11 @@ impl TerminalEmulator {
         time: f32,
         dt: f32,
     ) {
-        let Some(pty) = self.pty.take() else {
+        let Some(mut pty) = self.pty.take() else {
             return;
         };
+
+        self.resize_grid(ui, tab, &mut pty);
 
         self.backup_doc_cursor_positions(doc);
 
@@ -607,6 +605,41 @@ impl TerminalEmulator {
         (output, parameter)
     }
 
+    fn resize_grid(&mut self, ui: &mut UiHandle, tab: &Tab, pty: &mut Pty) {
+        let Rect {
+            width: doc_width,
+            height: doc_height,
+            ..
+        } = tab.doc_bounds();
+
+        let grid_width = (doc_width / ui.gfx().glyph_width()).floor() as isize;
+        let grid_width = grid_width.max(MIN_GRID_WIDTH);
+
+        let grid_height = (doc_height / ui.gfx().line_height()).floor() as isize;
+        let grid_height = grid_height.max(MIN_GRID_HEIGHT);
+
+        if grid_width != self.grid_width || grid_height != self.grid_height {
+            pty.resize(grid_width, grid_height);
+
+            self.grid_width = grid_width;
+            self.grid_height = grid_height;
+
+            self.resize_grid_line_colors();
+        }
+    }
+
+    fn resize_grid_line_colors(&mut self) {
+        self.grid_line_colors.resize(
+            self.grid_height as usize,
+            Vec::with_capacity(self.grid_width as usize),
+        );
+
+        for y in 0..self.grid_height {
+            self.grid_line_colors[y as usize]
+                .resize(self.grid_width as usize, (COLOR_WHITE, COLOR_BLACK));
+        }
+    }
+
     fn expand_doc_to_grid_size(&mut self, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
         while (doc.lines().len() as isize) < self.grid_height {
             let start = doc.end();
@@ -703,7 +736,8 @@ impl TerminalEmulator {
 
         self.doc_cursor_backups.clear();
 
-        let doc_position = self.grid_position_to_doc_position(self.grid_cursor, doc);
+        let doc_position =
+            self.grid_position_to_doc_position(self.clamp_position(self.grid_cursor), doc);
         doc.jump_cursors(doc_position, false);
     }
 
@@ -727,8 +761,16 @@ impl TerminalEmulator {
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        self.insert(self.grid_cursor, text, doc, line_pool, time);
-        self.move_cursor(Position::new(text.len() as isize, 0), doc);
+        for c in text {
+            if self.grid_cursor.x >= self.grid_width {
+                self.jump_cursor(Position::new(0, self.grid_cursor.y + 1), doc);
+            }
+
+            self.insert(self.grid_cursor, &[*c], doc, line_pool, time);
+
+            self.grid_cursor.x += 1;
+            self.jump_doc_cursors_to_grid_cursor(doc);
+        }
     }
 
     fn insert(
