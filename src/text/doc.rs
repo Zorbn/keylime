@@ -1517,7 +1517,7 @@ impl Doc {
         self.syntax_highlighter.recycle_highlighted_lines_up_to_y(y);
     }
 
-    pub fn highlight_line_from_colors(&mut self, colors: &[Color], y: usize) {
+    pub fn highlight_line_from_colors(&mut self, colors: &[(Color, Color)], y: usize) {
         self.syntax_highlighter
             .highlight_line_from_colors(colors, y);
     }

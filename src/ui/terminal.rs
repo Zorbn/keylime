@@ -4,8 +4,11 @@ use crate::{
 };
 
 use super::{
-    doc_list::DocList, terminal_emulator::TerminalEmulator, terminal_pane::TerminalPane,
-    widget::Widget, Ui, UiHandle,
+    doc_list::DocList,
+    terminal_emulator::{TerminalEmulator, COLOR_BLACK},
+    terminal_pane::TerminalPane,
+    widget::Widget,
+    Ui, UiHandle,
 };
 
 pub struct Terminal {
@@ -51,7 +54,33 @@ impl Terminal {
         time: f32,
         dt: f32,
     ) {
-        self.pane.update(&self.widget, ui);
+        self.pane.update(
+            &self.widget,
+            ui,
+            &mut self.doc_list,
+            &mut self.emulators,
+            line_pool,
+        );
+
+        let focused_tab_index = self.pane.focused_tab_index();
+
+        if let Some((tab, doc)) = self
+            .pane
+            .get_tab_with_doc_mut(focused_tab_index, &mut self.doc_list)
+        {
+            let emulator = &mut self.emulators[tab.doc_index()];
+
+            emulator.update_input(
+                &self.widget,
+                ui,
+                doc,
+                tab,
+                line_pool,
+                text_buffer,
+                config,
+                time,
+            );
+        }
 
         for tab in &mut self.pane.tabs {
             let doc_index = tab.doc_index();
@@ -62,17 +91,7 @@ impl Terminal {
 
             let emulator = &mut self.emulators[doc_index];
 
-            emulator.update(
-                &self.widget,
-                ui,
-                doc,
-                tab,
-                line_pool,
-                text_buffer,
-                config,
-                time,
-                dt,
-            );
+            emulator.update_output(ui, doc, tab, line_pool, time, dt);
         }
     }
 
@@ -80,7 +99,13 @@ impl Terminal {
         let is_focused = self.widget.is_focused(ui);
         let gfx = ui.gfx();
 
-        self.pane.draw(&mut self.doc_list, config, gfx, is_focused);
+        self.pane.draw(
+            Some(COLOR_BLACK),
+            &mut self.doc_list,
+            config,
+            gfx,
+            is_focused,
+        );
     }
 
     pub fn on_close(&mut self) {

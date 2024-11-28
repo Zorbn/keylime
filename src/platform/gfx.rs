@@ -720,7 +720,7 @@ impl Gfx {
         }
     }
 
-    pub fn add_sprite(&mut self, src: Rect, dst: Rect, color: &Color) {
+    pub fn add_sprite(&mut self, src: Rect, dst: Rect, color: Color) {
         let left = dst.x + self.bounds.x;
         let top = dst.y + self.bounds.y;
         let right = left + dst.width;
@@ -830,7 +830,7 @@ impl Gfx {
         text: impl IntoIterator<Item = char>,
         x: f32,
         y: f32,
-        color: &Color,
+        color: Color,
     ) -> isize {
         let min_char = b' ' as u32;
         let max_char = b'~' as u32;
@@ -885,13 +885,7 @@ impl Gfx {
         i
     }
 
-    pub fn add_bordered_rect(
-        &mut self,
-        rect: Rect,
-        sides: u8,
-        color: &Color,
-        border_color: &Color,
-    ) {
+    pub fn add_bordered_rect(&mut self, rect: Rect, sides: u8, color: Color, border_color: Color) {
         let border_width = self.border_width();
 
         self.add_rect(rect, border_color);
@@ -927,7 +921,7 @@ impl Gfx {
         self.add_rect(Rect::new(left, top, right - left, bottom - top), color);
     }
 
-    pub fn add_rect(&mut self, rect: Rect, color: &Color) {
+    pub fn add_rect(&mut self, rect: Rect, color: Color) {
         self.add_sprite(Rect::new(-1.0, -1.0, -1.0, -1.0), rect, color);
     }
 

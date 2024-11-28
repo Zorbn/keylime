@@ -39,14 +39,23 @@ const UPPERCASE_X: u32 = 'X' as u32;
 const MAX_SCROLLBACK_LINES: usize = 100;
 
 // TODO: Replace these with theme colors.
-const COLOR_BLACK: Color = Color::from_hex(0x000000FF);
-const COLOR_RED: Color = Color::from_hex(0xFF0000FF);
-const COLOR_GREEN: Color = Color::from_hex(0x00FF00FF);
-const COLOR_YELLOW: Color = Color::from_hex(0xFFFF00FF);
-const COLOR_BLUE: Color = Color::from_hex(0x0000FFFF);
-const COLOR_MAGENTA: Color = Color::from_hex(0xFF00FFFF);
-const COLOR_CYAN: Color = Color::from_hex(0x007DFFFF);
-const COLOR_WHITE: Color = Color::from_hex(0xFFFFFFFF);
+pub const COLOR_BLACK: Color = Color::from_hex(0x0C0C0CFF);
+const COLOR_RED: Color = Color::from_hex(0xC50F1FFF);
+const COLOR_GREEN: Color = Color::from_hex(0x13A10EFF);
+const COLOR_YELLOW: Color = Color::from_hex(0xC19C00FF);
+const COLOR_BLUE: Color = Color::from_hex(0x0037DAFF);
+const COLOR_MAGENTA: Color = Color::from_hex(0x881798FF);
+const COLOR_CYAN: Color = Color::from_hex(0x3A96DDFF);
+const COLOR_WHITE: Color = Color::from_hex(0xCCCCCCFF);
+
+const COLOR_BLACK_BRIGHT: Color = Color::from_hex(0x767676FF);
+const COLOR_RED_BRIGHT: Color = Color::from_hex(0xE74856FF);
+const COLOR_GREEN_BRIGHT: Color = Color::from_hex(0x16C60CFF);
+const COLOR_YELLOW_BRIGHT: Color = Color::from_hex(0xF9F1A5FF);
+const COLOR_BLUE_BRIGHT: Color = Color::from_hex(0x3B78FFFF);
+const COLOR_MAGENTA_BRIGHT: Color = Color::from_hex(0xB4009EFF);
+const COLOR_CYAN_BRIGHT: Color = Color::from_hex(0x61D6D6FF);
+const COLOR_WHITE_BRIGHT: Color = Color::from_hex(0xF2F2F2FF);
 
 pub struct TerminalEmulator {
     pty: Option<Pty>,
@@ -57,12 +66,14 @@ pub struct TerminalEmulator {
     grid_cursor: Position,
     grid_width: isize,
     grid_height: isize,
-    grid_line_colors: Vec<Vec<Color>>,
+    grid_line_colors: Vec<Vec<(Color, Color)>>,
 
     doc_cursor_backups: Vec<(Position, Option<Selection>)>,
 
     is_cursor_visible: bool,
     foreground_color: Color,
+    background_color: Color,
+    are_colors_swapped: bool,
 }
 
 impl TerminalEmulator {
@@ -76,7 +87,7 @@ impl TerminalEmulator {
             grid_line_colors.push(Vec::with_capacity(grid_width as usize));
 
             for _ in 0..grid_width {
-                grid_line_colors[y as usize].push(COLOR_WHITE);
+                grid_line_colors[y as usize].push((COLOR_WHITE, COLOR_BLACK));
             }
         }
 
@@ -92,10 +103,12 @@ impl TerminalEmulator {
 
             is_cursor_visible: false,
             foreground_color: COLOR_WHITE,
+            background_color: COLOR_BLACK,
+            are_colors_swapped: false,
         }
     }
 
-    pub fn update(
+    pub fn update_input(
         &mut self,
         widget: &Widget,
         ui: &mut UiHandle,
@@ -105,17 +118,10 @@ impl TerminalEmulator {
         text_buffer: &mut TempBuffer<char>,
         config: &Config,
         time: f32,
-        dt: f32,
     ) {
         let Some(mut pty) = self.pty.take() else {
             return;
         };
-
-        let mut char_handler = widget.get_char_handler(ui);
-
-        while let Some(c) = char_handler.next(ui.window) {
-            pty.input.push(c as u32);
-        }
 
         let mut keybind_handler = widget.get_keybind_handler(ui);
 
@@ -205,17 +211,52 @@ impl TerminalEmulator {
                         pty.input.push(*c as u32);
                     }
                 }
+                Keybind {
+                    key,
+                    mods: MOD_CTRL,
+                } => {
+                    const KEY_A: u32 = Key::A as u32;
+                    const KEY_Z: u32 = Key::Z as u32;
+
+                    let key = key as u32;
+
+                    if matches!(key, KEY_A..=KEY_Z) {
+                        pty.input.push(key & 0x1F);
+                    }
+                }
                 _ => {}
             }
         }
 
+        let mut char_handler = widget.get_char_handler(ui);
+
+        while let Some(c) = char_handler.next(ui.window) {
+            pty.input.push(c as u32);
+        }
+
         pty.flush();
 
-        self.expand_doc_to_grid_size(doc, line_pool, time);
+        self.pty = Some(pty);
 
         tab.update(widget, ui, doc, line_pool, text_buffer, config, time);
+    }
+
+    pub fn update_output(
+        &mut self,
+        ui: &mut UiHandle,
+        doc: &mut Doc,
+        tab: &mut Tab,
+        line_pool: &mut LinePool,
+        time: f32,
+        dt: f32,
+    ) {
+        let Some(pty) = self.pty.take() else {
+            return;
+        };
 
         self.backup_doc_cursor_positions(doc);
+
+        self.expand_doc_to_grid_size(doc, line_pool, time);
 
         if let Ok(mut output) = pty.output.try_lock() {
             self.handle_control_sequences(ui, doc, tab, &output, line_pool, time);
@@ -292,6 +333,14 @@ impl TerminalEmulator {
                             let start = doc.end();
                             doc.insert(start, &[' '], line_pool, time);
                         }
+
+                        self.delete(
+                            Position::new(0, self.grid_height - 1),
+                            Position::new(self.grid_width, self.grid_height - 1),
+                            doc,
+                            line_pool,
+                            time,
+                        );
 
                         let gfx = ui.gfx();
 
@@ -388,31 +437,45 @@ impl TerminalEmulator {
                             match *parameter {
                                 0 => {
                                     self.foreground_color = COLOR_WHITE;
+                                    self.background_color = COLOR_BLACK;
+                                    self.are_colors_swapped = false;
                                 }
-                                30 | 90 => {
-                                    self.foreground_color = COLOR_BLACK;
-                                }
-                                31 | 91 => {
-                                    self.foreground_color = COLOR_RED;
-                                }
-                                32 | 92 => {
-                                    self.foreground_color = COLOR_GREEN;
-                                }
-                                33 | 93 => {
-                                    self.foreground_color = COLOR_YELLOW;
-                                }
-                                34 | 94 => {
-                                    self.foreground_color = COLOR_BLUE;
-                                }
-                                35 | 95 => {
-                                    self.foreground_color = COLOR_MAGENTA;
-                                }
-                                36 | 96 => {
-                                    self.foreground_color = COLOR_CYAN;
-                                }
-                                37 | 97 => {
-                                    self.foreground_color = COLOR_WHITE;
-                                }
+                                7 => self.are_colors_swapped = true,
+                                27 => self.are_colors_swapped = false,
+                                30 => self.foreground_color = COLOR_BLACK,
+                                31 => self.foreground_color = COLOR_RED,
+                                32 => self.foreground_color = COLOR_GREEN,
+                                33 => self.foreground_color = COLOR_YELLOW,
+                                34 => self.foreground_color = COLOR_BLUE,
+                                35 => self.foreground_color = COLOR_MAGENTA,
+                                36 => self.foreground_color = COLOR_CYAN,
+                                37 => self.foreground_color = COLOR_WHITE,
+                                39 => self.foreground_color = COLOR_WHITE,
+                                40 => self.background_color = COLOR_BLACK,
+                                41 => self.background_color = COLOR_RED,
+                                42 => self.background_color = COLOR_GREEN,
+                                43 => self.background_color = COLOR_YELLOW,
+                                44 => self.background_color = COLOR_BLUE,
+                                45 => self.background_color = COLOR_MAGENTA,
+                                46 => self.background_color = COLOR_CYAN,
+                                47 => self.background_color = COLOR_WHITE,
+                                49 => self.background_color = COLOR_BLACK,
+                                90 => self.foreground_color = COLOR_BLACK_BRIGHT,
+                                91 => self.foreground_color = COLOR_RED_BRIGHT,
+                                92 => self.foreground_color = COLOR_GREEN_BRIGHT,
+                                93 => self.foreground_color = COLOR_YELLOW_BRIGHT,
+                                94 => self.foreground_color = COLOR_BLUE_BRIGHT,
+                                95 => self.foreground_color = COLOR_MAGENTA_BRIGHT,
+                                96 => self.foreground_color = COLOR_CYAN_BRIGHT,
+                                97 => self.foreground_color = COLOR_WHITE_BRIGHT,
+                                100 => self.background_color = COLOR_BLACK_BRIGHT,
+                                101 => self.background_color = COLOR_RED_BRIGHT,
+                                102 => self.background_color = COLOR_GREEN_BRIGHT,
+                                103 => self.background_color = COLOR_YELLOW_BRIGHT,
+                                104 => self.background_color = COLOR_BLUE_BRIGHT,
+                                105 => self.background_color = COLOR_MAGENTA_BRIGHT,
+                                106 => self.background_color = COLOR_CYAN_BRIGHT,
+                                107 => self.background_color = COLOR_WHITE_BRIGHT,
                                 _ => {}
                             }
                         }
@@ -475,6 +538,7 @@ impl TerminalEmulator {
 
     fn handle_control_sequences_osc(mut output: &[u32]) -> Option<&[u32]> {
         if output.starts_with(&[ZERO, SEMICOLON]) {
+            // Setting the terminal title, ignored.
             output = &output[2..];
 
             loop {
@@ -492,6 +556,7 @@ impl TerminalEmulator {
 
             Some(output)
         } else if output.starts_with(&[EIGHT, SEMICOLON]) {
+            // Making text into a link, ignored.
             output = &output[3..];
 
             while !output.is_empty() && !output.starts_with(&[0x1B, BACK_SLASH]) {
@@ -549,12 +614,18 @@ impl TerminalEmulator {
         }
 
         for y in 0..self.grid_height {
-            let y = doc.lines().len() as isize - self.grid_height + y;
+            let doc_y = doc.lines().len() as isize - self.grid_height + y;
 
-            while doc.get_line_len(y) < self.grid_width {
-                let start = Position::new(doc.get_line_len(y), y);
+            if doc.get_line_len(doc_y) >= self.grid_width {
+                continue;
+            }
+
+            while doc.get_line_len(doc_y) < self.grid_width {
+                let start = Position::new(doc.get_line_len(doc_y), doc_y);
                 doc.insert(start, &[' '], line_pool, time);
             }
+
+            doc.highlight_line_from_colors(&self.grid_line_colors[y as usize], doc_y as usize);
         }
     }
 
@@ -579,7 +650,7 @@ impl TerminalEmulator {
     fn doc_position_to_grid_position(&self, position: Position, doc: &mut Doc) -> Position {
         Position::new(
             position.x,
-            position.y - (doc.lines().len() as isize - self.grid_height),
+            position.y - (doc.lines().len() as isize - self.grid_height).max(0),
         )
     }
 
@@ -670,6 +741,12 @@ impl TerminalEmulator {
     ) {
         let mut position = start;
 
+        let colors = if self.are_colors_swapped {
+            (self.background_color, self.foreground_color)
+        } else {
+            (self.foreground_color, self.background_color)
+        };
+
         for c in text {
             let next_position = self.move_position(position, Position::new(1, 0));
 
@@ -681,7 +758,7 @@ impl TerminalEmulator {
                 doc.insert(position, &[*c], line_pool, time);
             }
 
-            self.grid_line_colors[position.y as usize][position.x as usize] = self.foreground_color;
+            self.grid_line_colors[position.y as usize][position.x as usize] = colors;
             position = next_position;
         }
 

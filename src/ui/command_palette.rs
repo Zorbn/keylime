@@ -353,27 +353,27 @@ impl CommandPalette {
         gfx.add_bordered_rect(
             self.input_bounds,
             SIDE_ALL,
-            &config.theme.background,
-            &config.theme.border,
+            config.theme.background,
+            config.theme.border,
         );
 
         gfx.add_bordered_rect(
             self.title_bounds,
             SIDE_LEFT | SIDE_RIGHT | SIDE_TOP,
-            &config.theme.background,
-            &config.theme.border,
+            config.theme.background,
+            config.theme.border,
         );
 
         gfx.add_rect(
             self.title_bounds.top_border(gfx.border_width()),
-            &config.theme.keyword,
+            config.theme.keyword,
         );
 
         gfx.add_text(
             self.mode.title.chars(),
             gfx.glyph_width(),
             gfx.border_width() + gfx.tab_padding_y() + gfx.border_width(),
-            &config.theme.normal,
+            config.theme.normal,
         );
 
         let doc_bounds = self.tab.doc_bounds();
@@ -383,13 +383,13 @@ impl CommandPalette {
                 .add_margin(gfx.border_width())
                 .unoffset_by(self.widget.bounds()),
             SIDE_ALL,
-            &config.theme.background,
-            &config.theme.border,
+            config.theme.background,
+            config.theme.border,
         );
 
         gfx.end();
 
-        self.tab.draw(&mut self.doc, config, gfx, is_focused);
+        self.tab.draw(None, &mut self.doc, config, gfx, is_focused);
 
         self.result_list.draw(config, gfx, |result| result.chars());
     }

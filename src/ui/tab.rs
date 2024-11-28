@@ -21,6 +21,7 @@ use crate::{
 
 use super::{
     camera::{Camera, RECENTER_DISTANCE},
+    color::Color,
     widget::Widget,
     UiHandle,
 };
@@ -248,11 +249,22 @@ impl Tab {
         self.doc_bounds
     }
 
-    fn get_line_visual_y(index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
-        index as f32 * gfx.line_height() + gfx.line_padding() - sub_line_offset_y
+    fn get_line_foreground_visual_y(index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
+        Self::get_line_background_visual_y(index, sub_line_offset_y, gfx) + gfx.line_padding()
     }
 
-    pub fn draw(&mut self, doc: &mut Doc, config: &Config, gfx: &mut Gfx, is_focused: bool) {
+    fn get_line_background_visual_y(index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
+        index as f32 * gfx.line_height() - sub_line_offset_y
+    }
+
+    pub fn draw(
+        &mut self,
+        default_background: Option<Color>,
+        doc: &mut Doc,
+        config: &Config,
+        gfx: &mut Gfx,
+        is_focused: bool,
+    ) {
         if let Some(syntax) = config
             .get_language_for_doc(doc)
             .and_then(|language| language.syntax.as_ref())
@@ -286,7 +298,15 @@ impl Tab {
 
         gfx.begin(Some(self.doc_bounds));
 
+        if let Some(default_background) = default_background {
+            gfx.add_rect(
+                self.doc_bounds.unoffset_by(self.doc_bounds),
+                default_background,
+            );
+        }
+
         self.draw_lines(
+            default_background,
             doc,
             &config.theme,
             gfx,
@@ -324,7 +344,7 @@ impl Tab {
 
         for (i, y) in (min_y..max_y).enumerate() {
             let digits = get_digits(y + 1, &mut digits);
-            let visual_y = Self::get_line_visual_y(i, sub_line_offset_y, gfx);
+            let visual_y = Self::get_line_foreground_visual_y(i, sub_line_offset_y, gfx);
 
             let width = digits.len() as f32 * gfx.glyph_width();
             let visual_x = self.gutter_bounds.width
@@ -332,9 +352,9 @@ impl Tab {
                 - (GUTTER_PADDING_WIDTH + GUTTER_BORDER_WIDTH) * gfx.glyph_width();
 
             let color = if is_focused && y as isize == cursor_y {
-                &theme.normal
+                theme.normal
             } else {
-                &theme.line_number
+                theme.line_number
             };
 
             gfx.add_text(digits.iter().copied(), visual_x, visual_y, color);
@@ -344,12 +364,13 @@ impl Tab {
             self.gutter_bounds
                 .unoffset_by(self.gutter_bounds)
                 .right_border(gfx.border_width()),
-            &theme.border,
+            theme.border,
         );
     }
 
     fn draw_lines(
         &mut self,
+        default_background: Option<Color>,
         doc: &Doc,
         theme: &Theme,
         gfx: &mut Gfx,
@@ -363,28 +384,72 @@ impl Tab {
 
         for (i, y) in (min_y..max_y).enumerate() {
             let line = &lines[y];
-            let visual_y = Self::get_line_visual_y(i, sub_line_offset_y, gfx);
+            let foreground_visual_y = Self::get_line_foreground_visual_y(i, sub_line_offset_y, gfx);
+            let background_visual_y = Self::get_line_background_visual_y(i, sub_line_offset_y, gfx);
 
             if y >= highlighted_lines.len() {
                 let visual_x = -camera_position.x;
 
-                gfx.add_text(line.iter().copied(), visual_x, visual_y, &theme.normal);
+                gfx.add_text(
+                    line.iter().copied(),
+                    visual_x,
+                    foreground_visual_y,
+                    theme.normal,
+                );
             } else {
                 let mut x = 0;
                 let highlighted_line = &highlighted_lines[y];
 
                 for highlight in highlighted_line.highlights() {
                     let visual_x = x as f32 * gfx.glyph_width() - camera_position.x;
-                    let color = &theme.highlight_kind_to_color(highlight.kind);
+                    let foreground = theme.highlight_kind_to_color(highlight.foreground);
+
+                    if let Some(highlight_background) = highlight.background {
+                        let background = theme.highlight_kind_to_color(highlight_background);
+
+                        Self::draw_background(
+                            highlight.end - highlight.start,
+                            gfx,
+                            visual_x,
+                            background_visual_y,
+                            default_background,
+                            background,
+                        );
+                    }
 
                     x += gfx.add_text(
                         line[highlight.start..highlight.end].iter().copied(),
                         visual_x,
-                        visual_y,
-                        color,
+                        foreground_visual_y,
+                        foreground,
                     );
                 }
             }
+        }
+    }
+
+    fn draw_background(
+        len: usize,
+        gfx: &mut Gfx,
+        x: f32,
+        y: f32,
+        default_background: Option<Color>,
+        color: Color,
+    ) {
+        if Some(color) == default_background {
+            return;
+        }
+
+        for i in 0..len {
+            gfx.add_rect(
+                Rect::new(
+                    x + i as f32 * gfx.glyph_width(),
+                    y,
+                    gfx.glyph_width(),
+                    gfx.line_height(),
+                ),
+                color,
+            );
         }
     }
 
@@ -420,7 +485,7 @@ impl Tab {
                         char_width as f32 * gfx.glyph_width(),
                         gfx.line_height(),
                     ),
-                    &theme.selection,
+                    theme.selection,
                 );
 
                 position = doc.move_position(position, Position::new(1, 0));
@@ -444,7 +509,7 @@ impl Tab {
                         cursor_width,
                         gfx.line_height(),
                     ),
-                    &theme.normal,
+                    theme.normal,
                 );
             }
         }

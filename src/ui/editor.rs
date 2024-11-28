@@ -297,7 +297,7 @@ impl Editor {
         for (i, pane) in self.panes.iter_mut().enumerate() {
             let is_focused = is_focused && i == self.focused_pane_index;
 
-            pane.draw(&mut self.doc_list, config, gfx, is_focused);
+            pane.draw(None, &mut self.doc_list, config, gfx, is_focused);
         }
 
         if self.is_cursor_visible(gfx) {

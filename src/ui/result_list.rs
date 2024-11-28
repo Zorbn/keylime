@@ -220,8 +220,8 @@ impl<T> ResultList<T> {
         gfx.add_bordered_rect(
             self.results_bounds.unoffset_by(self.results_bounds),
             SIDE_ALL,
-            &config.theme.background,
-            &config.theme.border,
+            config.theme.background,
+            config.theme.border,
         );
 
         let camera_y = self.camera.y().floor();
@@ -236,9 +236,9 @@ impl<T> ResultList<T> {
                 - sub_line_offset_y;
 
             let color = if y == self.selected_result_index {
-                &config.theme.keyword
+                config.theme.keyword
             } else {
-                &config.theme.normal
+                config.theme.normal
             };
 
             let result = &self.results[y];

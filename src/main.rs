@@ -18,8 +18,7 @@ use platform::window::WindowRunner;
  * TODO:
  * Running commands and seeing output (very simple integrated terminal).
  *    - Have a list of fallback shells (if pwsh isn't available try powershell, then cmd, etc),
- *    - Allow background syntax highlighting for use in the terminal (instead of supporting foreground colors only),
- *    - Move terminal colors to theme and support bright versions of terminal colors (eg. see "-Recurse"'s color in "Get-ChildItem *.rs -Recurse | Select-String "fallback""),
+ *    - Move terminal colors to theme,
  *    - Resize the pty when the size of the terminal changes,
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
  * Directory-wide search.

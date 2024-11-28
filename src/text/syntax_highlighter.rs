@@ -25,7 +25,8 @@ pub enum HighlightKind {
 pub struct Highlight {
     pub start: usize,
     pub end: usize,
-    pub kind: HighlightKind,
+    pub foreground: HighlightKind,
+    pub background: Option<HighlightKind>,
 }
 
 pub enum HighlightResult {
@@ -68,7 +69,10 @@ impl HighlightedLine {
 
     fn push(&mut self, highlight: Highlight) {
         if let Some(last_highlight) = self.highlights.last_mut() {
-            if last_highlight.end == highlight.start && last_highlight.kind == highlight.kind {
+            if last_highlight.end == highlight.start
+                && last_highlight.foreground == highlight.foreground
+                && last_highlight.background == highlight.background
+            {
                 last_highlight.end = highlight.end;
                 return;
             }
@@ -188,7 +192,8 @@ impl SyntaxHighlighter {
                         self.highlighted_lines[y].push(Highlight {
                             start,
                             end,
-                            kind: range.kind,
+                            foreground: range.kind,
+                            background: None,
                         });
                         x = end;
 
@@ -216,7 +221,8 @@ impl SyntaxHighlighter {
                         self.highlighted_lines[y].push(Highlight {
                             start,
                             end,
-                            kind: HighlightKind::Keyword,
+                            foreground: HighlightKind::Keyword,
+                            background: None,
                         });
                         x = end;
 
@@ -243,7 +249,8 @@ impl SyntaxHighlighter {
                     self.highlighted_lines[y].push(Highlight {
                         start,
                         end,
-                        kind: range.kind,
+                        foreground: range.kind,
+                        background: None,
                     });
                     x = end;
 
@@ -267,7 +274,8 @@ impl SyntaxHighlighter {
                     self.highlighted_lines[y].push(Highlight {
                         start,
                         end,
-                        kind: token.kind,
+                        foreground: token.kind,
+                        background: None,
                     });
                     x = end;
 
@@ -278,13 +286,14 @@ impl SyntaxHighlighter {
             self.highlighted_lines[y].push(Highlight {
                 start: x,
                 end: default_end,
-                kind: HighlightKind::Normal,
+                foreground: HighlightKind::Normal,
+                background: None,
             });
             x = default_end;
         }
     }
 
-    pub fn highlight_line_from_colors(&mut self, colors: &[Color], y: usize) {
+    pub fn highlight_line_from_colors(&mut self, colors: &[(Color, Color)], y: usize) {
         if self.highlighted_lines.len() <= y {
             self.highlighted_lines.resize(y + 1, HighlightedLine::new());
         }
@@ -293,11 +302,12 @@ impl SyntaxHighlighter {
 
         highlighted_line.clear();
 
-        for (x, color) in colors.iter().enumerate() {
+        for (x, (foreground, background)) in colors.iter().enumerate() {
             highlighted_line.push(Highlight {
                 start: x,
                 end: x + 1,
-                kind: HighlightKind::Custom(*color),
+                foreground: HighlightKind::Custom(*foreground),
+                background: Some(HighlightKind::Custom(*background)),
             });
         }
     }

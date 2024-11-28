@@ -11,7 +11,7 @@ use crate::{
     text::doc::Doc,
 };
 
-use super::{doc_list::DocList, tab::Tab, widget::Widget, UiHandle};
+use super::{color::Color, doc_list::DocList, tab::Tab, widget::Widget, UiHandle};
 
 pub struct Pane {
     pub tabs: Vec<Tab>,
@@ -77,7 +77,11 @@ impl Pane {
                         .tabs
                         .iter()
                         .enumerate()
-                        .filter(|(_, tab)| tab.tab_bounds().contains_position(visual_position))
+                        .filter(|(_, tab)| {
+                            tab.tab_bounds()
+                                .unoffset_by(self.bounds)
+                                .contains_position(visual_position)
+                        })
                         .nth(0)
                     {
                         Some((i, _)) => self.focused_tab_index = i,
@@ -121,6 +125,7 @@ impl Pane {
 
     pub fn draw(
         &mut self,
+        default_background: Option<Color>,
         doc_list: &mut DocList,
         config: &Config,
         gfx: &mut Gfx,
@@ -134,14 +139,14 @@ impl Pane {
             self.bounds
                 .left_border(gfx.border_width())
                 .unoffset_by(self.bounds),
-            &config.theme.border,
+            config.theme.border,
         );
 
         gfx.add_rect(
             self.bounds
                 .top_border(gfx.border_width())
                 .unoffset_by(self.bounds),
-            &config.theme.border,
+            config.theme.border,
         );
 
         for i in 0..self.tabs.len() {
@@ -160,7 +165,7 @@ impl Pane {
 
             gfx.add_rect(
                 tab_bounds.top_border(gfx.border_width()),
-                &config.theme.keyword,
+                config.theme.keyword,
             );
 
             tab_bounds
@@ -175,7 +180,7 @@ impl Pane {
                 focused_tab_bounds.x,
                 tab_height,
             ),
-            &config.theme.border,
+            config.theme.border,
         );
 
         gfx.add_rect(
@@ -185,13 +190,13 @@ impl Pane {
                 self.bounds.width,
                 tab_height,
             ),
-            &config.theme.border,
+            config.theme.border,
         );
 
         gfx.end();
 
         if let Some((tab, doc)) = self.get_tab_with_doc_mut(self.focused_tab_index, doc_list) {
-            tab.draw(doc, config, gfx, is_focused);
+            tab.draw(default_background, doc, config, gfx, is_focused);
         }
     }
 
@@ -199,27 +204,22 @@ impl Pane {
         let tab_padding_y = gfx.tab_padding_y();
         let tab_bounds = tab.tab_bounds().unoffset_by(bounds);
 
-        gfx.add_rect(tab_bounds.left_border(gfx.border_width()), &theme.border);
+        gfx.add_rect(tab_bounds.left_border(gfx.border_width()), theme.border);
 
         let text_x = (tab_bounds.x + gfx.glyph_width() * 2.0).floor();
 
-        let text_width = gfx.add_text(
-            doc.file_name().chars(),
-            text_x,
-            tab_padding_y,
-            &theme.normal,
-        );
+        let text_width = gfx.add_text(doc.file_name().chars(), text_x, tab_padding_y, theme.normal);
 
         if !doc.is_saved() {
             gfx.add_text(
                 "*".chars(),
                 text_x + text_width as f32 * gfx.glyph_width(),
                 tab_padding_y,
-                &theme.symbol,
+                theme.symbol,
             );
         }
 
-        gfx.add_rect(tab_bounds.right_border(gfx.border_width()), &theme.border);
+        gfx.add_rect(tab_bounds.right_border(gfx.border_width()), theme.border);
     }
 
     pub fn get_tab_with_doc_mut<'a>(
