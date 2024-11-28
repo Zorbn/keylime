@@ -75,9 +75,7 @@ impl Editor {
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
-        self.widget.layout(bounds);
-
-        let mut pane_bounds = self.widget.bounds();
+        let mut pane_bounds = bounds;
         pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
 
         for pane in &mut self.panes {
@@ -119,6 +117,9 @@ impl Editor {
             ),
             gfx,
         );
+
+        self.widget
+            .layout(&[bounds, self.completion_result_list.bounds()]);
     }
 
     pub fn update(

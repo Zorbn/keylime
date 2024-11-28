@@ -69,10 +69,16 @@ impl<'a> UiHandle<'a> {
             } = mousebind
             {
                 for (index, widget) in focusable_widgets.iter().enumerate() {
-                    if widget.is_visible
-                        && widget.bounds().contains_position(VisualPosition::new(x, y))
-                    {
-                        focused_widget_index = Some(index)
+                    if !widget.is_visible {
+                        continue;
+                    }
+
+                    for bounds in widget.all_bounds() {
+                        if bounds.contains_position(VisualPosition::new(x, y)) {
+                            focused_widget_index = Some(index);
+
+                            break;
+                        }
                     }
                 }
             }

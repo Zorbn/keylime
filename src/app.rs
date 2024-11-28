@@ -50,13 +50,14 @@ impl App {
         let mut ui = self.ui.get_handle(window);
 
         ui.update(&mut [
-            &mut self.editor.widget,
             &mut self.terminal.widget,
+            &mut self.editor.widget,
             &mut self.command_palette.widget,
         ]);
 
-        self.editor.update(
+        self.command_palette.update(
             &mut ui,
+            &mut self.editor,
             &mut self.line_pool,
             &mut self.text_buffer,
             &self.config,
@@ -73,9 +74,8 @@ impl App {
             dt,
         );
 
-        self.command_palette.update(
+        self.editor.update(
             &mut ui,
-            &mut self.editor,
             &mut self.line_pool,
             &mut self.text_buffer,
             &self.config,
@@ -99,8 +99,8 @@ impl App {
 
         gfx.begin_frame(self.config.theme.background);
 
-        self.editor.draw(&mut ui, &self.config);
         self.terminal.draw(&mut ui, &self.config);
+        self.editor.draw(&mut ui, &self.config);
         self.command_palette.draw(&mut ui, &self.config);
 
         ui.gfx().end_frame();

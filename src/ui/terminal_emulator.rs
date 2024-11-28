@@ -180,7 +180,20 @@ impl TerminalEmulator {
                     key: Key::C | Key::X,
                     mods: MOD_CTRL,
                 } => {
-                    handle_copy(ui.window, doc, text_buffer);
+                    let mut has_selection = false;
+
+                    for index in doc.cursor_indices() {
+                        if doc.get_cursor(index).get_selection().is_some() {
+                            has_selection = true;
+                            break;
+                        }
+                    }
+
+                    if has_selection {
+                        handle_copy(ui.window, doc, text_buffer);
+                    } else {
+                        pty.input.push(keybind.key as u32 & 0x1F);
+                    }
                 }
                 Keybind {
                     key: Key::V,

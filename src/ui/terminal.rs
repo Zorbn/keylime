@@ -39,7 +39,7 @@ impl Terminal {
 
         self.pane.layout(bounds, gfx, &mut self.doc_list);
 
-        self.widget.layout(bounds);
+        self.widget.layout(&[bounds]);
     }
 
     pub fn update(

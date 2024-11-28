@@ -8,14 +8,14 @@ use super::{Ui, UiHandle};
 pub struct Widget {
     pub is_visible: bool,
 
-    bounds: Rect,
+    bounds: Vec<Rect>,
     id: usize,
 }
 
 impl Widget {
     pub fn new(ui: &mut Ui, is_visible: bool) -> Self {
         let widget = Self {
-            bounds: Rect::zero(),
+            bounds: vec![Rect::zero()],
             id: ui.next_widget_id,
             is_visible,
         };
@@ -78,11 +78,21 @@ impl Widget {
         ui.window.is_focused() && self.id == ui.inner.focused_widget_id && self.is_visible
     }
 
-    pub fn layout(&mut self, bounds: Rect) {
-        self.bounds = bounds;
+    pub fn layout(&mut self, bounds: &[Rect]) {
+        self.bounds.clear();
+
+        if bounds.is_empty() {
+            self.bounds.push(Rect::zero());
+        } else {
+            self.bounds.extend_from_slice(bounds);
+        }
     }
 
     pub fn bounds(&self) -> Rect {
-        self.bounds
+        self.bounds[0]
+    }
+
+    pub fn all_bounds(&self) -> &[Rect] {
+        &self.bounds
     }
 }

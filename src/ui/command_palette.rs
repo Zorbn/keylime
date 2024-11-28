@@ -102,14 +102,13 @@ impl CommandPalette {
             gfx,
         );
 
-        self.widget.layout(
-            self.title_bounds
-                .expand_to_include(self.input_bounds)
-                .expand_to_include(self.result_list.bounds())
-                .center_x_in(bounds)
-                .offset_by(Rect::new(0.0, gfx.tab_height() * 2.0, 0.0, 0.0))
-                .floor(),
-        );
+        self.widget.layout(&[self
+            .title_bounds
+            .expand_to_include(self.input_bounds)
+            .expand_to_include(self.result_list.bounds())
+            .center_x_in(bounds)
+            .offset_by(Rect::new(0.0, gfx.tab_height() * 2.0, 0.0, 0.0))
+            .floor()]);
 
         self.result_list.offset_by(self.widget.bounds());
 
