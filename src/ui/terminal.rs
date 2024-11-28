@@ -1,5 +1,12 @@
 use crate::{
-    config::Config, geometry::rect::Rect, platform::gfx::Gfx, temp_buffer::TempBuffer,
+    config::Config,
+    geometry::rect::Rect,
+    input::{
+        key::Key,
+        keybind::{Keybind, MOD_CTRL},
+    },
+    platform::gfx::Gfx,
+    temp_buffer::TempBuffer,
     text::line_pool::LinePool,
 };
 
@@ -54,6 +61,24 @@ impl Terminal {
         time: f32,
         dt: f32,
     ) {
+        let mut global_keybind_handler = ui.window.get_keybind_handler();
+
+        while let Some(keybind) = global_keybind_handler.next(ui.window) {
+            match keybind {
+                Keybind {
+                    key: Key::Grave,
+                    mods: MOD_CTRL,
+                } => {
+                    if self.widget.is_focused(ui) {
+                        self.widget.release_focus(ui);
+                    } else {
+                        self.widget.take_focus(ui);
+                    }
+                }
+                _ => global_keybind_handler.unprocessed(ui.window, keybind),
+            }
+        }
+
         self.pane.update(
             &self.widget,
             ui,
