@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::geometry::position::Position;
 
 use super::selection::Selection;
@@ -21,16 +23,16 @@ impl Cursor {
     pub fn get_selection(&self) -> Option<Selection> {
         let selection_anchor = self.selection_anchor?;
 
-        if selection_anchor < self.position {
-            Some(Selection {
+        match selection_anchor.cmp(&self.position) {
+            Ordering::Less => Some(Selection {
                 start: selection_anchor,
                 end: self.position,
-            })
-        } else {
-            Some(Selection {
+            }),
+            Ordering::Greater => Some(Selection {
                 start: self.position,
                 end: selection_anchor,
-            })
+            }),
+            _ => None,
         }
     }
 }

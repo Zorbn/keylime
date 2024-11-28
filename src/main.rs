@@ -23,6 +23,7 @@ use platform::window::WindowRunner;
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
  * Directory-wide search.
  * Unit testing for patterns and text editing functions.
+ * Double click on a word to select it.
  */
 
 fn main() {
