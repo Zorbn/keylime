@@ -1,50 +1,31 @@
-use std::{env::set_current_dir, io, path::Path};
-
 use crate::{
     config::{theme::Theme, Config},
     geometry::{rect::Rect, visual_position::VisualPosition},
     input::{
         key::Key,
-        keybind::{Keybind, MOD_CTRL, MOD_CTRL_SHIFT},
+        keybind::{Keybind, MOD_CTRL},
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
-    platform::{
-        dialog::{find_file, message, FindFileKind, MessageKind},
-        gfx::Gfx,
-    },
-    temp_buffer::TempBuffer,
-    text::{
-        doc::{Doc, DocKind},
-        line_pool::LinePool,
-    },
+    platform::gfx::Gfx,
+    text::doc::Doc,
 };
 
 use super::{doc_list::DocList, tab::Tab, widget::Widget, UiHandle};
 
 pub struct Pane {
-    tabs: Vec<Tab>,
-    focused_tab_index: usize,
+    pub tabs: Vec<Tab>,
+    pub focused_tab_index: usize,
     bounds: Rect,
 }
 
 impl Pane {
-    pub fn new(
-        doc_list: &mut DocList,
-        config: &Config,
-        line_pool: &mut LinePool,
-        time: f32,
-    ) -> Self {
-        let mut pane = Self {
+    pub fn new() -> Self {
+        Self {
             tabs: Vec::new(),
             focused_tab_index: 0,
             bounds: Rect::zero(),
-        };
-
-        let doc_index = doc_list.add(Doc::new(line_pool, DocKind::MultiLine));
-        pane.add_tab(doc_index, doc_list, config, line_pool, time);
-
-        pane
+        }
     }
 
     pub fn is_animating(&self) -> bool {
@@ -58,7 +39,7 @@ impl Pane {
     pub fn layout(&mut self, bounds: Rect, gfx: &Gfx, doc_list: &mut DocList) {
         self.bounds = bounds;
 
-        let mut tab_x = 0.0;
+        let mut tab_x = bounds.x;
         let tab_height = gfx.tab_height();
 
         for i in 0..self.tabs.len() {
@@ -69,7 +50,7 @@ impl Pane {
             let tab_width = gfx.glyph_width() * 4.0
                 + Gfx::measure_text(doc.file_name().chars()) as f32 * gfx.glyph_width();
 
-            let tab_bounds = Rect::new(tab_x, 0.0, tab_width, tab_height);
+            let tab_bounds = Rect::new(tab_x, bounds.y, tab_width, tab_height);
             let doc_bounds = bounds.shrink_top_by(tab_bounds);
 
             tab_x += tab_width - gfx.border_width();
@@ -78,16 +59,7 @@ impl Pane {
         }
     }
 
-    pub fn update(
-        &mut self,
-        widget: &Widget,
-        ui: &mut UiHandle,
-        doc_list: &mut DocList,
-        line_pool: &mut LinePool,
-        text_buffer: &mut TempBuffer<char>,
-        config: &Config,
-        time: f32,
-    ) {
+    pub fn update(&mut self, widget: &Widget, ui: &mut UiHandle) {
         let mut mousebind_handler = widget.get_mousebind_handler(ui);
 
         while let Some(mousebind) = mousebind_handler.next(ui.window) {
@@ -121,62 +93,6 @@ impl Pane {
         while let Some(keybind) = keybind_handler.next(ui.window) {
             match keybind {
                 Keybind {
-                    key: Key::O,
-                    mods: MOD_CTRL,
-                } => {
-                    if let Ok(path) = find_file(FindFileKind::OpenFile) {
-                        if let Err(err) =
-                            self.open_file(path.as_path(), doc_list, config, line_pool, time)
-                        {
-                            message("Error Opening File", &err.to_string(), MessageKind::Ok);
-                        }
-                    }
-                }
-                Keybind {
-                    key: Key::O,
-                    mods: MOD_CTRL_SHIFT,
-                } => {
-                    if let Ok(path) = find_file(FindFileKind::OpenFolder) {
-                        if let Err(err) = set_current_dir(path) {
-                            message("Error Opening Folder", &err.to_string(), MessageKind::Ok);
-                        }
-                    }
-                }
-                Keybind {
-                    key: Key::S,
-                    mods: MOD_CTRL,
-                } => {
-                    if let Some((_, doc)) =
-                        self.get_tab_with_doc_mut(self.focused_tab_index, doc_list)
-                    {
-                        DocList::try_save(doc, config, line_pool, time);
-                    }
-                }
-                Keybind {
-                    key: Key::N,
-                    mods: MOD_CTRL,
-                } => {
-                    let doc_index = doc_list.add(Doc::new(line_pool, DocKind::MultiLine));
-                    self.add_tab(doc_index, doc_list, config, line_pool, time);
-                }
-                Keybind {
-                    key: Key::W,
-                    mods: MOD_CTRL,
-                } => {
-                    self.close_tab(doc_list, config, line_pool, time);
-                }
-                Keybind {
-                    key: Key::R,
-                    mods: MOD_CTRL,
-                } => {
-                    if let Some((tab, doc)) =
-                        self.get_tab_with_doc_mut(self.focused_tab_index, doc_list)
-                    {
-                        DocList::reload(doc, config, line_pool, time);
-                        tab.camera.recenter();
-                    }
-                }
-                Keybind {
                     key: Key::PageUp,
                     mods: MOD_CTRL,
                 } => {
@@ -194,10 +110,6 @@ impl Pane {
                 }
                 _ => keybind_handler.unprocessed(ui.window, keybind),
             }
-        }
-
-        if let Some((tab, doc)) = self.get_tab_with_doc_mut(self.focused_tab_index, doc_list) {
-            tab.update(widget, ui, doc, line_pool, text_buffer, config, time);
         }
     }
 
@@ -225,19 +137,26 @@ impl Pane {
             &config.theme.border,
         );
 
+        gfx.add_rect(
+            self.bounds
+                .top_border(gfx.border_width())
+                .unoffset_by(self.bounds),
+            &config.theme.border,
+        );
+
         for i in 0..self.tabs.len() {
             let Some((tab, doc)) = self.get_tab_with_doc(i, doc_list) else {
                 continue;
             };
 
-            Self::draw_tab(tab, doc, &config.theme, gfx);
+            Self::draw_tab(tab, doc, self.bounds, &config.theme, gfx);
         }
 
         let focused_tab_bounds = if let Some(tab) = is_focused
             .then(|| self.tabs.get(self.focused_tab_index))
             .flatten()
         {
-            let tab_bounds = tab.tab_bounds();
+            let tab_bounds = tab.tab_bounds().unoffset_by(self.bounds);
 
             gfx.add_rect(
                 tab_bounds.top_border(gfx.border_width()),
@@ -276,9 +195,9 @@ impl Pane {
         }
     }
 
-    fn draw_tab(tab: &Tab, doc: &Doc, theme: &Theme, gfx: &mut Gfx) {
+    fn draw_tab(tab: &Tab, doc: &Doc, bounds: Rect, theme: &Theme, gfx: &mut Gfx) {
         let tab_padding_y = gfx.tab_padding_y();
-        let tab_bounds = tab.tab_bounds();
+        let tab_bounds = tab.tab_bounds().unoffset_by(bounds);
 
         gfx.add_rect(tab_bounds.left_border(gfx.border_width()), &theme.border);
 
@@ -331,29 +250,6 @@ impl Pane {
         None
     }
 
-    pub fn open_file(
-        &mut self,
-        path: &Path,
-        doc_list: &mut DocList,
-        config: &Config,
-        line_pool: &mut LinePool,
-        time: f32,
-    ) -> io::Result<()> {
-        let doc_index = doc_list.open_or_reuse(path, line_pool)?;
-
-        for (i, tab) in self.tabs.iter().enumerate() {
-            if tab.doc_index() == doc_index {
-                self.focused_tab_index = i;
-
-                return Ok(());
-            }
-        }
-
-        self.add_tab(doc_index, doc_list, config, line_pool, time);
-
-        Ok(())
-    }
-
     fn clamp_focused_tab(&mut self) {
         if self.focused_tab_index >= self.tabs.len() {
             if self.tabs.is_empty() {
@@ -364,27 +260,17 @@ impl Pane {
         }
     }
 
-    fn add_tab(
-        &mut self,
-        doc_index: usize,
-        doc_list: &mut DocList,
-        config: &Config,
-        line_pool: &mut LinePool,
-        time: f32,
-    ) {
-        let is_doc_worthless = doc_list
-            .get(doc_index)
-            .map(|doc| doc.is_worthless())
-            .unwrap_or(false);
-
-        if let Some((_, doc)) = self.get_tab_with_doc(self.focused_tab_index, doc_list) {
-            let is_focused_doc_worthless = doc.is_worthless();
-
-            if !is_doc_worthless && is_focused_doc_worthless {
-                self.close_tab(doc_list, config, line_pool, time);
+    pub fn get_existing_tab_for_doc(&self, doc_index: usize) -> Option<usize> {
+        for (i, tab) in self.tabs.iter().enumerate() {
+            if tab.doc_index() == doc_index {
+                return Some(i);
             }
         }
 
+        None
+    }
+
+    pub fn add_tab(&mut self, doc_index: usize, doc_list: &mut DocList) {
         let tab = Tab::new(doc_index);
 
         doc_list
@@ -400,57 +286,15 @@ impl Pane {
         }
     }
 
-    fn close_tab(
-        &mut self,
-        doc_list: &mut DocList,
-        config: &Config,
-        line_pool: &mut LinePool,
-        time: f32,
-    ) -> bool {
-        let doc_index = if let Some(tab) = self.tabs.get(self.focused_tab_index) {
-            tab.doc_index()
-        } else {
-            return true;
+    pub fn remove_tab(&mut self, doc_list: &mut DocList) {
+        let Some((_, doc)) = self.get_tab_with_doc_mut(self.focused_tab_index, doc_list) else {
+            return;
         };
 
-        let Some(doc) = doc_list.get_mut(doc_index) else {
-            return true;
-        };
+        doc.remove_usage();
 
-        if doc.usages() > 1 {
-            doc.remove_usage();
-
-            self.tabs.remove(self.focused_tab_index);
-            self.clamp_focused_tab();
-
-            return true;
-        }
-
-        if !DocList::confirm_close(doc, "closing", true, config, line_pool, time) {
-            return false;
-        }
-
-        doc_list.remove(doc_index, line_pool);
         self.tabs.remove(self.focused_tab_index);
         self.clamp_focused_tab();
-
-        true
-    }
-
-    pub fn close_all_tabs(
-        &mut self,
-        doc_list: &mut DocList,
-        config: &Config,
-        line_pool: &mut LinePool,
-        time: f32,
-    ) -> bool {
-        while !self.tabs.is_empty() {
-            if !self.close_tab(doc_list, config, line_pool, time) {
-                return false;
-            }
-        }
-
-        true
     }
 
     pub fn tabs_len(&self) -> usize {

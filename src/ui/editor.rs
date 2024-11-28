@@ -18,7 +18,7 @@ use crate::{
 
 use super::{
     doc_list::DocList,
-    pane::Pane,
+    editor_pane::EditorPane,
     result_list::{ResultList, ResultListInput},
     widget::Widget,
     Ui, UiHandle,
@@ -29,7 +29,7 @@ const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
 pub struct Editor {
     doc_list: DocList,
     // There should always be at least one pane.
-    panes: Vec<Pane>,
+    panes: Vec<EditorPane>,
     focused_pane_index: usize,
 
     completion_result_list: ResultList<Line>,
@@ -40,7 +40,7 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(ui: &mut Ui, config: &Config, line_pool: &mut LinePool, time: f32) -> Self {
+    pub fn new(ui: &mut Ui, line_pool: &mut LinePool) -> Self {
         let mut editor = Self {
             doc_list: DocList::new(),
             panes: Vec::new(),
@@ -55,7 +55,7 @@ impl Editor {
 
         editor
             .panes
-            .push(Pane::new(&mut editor.doc_list, config, line_pool, time));
+            .push(EditorPane::new(&mut editor.doc_list, line_pool));
 
         editor
     }
@@ -182,7 +182,7 @@ impl Editor {
                     key: Key::N,
                     mods: MOD_CTRL_ALT,
                 } => {
-                    self.add_pane(config, line_pool, time);
+                    self.add_pane(line_pool);
                 }
                 Keybind {
                     key: Key::W,
@@ -239,9 +239,10 @@ impl Editor {
             ResultListInput::Complete | ResultListInput::Submit { .. } => {
                 if let Some(result) = self.completion_result_list.get_selected_result() {
                     let pane = &mut self.panes[self.focused_pane_index];
+                    let focused_tab_index = pane.focused_tab_index();
 
                     if let Some((_, doc)) =
-                        pane.get_tab_with_doc_mut(pane.focused_tab_index(), &mut self.doc_list)
+                        pane.get_tab_with_doc_mut(focused_tab_index, &mut self.doc_list)
                     {
                         doc.insert_at_cursors(
                             &result[self.completion_prefix.len()..],
@@ -417,8 +418,8 @@ impl Editor {
         }
     }
 
-    fn add_pane(&mut self, config: &Config, line_pool: &mut LinePool, time: f32) {
-        let pane = Pane::new(&mut self.doc_list, config, line_pool, time);
+    fn add_pane(&mut self, line_pool: &mut LinePool) {
+        let pane = EditorPane::new(&mut self.doc_list, line_pool);
 
         if self.focused_pane_index >= self.panes.len() {
             self.panes.push(pane);
@@ -451,7 +452,7 @@ impl Editor {
             .confirm_close_all("exiting", config, line_pool, time);
     }
 
-    pub fn get_focused_pane_and_doc_list(&mut self) -> (&mut Pane, &mut DocList) {
+    pub fn get_focused_pane_and_doc_list(&mut self) -> (&mut EditorPane, &mut DocList) {
         (&mut self.panes[self.focused_pane_index], &mut self.doc_list)
     }
 }

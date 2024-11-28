@@ -24,7 +24,7 @@ use crate::{
 use super::{
     doc_list::DocList,
     editor::Editor,
-    pane::Pane,
+    editor_pane::EditorPane,
     result_list::{ResultList, ResultListInput},
     tab::Tab,
     widget::Widget,
@@ -246,7 +246,7 @@ impl CommandPalette {
         &mut self,
         ui: &mut UiHandle,
         has_shift: bool,
-        pane: &mut Pane,
+        pane: &mut EditorPane,
         doc_list: &mut DocList,
         config: &Config,
         line_pool: &mut LinePool,
@@ -289,7 +289,7 @@ impl CommandPalette {
 
     fn complete_result(
         &mut self,
-        pane: &mut Pane,
+        pane: &mut EditorPane,
         doc_list: &mut DocList,
         config: &Config,
         line_pool: &mut LinePool,
@@ -313,7 +313,7 @@ impl CommandPalette {
 
     fn update_results(
         &mut self,
-        pane: &mut Pane,
+        pane: &mut EditorPane,
         doc_list: &mut DocList,
         config: &Config,
         line_pool: &mut LinePool,
@@ -399,7 +399,7 @@ impl CommandPalette {
         &mut self,
         ui: &mut UiHandle,
         mode: &'static CommandPaletteMode,
-        pane: &mut Pane,
+        pane: &mut EditorPane,
         doc_list: &mut DocList,
         config: &Config,
         line_pool: &mut LinePool,

@@ -1,14 +1,14 @@
 use crate::{
     config::Config,
     text::line_pool::LinePool,
-    ui::{doc_list::DocList, pane::Pane},
+    ui::{doc_list::DocList, editor_pane::EditorPane},
 };
 
 use super::{CommandPalette, CommandPaletteAction};
 
 pub struct CommandPaletteEventArgs<'a> {
     pub command_palette: &'a mut CommandPalette,
-    pub pane: &'a mut Pane,
+    pub pane: &'a mut EditorPane,
     pub doc_list: &'a mut DocList,
     pub config: &'a Config,
     pub line_pool: &'a mut LinePool,

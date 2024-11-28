@@ -40,9 +40,10 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::Mousebind,
     },
+    ui::terminal_emulator::TerminalEmulator,
 };
 
-use super::{gfx::Gfx, pty::Pty};
+use super::gfx::Gfx;
 
 const DEFAULT_DPI: f32 = 96.0;
 
@@ -178,6 +179,8 @@ pub struct Window {
 
     hwnd: HWND,
 
+    wait_handles: Vec<HANDLE>,
+
     is_running: bool,
     is_focused: bool,
 
@@ -221,6 +224,8 @@ impl Window {
 
             hwnd: HWND(null_mut()),
 
+            wait_handles: Vec::new(),
+
             is_running: true,
             is_focused: false,
 
@@ -254,17 +259,25 @@ impl Window {
         self.mouse_scrolls.clear();
     }
 
-    pub fn update(&mut self, is_animating: bool, pty: Option<&Pty>) -> (f32, f32) {
+    pub fn update(&mut self, is_animating: bool, emulators: &[TerminalEmulator]) -> (f32, f32) {
         self.clear_inputs();
 
         unsafe {
             let mut msg = MSG::default();
 
             if !is_animating {
-                let handles = pty.map(|pty| [pty.hprocess, pty.event]);
-                let handles = handles.as_ref().map(|handles| handles.as_slice());
+                self.wait_handles.clear();
 
-                MsgWaitForMultipleObjects(handles, FALSE, INFINITE, QS_ALLINPUT);
+                for emulator in emulators {
+                    let Some(pty) = emulator.pty() else {
+                        continue;
+                    };
+
+                    self.wait_handles
+                        .extend_from_slice(&[pty.hprocess, pty.event]);
+                }
+
+                MsgWaitForMultipleObjects(Some(&self.wait_handles), FALSE, INFINITE, QS_ALLINPUT);
             }
 
             while PeekMessageW(&mut msg, self.hwnd, 0, 0, PM_REMOVE).as_bool() {

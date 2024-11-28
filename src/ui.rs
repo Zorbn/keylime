@@ -11,10 +11,13 @@ pub mod color;
 pub mod command_palette;
 mod doc_list;
 pub mod editor;
+mod editor_pane;
 mod pane;
 mod result_list;
 pub mod tab;
 pub mod terminal;
+pub mod terminal_emulator;
+mod terminal_pane;
 pub mod widget;
 
 pub struct Ui {

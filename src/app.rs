@@ -1,7 +1,7 @@
 use crate::{
     config::Config,
     geometry::rect::Rect,
-    platform::{pty::Pty, window::Window},
+    platform::window::Window,
     temp_buffer::TempBuffer,
     text::line_pool::LinePool,
     ui::{command_palette::CommandPalette, editor::Editor, terminal::Terminal, Ui},
@@ -27,7 +27,7 @@ impl App {
         let config = Config::load().unwrap_or_default();
 
         let mut ui = Ui::new();
-        let editor = Editor::new(&mut ui, &config, &mut line_pool, 0.0);
+        let editor = Editor::new(&mut ui, &mut line_pool);
         let terminal = Terminal::new(&mut ui, &mut line_pool);
         let command_palette = CommandPalette::new(&mut ui, &mut line_pool);
 
@@ -45,7 +45,7 @@ impl App {
     }
 
     pub fn update(&mut self, window: &mut Window) {
-        let (time, dt) = window.update(self.is_animating(), self.pty());
+        let (time, dt) = window.update(self.is_animating(), self.terminal.emulators());
 
         let mut ui = self.ui.get_handle(window);
 
@@ -125,9 +125,5 @@ impl App {
         self.editor.is_animating()
             || self.terminal.is_animating()
             || self.command_palette.is_animating()
-    }
-
-    fn pty(&self) -> Option<&Pty> {
-        self.terminal.pty()
     }
 }
