@@ -22,6 +22,7 @@ use crate::{
 const CONFIG_PATH: &str = "config.toml";
 const DEFAULT_COMMENT: fn() -> &'static str = || "//";
 const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
+const DEFAULT_TERMINAL_HEIGHT: fn() -> f32 = || 12.0;
 
 #[derive(Deserialize, Debug)]
 struct SyntaxDesc<'a> {
@@ -65,6 +66,8 @@ struct ConfigDesc<'a> {
     font_size: f32,
     #[serde(default = "DEFAULT_TRIM_TRAILING_WHITESPACE")]
     trim_trailing_whitespace: bool,
+    #[serde(default = "DEFAULT_TERMINAL_HEIGHT")]
+    terminal_height: f32,
     theme: &'a str,
 }
 
@@ -78,6 +81,7 @@ pub struct Config {
     pub font: String,
     pub font_size: f32,
     pub trim_trailing_whitespace: bool,
+    pub terminal_height: f32,
     pub theme: Theme,
     pub languages: Vec<Language>,
     pub extension_languages: HashMap<String, usize>,
@@ -142,6 +146,7 @@ impl Config {
             font: config_desc.font.to_owned(),
             font_size: config_desc.font_size,
             trim_trailing_whitespace: config_desc.trim_trailing_whitespace,
+            terminal_height: config_desc.terminal_height.max(0.0),
             theme,
             languages,
             extension_languages,
@@ -221,6 +226,7 @@ impl Default for Config {
             font: "Consolas".into(),
             font_size: 13.0,
             trim_trailing_whitespace: DEFAULT_TRIM_TRAILING_WHITESPACE(),
+            terminal_height: DEFAULT_TERMINAL_HEIGHT(),
             theme: Theme {
                 normal: Color::from_hex(0x000000FF),
                 comment: Color::from_hex(0x008000FF),

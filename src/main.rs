@@ -18,7 +18,6 @@ use platform::window::WindowRunner;
  * TODO:
  * Running commands and seeing output (very simple integrated terminal).
  *    - Move terminal colors to theme,
- *    - Add config option for terminal height in lines (excluding the tab bar),
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
  * Directory-wide search.
  * Unit testing for patterns and text editing functions.

@@ -91,7 +91,7 @@ impl App {
         let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
 
         self.command_palette.layout(bounds, gfx);
-        self.terminal.layout(bounds, gfx);
+        self.terminal.layout(bounds, &self.config, gfx);
 
         bounds = bounds.shrink_bottom_by(self.terminal.bounds());
 

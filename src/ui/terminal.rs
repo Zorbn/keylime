@@ -39,10 +39,15 @@ impl Terminal {
         }
     }
 
-    pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
-        let bounds = Rect::new(0.0, 0.0, bounds.width, gfx.line_height() * 15.0)
-            .at_bottom_of(bounds)
-            .floor();
+    pub fn layout(&mut self, bounds: Rect, config: &Config, gfx: &Gfx) {
+        let bounds = Rect::new(
+            0.0,
+            0.0,
+            bounds.width,
+            gfx.tab_height() + gfx.line_height() * config.terminal_height,
+        )
+        .at_bottom_of(bounds)
+        .floor();
 
         self.pane.layout(bounds, gfx, &mut self.term_list);
 
