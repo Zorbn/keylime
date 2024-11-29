@@ -330,45 +330,7 @@ impl TerminalEmulator {
                 // Newline:
                 0xA => {
                     if self.grid_cursor.y == self.grid_height - 1 {
-                        let start = doc.end();
-                        doc.insert(start, &['\n'], line_pool, time);
-
-                        for _ in 0..self.grid_width {
-                            let start = doc.end();
-                            doc.insert(start, &[' '], line_pool, time);
-                        }
-
-                        self.delete(
-                            Position::new(0, self.grid_height - 1),
-                            Position::new(self.grid_width, self.grid_height - 1),
-                            doc,
-                            line_pool,
-                            time,
-                        );
-
-                        let gfx = ui.gfx();
-
-                        let camera_offset_y = tab.camera.vertical.position
-                            - doc.lines().len() as f32 * gfx.line_height();
-
-                        let max_lines = self.grid_height as usize + MAX_SCROLLBACK_LINES;
-
-                        if doc.lines().len() > max_lines {
-                            let excess_lines = doc.lines().len() - max_lines;
-
-                            let start = Position::zero();
-                            let end = Position::new(0, excess_lines as isize);
-
-                            doc.delete(start, end, line_pool, time);
-                            doc.recycle_highlighted_lines_up_to_y(excess_lines);
-                        }
-
-                        tab.camera.vertical.position =
-                            doc.lines().len() as f32 * gfx.line_height() + camera_offset_y;
-
-                        tab.camera
-                            .vertical
-                            .recenter(CameraRecenterKind::OnScrollBorder);
+                        self.scroll_grid(ui, tab, doc, line_pool, time);
                     } else {
                         self.move_cursor(Position::new(0, 1), doc);
                     }
@@ -644,6 +606,58 @@ impl TerminalEmulator {
             self.grid_line_colors[y as usize]
                 .resize(self.grid_width as usize, (COLOR_WHITE, COLOR_BLACK));
         }
+    }
+
+    fn scroll_grid(
+        &mut self,
+        ui: &mut UiHandle,
+        tab: &mut Tab,
+        doc: &mut Doc,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        let start = doc.end();
+        doc.insert(start, &['\n'], line_pool, time);
+
+        for _ in 0..self.grid_width {
+            let start = doc.end();
+            doc.insert(start, &[' '], line_pool, time);
+        }
+
+        let first_grid_line = self.grid_line_colors.remove(0);
+        self.grid_line_colors.push(first_grid_line);
+
+        self.delete(
+            Position::new(0, self.grid_height - 1),
+            Position::new(self.grid_width, self.grid_height - 1),
+            doc,
+            line_pool,
+            time,
+        );
+
+        let gfx = ui.gfx();
+
+        let camera_offset_y =
+            tab.camera.vertical.position - doc.lines().len() as f32 * gfx.line_height();
+
+        let max_lines = self.grid_height as usize + MAX_SCROLLBACK_LINES;
+
+        if doc.lines().len() > max_lines {
+            let excess_lines = doc.lines().len() - max_lines;
+
+            let start = Position::zero();
+            let end = Position::new(0, excess_lines as isize);
+
+            doc.delete(start, end, line_pool, time);
+            doc.recycle_highlighted_lines_up_to_y(excess_lines);
+        }
+
+        tab.camera.vertical.position =
+            doc.lines().len() as f32 * gfx.line_height() + camera_offset_y;
+
+        tab.camera
+            .vertical
+            .recenter(CameraRecenterKind::OnScrollBorder);
     }
 
     fn expand_doc_to_grid_size(&mut self, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
