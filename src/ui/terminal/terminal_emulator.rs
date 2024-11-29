@@ -9,9 +9,8 @@ use crate::{
     platform::pty::Pty,
     temp_buffer::TempBuffer,
     text::{doc::Doc, line_pool::LinePool, selection::Selection},
+    ui::{camera::CameraRecenterKind, color::Color, tab::Tab, widget::Widget, UiHandle},
 };
-
-use super::{camera::CameraRecenterKind, color::Color, tab::Tab, widget::Widget, UiHandle};
 
 const ZERO: u32 = '0' as u32;
 const ONE: u32 = '1' as u32;

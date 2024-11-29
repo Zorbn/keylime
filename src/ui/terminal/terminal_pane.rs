@@ -9,11 +9,10 @@ use crate::{
         doc::{Doc, DocKind},
         line_pool::LinePool,
     },
+    ui::{pane::Pane, slot_list::SlotList, widget::Widget, UiHandle},
 };
 
-use super::{
-    pane::Pane, slot_list::SlotList, terminal_emulator::TerminalEmulator, widget::Widget, UiHandle,
-};
+use super::terminal_emulator::TerminalEmulator;
 
 pub struct TerminalPane {
     inner: Pane<(Doc, TerminalEmulator)>,

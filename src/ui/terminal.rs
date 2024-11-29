@@ -1,3 +1,6 @@
+use terminal_emulator::{TerminalEmulator, COLOR_BLACK};
+use terminal_pane::TerminalPane;
+
 use crate::{
     config::Config,
     geometry::rect::Rect,
@@ -10,13 +13,10 @@ use crate::{
     text::{doc::Doc, line_pool::LinePool},
 };
 
-use super::{
-    slot_list::SlotList,
-    terminal_emulator::{TerminalEmulator, COLOR_BLACK},
-    terminal_pane::TerminalPane,
-    widget::Widget,
-    Ui, UiHandle,
-};
+use super::{slot_list::SlotList, widget::Widget, Ui, UiHandle};
+
+mod terminal_emulator;
+mod terminal_pane;
 
 pub struct Terminal {
     pane: TerminalPane,

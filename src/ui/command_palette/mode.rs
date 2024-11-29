@@ -1,7 +1,7 @@
 use crate::{
     config::Config,
     text::{doc::Doc, line_pool::LinePool},
-    ui::{editor_pane::EditorPane, slot_list::SlotList},
+    ui::{editor::editor_pane::EditorPane, slot_list::SlotList},
 };
 
 use super::{CommandPalette, CommandPaletteAction};

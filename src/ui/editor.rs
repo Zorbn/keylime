@@ -1,3 +1,6 @@
+use doc_io::confirm_close_all;
+use editor_pane::EditorPane;
+
 use crate::{
     config::Config,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
@@ -17,13 +20,14 @@ use crate::{
 };
 
 use super::{
-    doc_io::confirm_close_all,
-    editor_pane::EditorPane,
     result_list::{ResultList, ResultListInput},
     slot_list::SlotList,
     widget::Widget,
     Ui, UiHandle,
 };
+
+mod doc_io;
+pub mod editor_pane;
 
 const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
 

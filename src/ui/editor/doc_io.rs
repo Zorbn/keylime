@@ -7,9 +7,8 @@ use crate::{
         doc::{Doc, DocKind},
         line_pool::LinePool,
     },
+    ui::slot_list::SlotList,
 };
-
-use super::slot_list::SlotList;
 
 pub fn confirm_close(
     doc: &mut Doc,

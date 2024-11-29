@@ -22,8 +22,7 @@ use crate::{
 };
 
 use super::{
-    editor::Editor,
-    editor_pane::EditorPane,
+    editor::{editor_pane::EditorPane, Editor},
     result_list::{ResultList, ResultListInput},
     slot_list::SlotList,
     tab::Tab,

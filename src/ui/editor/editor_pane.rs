@@ -17,15 +17,10 @@ use crate::{
         doc::{Doc, DocKind},
         line_pool::LinePool,
     },
+    ui::{pane::Pane, slot_list::SlotList, widget::Widget, UiHandle},
 };
 
-use super::{
-    doc_io::{confirm_close, open_or_reuse, reload, try_save},
-    pane::Pane,
-    slot_list::SlotList,
-    widget::Widget,
-    UiHandle,
-};
+use super::doc_io::{confirm_close, open_or_reuse, reload, try_save};
 
 pub struct EditorPane {
     inner: Pane<Doc>,
