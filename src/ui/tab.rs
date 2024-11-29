@@ -5,7 +5,7 @@ use crate::{
     digits::get_digits,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
-        editing_actions::{handle_char, handle_keybind},
+        editing_actions::{handle_char, handle_keybind, handle_left_click},
         keybind::{MOD_CTRL, MOD_SHIFT},
         mouse_button::MouseButton,
         mousebind::Mousebind,
@@ -126,12 +126,11 @@ impl Tab {
                 Mousebind {
                     button: Some(MouseButton::Left),
                     mods: 0 | MOD_SHIFT,
+                    kind,
                     is_drag,
                     ..
                 } => {
-                    let mods = mousebind.mods;
-
-                    doc.jump_cursors(position, is_drag || (mods & MOD_SHIFT != 0));
+                    handle_left_click(doc, position, mousebind.mods, kind, is_drag);
                     self.handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
                 }
                 Mousebind {

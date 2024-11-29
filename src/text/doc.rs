@@ -1616,7 +1616,7 @@ impl Doc {
         Selection { start, end }
     }
 
-    fn select_current_word_at_cursors(&mut self) {
+    pub fn select_current_word_at_cursors(&mut self) {
         for index in self.cursor_indices() {
             let position = self.get_cursor(index).position;
             let selection = self.select_current_word_at_position(position);

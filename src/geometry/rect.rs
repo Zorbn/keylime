@@ -72,10 +72,6 @@ impl Rect {
         Rect::new(self.x, other.y + other.height, self.width, self.height)
     }
 
-    pub fn above(&self, other: Rect) -> Rect {
-        Rect::new(self.x, other.y - self.height, self.width, self.height)
-    }
-
     pub fn at_bottom_of(&self, other: Rect) -> Rect {
         Rect::new(
             self.x,

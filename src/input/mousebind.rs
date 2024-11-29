@@ -3,12 +3,19 @@ use super::{
     mouse_button::MouseButton,
 };
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MousebindKind {
+    SingleClick,
+    DoubleClick,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Mousebind {
     pub button: Option<MouseButton>,
     pub x: f32,
     pub y: f32,
     pub mods: u8,
+    pub kind: MousebindKind,
     pub is_drag: bool,
 }
 
@@ -20,6 +27,7 @@ impl Mousebind {
         has_shift: bool,
         has_ctrl: bool,
         has_alt: bool,
+        kind: MousebindKind,
         is_drag: bool,
     ) -> Self {
         let mut mods = 0u8;
@@ -41,6 +49,7 @@ impl Mousebind {
             x,
             y,
             mods,
+            kind,
             is_drag,
         }
     }

@@ -38,7 +38,7 @@ use crate::{
         keybind::Keybind,
         mouse_button::MouseButton,
         mouse_scroll::MouseScroll,
-        mousebind::Mousebind,
+        mousebind::{Mousebind, MousebindKind},
     },
     ui::terminal_emulator::TerminalEmulator,
 };
@@ -68,6 +68,7 @@ impl WindowRunner {
                 hInstance: GetModuleHandleW(None)?.into(),
                 hCursor: LoadCursorW(None, IDC_ARROW)?,
                 lpszClassName: w!("keylime_window_class"),
+                style: CS_DBLCLKS,
                 ..Default::default()
             };
 
@@ -199,6 +200,7 @@ pub struct Window {
     // last focused, so that we can skip stray mouse drag events that may happen
     // when the window is gaining focus again after coming back from a popup.
     draggable_buttons: HashSet<MouseButton>,
+    double_clicked_button: Option<MouseButton>,
 
     pub chars_typed: Vec<char>,
     pub keybinds_typed: Vec<Keybind>,
@@ -241,6 +243,7 @@ impl Window {
             gfx: None,
 
             draggable_buttons: HashSet::new(),
+            double_clicked_button: None,
 
             chars_typed: Vec::new(),
             keybinds_typed: Vec::new(),
@@ -554,6 +557,7 @@ impl Window {
             WM_KILLFOCUS => {
                 self.is_focused = false;
                 self.draggable_buttons.clear();
+                self.double_clicked_button = None;
 
                 let _ = PostMessageW(self.hwnd, WM_PAINT, None, None);
             }
@@ -581,7 +585,20 @@ impl Window {
 
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
-            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_MOUSEMOVE => {
+            WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP => {
+                let button = match msg {
+                    WM_LBUTTONUP => Some(MouseButton::Left),
+                    WM_RBUTTONUP => Some(MouseButton::Right),
+                    WM_MBUTTONUP => Some(MouseButton::Middle),
+                    _ => None,
+                };
+
+                if self.double_clicked_button == button {
+                    self.double_clicked_button = None;
+                }
+            }
+            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_LBUTTONDBLCLK
+            | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK | WM_MOUSEMOVE => {
                 const MK_LBUTTON: usize = 0x01;
                 const MK_RBUTTON: usize = 0x02;
                 const MK_MBUTTON: usize = 0x10;
@@ -610,7 +627,25 @@ impl Window {
                 let x = transmute::<u32, i32>((lparam.0 & 0xffff) as u32) as f32;
                 let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xffff) as u32) as f32;
 
-                let is_drag = msg == WM_MOUSEMOVE;
+                let (kind, is_drag) = match msg {
+                    WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK => {
+                        self.double_clicked_button = button;
+
+                        (MousebindKind::DoubleClick, false)
+                    }
+                    WM_MOUSEMOVE => {
+                        let kind = if self.double_clicked_button.is_some()
+                            && self.double_clicked_button == button
+                        {
+                            MousebindKind::DoubleClick
+                        } else {
+                            MousebindKind::SingleClick
+                        };
+
+                        (kind, true)
+                    }
+                    _ => (MousebindKind::SingleClick, false),
+                };
 
                 let do_ignore = if let Some(button) = button {
                     if !is_drag {
@@ -624,7 +659,7 @@ impl Window {
 
                 if !do_ignore {
                     self.mousebinds_pressed.push(Mousebind::new(
-                        button, x, y, has_shift, has_ctrl, false, is_drag,
+                        button, x, y, has_shift, has_ctrl, false, kind, is_drag,
                     ));
                 }
             }
