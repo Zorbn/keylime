@@ -15,7 +15,10 @@ use windows::{
             Com::{
                 CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
             },
-            DataExchange::{CloseClipboard, GetClipboardData, OpenClipboard, SetClipboardData},
+            DataExchange::{
+                AddClipboardFormatListener, CloseClipboard, GetClipboardData, OpenClipboard,
+                SetClipboardData,
+            },
             LibraryLoader::GetModuleHandleW,
             Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE},
             Ole::CF_UNICODETEXT,
@@ -96,6 +99,8 @@ impl WindowRunner {
                 &use_dark_mode as *const BOOL as _,
                 size_of::<BOOL>() as u32,
             )?;
+
+            AddClipboardFormatListener(window_runner.window.hwnd())?;
 
             let _ = ShowWindow(window_runner.window.hwnd(), SW_SHOWDEFAULT);
 
