@@ -17,9 +17,10 @@ use crate::{
 };
 
 use super::{
-    doc_list::DocList,
+    doc_io::confirm_close_all,
     editor_pane::EditorPane,
     result_list::{ResultList, ResultListInput},
+    slot_list::SlotList,
     widget::Widget,
     Ui, UiHandle,
 };
@@ -27,7 +28,7 @@ use super::{
 const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
 
 pub struct Editor {
-    doc_list: DocList,
+    doc_list: SlotList<Doc>,
     // There should always be at least one pane.
     panes: Vec<EditorPane>,
     focused_pane_index: usize,
@@ -42,7 +43,7 @@ pub struct Editor {
 impl Editor {
     pub fn new(ui: &mut Ui, line_pool: &mut LinePool) -> Self {
         let mut editor = Self {
-            doc_list: DocList::new(),
+            doc_list: SlotList::new(),
             panes: Vec::new(),
             focused_pane_index: 0,
 
@@ -86,7 +87,7 @@ impl Editor {
         let focused_pane = &self.panes[self.focused_pane_index];
 
         let Some((tab, doc)) =
-            focused_pane.get_tab_with_doc(focused_pane.focused_tab_index(), &self.doc_list)
+            focused_pane.get_tab_with_data(focused_pane.focused_tab_index(), &self.doc_list)
         else {
             return;
         };
@@ -243,7 +244,7 @@ impl Editor {
                     let focused_tab_index = pane.focused_tab_index();
 
                     if let Some((_, doc)) =
-                        pane.get_tab_with_doc_mut(focused_tab_index, &mut self.doc_list)
+                        pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
                     {
                         doc.insert_at_cursors(
                             &result[self.completion_prefix.len()..],
@@ -364,7 +365,8 @@ impl Editor {
 
         let pane = &mut self.panes[self.focused_pane_index];
 
-        let Some((_, doc)) = pane.get_tab_with_doc(pane.focused_tab_index(), &self.doc_list) else {
+        let Some((_, doc)) = pane.get_tab_with_data(pane.focused_tab_index(), &self.doc_list)
+        else {
             return;
         };
 
@@ -388,14 +390,14 @@ impl Editor {
     fn get_cursor_position(&self) -> Option<Position> {
         let pane = &self.panes[self.focused_pane_index];
 
-        pane.get_tab_with_doc(pane.focused_tab_index(), &self.doc_list)
+        pane.get_tab_with_data(pane.focused_tab_index(), &self.doc_list)
             .map(|(_, doc)| doc.get_cursor(CursorIndex::Main).position)
     }
 
     fn is_cursor_visible(&self, gfx: &Gfx) -> bool {
         let pane = &self.panes[self.focused_pane_index];
 
-        let Some((tab, doc)) = pane.get_tab_with_doc(pane.focused_tab_index(), &self.doc_list)
+        let Some((tab, doc)) = pane.get_tab_with_data(pane.focused_tab_index(), &self.doc_list)
         else {
             return false;
         };
@@ -449,11 +451,10 @@ impl Editor {
     }
 
     pub fn on_close(&mut self, config: &Config, line_pool: &mut LinePool, time: f32) {
-        self.doc_list
-            .confirm_close_all("exiting", config, line_pool, time);
+        confirm_close_all(&mut self.doc_list, "exiting", config, line_pool, time);
     }
 
-    pub fn get_focused_pane_and_doc_list(&mut self) -> (&mut EditorPane, &mut DocList) {
+    pub fn get_focused_pane_and_doc_list(&mut self) -> (&mut EditorPane, &mut SlotList<Doc>) {
         (&mut self.panes[self.focused_pane_index], &mut self.doc_list)
     }
 }

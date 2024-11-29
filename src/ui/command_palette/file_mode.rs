@@ -32,7 +32,7 @@ fn on_open_file(
 ) {
     let focused_tab_index = pane.focused_tab_index();
 
-    let Some((_, doc)) = pane.get_tab_with_doc(focused_tab_index, doc_list) else {
+    let Some((_, doc)) = pane.get_tab_with_data(focused_tab_index, doc_list) else {
         return;
     };
 

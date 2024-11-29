@@ -30,7 +30,7 @@ const GUTTER_PADDING_WIDTH: f32 = 1.0;
 const GUTTER_BORDER_WIDTH: f32 = 0.5;
 
 pub struct Tab {
-    doc_index: usize,
+    data_index: usize,
 
     pub camera: Camera,
     handled_cursor_position: Position,
@@ -41,9 +41,9 @@ pub struct Tab {
 }
 
 impl Tab {
-    pub fn new(doc_index: usize) -> Self {
+    pub fn new(data_index: usize) -> Self {
         Self {
-            doc_index,
+            data_index,
 
             camera: Camera::new(),
             handled_cursor_position: Position::zero(),
@@ -54,8 +54,8 @@ impl Tab {
         }
     }
 
-    pub fn doc_index(&self) -> usize {
-        self.doc_index
+    pub fn data_index(&self) -> usize {
+        self.data_index
     }
 
     pub fn is_animating(&self) -> bool {

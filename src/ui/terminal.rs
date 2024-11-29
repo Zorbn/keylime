@@ -5,13 +5,13 @@ use crate::{
         key::Key,
         keybind::{Keybind, MOD_CTRL},
     },
-    platform::gfx::Gfx,
+    platform::{gfx::Gfx, pty::Pty},
     temp_buffer::TempBuffer,
-    text::line_pool::LinePool,
+    text::{doc::Doc, line_pool::LinePool},
 };
 
 use super::{
-    doc_list::DocList,
+    slot_list::SlotList,
     terminal_emulator::{TerminalEmulator, COLOR_BLACK},
     terminal_pane::TerminalPane,
     widget::Widget,
@@ -20,23 +20,20 @@ use super::{
 
 pub struct Terminal {
     pane: TerminalPane,
-    doc_list: DocList,
-    emulators: Vec<TerminalEmulator>,
+    term_list: SlotList<(Doc, TerminalEmulator)>,
 
     pub widget: Widget,
 }
 
 impl Terminal {
     pub fn new(ui: &mut Ui, line_pool: &mut LinePool) -> Self {
-        let mut doc_list = DocList::new();
-        let mut emulators = Vec::new();
+        let mut term_list = SlotList::new();
 
-        let pane = TerminalPane::new(&mut doc_list, &mut emulators, line_pool);
+        let pane = TerminalPane::new(&mut term_list, line_pool);
 
         Self {
             pane,
-            doc_list,
-            emulators,
+            term_list,
 
             widget: Widget::new(ui, true),
         }
@@ -47,7 +44,7 @@ impl Terminal {
             .at_bottom_of(bounds)
             .floor();
 
-        self.pane.layout(bounds, gfx, &mut self.doc_list);
+        self.pane.layout(bounds, gfx, &mut self.term_list);
 
         self.widget.layout(&[bounds]);
     }
@@ -79,22 +76,15 @@ impl Terminal {
             }
         }
 
-        self.pane.update(
-            &self.widget,
-            ui,
-            &mut self.doc_list,
-            &mut self.emulators,
-            line_pool,
-        );
+        self.pane
+            .update(&self.widget, ui, &mut self.term_list, line_pool);
 
         let focused_tab_index = self.pane.focused_tab_index();
 
-        if let Some((tab, doc)) = self
+        if let Some((tab, (doc, emulator))) = self
             .pane
-            .get_tab_with_doc_mut(focused_tab_index, &mut self.doc_list)
+            .get_tab_with_data_mut(focused_tab_index, &mut self.term_list)
         {
-            let emulator = &mut self.emulators[tab.doc_index()];
-
             emulator.update_input(
                 &self.widget,
                 ui,
@@ -108,13 +98,11 @@ impl Terminal {
         }
 
         for tab in &mut self.pane.tabs {
-            let doc_index = tab.doc_index();
+            let term_index = tab.data_index();
 
-            let Some(doc) = self.doc_list.get_mut(doc_index) else {
+            let Some((doc, emulator)) = self.term_list.get_mut(term_index) else {
                 continue;
             };
-
-            let emulator = &mut self.emulators[doc_index];
 
             emulator.update_output(ui, doc, tab, line_pool, time, dt);
         }
@@ -126,7 +114,7 @@ impl Terminal {
 
         self.pane.draw(
             Some(COLOR_BLACK),
-            &mut self.doc_list,
+            &mut self.term_list,
             config,
             gfx,
             is_focused,
@@ -134,7 +122,7 @@ impl Terminal {
     }
 
     pub fn on_close(&mut self) {
-        for emulator in &mut self.emulators {
+        for (_, emulator) in self.term_list.iter_mut().filter_map(|term| term.as_mut()) {
             emulator.on_close();
         }
     }
@@ -147,7 +135,9 @@ impl Terminal {
         self.pane.is_animating()
     }
 
-    pub fn emulators(&self) -> &[TerminalEmulator] {
-        &self.emulators
+    pub fn ptys(&self) -> impl Iterator<Item = &Pty> {
+        self.term_list
+            .iter()
+            .filter_map(|term| term.as_ref().and_then(|(_, emulator)| emulator.pty()))
     }
 }

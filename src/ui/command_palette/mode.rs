@@ -1,7 +1,7 @@
 use crate::{
     config::Config,
-    text::line_pool::LinePool,
-    ui::{doc_list::DocList, editor_pane::EditorPane},
+    text::{doc::Doc, line_pool::LinePool},
+    ui::{editor_pane::EditorPane, slot_list::SlotList},
 };
 
 use super::{CommandPalette, CommandPaletteAction};
@@ -9,7 +9,7 @@ use super::{CommandPalette, CommandPaletteAction};
 pub struct CommandPaletteEventArgs<'a> {
     pub command_palette: &'a mut CommandPalette,
     pub pane: &'a mut EditorPane,
-    pub doc_list: &'a mut DocList,
+    pub doc_list: &'a mut SlotList<Doc>,
     pub config: &'a Config,
     pub line_pool: &'a mut LinePool,
     pub time: f32,

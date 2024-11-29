@@ -12,26 +12,29 @@ use crate::{
 };
 
 use super::{
-    doc_list::DocList, pane::Pane, terminal_emulator::TerminalEmulator, widget::Widget, UiHandle,
+    pane::Pane, slot_list::SlotList, terminal_emulator::TerminalEmulator, widget::Widget, UiHandle,
 };
 
 pub struct TerminalPane {
-    inner: Pane,
+    inner: Pane<(Doc, TerminalEmulator)>,
 }
 
 const TERMINAL_DISPLAY_NAME: Option<&str> = Some("Terminal");
 
 impl TerminalPane {
     pub fn new(
-        doc_list: &mut DocList,
-        emulators: &mut Vec<TerminalEmulator>,
+        term_list: &mut SlotList<(Doc, TerminalEmulator)>,
         line_pool: &mut LinePool,
     ) -> Self {
-        let mut inner = Pane::new();
+        let mut inner = Pane::new(|(doc, _)| doc, |(doc, _)| doc);
 
-        let doc_index = doc_list.add(Doc::new(line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output));
-        emulators.push(TerminalEmulator::new());
-        inner.add_tab(doc_index, doc_list);
+        let term = (
+            Doc::new(line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
+            TerminalEmulator::new(),
+        );
+
+        let doc_index = term_list.add(term);
+        inner.add_tab(doc_index, term_list);
 
         Self { inner }
     }
@@ -40,8 +43,7 @@ impl TerminalPane {
         &mut self,
         widget: &Widget,
         ui: &mut UiHandle,
-        doc_list: &mut DocList,
-        emulators: &mut Vec<TerminalEmulator>,
+        term_list: &mut SlotList<(Doc, TerminalEmulator)>,
         line_pool: &mut LinePool,
     ) {
         let mut keybind_handler = widget.get_keybind_handler(ui);
@@ -52,23 +54,27 @@ impl TerminalPane {
                     key: Key::N,
                     mods: MOD_CTRL,
                 } => {
-                    let doc_index =
-                        doc_list.add(Doc::new(line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output));
-                    emulators.push(TerminalEmulator::new());
+                    let term = (
+                        Doc::new(line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
+                        TerminalEmulator::new(),
+                    );
 
-                    self.add_tab(doc_index, doc_list);
+                    let term_index = term_list.add(term);
+
+                    self.add_tab(term_index, term_list);
                 }
                 Keybind {
                     key: Key::W,
                     mods: MOD_CTRL,
                 } => {
                     if let Some(tab) = self.tabs.get(self.focused_tab_index) {
-                        let doc_index = tab.doc_index();
+                        let term_index = tab.data_index();
 
-                        self.remove_tab(doc_list);
+                        self.remove_tab(term_list);
 
-                        emulators.remove(doc_index);
-                        doc_list.remove(doc_index, line_pool);
+                        if let Some((mut doc, _)) = term_list.remove(term_index) {
+                            doc.clear(line_pool)
+                        }
                     }
                 }
                 _ => keybind_handler.unprocessed(ui.window, keybind),
@@ -80,7 +86,7 @@ impl TerminalPane {
 }
 
 impl Deref for TerminalPane {
-    type Target = Pane;
+    type Target = Pane<(Doc, TerminalEmulator)>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner

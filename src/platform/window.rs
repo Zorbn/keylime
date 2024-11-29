@@ -40,10 +40,9 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::{Mousebind, MousebindKind},
     },
-    ui::terminal_emulator::TerminalEmulator,
 };
 
-use super::gfx::Gfx;
+use super::{gfx::Gfx, pty::Pty};
 
 const DEFAULT_DPI: f32 = 96.0;
 
@@ -262,7 +261,11 @@ impl Window {
         self.mouse_scrolls.clear();
     }
 
-    pub fn update(&mut self, is_animating: bool, emulators: &[TerminalEmulator]) -> (f32, f32) {
+    pub fn update<'a>(
+        &mut self,
+        is_animating: bool,
+        ptys: impl Iterator<Item = &'a Pty>,
+    ) -> (f32, f32) {
         self.clear_inputs();
 
         unsafe {
@@ -271,11 +274,7 @@ impl Window {
             if !is_animating {
                 self.wait_handles.clear();
 
-                for emulator in emulators {
-                    let Some(pty) = emulator.pty() else {
-                        continue;
-                    };
-
+                for pty in ptys {
                     self.wait_handles
                         .extend_from_slice(&[pty.hprocess, pty.event]);
                 }

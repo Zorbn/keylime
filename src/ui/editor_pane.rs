@@ -19,15 +19,21 @@ use crate::{
     },
 };
 
-use super::{doc_list::DocList, pane::Pane, widget::Widget, UiHandle};
+use super::{
+    doc_io::{confirm_close, open_or_reuse, reload, try_save},
+    pane::Pane,
+    slot_list::SlotList,
+    widget::Widget,
+    UiHandle,
+};
 
 pub struct EditorPane {
-    inner: Pane,
+    inner: Pane<Doc>,
 }
 
 impl EditorPane {
-    pub fn new(doc_list: &mut DocList, line_pool: &mut LinePool) -> Self {
-        let mut inner = Pane::new();
+    pub fn new(doc_list: &mut SlotList<Doc>, line_pool: &mut LinePool) -> Self {
+        let mut inner = Pane::new(|doc| doc, |doc| doc);
 
         let doc_index = doc_list.add(Doc::new(line_pool, None, DocKind::MultiLine));
         inner.add_tab(doc_index, doc_list);
@@ -39,7 +45,7 @@ impl EditorPane {
         &mut self,
         widget: &Widget,
         ui: &mut UiHandle,
-        doc_list: &mut DocList,
+        doc_list: &mut SlotList<Doc>,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
         config: &Config,
@@ -77,9 +83,9 @@ impl EditorPane {
                 } => {
                     if let Some((_, doc)) = self
                         .inner
-                        .get_tab_with_doc_mut(self.focused_tab_index(), doc_list)
+                        .get_tab_with_data_mut(self.focused_tab_index(), doc_list)
                     {
-                        DocList::try_save(doc, config, line_pool, time);
+                        try_save(doc, config, line_pool, time);
                     }
                 }
                 Keybind {
@@ -101,9 +107,9 @@ impl EditorPane {
                 } => {
                     if let Some((tab, doc)) = self
                         .inner
-                        .get_tab_with_doc_mut(self.focused_tab_index(), doc_list)
+                        .get_tab_with_data_mut(self.focused_tab_index(), doc_list)
                     {
-                        DocList::reload(doc, config, line_pool, time);
+                        reload(doc, config, line_pool, time);
                         tab.camera.recenter();
                     }
                 }
@@ -115,7 +121,7 @@ impl EditorPane {
 
         let focused_tab_index = self.focused_tab_index();
 
-        if let Some((tab, doc)) = self.get_tab_with_doc_mut(focused_tab_index, doc_list) {
+        if let Some((tab, doc)) = self.get_tab_with_data_mut(focused_tab_index, doc_list) {
             tab.update(widget, ui, doc, line_pool, text_buffer, config, time);
         }
     }
@@ -123,12 +129,12 @@ impl EditorPane {
     pub fn open_file(
         &mut self,
         path: &Path,
-        doc_list: &mut DocList,
+        doc_list: &mut SlotList<Doc>,
         config: &Config,
         line_pool: &mut LinePool,
         time: f32,
     ) -> io::Result<()> {
-        let doc_index = doc_list.open_or_reuse(path, line_pool)?;
+        let doc_index = open_or_reuse(doc_list, path, line_pool)?;
 
         self.add_tab(doc_index, doc_list, config, line_pool, time);
 
@@ -138,12 +144,12 @@ impl EditorPane {
     pub fn add_tab(
         &mut self,
         doc_index: usize,
-        doc_list: &mut DocList,
+        doc_list: &mut SlotList<Doc>,
         config: &Config,
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        if let Some(tab_index) = self.get_existing_tab_for_doc(doc_index) {
+        if let Some(tab_index) = self.get_existing_tab_for_data(doc_index) {
             self.focused_tab_index = tab_index;
 
             return;
@@ -156,7 +162,7 @@ impl EditorPane {
 
         let focused_tab_index = self.focused_tab_index();
 
-        if let Some((_, doc)) = self.get_tab_with_doc(focused_tab_index, doc_list) {
+        if let Some((_, doc)) = self.get_tab_with_data(focused_tab_index, doc_list) {
             let is_focused_doc_worthless = doc.is_worthless();
 
             if !is_doc_worthless && is_focused_doc_worthless {
@@ -169,29 +175,29 @@ impl EditorPane {
 
     fn remove_tab(
         &mut self,
-        doc_list: &mut DocList,
+        doc_list: &mut SlotList<Doc>,
         config: &Config,
         line_pool: &mut LinePool,
         time: f32,
     ) -> bool {
         let focused_tab_index = self.focused_tab_index();
 
-        let Some((tab, doc)) = self.get_tab_with_doc_mut(focused_tab_index, doc_list) else {
+        let Some((tab, doc)) = self.get_tab_with_data_mut(focused_tab_index, doc_list) else {
             return true;
         };
 
-        let doc_index = tab.doc_index();
+        let doc_index = tab.data_index();
 
-        if doc.usages() == 1
-            && !DocList::confirm_close(doc, "closing", true, config, line_pool, time)
-        {
+        if doc.usages() == 1 && !confirm_close(doc, "closing", true, config, line_pool, time) {
             return false;
         }
 
         self.inner.remove_tab(doc_list);
 
         if doc_list.get(doc_index).is_some_and(|doc| doc.usages() == 0) {
-            doc_list.remove(doc_index, line_pool);
+            if let Some(mut doc) = doc_list.remove(doc_index) {
+                doc.clear(line_pool)
+            }
         }
 
         true
@@ -199,7 +205,7 @@ impl EditorPane {
 
     pub fn close_all_tabs(
         &mut self,
-        doc_list: &mut DocList,
+        doc_list: &mut SlotList<Doc>,
         config: &Config,
         line_pool: &mut LinePool,
         time: f32,
@@ -215,7 +221,7 @@ impl EditorPane {
 }
 
 impl Deref for EditorPane {
-    type Target = Pane;
+    type Target = Pane<Doc>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
