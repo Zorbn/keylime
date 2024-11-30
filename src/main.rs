@@ -21,7 +21,6 @@ use platform::window::WindowRunner;
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
  * Directory-wide search.
  * Unit testing for patterns and text editing functions.
- * Fix double click not working on the first double click after another window was focused.
  */
 
 fn main() {
