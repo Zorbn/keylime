@@ -207,7 +207,7 @@ pub struct Window {
     draggable_buttons: HashSet<MouseButton>,
     clicked_button: Option<(MouseButton, MouseClickKind)>,
     last_clicked_button: Option<(MouseButton, MouseClickKind, f32)>,
-    triple_click_time: f32,
+    double_click_time: f32,
 
     pub chars_typed: Vec<char>,
     pub keybinds_typed: Vec<Keybind>,
@@ -254,7 +254,7 @@ impl Window {
             draggable_buttons: HashSet::new(),
             clicked_button: None,
             last_clicked_button: None,
-            triple_click_time,
+            double_click_time: triple_click_time,
 
             chars_typed: Vec::new(),
             keybinds_typed: Vec::new(),
@@ -620,7 +620,9 @@ impl Window {
                 const MK_SHIFT: usize = 0x04;
                 const MK_CONTROL: usize = 0x08;
 
-                let button = if wparam.0 & MK_LBUTTON != 0 {
+                let button = if msg == WM_MOUSEMOVE {
+                    self.clicked_button.map(|(button, _)| button)
+                } else if wparam.0 & MK_LBUTTON != 0 {
                     Some(MouseButton::Left)
                 } else if wparam.0 & MK_MBUTTON != 0 {
                     Some(MouseButton::Middle)
@@ -655,7 +657,7 @@ impl Window {
                             .map(|(double_clicked_button, kind, time)| {
                                 (
                                     Some(double_clicked_button) == button
-                                        && self.time - time <= self.triple_click_time,
+                                        && self.time - time <= self.double_click_time,
                                     kind,
                                 )
                             })
