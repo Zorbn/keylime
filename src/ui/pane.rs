@@ -171,16 +171,15 @@ impl<T> Pane<T> {
             Self::draw_tab(tab, get_doc(data), self.bounds, &config.theme, gfx);
         }
 
-        let focused_tab_bounds = if let Some(tab) = is_focused
-            .then(|| self.tabs.get(self.focused_tab_index))
-            .flatten()
-        {
+        let focused_tab_bounds = if let Some(tab) = self.tabs.get(self.focused_tab_index) {
             let tab_bounds = tab.tab_bounds().unoffset_by(self.bounds);
 
-            gfx.add_rect(
-                tab_bounds.top_border(gfx.border_width()),
-                config.theme.keyword,
-            );
+            if is_focused {
+                gfx.add_rect(
+                    tab_bounds.top_border(gfx.border_width()),
+                    config.theme.keyword,
+                );
+            }
 
             tab_bounds
         } else {
