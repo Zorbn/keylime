@@ -9,7 +9,6 @@ use std::{
 use crate::{
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     platform::gfx::Gfx,
-    ui::color::Color,
 };
 
 use super::{
@@ -20,7 +19,7 @@ use super::{
     line_pool::{Line, LinePool},
     selection::Selection,
     syntax::Syntax,
-    syntax_highlighter::{HighlightedLine, SyntaxHighlighter},
+    syntax_highlighter::{HighlightedLine, SyntaxHighlighter, TerminalHighlightKind},
     tokenizer::Tokenizer,
     trie::Trie,
 };
@@ -1517,9 +1516,13 @@ impl Doc {
         self.syntax_highlighter.recycle_highlighted_lines_up_to_y(y);
     }
 
-    pub fn highlight_line_from_colors(&mut self, colors: &[(Color, Color)], y: usize) {
+    pub fn highlight_line_from_terminal_colors(
+        &mut self,
+        colors: &[(TerminalHighlightKind, TerminalHighlightKind)],
+        y: usize,
+    ) {
         self.syntax_highlighter
-            .highlight_line_from_colors(colors, y);
+            .highlight_line_from_terminal_colors(colors, y);
     }
 
     pub fn highlighted_lines(&self) -> &[HighlightedLine] {

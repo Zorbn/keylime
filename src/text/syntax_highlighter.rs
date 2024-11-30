@@ -1,11 +1,30 @@
 use serde::Deserialize;
 
-use crate::ui::color::Color;
-
 use super::{
     line_pool::Line,
     syntax::{Syntax, SyntaxRange, SyntaxToken},
 };
+
+#[derive(Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
+pub enum TerminalHighlightKind {
+    White,
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+
+    BrightWhite,
+    BrightBlack,
+    BrightRed,
+    BrightGreen,
+    BrightYellow,
+    BrightBlue,
+    BrightMagenta,
+    BrightCyan,
+}
 
 #[derive(Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum HighlightKind {
@@ -17,8 +36,7 @@ pub enum HighlightKind {
     Symbol,
     String,
     Meta,
-    // TODO: Replace with special highlight kinds and theme colors for each terminal color.
-    Custom(Color),
+    Terminal(TerminalHighlightKind),
 }
 
 #[derive(Clone, Copy)]
@@ -293,7 +311,11 @@ impl SyntaxHighlighter {
         }
     }
 
-    pub fn highlight_line_from_colors(&mut self, colors: &[(Color, Color)], y: usize) {
+    pub fn highlight_line_from_terminal_colors(
+        &mut self,
+        colors: &[(TerminalHighlightKind, TerminalHighlightKind)],
+        y: usize,
+    ) {
         if self.highlighted_lines.len() <= y {
             self.highlighted_lines.resize(y + 1, HighlightedLine::new());
         }
@@ -306,8 +328,8 @@ impl SyntaxHighlighter {
             highlighted_line.push(Highlight {
                 start: x,
                 end: x + 1,
-                foreground: HighlightKind::Custom(*foreground),
-                background: Some(HighlightKind::Custom(*background)),
+                foreground: HighlightKind::Terminal(*foreground),
+                background: Some(HighlightKind::Terminal(*background)),
             });
         }
     }

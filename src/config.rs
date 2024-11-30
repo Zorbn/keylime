@@ -16,7 +16,6 @@ use crate::{
         doc::Doc,
         syntax::{Syntax, SyntaxRange, SyntaxToken},
     },
-    ui::color::Color,
 };
 
 const CONFIG_PATH: &str = "config.toml";
@@ -227,20 +226,7 @@ impl Default for Config {
             font_size: 13.0,
             trim_trailing_whitespace: DEFAULT_TRIM_TRAILING_WHITESPACE(),
             terminal_height: DEFAULT_TERMINAL_HEIGHT(),
-            theme: Theme {
-                normal: Color::from_hex(0x000000FF),
-                comment: Color::from_hex(0x008000FF),
-                keyword: Color::from_hex(0x0000FFFF),
-                function: Color::from_hex(0x795E26FF),
-                number: Color::from_hex(0x098658FF),
-                symbol: Color::from_hex(0x000000FF),
-                string: Color::from_hex(0xA31515FF),
-                meta: Color::from_hex(0xAF00DBFF),
-                selection: Color::from_hex(0x4CADE47F),
-                line_number: Color::from_hex(0x6E7681FF),
-                border: Color::from_hex(0xE5E5E5FF),
-                background: Color::from_hex(0xF5F5F5FF),
-            },
+            theme: Theme::default(),
             languages: Vec::new(),
             extension_languages: HashMap::new(),
         }

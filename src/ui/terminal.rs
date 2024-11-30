@@ -1,4 +1,4 @@
-use terminal_emulator::{TerminalEmulator, COLOR_BLACK};
+use terminal_emulator::TerminalEmulator;
 use terminal_pane::TerminalPane;
 
 use crate::{
@@ -118,7 +118,7 @@ impl Terminal {
         let gfx = ui.gfx();
 
         self.pane.draw(
-            Some(COLOR_BLACK),
+            Some(config.theme.terminal.black),
             &mut self.term_list,
             config,
             gfx,

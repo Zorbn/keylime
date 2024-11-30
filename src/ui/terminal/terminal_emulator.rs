@@ -8,8 +8,11 @@ use crate::{
     },
     platform::pty::Pty,
     temp_buffer::TempBuffer,
-    text::{doc::Doc, line_pool::LinePool, selection::Selection},
-    ui::{camera::CameraRecenterKind, color::Color, tab::Tab, widget::Widget, UiHandle},
+    text::{
+        doc::Doc, line_pool::LinePool, selection::Selection,
+        syntax_highlighter::TerminalHighlightKind,
+    },
+    ui::{camera::CameraRecenterKind, tab::Tab, widget::Widget, UiHandle},
 };
 
 const ZERO: u32 = '0' as u32;
@@ -41,25 +44,6 @@ const MAX_SCROLLBACK_LINES: usize = 100;
 const MIN_GRID_WIDTH: isize = 80;
 const MIN_GRID_HEIGHT: isize = 24;
 
-// TODO: Replace these with theme colors.
-pub const COLOR_BLACK: Color = Color::from_hex(0x0C0C0CFF);
-const COLOR_RED: Color = Color::from_hex(0xC50F1FFF);
-const COLOR_GREEN: Color = Color::from_hex(0x13A10EFF);
-const COLOR_YELLOW: Color = Color::from_hex(0xC19C00FF);
-const COLOR_BLUE: Color = Color::from_hex(0x0037DAFF);
-const COLOR_MAGENTA: Color = Color::from_hex(0x881798FF);
-const COLOR_CYAN: Color = Color::from_hex(0x3A96DDFF);
-const COLOR_WHITE: Color = Color::from_hex(0xCCCCCCFF);
-
-const COLOR_BLACK_BRIGHT: Color = Color::from_hex(0x767676FF);
-const COLOR_RED_BRIGHT: Color = Color::from_hex(0xE74856FF);
-const COLOR_GREEN_BRIGHT: Color = Color::from_hex(0x16C60CFF);
-const COLOR_YELLOW_BRIGHT: Color = Color::from_hex(0xF9F1A5FF);
-const COLOR_BLUE_BRIGHT: Color = Color::from_hex(0x3B78FFFF);
-const COLOR_MAGENTA_BRIGHT: Color = Color::from_hex(0xB4009EFF);
-const COLOR_CYAN_BRIGHT: Color = Color::from_hex(0x61D6D6FF);
-const COLOR_WHITE_BRIGHT: Color = Color::from_hex(0xF2F2F2FF);
-
 pub struct TerminalEmulator {
     pty: Option<Pty>,
 
@@ -69,13 +53,13 @@ pub struct TerminalEmulator {
     grid_cursor: Position,
     grid_width: isize,
     grid_height: isize,
-    grid_line_colors: Vec<Vec<(Color, Color)>>,
+    grid_line_colors: Vec<Vec<(TerminalHighlightKind, TerminalHighlightKind)>>,
 
     doc_cursor_backups: Vec<(Position, Option<Selection>)>,
 
     is_cursor_visible: bool,
-    foreground_color: Color,
-    background_color: Color,
+    foreground_color: TerminalHighlightKind,
+    background_color: TerminalHighlightKind,
     are_colors_swapped: bool,
 }
 
@@ -101,8 +85,8 @@ impl TerminalEmulator {
             doc_cursor_backups: Vec::new(),
 
             is_cursor_visible: false,
-            foreground_color: COLOR_WHITE,
-            background_color: COLOR_BLACK,
+            foreground_color: TerminalHighlightKind::White,
+            background_color: TerminalHighlightKind::Black,
             are_colors_swapped: false,
         };
 
@@ -401,46 +385,46 @@ impl TerminalEmulator {
                         for parameter in parameters {
                             match *parameter {
                                 0 => {
-                                    self.foreground_color = COLOR_WHITE;
-                                    self.background_color = COLOR_BLACK;
+                                    self.foreground_color = TerminalHighlightKind::White;
+                                    self.background_color = TerminalHighlightKind::Black;
                                     self.are_colors_swapped = false;
                                 }
                                 7 => self.are_colors_swapped = true,
                                 27 => self.are_colors_swapped = false,
-                                30 => self.foreground_color = COLOR_BLACK,
-                                31 => self.foreground_color = COLOR_RED,
-                                32 => self.foreground_color = COLOR_GREEN,
-                                33 => self.foreground_color = COLOR_YELLOW,
-                                34 => self.foreground_color = COLOR_BLUE,
-                                35 => self.foreground_color = COLOR_MAGENTA,
-                                36 => self.foreground_color = COLOR_CYAN,
-                                37 => self.foreground_color = COLOR_WHITE,
-                                39 => self.foreground_color = COLOR_WHITE,
-                                40 => self.background_color = COLOR_BLACK,
-                                41 => self.background_color = COLOR_RED,
-                                42 => self.background_color = COLOR_GREEN,
-                                43 => self.background_color = COLOR_YELLOW,
-                                44 => self.background_color = COLOR_BLUE,
-                                45 => self.background_color = COLOR_MAGENTA,
-                                46 => self.background_color = COLOR_CYAN,
-                                47 => self.background_color = COLOR_WHITE,
-                                49 => self.background_color = COLOR_BLACK,
-                                90 => self.foreground_color = COLOR_BLACK_BRIGHT,
-                                91 => self.foreground_color = COLOR_RED_BRIGHT,
-                                92 => self.foreground_color = COLOR_GREEN_BRIGHT,
-                                93 => self.foreground_color = COLOR_YELLOW_BRIGHT,
-                                94 => self.foreground_color = COLOR_BLUE_BRIGHT,
-                                95 => self.foreground_color = COLOR_MAGENTA_BRIGHT,
-                                96 => self.foreground_color = COLOR_CYAN_BRIGHT,
-                                97 => self.foreground_color = COLOR_WHITE_BRIGHT,
-                                100 => self.background_color = COLOR_BLACK_BRIGHT,
-                                101 => self.background_color = COLOR_RED_BRIGHT,
-                                102 => self.background_color = COLOR_GREEN_BRIGHT,
-                                103 => self.background_color = COLOR_YELLOW_BRIGHT,
-                                104 => self.background_color = COLOR_BLUE_BRIGHT,
-                                105 => self.background_color = COLOR_MAGENTA_BRIGHT,
-                                106 => self.background_color = COLOR_CYAN_BRIGHT,
-                                107 => self.background_color = COLOR_WHITE_BRIGHT,
+                                30 => self.foreground_color = TerminalHighlightKind::Black,
+                                31 => self.foreground_color = TerminalHighlightKind::Red,
+                                32 => self.foreground_color = TerminalHighlightKind::Green,
+                                33 => self.foreground_color = TerminalHighlightKind::Yellow,
+                                34 => self.foreground_color = TerminalHighlightKind::Blue,
+                                35 => self.foreground_color = TerminalHighlightKind::Magenta,
+                                36 => self.foreground_color = TerminalHighlightKind::Cyan,
+                                37 => self.foreground_color = TerminalHighlightKind::White,
+                                39 => self.foreground_color = TerminalHighlightKind::White,
+                                40 => self.background_color = TerminalHighlightKind::Black,
+                                41 => self.background_color = TerminalHighlightKind::Red,
+                                42 => self.background_color = TerminalHighlightKind::Green,
+                                43 => self.background_color = TerminalHighlightKind::Yellow,
+                                44 => self.background_color = TerminalHighlightKind::Blue,
+                                45 => self.background_color = TerminalHighlightKind::Magenta,
+                                46 => self.background_color = TerminalHighlightKind::Cyan,
+                                47 => self.background_color = TerminalHighlightKind::White,
+                                49 => self.background_color = TerminalHighlightKind::Black,
+                                90 => self.foreground_color = TerminalHighlightKind::BrightBlack,
+                                91 => self.foreground_color = TerminalHighlightKind::BrightRed,
+                                92 => self.foreground_color = TerminalHighlightKind::BrightGreen,
+                                93 => self.foreground_color = TerminalHighlightKind::BrightYellow,
+                                94 => self.foreground_color = TerminalHighlightKind::BrightBlue,
+                                95 => self.foreground_color = TerminalHighlightKind::BrightMagenta,
+                                96 => self.foreground_color = TerminalHighlightKind::BrightCyan,
+                                97 => self.foreground_color = TerminalHighlightKind::BrightWhite,
+                                100 => self.background_color = TerminalHighlightKind::BrightBlack,
+                                101 => self.background_color = TerminalHighlightKind::BrightRed,
+                                102 => self.background_color = TerminalHighlightKind::BrightGreen,
+                                103 => self.background_color = TerminalHighlightKind::BrightYellow,
+                                104 => self.background_color = TerminalHighlightKind::BrightBlue,
+                                105 => self.background_color = TerminalHighlightKind::BrightMagenta,
+                                106 => self.background_color = TerminalHighlightKind::BrightCyan,
+                                107 => self.background_color = TerminalHighlightKind::BrightWhite,
                                 _ => {}
                             }
                         }
@@ -612,8 +596,10 @@ impl TerminalEmulator {
         );
 
         for y in 0..self.grid_height {
-            self.grid_line_colors[y as usize]
-                .resize(self.grid_width as usize, (COLOR_WHITE, COLOR_BLACK));
+            self.grid_line_colors[y as usize].resize(
+                self.grid_width as usize,
+                (TerminalHighlightKind::White, TerminalHighlightKind::Black),
+            );
         }
     }
 
@@ -687,7 +673,10 @@ impl TerminalEmulator {
                 doc.insert(start, &[' '], line_pool, time);
             }
 
-            doc.highlight_line_from_colors(&self.grid_line_colors[y as usize], doc_y as usize);
+            doc.highlight_line_from_terminal_colors(
+                &self.grid_line_colors[y as usize],
+                doc_y as usize,
+            );
         }
     }
 
@@ -837,7 +826,7 @@ impl TerminalEmulator {
 
         let doc_start = self.grid_position_to_doc_position(start, doc);
 
-        doc.highlight_line_from_colors(
+        doc.highlight_line_from_terminal_colors(
             &self.grid_line_colors[start.y as usize],
             doc_start.y as usize,
         );
