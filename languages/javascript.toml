@@ -33,6 +33,7 @@ keywords = [
     "let",
     "new",
     "null",
+    "of",
     "package",
     "private",
     "protected",

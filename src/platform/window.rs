@@ -649,6 +649,8 @@ impl Window {
                             .map(|(_, kind)| kind)
                             .unwrap_or(MouseClickKind::Single);
 
+                        self.last_clicked_button = None;
+
                         (kind, true)
                     }
                     _ => {
