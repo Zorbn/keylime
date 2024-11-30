@@ -113,18 +113,18 @@ impl Theme {
 impl Default for Theme {
     fn default() -> Self {
         Self {
-            normal: Color::from_hex(0x000000FF),
-            comment: Color::from_hex(0x008000FF),
-            keyword: Color::from_hex(0x0000FFFF),
-            function: Color::from_hex(0x795E26FF),
-            number: Color::from_hex(0x098658FF),
-            symbol: Color::from_hex(0x000000FF),
-            string: Color::from_hex(0xA31515FF),
-            meta: Color::from_hex(0xAF00DBFF),
+            normal: Color::from_hex(0xCCCCCCFF),
+            comment: Color::from_hex(0x6A9955FF),
+            keyword: Color::from_hex(0x569CD6FF),
+            function: Color::from_hex(0xDCDCAAFF),
+            number: Color::from_hex(0xB5CEA8FF),
+            symbol: Color::from_hex(0xCCCCCCFF),
+            string: Color::from_hex(0xCE9178FF),
+            meta: Color::from_hex(0xC586C0FF),
             selection: Color::from_hex(0x4CADE47F),
             line_number: Color::from_hex(0x6E7681FF),
-            border: Color::from_hex(0xE5E5E5FF),
-            background: Color::from_hex(0xF5F5F5FF),
+            border: Color::from_hex(0x2B2B2BFF),
+            background: Color::from_hex(0x1E1E1EFF),
 
             terminal: TerminalTheme::default(),
         }
