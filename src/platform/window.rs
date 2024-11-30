@@ -72,7 +72,6 @@ impl WindowRunner {
                 hInstance: GetModuleHandleW(None)?.into(),
                 hCursor: LoadCursorW(None, IDC_ARROW)?,
                 lpszClassName: w!("keylime_window_class"),
-                style: CS_DBLCLKS,
                 ..Default::default()
             };
 
@@ -207,7 +206,7 @@ pub struct Window {
     // when the window is gaining focus again after coming back from a popup.
     draggable_buttons: HashSet<MouseButton>,
     clicked_button: Option<(MouseButton, MouseClickKind)>,
-    last_double_click: Option<(MouseButton, f32)>,
+    last_clicked_button: Option<(MouseButton, MouseClickKind, f32)>,
     triple_click_time: f32,
 
     pub chars_typed: Vec<char>,
@@ -254,7 +253,7 @@ impl Window {
 
             draggable_buttons: HashSet::new(),
             clicked_button: None,
-            last_double_click: None,
+            last_clicked_button: None,
             triple_click_time,
 
             chars_typed: Vec::new(),
@@ -612,8 +611,7 @@ impl Window {
                     self.clicked_button = None;
                 }
             }
-            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_LBUTTONDBLCLK
-            | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK | WM_MOUSEMOVE => {
+            WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_MOUSEMOVE => {
                 const MK_LBUTTON: usize = 0x01;
                 const MK_RBUTTON: usize = 0x02;
                 const MK_MBUTTON: usize = 0x10;
@@ -643,11 +641,6 @@ impl Window {
                 let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xffff) as u32) as f32;
 
                 let (kind, is_drag) = match msg {
-                    WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK => {
-                        self.last_double_click = button.map(|button| (button, self.time));
-
-                        (MouseClickKind::Double, false)
-                    }
                     WM_MOUSEMOVE => {
                         let kind = self
                             .clicked_button
@@ -657,26 +650,33 @@ impl Window {
                         (kind, true)
                     }
                     _ => {
-                        let is_triple_click =
-                            self.last_double_click
-                                .is_some_and(|(double_clicked_button, time)| {
+                        let (is_chained_click, previous_kind) = self
+                            .last_clicked_button
+                            .map(|(double_clicked_button, kind, time)| {
+                                (
                                     Some(double_clicked_button) == button
-                                        && self.time - time <= self.triple_click_time
-                                });
+                                        && self.time - time <= self.triple_click_time,
+                                    kind,
+                                )
+                            })
+                            .unwrap_or((false, MouseClickKind::Single));
 
-                        let kind = if is_triple_click {
-                            MouseClickKind::Triple
+                        let kind = if is_chained_click {
+                            match previous_kind {
+                                MouseClickKind::Single => MouseClickKind::Double,
+                                MouseClickKind::Double => MouseClickKind::Triple,
+                                MouseClickKind::Triple => MouseClickKind::Single,
+                            }
                         } else {
                             MouseClickKind::Single
                         };
 
+                        self.last_clicked_button = button.map(|button| (button, kind, self.time));
+                        self.clicked_button = button.map(|button| (button, kind));
+
                         (kind, false)
                     }
                 };
-
-                if let Some(button) = button {
-                    self.clicked_button = Some((button, kind))
-                }
 
                 let do_ignore = if let Some(button) = button {
                     if !is_drag {
