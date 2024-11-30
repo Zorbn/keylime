@@ -21,11 +21,13 @@ const FIVE: u32 = '5' as u32;
 const SIX: u32 = '6' as u32;
 const EIGHT: u32 = '8' as u32;
 const NINE: u32 = '9' as u32;
+const SPACE: u32 = ' ' as u32;
 const SEMICOLON: u32 = ';' as u32;
 const QUESTION_MARK: u32 = '?' as u32;
 const LEFT_BRACKET: u32 = '[' as u32;
 const RIGHT_BRACKET: u32 = ']' as u32;
 const BACK_SLASH: u32 = '\\' as u32;
+const LOWERCASE_Q: u32 = 'q' as u32;
 const LOWERCASE_L: u32 = 'l' as u32;
 const LOWERCASE_H: u32 = 'h' as u32;
 const LOWERCASE_M: u32 = 'm' as u32;
@@ -369,21 +371,19 @@ impl TerminalEmulator {
                     Some(&LOWERCASE_L) => {
                         if parameters.first() == Some(&25) {
                             self.is_cursor_visible = false;
-
-                            Some(&output[1..])
-                        } else {
-                            None
                         }
+
+                        // Otherwise, ignored.
+                        Some(&output[1..])
                     }
                     Some(&LOWERCASE_H) => {
                         if parameters.first() == Some(&25) {
                             self.is_cursor_visible = true;
                             self.jump_doc_cursors_to_grid_cursor(doc);
-
-                            Some(&output[1..])
-                        } else {
-                            None
                         }
+
+                        // Otherwise, ignored.
+                        Some(&output[1..])
                     }
                     _ => None,
                 }
@@ -494,6 +494,16 @@ impl TerminalEmulator {
                         self.delete(start, end, doc, line_pool, time);
 
                         Some(&output[1..])
+                    }
+                    Some(&SPACE) => {
+                        output = &output[1..];
+
+                        if output.first() == Some(&LOWERCASE_Q) {
+                            // Set cursor shape, ignored.
+                            Some(&output[1..])
+                        } else {
+                            None
+                        }
                     }
                     _ => None,
                 }

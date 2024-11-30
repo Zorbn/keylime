@@ -178,6 +178,15 @@ impl Drop for WindowRunner {
 const DEFAULT_WIDTH: i32 = 640;
 const DEFAULT_HEIGHT: i32 = 480;
 
+#[derive(Clone, Copy, Debug)]
+struct RecordedMouseClick {
+    button: MouseButton,
+    kind: MouseClickKind,
+    x: f32,
+    y: f32,
+    time: f32,
+}
+
 pub struct Window {
     timer_frequency: i64,
     last_queried_time: Option<i64>,
@@ -205,8 +214,8 @@ pub struct Window {
     // last focused, so that we can skip stray mouse drag events that may happen
     // when the window is gaining focus again after coming back from a popup.
     draggable_buttons: HashSet<MouseButton>,
-    clicked_button: Option<(MouseButton, MouseClickKind)>,
-    last_clicked_button: Option<(MouseButton, MouseClickKind, f32)>,
+    current_click: Option<RecordedMouseClick>,
+    last_click: Option<RecordedMouseClick>,
     double_click_time: f32,
 
     pub chars_typed: Vec<char>,
@@ -252,8 +261,8 @@ impl Window {
             gfx: None,
 
             draggable_buttons: HashSet::new(),
-            clicked_button: None,
-            last_clicked_button: None,
+            current_click: None,
+            last_click: None,
             double_click_time: triple_click_time,
 
             chars_typed: Vec::new(),
@@ -294,11 +303,6 @@ impl Window {
                 MsgWaitForMultipleObjects(Some(&self.wait_handles), FALSE, INFINITE, QS_ALLINPUT);
             }
 
-            while PeekMessageW(&mut msg, self.hwnd, 0, 0, PM_REMOVE).as_bool() {
-                let _ = TranslateMessage(&msg);
-                DispatchMessageW(&msg);
-            }
-
             let mut queried_time = 0i64;
             let _ = QueryPerformanceCounter(&mut queried_time);
 
@@ -311,6 +315,11 @@ impl Window {
             self.last_queried_time = Some(queried_time);
 
             self.time += dt;
+
+            while PeekMessageW(&mut msg, self.hwnd, 0, 0, PM_REMOVE).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
 
             // Don't return massive delta times from big gaps in animation, because those
             // might cause visual jumps or other problems. (eg. if you don't interact with
@@ -568,7 +577,7 @@ impl Window {
             WM_KILLFOCUS => {
                 self.is_focused = false;
                 self.draggable_buttons.clear();
-                self.clicked_button = None;
+                self.current_click = None;
 
                 let _ = PostMessageW(self.hwnd, WM_PAINT, None, None);
             }
@@ -605,10 +614,10 @@ impl Window {
                 };
 
                 if self
-                    .clicked_button
-                    .is_some_and(|(clicked_button, _)| Some(clicked_button) == button)
+                    .current_click
+                    .is_some_and(|click| Some(click.button) == button)
                 {
-                    self.clicked_button = None;
+                    self.current_click = None;
                 }
             }
             WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_MOUSEMOVE => {
@@ -621,7 +630,7 @@ impl Window {
                 const MK_CONTROL: usize = 0x08;
 
                 let button = if msg == WM_MOUSEMOVE {
-                    self.clicked_button.map(|(button, _)| button)
+                    self.current_click.map(|click| click.button)
                 } else if wparam.0 & MK_LBUTTON != 0 {
                     Some(MouseButton::Left)
                 } else if wparam.0 & MK_MBUTTON != 0 {
@@ -645,22 +654,23 @@ impl Window {
                 let (kind, is_drag) = match msg {
                     WM_MOUSEMOVE => {
                         let kind = self
-                            .clicked_button
-                            .map(|(_, kind)| kind)
+                            .current_click
+                            .map(|click| click.kind)
                             .unwrap_or(MouseClickKind::Single);
 
-                        self.last_clicked_button = None;
+                        self.last_click =
+                            self.last_click.filter(|click| x == click.x && y == click.y);
 
                         (kind, true)
                     }
                     _ => {
                         let (is_chained_click, previous_kind) = self
-                            .last_clicked_button
-                            .map(|(double_clicked_button, kind, time)| {
+                            .last_click
+                            .map(|last_click| {
                                 (
-                                    Some(double_clicked_button) == button
-                                        && self.time - time <= self.double_click_time,
-                                    kind,
+                                    Some(last_click.button) == button
+                                        && self.time - last_click.time <= self.double_click_time,
+                                    last_click.kind,
                                 )
                             })
                             .unwrap_or((false, MouseClickKind::Single));
@@ -675,8 +685,16 @@ impl Window {
                             MouseClickKind::Single
                         };
 
-                        self.last_clicked_button = button.map(|button| (button, kind, self.time));
-                        self.clicked_button = button.map(|button| (button, kind));
+                        let click = button.map(|button| RecordedMouseClick {
+                            button,
+                            kind,
+                            x,
+                            y,
+                            time: self.time,
+                        });
+
+                        self.last_click = click;
+                        self.current_click = click;
 
                         (kind, false)
                     }
