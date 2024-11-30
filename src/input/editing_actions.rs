@@ -9,7 +9,7 @@ use crate::{
 use super::{
     key::Key,
     keybind::{Keybind, MOD_ALT, MOD_CTRL, MOD_SHIFT},
-    mousebind::MousebindKind,
+    mousebind::MouseClickKind,
 };
 
 pub fn handle_char(c: char, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
@@ -252,20 +252,33 @@ pub fn handle_left_click(
     doc: &mut Doc,
     position: Position,
     mods: u8,
-    kind: MousebindKind,
+    kind: MouseClickKind,
     is_drag: bool,
 ) {
     let do_extend_selection = is_drag || (mods & MOD_SHIFT != 0);
 
-    if kind != MousebindKind::DoubleClick {
+    if kind == MouseClickKind::Single {
         doc.jump_cursors(position, do_extend_selection);
         return;
     }
 
     if !do_extend_selection {
-        doc.select_current_word_at_cursors();
+        match kind {
+            MouseClickKind::Double => doc.select_current_word_at_cursors(),
+            MouseClickKind::Triple => doc.select_current_line_at_cursors(),
+            _ => {}
+        }
+
+        return;
     }
-    let word_selection = doc.select_current_word_at_position(position);
+
+    let select_at_position = if kind == MouseClickKind::Double {
+        Doc::select_current_word_at_position
+    } else {
+        Doc::select_current_line_at_position
+    };
+
+    let word_selection = select_at_position(doc, position);
 
     let cursor = doc.get_cursor(CursorIndex::Main);
 
@@ -276,12 +289,14 @@ pub fn handle_left_click(
         .map(|selection| selection_anchor == selection.end)
         .unwrap_or(false);
 
-    let selection_anchor_word =
-        doc.select_current_word_at_position(if is_selected_word_left_of_anchor {
+    let selection_anchor_word = select_at_position(
+        doc,
+        if is_selected_word_left_of_anchor {
             doc.move_position(selection_anchor, Position::new(-1, 0))
         } else {
             selection_anchor
-        });
+        },
+    );
 
     let (start, end) = if selection_anchor <= position {
         (selection_anchor_word.start, word_selection.end)

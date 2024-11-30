@@ -4,9 +4,10 @@ use super::{
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MousebindKind {
-    SingleClick,
-    DoubleClick,
+pub enum MouseClickKind {
+    Single,
+    Double,
+    Triple,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -15,7 +16,7 @@ pub struct Mousebind {
     pub x: f32,
     pub y: f32,
     pub mods: u8,
-    pub kind: MousebindKind,
+    pub kind: MouseClickKind,
     pub is_drag: bool,
 }
 
@@ -27,7 +28,7 @@ impl Mousebind {
         has_shift: bool,
         has_ctrl: bool,
         has_alt: bool,
-        kind: MousebindKind,
+        kind: MouseClickKind,
         is_drag: bool,
     ) -> Self {
         let mut mods = 0u8;

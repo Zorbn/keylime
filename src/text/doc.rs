@@ -1594,6 +1594,25 @@ impl Doc {
         self.jump_cursor(CursorIndex::Main, end, true);
     }
 
+    pub fn select_current_line_at_position(&self, position: Position) -> Selection {
+        let start = self.clamp_position(Position::new(0, position.y));
+        let end = self.clamp_position(Position::new(0, start.y + 1));
+
+        Selection { start, end }
+    }
+
+    pub fn select_current_line_at_cursors(&mut self) {
+        for index in self.cursor_indices() {
+            let position = self.get_cursor(index).position;
+            let selection = self.select_current_line_at_position(position);
+
+            let cursor = self.get_cursor_mut(index);
+
+            cursor.selection_anchor = Some(selection.start);
+            cursor.position = selection.end;
+        }
+    }
+
     pub fn select_current_word_at_position(&self, mut position: Position) -> Selection {
         let line_len = self.get_line_len(position.y);
 

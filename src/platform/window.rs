@@ -26,7 +26,9 @@ use windows::{
             Threading::INFINITE,
         },
         UI::{
-            HiDpi::GetDpiForWindow, Input::KeyboardAndMouse::GetKeyState, WindowsAndMessaging::*,
+            HiDpi::GetDpiForWindow,
+            Input::KeyboardAndMouse::{GetDoubleClickTime, GetKeyState},
+            WindowsAndMessaging::*,
         },
     },
 };
@@ -41,7 +43,7 @@ use crate::{
         keybind::Keybind,
         mouse_button::MouseButton,
         mouse_scroll::MouseScroll,
-        mousebind::{Mousebind, MousebindKind},
+        mousebind::{MouseClickKind, Mousebind},
     },
 };
 
@@ -204,7 +206,9 @@ pub struct Window {
     // last focused, so that we can skip stray mouse drag events that may happen
     // when the window is gaining focus again after coming back from a popup.
     draggable_buttons: HashSet<MouseButton>,
-    double_clicked_button: Option<MouseButton>,
+    clicked_button: Option<(MouseButton, MouseClickKind)>,
+    last_double_click: Option<(MouseButton, f32)>,
+    triple_click_time: f32,
 
     pub chars_typed: Vec<char>,
     pub keybinds_typed: Vec<Keybind>,
@@ -218,9 +222,11 @@ pub struct Window {
 impl Window {
     fn new() -> Result<Self> {
         let mut timer_frequency = 0i64;
+        let triple_click_time;
 
         unsafe {
             QueryPerformanceFrequency(&mut timer_frequency)?;
+            triple_click_time = GetDoubleClickTime() as f32 / 1000.0;
         }
 
         Ok(Self {
@@ -247,7 +253,9 @@ impl Window {
             gfx: None,
 
             draggable_buttons: HashSet::new(),
-            double_clicked_button: None,
+            clicked_button: None,
+            last_double_click: None,
+            triple_click_time,
 
             chars_typed: Vec::new(),
             keybinds_typed: Vec::new(),
@@ -561,7 +569,7 @@ impl Window {
             WM_KILLFOCUS => {
                 self.is_focused = false;
                 self.draggable_buttons.clear();
-                self.double_clicked_button = None;
+                self.clicked_button = None;
 
                 let _ = PostMessageW(self.hwnd, WM_PAINT, None, None);
             }
@@ -597,8 +605,11 @@ impl Window {
                     _ => None,
                 };
 
-                if self.double_clicked_button == button {
-                    self.double_clicked_button = None;
+                if self
+                    .clicked_button
+                    .is_some_and(|(clicked_button, _)| Some(clicked_button) == button)
+                {
+                    self.clicked_button = None;
                 }
             }
             WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_LBUTTONDBLCLK
@@ -633,23 +644,39 @@ impl Window {
 
                 let (kind, is_drag) = match msg {
                     WM_LBUTTONDBLCLK | WM_RBUTTONDBLCLK | WM_MBUTTONDBLCLK => {
-                        self.double_clicked_button = button;
+                        self.last_double_click = button.map(|button| (button, self.time));
 
-                        (MousebindKind::DoubleClick, false)
+                        (MouseClickKind::Double, false)
                     }
                     WM_MOUSEMOVE => {
-                        let kind = if self.double_clicked_button.is_some()
-                            && self.double_clicked_button == button
-                        {
-                            MousebindKind::DoubleClick
-                        } else {
-                            MousebindKind::SingleClick
-                        };
+                        let kind = self
+                            .clicked_button
+                            .map(|(_, kind)| kind)
+                            .unwrap_or(MouseClickKind::Single);
 
                         (kind, true)
                     }
-                    _ => (MousebindKind::SingleClick, false),
+                    _ => {
+                        let is_triple_click =
+                            self.last_double_click
+                                .is_some_and(|(double_clicked_button, time)| {
+                                    Some(double_clicked_button) == button
+                                        && self.time - time <= self.triple_click_time
+                                });
+
+                        let kind = if is_triple_click {
+                            MouseClickKind::Triple
+                        } else {
+                            MouseClickKind::Single
+                        };
+
+                        (kind, false)
+                    }
                 };
+
+                if let Some(button) = button {
+                    self.clicked_button = Some((button, kind))
+                }
 
                 let do_ignore = if let Some(button) = button {
                     if !is_drag {
