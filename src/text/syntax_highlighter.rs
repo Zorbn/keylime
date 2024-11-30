@@ -7,8 +7,8 @@ use super::{
 
 #[derive(Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum TerminalHighlightKind {
-    White,
-    Black,
+    Foreground,
+    Background,
     Red,
     Green,
     Yellow,
@@ -16,8 +16,8 @@ pub enum TerminalHighlightKind {
     Magenta,
     Cyan,
 
-    BrightWhite,
-    BrightBlack,
+    BrightForeground,
+    BrightBackground,
     BrightRed,
     BrightGreen,
     BrightYellow,

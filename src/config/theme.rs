@@ -7,8 +7,8 @@ use crate::{
 
 #[derive(Deserialize, Debug)]
 pub struct TerminalTheme {
-    pub black: Color,
-    pub white: Color,
+    pub background: Color,
+    pub foreground: Color,
     pub red: Color,
     pub green: Color,
     pub yellow: Color,
@@ -16,8 +16,8 @@ pub struct TerminalTheme {
     pub magenta: Color,
     pub cyan: Color,
 
-    pub bright_black: Color,
-    pub bright_white: Color,
+    pub bright_background: Color,
+    pub bright_foreground: Color,
     pub bright_red: Color,
     pub bright_green: Color,
     pub bright_yellow: Color,
@@ -29,8 +29,8 @@ pub struct TerminalTheme {
 impl Default for TerminalTheme {
     fn default() -> Self {
         Self {
-            black: Color::from_hex(0x0C0C0CFF),
-            white: Color::from_hex(0xCCCCCCFF),
+            background: Color::from_hex(0x0C0C0CFF),
+            foreground: Color::from_hex(0xCCCCCCFF),
             red: Color::from_hex(0xC50F1FFF),
             green: Color::from_hex(0x13A10EFF),
             yellow: Color::from_hex(0xC19C00FF),
@@ -38,8 +38,8 @@ impl Default for TerminalTheme {
             magenta: Color::from_hex(0x881798FF),
             cyan: Color::from_hex(0x3A96DDFF),
 
-            bright_black: Color::from_hex(0x767676FF),
-            bright_white: Color::from_hex(0xF2F2F2FF),
+            bright_background: Color::from_hex(0x767676FF),
+            bright_foreground: Color::from_hex(0xF2F2F2FF),
             bright_red: Color::from_hex(0xE74856FF),
             bright_green: Color::from_hex(0x16C60CFF),
             bright_yellow: Color::from_hex(0xF9F1A5FF),
@@ -81,16 +81,16 @@ impl Theme {
             HighlightKind::String => self.string,
             HighlightKind::Meta => self.meta,
             HighlightKind::Terminal(terminal_highlight_kind) => match terminal_highlight_kind {
-                TerminalHighlightKind::White => self.terminal.white,
-                TerminalHighlightKind::Black => self.terminal.black,
+                TerminalHighlightKind::Foreground => self.terminal.foreground,
+                TerminalHighlightKind::Background => self.terminal.background,
                 TerminalHighlightKind::Red => self.terminal.red,
                 TerminalHighlightKind::Green => self.terminal.green,
                 TerminalHighlightKind::Yellow => self.terminal.yellow,
                 TerminalHighlightKind::Blue => self.terminal.blue,
                 TerminalHighlightKind::Magenta => self.terminal.magenta,
                 TerminalHighlightKind::Cyan => self.terminal.cyan,
-                TerminalHighlightKind::BrightWhite => self.terminal.bright_white,
-                TerminalHighlightKind::BrightBlack => self.terminal.bright_black,
+                TerminalHighlightKind::BrightForeground => self.terminal.bright_foreground,
+                TerminalHighlightKind::BrightBackground => self.terminal.bright_background,
                 TerminalHighlightKind::BrightRed => self.terminal.bright_red,
                 TerminalHighlightKind::BrightGreen => self.terminal.bright_green,
                 TerminalHighlightKind::BrightYellow => self.terminal.bright_yellow,

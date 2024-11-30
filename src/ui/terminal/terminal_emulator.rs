@@ -85,8 +85,8 @@ impl TerminalEmulator {
             doc_cursor_backups: Vec::new(),
 
             is_cursor_visible: false,
-            foreground_color: TerminalHighlightKind::White,
-            background_color: TerminalHighlightKind::Black,
+            foreground_color: TerminalHighlightKind::Foreground,
+            background_color: TerminalHighlightKind::Background,
             are_colors_swapped: false,
         };
 
@@ -385,46 +385,54 @@ impl TerminalEmulator {
                         for parameter in parameters {
                             match *parameter {
                                 0 => {
-                                    self.foreground_color = TerminalHighlightKind::White;
-                                    self.background_color = TerminalHighlightKind::Black;
+                                    self.foreground_color = TerminalHighlightKind::Foreground;
+                                    self.background_color = TerminalHighlightKind::Background;
                                     self.are_colors_swapped = false;
                                 }
                                 7 => self.are_colors_swapped = true,
                                 27 => self.are_colors_swapped = false,
-                                30 => self.foreground_color = TerminalHighlightKind::Black,
+                                30 => self.foreground_color = TerminalHighlightKind::Background,
                                 31 => self.foreground_color = TerminalHighlightKind::Red,
                                 32 => self.foreground_color = TerminalHighlightKind::Green,
                                 33 => self.foreground_color = TerminalHighlightKind::Yellow,
                                 34 => self.foreground_color = TerminalHighlightKind::Blue,
                                 35 => self.foreground_color = TerminalHighlightKind::Magenta,
                                 36 => self.foreground_color = TerminalHighlightKind::Cyan,
-                                37 => self.foreground_color = TerminalHighlightKind::White,
-                                39 => self.foreground_color = TerminalHighlightKind::White,
-                                40 => self.background_color = TerminalHighlightKind::Black,
+                                37 => self.foreground_color = TerminalHighlightKind::Foreground,
+                                39 => self.foreground_color = TerminalHighlightKind::Foreground,
+                                40 => self.background_color = TerminalHighlightKind::Background,
                                 41 => self.background_color = TerminalHighlightKind::Red,
                                 42 => self.background_color = TerminalHighlightKind::Green,
                                 43 => self.background_color = TerminalHighlightKind::Yellow,
                                 44 => self.background_color = TerminalHighlightKind::Blue,
                                 45 => self.background_color = TerminalHighlightKind::Magenta,
                                 46 => self.background_color = TerminalHighlightKind::Cyan,
-                                47 => self.background_color = TerminalHighlightKind::White,
-                                49 => self.background_color = TerminalHighlightKind::Black,
-                                90 => self.foreground_color = TerminalHighlightKind::BrightBlack,
+                                47 => self.background_color = TerminalHighlightKind::Foreground,
+                                49 => self.background_color = TerminalHighlightKind::Background,
+                                90 => {
+                                    self.foreground_color = TerminalHighlightKind::BrightBackground
+                                }
                                 91 => self.foreground_color = TerminalHighlightKind::BrightRed,
                                 92 => self.foreground_color = TerminalHighlightKind::BrightGreen,
                                 93 => self.foreground_color = TerminalHighlightKind::BrightYellow,
                                 94 => self.foreground_color = TerminalHighlightKind::BrightBlue,
                                 95 => self.foreground_color = TerminalHighlightKind::BrightMagenta,
                                 96 => self.foreground_color = TerminalHighlightKind::BrightCyan,
-                                97 => self.foreground_color = TerminalHighlightKind::BrightWhite,
-                                100 => self.background_color = TerminalHighlightKind::BrightBlack,
+                                97 => {
+                                    self.foreground_color = TerminalHighlightKind::BrightForeground
+                                }
+                                100 => {
+                                    self.background_color = TerminalHighlightKind::BrightBackground
+                                }
                                 101 => self.background_color = TerminalHighlightKind::BrightRed,
                                 102 => self.background_color = TerminalHighlightKind::BrightGreen,
                                 103 => self.background_color = TerminalHighlightKind::BrightYellow,
                                 104 => self.background_color = TerminalHighlightKind::BrightBlue,
                                 105 => self.background_color = TerminalHighlightKind::BrightMagenta,
                                 106 => self.background_color = TerminalHighlightKind::BrightCyan,
-                                107 => self.background_color = TerminalHighlightKind::BrightWhite,
+                                107 => {
+                                    self.background_color = TerminalHighlightKind::BrightForeground
+                                }
                                 _ => {}
                             }
                         }
@@ -598,7 +606,10 @@ impl TerminalEmulator {
         for y in 0..self.grid_height {
             self.grid_line_colors[y as usize].resize(
                 self.grid_width as usize,
-                (TerminalHighlightKind::White, TerminalHighlightKind::Black),
+                (
+                    TerminalHighlightKind::Foreground,
+                    TerminalHighlightKind::Background,
+                ),
             );
         }
     }

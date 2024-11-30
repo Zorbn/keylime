@@ -118,7 +118,7 @@ impl Terminal {
         let gfx = ui.gfx();
 
         self.pane.draw(
-            Some(config.theme.terminal.black),
+            Some(config.theme.terminal.background),
             &mut self.term_list,
             config,
             gfx,
