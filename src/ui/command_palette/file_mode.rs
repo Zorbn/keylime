@@ -1,4 +1,5 @@
 use std::{
+    env::current_dir,
     fs::read_dir,
     path::{Path, PathBuf},
 };
@@ -36,7 +37,15 @@ fn on_open_file(
         return;
     };
 
-    let Some(path) = doc.path().and_then(|path| path.parent()) else {
+    let Ok(current_dir) = current_dir() else {
+        return;
+    };
+
+    let Some(path) = doc
+        .path()
+        .and_then(|path| path.parent())
+        .map(|path| path.strip_prefix(current_dir).unwrap_or(path))
+    else {
         return;
     };
 
