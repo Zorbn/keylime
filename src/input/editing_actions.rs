@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::{
     config::Language,
     geometry::position::Position,
@@ -56,7 +58,7 @@ pub fn handle_keybind(
             mods,
         } => {
             let key = keybind.key;
-            handle_arrow(key, mods, doc);
+            handle_arrow(key, mods, doc, line_pool, text_buffer, time);
         }
         Keybind {
             key: Key::Backspace,
@@ -191,7 +193,14 @@ pub fn handle_keybind(
     true
 }
 
-fn handle_arrow(key: Key, mods: u8, doc: &mut Doc) {
+fn handle_arrow(
+    key: Key,
+    mods: u8,
+    doc: &mut Doc,
+    line_pool: &mut LinePool,
+    text_buffer: &mut TempBuffer<char>,
+    time: f32,
+) {
     let direction = match key {
         Key::Up => Position::new(0, -1),
         Key::Down => Position::new(0, 1),
@@ -220,8 +229,10 @@ fn handle_arrow(key: Key, mods: u8, doc: &mut Doc) {
             Key::Right => doc.move_cursors_to_next_word(1, should_select),
             _ => unreachable!(),
         }
-    } else if (mods & MOD_ALT != 0) && matches!(key, Key::Left | Key::Right) {
+    } else if mods & MOD_ALT != 0 {
         match key {
+            Key::Up => handle_shift_lines(-1, doc, line_pool, text_buffer, time),
+            Key::Down => handle_shift_lines(1, doc, line_pool, text_buffer, time),
             Key::Left => doc.undo_cursor_position(),
             Key::Right => doc.redo_cursor_position(),
             _ => unreachable!(),
@@ -532,6 +543,85 @@ fn handle_paste(window: &mut Window, doc: &mut Doc, line_pool: &mut LinePool, ti
     let text = window.get_clipboard().unwrap_or(&[]);
 
     doc.paste_at_cursors(text, was_copy_implicit, line_pool, time);
+}
+
+fn handle_shift_lines(
+    direction: isize,
+    doc: &mut Doc,
+    line_pool: &mut LinePool,
+    text_buffer: &mut TempBuffer<char>,
+    time: f32,
+) {
+    let direction = direction.signum();
+
+    for index in doc.cursor_indices() {
+        let cursor = doc.get_cursor(index);
+        let cursor_position = cursor.position;
+        let cursor_selection = cursor.get_selection();
+
+        let had_selection = cursor_selection.is_some();
+        let cursor_selection =
+            cursor_selection.unwrap_or(doc.select_current_line_at_position(cursor_position));
+
+        let selection = cursor_selection.trim_lines_without_selected_chars();
+
+        let (delete_start, delete_end, insert_start, direction) = match direction.cmp(&0) {
+            Ordering::Less => {
+                if cursor_selection.start.y == 0 {
+                    continue;
+                }
+
+                let deleted_line_start = Position::new(0, selection.start.y - 1);
+                let deleted_line_end = Position::new(0, selection.start.y);
+
+                let inserted_line_start = Position::new(0, selection.end.y);
+
+                (
+                    deleted_line_start,
+                    deleted_line_end,
+                    inserted_line_start,
+                    -1,
+                )
+            }
+            Ordering::Greater => {
+                if cursor_selection.end.y == doc.lines().len() as isize - 1 {
+                    continue;
+                }
+
+                let deleted_line_start = Position::new(0, selection.end.y + 1);
+                let deleted_line_end = Position::new(0, selection.end.y + 2);
+
+                let inserted_line_start = Position::new(0, selection.start.y);
+
+                (deleted_line_start, deleted_line_end, inserted_line_start, 1)
+            }
+            Ordering::Equal => continue,
+        };
+
+        let mut text_buffer = text_buffer.get_mut();
+
+        doc.collect_chars(delete_start, delete_end, &mut text_buffer);
+        doc.delete(delete_start, delete_end, line_pool, time);
+        doc.insert(insert_start, &text_buffer, line_pool, time);
+
+        // Reset the selection to prevent it being expanded by the latest insert.
+        if had_selection {
+            let new_selection_start = Position::new(
+                cursor_selection.start.x,
+                cursor_selection.start.y + direction,
+            );
+            let new_selection_end =
+                Position::new(cursor_selection.end.x, cursor_selection.end.y + direction);
+
+            if cursor_position == cursor_selection.start {
+                doc.jump_cursor(index, new_selection_end, false);
+                doc.jump_cursor(index, new_selection_start, true);
+            } else {
+                doc.jump_cursor(index, new_selection_start, false);
+                doc.jump_cursor(index, new_selection_end, true);
+            }
+        }
+    }
 }
 
 fn get_matching_char(c: char) -> Option<char> {
