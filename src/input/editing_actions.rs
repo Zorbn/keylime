@@ -5,7 +5,10 @@ use crate::{
     geometry::position::Position,
     platform::window::Window,
     temp_buffer::TempBuffer,
-    text::{action_history::ActionKind, cursor_index::CursorIndex, doc::Doc, line_pool::LinePool},
+    text::{
+        action_history::ActionKind, cursor_index::CursorIndex, doc::Doc, line_pool::LinePool,
+        selection::Selection,
+    },
 };
 
 use super::{
@@ -511,22 +514,11 @@ fn handle_cut(
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
 
-        let (start, end) = if let Some(selection) = cursor.get_selection() {
-            (selection.start, selection.end)
-        } else {
-            let mut start = Position::new(0, cursor.position.y);
-            let mut end = Position::new(doc.get_line_len(start.y), start.y);
+        let selection = cursor
+            .get_selection()
+            .unwrap_or(doc.select_current_line_at_position(cursor.position));
 
-            if start.y as usize == doc.lines().len() - 1 {
-                start = doc.move_position(start, Position::new(-1, 0));
-            } else {
-                end = doc.move_position(end, Position::new(1, 0));
-            }
-
-            (start, end)
-        };
-
-        doc.delete(start, end, line_pool, time);
+        doc.delete(selection.start, selection.end, line_pool, time);
         doc.end_cursor_selection(index);
     }
 }
@@ -560,48 +552,56 @@ fn handle_shift_lines(
         let cursor_selection = cursor.get_selection();
 
         let had_selection = cursor_selection.is_some();
-        let cursor_selection =
-            cursor_selection.unwrap_or(doc.select_current_line_at_position(cursor_position));
+        let cursor_selection = cursor_selection.unwrap_or(Selection {
+            start: cursor_position,
+            end: cursor_position,
+        });
 
-        let selection = cursor_selection.trim_lines_without_selected_chars();
-
-        let (delete_start, delete_end, insert_start, direction) = match direction.cmp(&0) {
+        match direction.cmp(&0) {
             Ordering::Less => {
                 if cursor_selection.start.y == 0 {
                     continue;
                 }
-
-                let deleted_line_start = Position::new(0, selection.start.y - 1);
-                let deleted_line_end = Position::new(0, selection.start.y);
-
-                let inserted_line_start = Position::new(0, selection.end.y);
-
-                (
-                    deleted_line_start,
-                    deleted_line_end,
-                    inserted_line_start,
-                    -1,
-                )
             }
             Ordering::Greater => {
                 if cursor_selection.end.y == doc.lines().len() as isize - 1 {
                     continue;
                 }
-
-                let deleted_line_start = Position::new(0, selection.end.y + 1);
-                let deleted_line_end = Position::new(0, selection.end.y + 2);
-
-                let inserted_line_start = Position::new(0, selection.start.y);
-
-                (deleted_line_start, deleted_line_end, inserted_line_start, 1)
             }
             Ordering::Equal => continue,
         };
 
+        let selection = cursor_selection.trim_lines_without_selected_chars();
+
         let mut text_buffer = text_buffer.get_mut();
 
-        doc.collect_chars(delete_start, delete_end, &mut text_buffer);
-        doc.delete(delete_start, delete_end, line_pool, time);
+        let mut start = Position::new(0, selection.start.y);
+        let mut end = Position::new(doc.get_line_len(selection.end.y), selection.end.y);
+
+        if direction > 0 {
+            text_buffer.push('\n');
+        }
+
+        doc.collect_chars(start, end, &mut text_buffer);
+
+        if direction < 0 {
+            text_buffer.push('\n');
+        }
+
+        if end.y as usize == doc.lines().len() - 1 {
+            start = doc.move_position(start, Position::new(-1, 0));
+        } else {
+            end = doc.move_position(end, Position::new(1, 0));
+        }
+
+        doc.delete(start, end, line_pool, time);
+
+        let insert_start = if direction < 0 {
+            Position::new(0, selection.start.y - 1)
+        } else {
+            Position::new(doc.get_line_len(selection.start.y), selection.start.y)
+        };
+
         doc.insert(insert_start, &text_buffer, line_pool, time);
 
         // Reset the selection to prevent it being expanded by the latest insert.
@@ -620,6 +620,10 @@ fn handle_shift_lines(
                 doc.jump_cursor(index, new_selection_start, false);
                 doc.jump_cursor(index, new_selection_end, true);
             }
+        } else {
+            let new_position = Position::new(cursor_position.x, cursor_position.y + direction);
+
+            doc.jump_cursor(index, new_position, false);
         }
     }
 }

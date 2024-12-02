@@ -1388,11 +1388,7 @@ impl Doc {
 
                 self.collect_chars(selection.start, selection.end, text);
             } else {
-                let start = Position::new(0, cursor.position.y);
-                let end = Position::new(self.get_line_len(start.y), start.y);
-
-                self.collect_chars(start, end, text);
-                text.push('\n');
+                self.copy_line_at_position(cursor.position, text);
             }
 
             if self.unwrap_cursor_index(index) != self.cursors_len() - 1 {
@@ -1401,6 +1397,14 @@ impl Doc {
         }
 
         was_copy_implicit
+    }
+
+    pub fn copy_line_at_position(&mut self, position: Position, text: &mut Vec<char>) {
+        let start = Position::new(0, position.y);
+        let end = Position::new(self.get_line_len(start.y), start.y);
+
+        self.collect_chars(start, end, text);
+        text.push('\n');
     }
 
     pub fn paste_at_cursor(
@@ -1598,8 +1602,14 @@ impl Doc {
     }
 
     pub fn select_current_line_at_position(&self, position: Position) -> Selection {
-        let start = self.clamp_position(Position::new(0, position.y));
-        let end = self.clamp_position(Position::new(0, start.y + 1));
+        let mut start = Position::new(0, position.y);
+        let mut end = Position::new(self.get_line_len(start.y), start.y);
+
+        if start.y as usize == self.lines().len() - 1 {
+            start = self.move_position(start, Position::new(-1, 0));
+        } else {
+            end = self.move_position(end, Position::new(1, 0));
+        }
 
         Selection { start, end }
     }
