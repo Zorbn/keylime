@@ -858,10 +858,10 @@ impl Gfx {
 
             let mut source_x =
                 (glyph_step_x * atlas_char_index as f32 - glyph_offset_x) / width as f32;
-            let mut source_width = glyph_width / width as f32;
+            let mut source_width = glyph_step_x / width as f32;
 
             let mut destination_x = x + i as f32 * glyph_width;
-            let mut destination_width = glyph_width;
+            let mut destination_width = glyph_step_x;
 
             // DirectWrite might press the first character in the atlas right up against the left edge (eg. the exclamation point),
             // so we'll just shift it back to the center when rendering if necessary.
