@@ -166,15 +166,6 @@ impl WindowRunner {
     }
 }
 
-impl Drop for WindowRunner {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = DestroyWindow(self.window.hwnd());
-            CoUninitialize();
-        }
-    }
-}
-
 const DEFAULT_WIDTH: i32 = 640;
 const DEFAULT_HEIGHT: i32 = 480;
 
@@ -745,5 +736,14 @@ impl Window {
         }
 
         LRESULT(0)
+    }
+}
+
+impl Drop for Window {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = DestroyWindow(self.hwnd);
+            CoUninitialize();
+        }
     }
 }

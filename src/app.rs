@@ -109,8 +109,6 @@ impl App {
     pub fn close(&mut self, time: f32) {
         self.editor
             .on_close(&self.config, &mut self.line_pool, time);
-
-        self.terminal.on_close();
     }
 
     pub fn config(&self) -> &Config {

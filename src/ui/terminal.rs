@@ -126,12 +126,6 @@ impl Terminal {
         );
     }
 
-    pub fn on_close(&mut self) {
-        for (_, emulator) in self.term_list.iter_mut().filter_map(|term| term.as_mut()) {
-            emulator.on_close();
-        }
-    }
-
     pub fn bounds(&self) -> Rect {
         self.widget.bounds()
     }

@@ -861,10 +861,6 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn on_close(&mut self) {
-        self.pty.take();
-    }
-
     pub fn pty(&self) -> Option<&Pty> {
         self.pty.as_ref()
     }
