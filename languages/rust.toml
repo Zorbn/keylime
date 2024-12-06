@@ -41,7 +41,7 @@ keywords = [
 ]
 tokens = [
     { pattern = "//%.*", kind = "Comment" },
-    { pattern = "([%a_][%w_]*!)", kind = "Meta" },
+    { pattern = "[%a_][%w_]*!", kind = "Meta" },
     { pattern = "([%a_][%w_]*)%(", kind = "Function" },
     { pattern = "([%a_][%w_]*)<%.->%(", kind = "Function" },
     { pattern = "([%a_][%w_]*)::<%.->%(", kind = "Function" },

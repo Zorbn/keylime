@@ -273,25 +273,28 @@ impl TerminalEmulator {
             // Backspace:
             match output[0] {
                 0x1B => {
-                    if let Some(remaining) = output
-                        .starts_with(&[0x1B, LEFT_BRACKET])
-                        .then(|| {
+                    let remaining = match output.get(1) {
+                        Some(&LEFT_BRACKET) => {
                             self.handle_control_sequences_csi(doc, &output[2..], line_pool, time)
-                        })
-                        .flatten()
-                    {
+                        }
+                        Some(&RIGHT_BRACKET) => Self::handle_control_sequences_osc(&output[2..]),
+                        _ => None,
+                    };
+
+                    if let Some(remaining) = remaining {
                         output = remaining;
                         continue;
                     }
 
-                    if let Some(remaining) = output
-                        .starts_with(&[0x1B, RIGHT_BRACKET])
-                        .then(|| Self::handle_control_sequences_osc(&output[2..]))
-                        .flatten()
-                    {
-                        output = remaining;
-                        continue;
-                    }
+                    // for c in output {
+                    //     if let Some(c) = char::from_u32(*c) {
+                    //         print!("{:?} ", c);
+                    //     } else {
+                    //         print!("{:?} ", c);
+                    //     }
+                    // }
+
+                    // println!();
                 }
                 // Bell:
                 0x7 => {
