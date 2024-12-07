@@ -326,9 +326,13 @@ impl Doc {
         self.get_line_start(y) == self.get_line_len(y)
     }
 
-    pub fn comment_line(&mut self, comment: &str, y: isize, line_pool: &mut LinePool, time: f32) {
-        let mut position = Position::new(self.get_line_start(y), y);
-
+    pub fn comment_line(
+        &mut self,
+        comment: &str,
+        mut position: Position,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
         for c in comment.chars() {
             self.insert(position, &[c], line_pool, time);
             position = self.move_position(position, Position::new(1, 0));
@@ -399,14 +403,29 @@ impl Doc {
                 })
                 .trim_lines_without_selected_chars();
 
+            let mut min_comment_x = isize::MAX;
+            let mut did_uncomment = false;
+
             for y in selection.start.y..=selection.end.y {
                 if self.is_line_whitespace(y) {
                     continue;
                 }
 
-                if !self.uncomment_line(comment, y, line_pool, time) {
-                    self.comment_line(comment, y, line_pool, time);
+                min_comment_x = min_comment_x.min(self.get_line_start(y));
+
+                did_uncomment = self.uncomment_line(comment, y, line_pool, time) || did_uncomment;
+            }
+
+            if did_uncomment {
+                continue;
+            }
+
+            for y in selection.start.y..=selection.end.y {
+                if self.is_line_whitespace(y) {
+                    continue;
                 }
+
+                self.comment_line(comment, Position::new(min_comment_x, y), line_pool, time);
             }
         }
     }
