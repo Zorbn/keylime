@@ -1,3 +1,4 @@
+pub mod language;
 pub mod theme;
 
 use std::{
@@ -7,6 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use language::{IndentWidth, Language};
 use serde::Deserialize;
 use theme::Theme;
 
@@ -53,7 +55,8 @@ impl<'a> SyntaxDesc<'a> {
 struct LanguageDesc<'a> {
     #[serde(borrow)]
     extensions: Vec<&'a str>,
-    indent_width: Option<usize>,
+    #[serde(default)]
+    indent_width: IndentWidth,
     #[serde(default = "DEFAULT_COMMENT")]
     comment: &'a str,
     syntax: Option<SyntaxDesc<'a>>,
@@ -68,12 +71,6 @@ struct ConfigDesc<'a> {
     #[serde(default = "DEFAULT_TERMINAL_HEIGHT")]
     terminal_height: f32,
     theme: &'a str,
-}
-
-pub struct Language {
-    pub indent_width: Option<usize>,
-    pub syntax: Option<Syntax>,
-    pub comment: String,
 }
 
 pub struct Config {

@@ -1,7 +1,8 @@
 use core::f32;
+use std::ops::Range;
 
 use crate::{
-    config::{theme::Theme, Config},
+    config::{language::Language, theme::Theme, Config},
     digits::get_digits,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
@@ -264,10 +265,9 @@ impl Tab {
         gfx: &mut Gfx,
         is_focused: bool,
     ) {
-        if let Some(syntax) = config
-            .get_language_for_doc(doc)
-            .and_then(|language| language.syntax.as_ref())
-        {
+        let language = config.get_language_for_doc(doc);
+
+        if let Some(syntax) = language.and_then(|language| language.syntax.as_ref()) {
             doc.update_highlights(self.camera.position(), self.doc_bounds, syntax, gfx);
         }
 
@@ -287,8 +287,7 @@ impl Tab {
                 &config.theme,
                 gfx,
                 sub_line_offset_y,
-                min_y,
-                max_y,
+                min_y..max_y,
                 is_focused,
             );
 
@@ -304,6 +303,15 @@ impl Tab {
             );
         }
 
+        self.draw_indent_guides(
+            doc,
+            language,
+            &config.theme,
+            gfx,
+            camera_position,
+            sub_line_offset_y,
+            min_y..max_y,
+        );
         self.draw_lines(
             default_background,
             doc,
@@ -311,8 +319,7 @@ impl Tab {
             gfx,
             camera_position,
             sub_line_offset_y,
-            min_y,
-            max_y,
+            min_y..max_y,
         );
         self.draw_cursors(
             doc,
@@ -320,8 +327,7 @@ impl Tab {
             gfx,
             is_focused,
             camera_position,
-            min_y,
-            max_y,
+            min_y..max_y,
         );
 
         gfx.end();
@@ -333,15 +339,14 @@ impl Tab {
         theme: &Theme,
         gfx: &mut Gfx,
         sub_line_offset_y: f32,
-        min_y: usize,
-        max_y: usize,
+        visible_ys: Range<usize>,
         is_focused: bool,
     ) {
         let cursor_y = doc.get_cursor(CursorIndex::Main).position.y;
 
         let mut digits = [' '; 20];
 
-        for (i, y) in (min_y..max_y).enumerate() {
+        for (i, y) in visible_ys.enumerate() {
             let digits = get_digits(y + 1, &mut digits);
             let visual_y = Self::get_line_foreground_visual_y(i, sub_line_offset_y, gfx);
 
@@ -367,6 +372,48 @@ impl Tab {
         );
     }
 
+    fn draw_indent_guides(
+        &mut self,
+        doc: &Doc,
+        language: Option<&Language>,
+        theme: &Theme,
+        gfx: &mut Gfx,
+        camera_position: VisualPosition,
+        sub_line_offset_y: f32,
+        visible_ys: Range<usize>,
+    ) {
+        let indent_width =
+            language.map(|language| Gfx::measure_text(language.indent_width.chars()));
+
+        let Some(indent_width) = indent_width else {
+            return;
+        };
+
+        let mut indent_guide_x = 0;
+
+        for (i, y) in visible_ys.enumerate() {
+            let background_visual_y = Self::get_line_background_visual_y(i, sub_line_offset_y, gfx);
+
+            if !doc.is_line_whitespace(y as isize) {
+                indent_guide_x = doc.get_line_start(y as isize)
+            };
+
+            for x in (indent_width..indent_guide_x).step_by(indent_width as usize) {
+                let visual_x = gfx.glyph_width() * x as f32 - camera_position.x;
+
+                gfx.add_rect(
+                    Rect::new(
+                        visual_x,
+                        background_visual_y,
+                        gfx.border_width(),
+                        gfx.line_height(),
+                    ),
+                    theme.border,
+                );
+            }
+        }
+    }
+
     fn draw_lines(
         &mut self,
         default_background: Option<Color>,
@@ -375,13 +422,12 @@ impl Tab {
         gfx: &mut Gfx,
         camera_position: VisualPosition,
         sub_line_offset_y: f32,
-        min_y: usize,
-        max_y: usize,
+        visible_ys: Range<usize>,
     ) {
         let lines = doc.lines();
         let highlighted_lines = doc.highlighted_lines();
 
-        for (i, y) in (min_y..max_y).enumerate() {
+        for (i, y) in visible_ys.enumerate() {
             let line = &lines[y];
             let foreground_visual_y = Self::get_line_foreground_visual_y(i, sub_line_offset_y, gfx);
             let background_visual_y = Self::get_line_background_visual_y(i, sub_line_offset_y, gfx);
@@ -459,16 +505,17 @@ impl Tab {
         gfx: &mut Gfx,
         is_focused: bool,
         camera_position: VisualPosition,
-        min_y: usize,
-        max_y: usize,
+        visible_ys: Range<usize>,
     ) {
         for index in doc.cursor_indices() {
             let Some(selection) = doc.get_cursor(index).get_selection() else {
                 continue;
             };
 
-            let start = selection.start.max(Position::new(0, min_y as isize));
-            let end = selection.end.min(Position::new(0, max_y as isize));
+            let start = selection
+                .start
+                .max(Position::new(0, visible_ys.start as isize));
+            let end = selection.end.min(Position::new(0, visible_ys.end as isize));
             let mut position = start;
 
             while position < end {

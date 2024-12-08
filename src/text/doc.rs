@@ -7,6 +7,7 @@ use std::{
 };
 
 use crate::{
+    config::language::IndentWidth,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     platform::gfx::Gfx,
 };
@@ -433,7 +434,7 @@ impl Doc {
     pub fn indent_lines_at_cursor(
         &mut self,
         index: CursorIndex,
-        indent_width: Option<usize>,
+        indent_width: IndentWidth,
         do_unindent: bool,
         line_pool: &mut LinePool,
         time: f32,
@@ -463,7 +464,7 @@ impl Doc {
 
     pub fn indent_lines_at_cursors(
         &mut self,
-        indent_width: Option<usize>,
+        indent_width: IndentWidth,
         do_unindent: bool,
         line_pool: &mut LinePool,
         time: f32,
@@ -476,67 +477,79 @@ impl Doc {
     fn indent_line(
         &mut self,
         y: isize,
-        indent_width: Option<usize>,
+        indent_width: IndentWidth,
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        let mut start = Position::new(0, y);
-
-        if let Some(indent_width) = indent_width {
-            for _ in 0..indent_width {
-                self.insert(start, &[' '], line_pool, time);
-                start = self.move_position(start, Position::new(1, 0));
-            }
-        } else {
-            self.insert(start, &['\t'], line_pool, time);
-        }
+        self.indent(Position::new(0, y), indent_width, line_pool, time);
     }
 
     fn unindent_line(
         &mut self,
         y: isize,
-        indent_width: Option<usize>,
+        indent_width: IndentWidth,
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        let line_len = self.get_line_len(y);
-        let start = Position::new(0, y);
-        let mut end = start;
+        let end = Position::new(self.get_line_start(y), y);
 
-        if self.get_char(end) == '\t' {
-            end = self.move_position(end, Position::new(1, 0));
-        } else {
-            let indent_width = indent_width.unwrap_or(1) as isize;
-
-            while end.x < line_len && end.x - start.x < indent_width && self.get_char(end) == ' ' {
-                end = self.move_position(end, Position::new(1, 0));
-            }
-        }
-
-        self.delete(start, end, line_pool, time);
+        self.unindent(end, indent_width, line_pool, time);
     }
 
     fn indent(
         &mut self,
         mut start: Position,
-        indent_width: Option<usize>,
+        indent_width: IndentWidth,
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        if let Some(indent_width) = indent_width {
-            for _ in 0..indent_width {
-                self.insert(start, &[' '], line_pool, time);
-                start = self.move_position(start, Position::new(1, 0));
+        for c in indent_width.chars() {
+            self.insert(start, &[c], line_pool, time);
+            start = self.move_position(start, Position::new(1, 0));
+        }
+    }
+
+    fn unindent(
+        &mut self,
+        end: Position,
+        indent_width: IndentWidth,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        let start = self.get_indent_start(end, indent_width);
+
+        self.delete(start, end, line_pool, time);
+    }
+
+    pub fn get_indent_start(&mut self, end: Position, indent_width: IndentWidth) -> Position {
+        let mut start = self.move_position(end, Position::new(-1, 0));
+        let start_char = self.get_char(start);
+
+        match start_char {
+            ' ' => {
+                let indent_width = (end.x - 1) % indent_width.char_count() as isize + 1;
+
+                for _ in 1..indent_width {
+                    let next_start = self.move_position(start, Position::new(-1, 0));
+
+                    if self.get_char(next_start) != ' ' {
+                        break;
+                    }
+
+                    start = next_start;
+                }
+
+                start
             }
-        } else {
-            self.insert(start, &['\t'], line_pool, time);
+            '\t' => start,
+            _ => end,
         }
     }
 
     pub fn indent_at_cursor(
         &mut self,
         index: CursorIndex,
-        indent_width: Option<usize>,
+        indent_width: IndentWidth,
         line_pool: &mut LinePool,
         time: f32,
     ) {
@@ -546,7 +559,7 @@ impl Doc {
 
     pub fn indent_at_cursors(
         &mut self,
-        indent_width: Option<usize>,
+        indent_width: IndentWidth,
         line_pool: &mut LinePool,
         time: f32,
     ) {

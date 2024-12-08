@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::{
-    config::Language,
+    config::language::Language,
     geometry::position::Position,
     platform::window::Window,
     temp_buffer::TempBuffer,
@@ -185,7 +185,9 @@ pub fn handle_keybind(
             key: Key::LBracket | Key::RBracket,
             mods: MOD_CTRL,
         } => {
-            let indent_width = language.and_then(|language| language.indent_width);
+            let indent_width = language
+                .map(|language| language.indent_width)
+                .unwrap_or_default();
             let do_unindent = keybind.key == Key::LBracket;
 
             doc.indent_lines_at_cursors(indent_width, do_unindent, line_pool, time);
@@ -330,8 +332,8 @@ fn handle_backspace(
     time: f32,
 ) {
     let indent_width = language
-        .and_then(|language| language.indent_width)
-        .unwrap_or(1);
+        .map(|language| language.indent_width)
+        .unwrap_or_default();
 
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
@@ -343,22 +345,13 @@ fn handle_backspace(
 
             let start = if mods & MOD_CTRL != 0 {
                 doc.move_position_to_next_word(end, -1)
+            } else if end.x == doc.get_line_start(end.y) {
+                doc.get_indent_start(end, indent_width)
             } else {
-                let indent_width = (end.x - 1) % indent_width as isize + 1;
-                let mut start = doc.move_position(end, Position::new(-1, 0));
+                let start = doc.move_position(end, Position::new(-1, 0));
                 let start_char = doc.get_char(start);
 
-                if start_char == ' ' {
-                    for _ in 1..indent_width {
-                        let next_start = doc.move_position(start, Position::new(-1, 0));
-
-                        if doc.get_char(next_start) != ' ' {
-                            break;
-                        }
-
-                        start = next_start;
-                    }
-                } else if get_matching_char(start_char) == Some(doc.get_char(cursor.position)) {
+                if get_matching_char(start_char) == Some(doc.get_char(cursor.position)) {
                     end = doc.move_position(end, Position::new(1, 0));
                 }
 
@@ -429,7 +422,10 @@ fn handle_enter(
         doc.insert_at_cursor(index, &text_buffer, line_pool, time);
 
         if do_start_block {
-            let indent_width = language.and_then(|language| language.indent_width);
+            let indent_width = language
+                .map(|language| language.indent_width)
+                .unwrap_or_default();
+
             doc.indent_at_cursor(index, indent_width, line_pool, time);
 
             let cursor_position = doc.get_cursor(index).position;
@@ -449,7 +445,9 @@ fn handle_tab(
     line_pool: &mut LinePool,
     time: f32,
 ) {
-    let indent_width = language.and_then(|language| language.indent_width);
+    let indent_width = language
+        .map(|language| language.indent_width)
+        .unwrap_or_default();
     let do_unindent = mods & MOD_SHIFT != 0;
 
     for index in doc.cursor_indices() {
