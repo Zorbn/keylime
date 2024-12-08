@@ -441,34 +441,36 @@ impl Tab {
                     foreground_visual_y,
                     theme.normal,
                 );
-            } else {
-                let mut x = 0;
-                let highlighted_line = &highlighted_lines[y];
 
-                for highlight in highlighted_line.highlights() {
-                    let visual_x = x as f32 * gfx.glyph_width() - camera_position.x;
-                    let foreground = theme.highlight_kind_to_color(highlight.foreground);
+                continue;
+            }
 
-                    if let Some(highlight_background) = highlight.background {
-                        let background = theme.highlight_kind_to_color(highlight_background);
+            let mut x = 0;
+            let highlighted_line = &highlighted_lines[y];
 
-                        Self::draw_background(
-                            highlight.end - highlight.start,
-                            gfx,
-                            visual_x,
-                            background_visual_y,
-                            default_background,
-                            background,
-                        );
-                    }
+            for highlight in highlighted_line.highlights() {
+                let visual_x = x as f32 * gfx.glyph_width() - camera_position.x;
+                let foreground = theme.highlight_kind_to_color(highlight.foreground);
 
-                    x += gfx.add_text(
-                        line[highlight.start..highlight.end].iter().copied(),
+                if let Some(highlight_background) = highlight.background {
+                    let background = theme.highlight_kind_to_color(highlight_background);
+
+                    Self::draw_background(
+                        highlight.end - highlight.start,
+                        gfx,
                         visual_x,
-                        foreground_visual_y,
-                        foreground,
+                        background_visual_y,
+                        default_background,
+                        background,
                     );
                 }
+
+                x += gfx.add_text(
+                    line[highlight.start..highlight.end].iter().copied(),
+                    visual_x,
+                    foreground_visual_y,
+                    foreground,
+                );
             }
         }
     }

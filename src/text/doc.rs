@@ -441,8 +441,10 @@ impl Doc {
     ) {
         let cursor = self.get_cursor(index);
 
-        let selection = cursor
-            .get_selection()
+        let selection = cursor.get_selection();
+        let has_selection = selection.is_some();
+
+        let selection = selection
             .unwrap_or(Selection {
                 start: cursor.position,
                 end: cursor.position,
@@ -450,7 +452,7 @@ impl Doc {
             .trim_lines_without_selected_chars();
 
         for y in selection.start.y..=selection.end.y {
-            if self.is_line_whitespace(y) {
+            if has_selection && self.get_line_len(y) == 0 {
                 continue;
             }
 

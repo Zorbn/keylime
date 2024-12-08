@@ -345,7 +345,7 @@ fn handle_backspace(
 
             let start = if mods & MOD_CTRL != 0 {
                 doc.move_position_to_next_word(end, -1)
-            } else if end.x == doc.get_line_start(end.y) {
+            } else if end.x > 0 && end.x == doc.get_line_start(end.y) {
                 doc.get_indent_start(end, indent_width)
             } else {
                 let start = doc.move_position(end, Position::new(-1, 0));
