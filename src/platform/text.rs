@@ -92,7 +92,9 @@ impl Text {
     pub unsafe fn generate_atlas(&mut self) -> Result<Atlas> {
         const ATLAS_SIZE: usize = (b'~' - b' ') as usize;
 
+        let glyph_step_x = self.glyph_width.ceil() + 1.0;
         let glyph_offsets = [DWRITE_GLYPH_OFFSET::default(); ATLAS_SIZE];
+
         let mut glyph_indices = [0u16; ATLAS_SIZE];
         let mut glyph_advances = [0.0; ATLAS_SIZE];
 
@@ -105,7 +107,7 @@ impl Text {
                 glyph_indices.as_mut_ptr().add(i),
             )?;
 
-            glyph_advances[i] = self.glyph_width.ceil();
+            glyph_advances[i] = glyph_step_x;
         }
 
         let rendering_params = self.dwrite_factory.CreateRenderingParams().unwrap();
@@ -169,7 +171,7 @@ impl Text {
                 width: atlas_width,
                 height: atlas_height,
                 glyph_offset_x: desired_bounds.left as f32,
-                glyph_step_x: self.glyph_width.ceil(),
+                glyph_step_x,
                 glyph_width: self.glyph_width.floor(),
                 glyph_height: (desired_bounds.bottom - desired_bounds.top) as f32,
                 line_height: self.line_height,
