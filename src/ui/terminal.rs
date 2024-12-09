@@ -10,7 +10,7 @@ use crate::{
     },
     platform::{gfx::Gfx, pty::Pty},
     temp_buffer::TempBuffer,
-    text::{doc::Doc, line_pool::LinePool},
+    text::{cursor::Cursor, doc::Doc, line_pool::LinePool},
 };
 
 use super::{slot_list::SlotList, widget::Widget, Ui, UiHandle};
@@ -59,6 +59,7 @@ impl Terminal {
         ui: &mut UiHandle,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
+        cursor_buffer: &mut TempBuffer<Cursor>,
         config: &Config,
         time: f32,
         dt: f32,
@@ -109,7 +110,7 @@ impl Terminal {
                 continue;
             };
 
-            emulator.update_output(ui, doc, tab, line_pool, time, dt);
+            emulator.update_output(ui, doc, tab, line_pool, cursor_buffer, time, dt);
         }
     }
 

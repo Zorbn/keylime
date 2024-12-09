@@ -1,5 +1,5 @@
 use core::str;
-use std::{mem::offset_of, ptr::copy_nonoverlapping, slice::from_raw_parts};
+use std::{borrow::Borrow, mem::offset_of, ptr::copy_nonoverlapping, slice::from_raw_parts};
 
 use windows::{
     core::{s, Result},
@@ -791,21 +791,28 @@ impl Gfx {
         ]);
     }
 
-    pub fn measure_text(text: impl IntoIterator<Item = char>) -> isize {
+    pub fn measure_text(text: impl IntoIterator<Item = impl Borrow<char>>) -> isize {
         let mut width = 0isize;
 
         for c in text.into_iter() {
+            let c = *c.borrow();
+
             width += if c == '\t' { TAB_WIDTH as isize } else { 1 };
         }
 
         width
     }
 
-    pub fn find_x_for_visual_x(text: impl IntoIterator<Item = char>, visual_x: isize) -> isize {
+    pub fn find_x_for_visual_x(
+        text: impl IntoIterator<Item = impl Borrow<char>>,
+        visual_x: isize,
+    ) -> isize {
         let mut current_visual_x = 0isize;
         let mut x = 0isize;
 
         for c in text.into_iter() {
+            let c = *c.borrow();
+
             current_visual_x += if c == '\t' { TAB_WIDTH as isize } else { 1 };
 
             if current_visual_x > visual_x {
@@ -827,7 +834,7 @@ impl Gfx {
 
     pub fn add_text(
         &mut self,
-        text: impl IntoIterator<Item = char>,
+        text: impl IntoIterator<Item = impl Borrow<char>>,
         x: f32,
         y: f32,
         color: Color,
@@ -847,6 +854,8 @@ impl Gfx {
         let mut i = 0;
 
         for c in text.into_iter() {
+            let c = *c.borrow();
+
             let char_index = c as u32;
 
             if char_index <= min_char || char_index > max_char {

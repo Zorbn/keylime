@@ -13,6 +13,7 @@ use crate::{
     platform::gfx::Gfx,
     temp_buffer::TempBuffer,
     text::{
+        cursor::Cursor,
         cursor_index::CursorIndex,
         doc::Doc,
         line_pool::{Line, LinePool},
@@ -132,6 +133,7 @@ impl Editor {
         ui: &mut UiHandle,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
+        cursor_buffer: &mut TempBuffer<Cursor>,
         config: &Config,
         time: f32,
         dt: f32,
@@ -280,6 +282,7 @@ impl Editor {
             &mut self.doc_list,
             line_pool,
             text_buffer,
+            cursor_buffer,
             config,
             time,
         );
@@ -307,7 +310,7 @@ impl Editor {
 
         if self.is_cursor_visible(gfx) {
             self.completion_result_list
-                .draw(config, gfx, |result| result.iter().copied());
+                .draw(config, gfx, |result| result.iter());
         }
     }
 

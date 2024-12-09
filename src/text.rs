@@ -1,6 +1,6 @@
 pub mod action_history;
 mod char_category;
-mod cursor;
+pub mod cursor;
 pub mod cursor_index;
 pub mod doc;
 pub mod line_pool;

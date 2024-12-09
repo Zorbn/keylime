@@ -361,7 +361,7 @@ impl Tab {
                 theme.line_number
             };
 
-            gfx.add_text(digits.iter().copied(), visual_x, visual_y, color);
+            gfx.add_text(digits, visual_x, visual_y, color);
         }
 
         gfx.add_rect(
@@ -435,12 +435,7 @@ impl Tab {
             if y >= highlighted_lines.len() {
                 let visual_x = -camera_position.x;
 
-                gfx.add_text(
-                    line.iter().copied(),
-                    visual_x,
-                    foreground_visual_y,
-                    theme.normal,
-                );
+                gfx.add_text(line, visual_x, foreground_visual_y, theme.normal);
 
                 continue;
             }
@@ -466,7 +461,7 @@ impl Tab {
                 }
 
                 x += gfx.add_text(
-                    line[highlight.start..highlight.end].iter().copied(),
+                    &line[highlight.start..highlight.end],
                     visual_x,
                     foreground_visual_y,
                     foreground,

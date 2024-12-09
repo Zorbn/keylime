@@ -441,10 +441,6 @@ impl Window {
         for c in char::decode_utf16(self.wide_text_buffer.iter().copied()) {
             let c = c.unwrap_or('?');
 
-            if c == '\r' {
-                continue;
-            }
-
             self.text_buffer.push(c);
         }
 

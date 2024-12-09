@@ -3,13 +3,14 @@ use crate::{
     geometry::rect::Rect,
     platform::window::Window,
     temp_buffer::TempBuffer,
-    text::line_pool::LinePool,
+    text::{cursor::Cursor, line_pool::LinePool},
     ui::{command_palette::CommandPalette, editor::Editor, terminal::Terminal, Ui},
 };
 
 pub struct App {
     line_pool: LinePool,
     text_buffer: TempBuffer<char>,
+    cursor_buffer: TempBuffer<Cursor>,
 
     ui: Ui,
     editor: Editor,
@@ -23,6 +24,7 @@ impl App {
     pub fn new() -> Self {
         let mut line_pool = LinePool::new();
         let text_buffer = TempBuffer::new();
+        let cursor_buffer = TempBuffer::new();
 
         let config = Config::load().unwrap_or_default();
 
@@ -34,6 +36,7 @@ impl App {
         Self {
             line_pool,
             text_buffer,
+            cursor_buffer,
 
             ui,
             editor,
@@ -69,6 +72,7 @@ impl App {
             &mut ui,
             &mut self.line_pool,
             &mut self.text_buffer,
+            &mut self.cursor_buffer,
             &self.config,
             time,
             dt,
@@ -78,6 +82,7 @@ impl App {
             &mut ui,
             &mut self.line_pool,
             &mut self.text_buffer,
+            &mut self.cursor_buffer,
             &self.config,
             time,
             dt,

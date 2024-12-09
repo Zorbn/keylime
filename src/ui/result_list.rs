@@ -1,4 +1,4 @@
-use std::vec::Drain;
+use std::{borrow::Borrow, vec::Drain};
 
 use crate::{
     config::Config,
@@ -209,7 +209,7 @@ impl<T> ResultList<T> {
         );
     }
 
-    pub fn draw<'a, C: Iterator<Item = char>>(
+    pub fn draw<'a, C: Iterator<Item = impl Borrow<char>>>(
         &'a mut self,
         config: &Config,
         gfx: &mut Gfx,

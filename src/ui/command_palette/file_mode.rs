@@ -58,11 +58,11 @@ fn on_open_file(
 
         for c in str.chars() {
             let position = command_doc.end();
-            command_doc.insert(position, &[c], line_pool, time);
+            command_doc.insert(position, [c], line_pool, time);
         }
 
         let position = command_doc.end();
-        command_doc.insert(position, &['/'], line_pool, time);
+        command_doc.insert(position, ['/'], line_pool, time);
     }
 }
 
@@ -116,7 +116,7 @@ fn on_complete_results_file(
     let mut start = Position::new(line_len, 0);
 
     for c in result.chars() {
-        command_palette.doc.insert(start, &[c], line_pool, time);
+        command_palette.doc.insert(start, [c], line_pool, time);
         start = command_palette
             .doc
             .move_position(start, Position::new(1, 0));
@@ -140,7 +140,7 @@ fn on_update_results_file(
         if line_len > 0 && !matches!(last_char, '/' | '\\' | '.') {
             command_palette
                 .doc
-                .insert(Position::new(line_len, 0), &['/'], line_pool, time);
+                .insert(Position::new(line_len, 0), ['/'], line_pool, time);
         }
 
         path.as_path()

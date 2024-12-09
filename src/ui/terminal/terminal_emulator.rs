@@ -9,8 +9,7 @@ use crate::{
     platform::pty::Pty,
     temp_buffer::TempBuffer,
     text::{
-        doc::Doc, line_pool::LinePool, selection::Selection,
-        syntax_highlighter::TerminalHighlightKind,
+        cursor::Cursor, doc::Doc, line_pool::LinePool, syntax_highlighter::TerminalHighlightKind,
     },
     ui::{camera::CameraRecenterKind, tab::Tab, widget::Widget, UiHandle},
 };
@@ -55,7 +54,7 @@ pub struct TerminalEmulator {
     grid_height: isize,
     grid_line_colors: Vec<Vec<(TerminalHighlightKind, TerminalHighlightKind)>>,
 
-    doc_cursor_backups: Vec<(Position, Option<Selection>)>,
+    maintain_cursor_positions: bool,
 
     is_cursor_visible: bool,
     foreground_color: TerminalHighlightKind,
@@ -82,7 +81,7 @@ impl TerminalEmulator {
             grid_height,
             grid_line_colors: Vec::new(),
 
-            doc_cursor_backups: Vec::new(),
+            maintain_cursor_positions: false,
 
             is_cursor_visible: false,
             foreground_color: TerminalHighlightKind::Foreground,
@@ -234,6 +233,7 @@ impl TerminalEmulator {
         doc: &mut Doc,
         tab: &mut Tab,
         line_pool: &mut LinePool,
+        cursor_buffer: &mut TempBuffer<Cursor>,
         time: f32,
         dt: f32,
     ) {
@@ -243,7 +243,10 @@ impl TerminalEmulator {
 
         self.resize_grid(ui, tab, &mut pty);
 
-        self.backup_doc_cursor_positions(doc);
+        let mut cursor_buffer = cursor_buffer.get_mut();
+
+        self.maintain_cursor_positions = true;
+        self.backup_doc_cursor_positions(doc, &mut cursor_buffer);
 
         self.expand_doc_to_grid_size(doc, line_pool, time);
 
@@ -253,7 +256,9 @@ impl TerminalEmulator {
             output.clear();
         }
 
-        self.restore_doc_cursor_positions(doc);
+        if self.maintain_cursor_positions {
+            self.restore_doc_cursor_positions(doc, &mut cursor_buffer);
+        }
 
         self.pty = Some(pty);
 
@@ -626,11 +631,11 @@ impl TerminalEmulator {
         time: f32,
     ) {
         let start = doc.end();
-        doc.insert(start, &['\n'], line_pool, time);
+        doc.insert(start, ['\n'], line_pool, time);
 
         for _ in 0..self.grid_width {
             let start = doc.end();
-            doc.insert(start, &[' '], line_pool, time);
+            doc.insert(start, [' '], line_pool, time);
         }
 
         let first_grid_line = self.grid_line_colors.remove(0);
@@ -672,7 +677,7 @@ impl TerminalEmulator {
     fn expand_doc_to_grid_size(&mut self, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
         while (doc.lines().len() as isize) < self.grid_height {
             let start = doc.end();
-            doc.insert(start, &['\n'], line_pool, time);
+            doc.insert(start, ['\n'], line_pool, time);
         }
 
         for y in 0..self.grid_height {
@@ -684,7 +689,7 @@ impl TerminalEmulator {
 
             while doc.get_line_len(doc_y) < self.grid_width {
                 let start = Position::new(doc.get_line_len(doc_y), doc_y);
-                doc.insert(start, &[' '], line_pool, time);
+                doc.insert(start, [' '], line_pool, time);
             }
 
             doc.highlight_line_from_terminal_colors(
@@ -705,59 +710,47 @@ impl TerminalEmulator {
         self.clamp_position(Position::new(position.x + delta.x, position.y + delta.y))
     }
 
-    fn grid_position_to_doc_position(&self, position: Position, doc: &mut Doc) -> Position {
+    fn grid_position_to_doc_position(&self, position: Position, doc: &Doc) -> Position {
         Position::new(
             position.x,
             doc.lines().len() as isize - self.grid_height + position.y,
         )
     }
 
-    fn doc_position_to_grid_position(&self, position: Position, doc: &mut Doc) -> Position {
+    fn doc_position_to_grid_position(&self, position: Position, doc: &Doc) -> Position {
         Position::new(
             position.x,
             position.y - (doc.lines().len() as isize - self.grid_height).max(0),
         )
     }
 
-    fn backup_doc_cursor_positions(&mut self, doc: &mut Doc) {
-        self.doc_cursor_backups.clear();
-
-        for index in doc.cursor_indices() {
-            let cursor = doc.get_cursor(index);
-            let cursor_position = cursor.position;
-            let cursor_selection = cursor.get_selection();
-
-            let position = self.doc_position_to_grid_position(cursor_position, doc);
-
-            let selection = cursor_selection.map(|selection| Selection {
-                start: self.doc_position_to_grid_position(selection.start, doc),
-                end: self.doc_position_to_grid_position(selection.end, doc),
-            });
-
-            self.doc_cursor_backups.push((position, selection));
-        }
+    fn backup_doc_cursor_positions(&mut self, doc: &Doc, cursor_buffer: &mut Vec<Cursor>) {
+        doc.backup_cursors(cursor_buffer);
+        self.convert_cursor_backups(doc, cursor_buffer, Self::doc_position_to_grid_position);
     }
 
-    fn restore_doc_cursor_positions(&mut self, doc: &mut Doc) {
-        for (index, (position, selection)) in doc.cursor_indices().zip(&self.doc_cursor_backups) {
-            let Some(selection) = selection else {
-                let doc_position = self.grid_position_to_doc_position(*position, doc);
+    fn restore_doc_cursor_positions(&mut self, doc: &mut Doc, cursor_buffer: &mut [Cursor]) {
+        self.convert_cursor_backups(doc, cursor_buffer, Self::grid_position_to_doc_position);
+        doc.restore_cursors(cursor_buffer);
+    }
 
-                doc.jump_cursor(index, doc_position, false);
+    fn convert_cursor_backups(
+        &mut self,
+        doc: &Doc,
+        cursor_buffer: &mut [Cursor],
+        convert_fn: fn(&Self, Position, &Doc) -> Position,
+    ) {
+        for i in 0..cursor_buffer.len() {
+            let cursor = &cursor_buffer[i];
 
-                continue;
-            };
+            let position = convert_fn(self, cursor.position, doc);
 
-            let doc_selection_start = self.grid_position_to_doc_position(selection.start, doc);
-            let doc_selection_end = self.grid_position_to_doc_position(selection.end, doc);
+            let selection_anchor = cursor
+                .selection_anchor
+                .map(|selection_anchor| convert_fn(self, selection_anchor, doc));
 
-            if *position == selection.start {
-                doc.jump_cursor(index, doc_selection_end, false);
-                doc.jump_cursor(index, doc_selection_start, true);
-            } else {
-                doc.jump_cursor(index, doc_selection_start, false);
-                doc.jump_cursor(index, doc_selection_end, true);
-            }
+            cursor_buffer[i].position = position;
+            cursor_buffer[i].selection_anchor = selection_anchor;
         }
     }
 
@@ -766,7 +759,7 @@ impl TerminalEmulator {
             return;
         }
 
-        self.doc_cursor_backups.clear();
+        self.maintain_cursor_positions = false;
 
         let doc_position =
             self.grid_position_to_doc_position(self.clamp_position(self.grid_cursor), doc);
@@ -829,7 +822,7 @@ impl TerminalEmulator {
                 let next_position = self.grid_position_to_doc_position(next_position, doc);
 
                 doc.delete(position, next_position, line_pool, time);
-                doc.insert(position, &[*c], line_pool, time);
+                doc.insert(position, [*c], line_pool, time);
             }
 
             self.grid_line_colors[position.y as usize][position.x as usize] = colors;

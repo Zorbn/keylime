@@ -1,4 +1,5 @@
 use std::{
+    borrow::Borrow,
     fmt::{Display, Write as _},
     fs::{read_to_string, File},
     io::{self, Write},
@@ -10,6 +11,7 @@ use crate::{
     config::language::IndentWidth,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     platform::gfx::Gfx,
+    temp_buffer::TempBuffer,
 };
 
 use super::{
@@ -161,10 +163,7 @@ impl Doc {
             }
 
             if let Some(desired_visual_x) = desired_visual_x {
-                new_x = Gfx::find_x_for_visual_x(
-                    self.lines[new_y as usize].iter().copied(),
-                    desired_visual_x,
-                );
+                new_x = Gfx::find_x_for_visual_x(&self.lines[new_y as usize], desired_visual_x);
             } else if new_x > self.get_line_len(new_y) {
                 new_x = self.get_line_len(new_y);
             }
@@ -335,11 +334,11 @@ impl Doc {
         time: f32,
     ) {
         for c in comment.chars() {
-            self.insert(position, &[c], line_pool, time);
+            self.insert(position, [c], line_pool, time);
             position = self.move_position(position, Position::new(1, 0));
         }
 
-        self.insert(position, &[' '], line_pool, time);
+        self.insert(position, [' '], line_pool, time);
     }
 
     pub fn uncomment_line(
@@ -506,7 +505,7 @@ impl Doc {
         time: f32,
     ) {
         for c in indent_width.chars() {
-            self.insert(start, &[c], line_pool, time);
+            self.insert(start, [c], line_pool, time);
             start = self.move_position(start, Position::new(1, 0));
         }
     }
@@ -709,9 +708,8 @@ impl Doc {
         let cursor = self.get_cursor(index);
 
         let leading_text = &self.lines[cursor.position.y as usize][..cursor.position.x as usize];
-        let visual_x = Gfx::measure_text(leading_text.iter().copied());
 
-        visual_x
+        Gfx::measure_text(leading_text)
     }
 
     fn update_cursor_desired_visual_x(&mut self, index: CursorIndex) {
@@ -1007,14 +1005,20 @@ impl Doc {
         }
     }
 
-    pub fn insert(&mut self, start: Position, text: &[char], line_pool: &mut LinePool, time: f32) {
+    pub fn insert(
+        &mut self,
+        start: Position,
+        text: impl IntoIterator<Item = impl Borrow<char>>,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
         self.insert_as_action_kind(start, text, line_pool, ActionKind::Done, time);
     }
 
     pub fn insert_as_action_kind(
         &mut self,
         start: Position,
-        text: &[char],
+        text: impl IntoIterator<Item = impl Borrow<char>>,
         line_pool: &mut LinePool,
         action_kind: ActionKind,
         time: f32,
@@ -1033,31 +1037,37 @@ impl Doc {
         let mut position = self.clamp_position(start);
 
         for c in text {
-            if *c == '\n' {
-                if self.kind == DocKind::SingleLine {
+            let c = *c.borrow();
+
+            match c {
+                '\r' => continue,
+                '\n' => {
+                    if self.kind == DocKind::SingleLine {
+                        continue;
+                    }
+
+                    let new_y = position.y as usize + 1;
+                    let split_x = position.x as usize;
+
+                    position.y += 1;
+                    position.x = 0;
+
+                    self.lines.insert(new_y, line_pool.pop());
+
+                    let (old, new) = self.lines.split_at_mut(new_y);
+
+                    let old = old.last_mut().unwrap();
+                    let new = new.first_mut().unwrap();
+
+                    new.extend_from_slice(&old[split_x..]);
+                    old.truncate(split_x);
+
                     continue;
                 }
-
-                let new_y = position.y as usize + 1;
-                let split_x = position.x as usize;
-
-                position.y += 1;
-                position.x = 0;
-
-                self.lines.insert(new_y, line_pool.pop());
-
-                let (old, new) = self.lines.split_at_mut(new_y);
-
-                let old = old.last_mut().unwrap();
-                let new = new.first_mut().unwrap();
-
-                new.extend_from_slice(&old[split_x..]);
-                old.truncate(split_x);
-
-                continue;
+                _ => {}
             }
 
-            self.lines[position.y as usize].insert(position.x as usize, *c);
+            self.lines[position.y as usize].insert(position.x as usize, c);
             position.x += 1;
         }
 
@@ -1245,7 +1255,7 @@ impl Doc {
         let position = self.clamp_position(position);
         let leading_text = &self.lines[position.y as usize][..position.x as usize];
 
-        let visual_x = Gfx::measure_text(leading_text.iter().copied());
+        let visual_x = Gfx::measure_text(leading_text);
 
         VisualPosition::new(
             visual_x as f32 * gfx.glyph_width() - camera_position.x,
@@ -1266,8 +1276,7 @@ impl Doc {
 
         let desired_x = position.x;
         position = self.clamp_position(position);
-        position.x =
-            Gfx::find_x_for_visual_x(self.lines[position.y as usize].iter().copied(), desired_x);
+        position.x = Gfx::find_x_for_visual_x(&self.lines[position.y as usize], desired_x);
 
         position
     }
@@ -1338,27 +1347,88 @@ impl Doc {
         }
     }
 
-    pub fn load(&mut self, path: &Path, line_pool: &mut LinePool) -> io::Result<()> {
+    pub fn load(&mut self, path: &Path, line_pool: &mut LinePool, time: f32) -> io::Result<()> {
         self.clear(line_pool);
-
-        for line in self.lines.drain(..) {
-            line_pool.push(line);
-        }
 
         let string = read_to_string(path)?;
 
-        let mut current_line = line_pool.pop();
+        let (line_ending, len) = self.get_line_ending_and_len(&string);
+
+        self.line_ending = line_ending;
+        self.insert(Position::zero(), string.chars().take(len), line_pool, time);
+
+        self.undo_history.clear();
+        self.is_saved = true;
+
+        self.path = Some(path.to_path_buf());
+
+        Ok(())
+    }
+
+    pub fn reload(
+        &mut self,
+        line_pool: &mut LinePool,
+        cursor_buffer: &mut TempBuffer<Cursor>,
+        time: f32,
+    ) -> io::Result<()> {
+        let Some(path) = self.path.as_ref() else {
+            return Ok(());
+        };
+
+        let string = read_to_string(path)?;
+
+        let mut cursor_buffer = cursor_buffer.get_mut();
+
+        self.backup_cursors(&mut cursor_buffer);
+
+        self.delete(Position::zero(), self.end(), line_pool, time);
+
+        let (line_ending, len) = self.get_line_ending_and_len(&string);
+
+        self.line_ending = line_ending;
+        self.insert(Position::zero(), string.chars().take(len), line_pool, time);
+
+        self.is_saved = true;
+
+        self.restore_cursors(&cursor_buffer);
+
+        Ok(())
+    }
+
+    pub fn backup_cursors(&self, buffer: &mut Vec<Cursor>) {
+        buffer.clear();
+        buffer.extend_from_slice(&self.cursors);
+    }
+
+    pub fn restore_cursors(&mut self, buffer: &[Cursor]) {
+        for (index, backup) in self.cursor_indices().zip(buffer) {
+            let position = self.clamp_position(backup.position);
+            let selection_anchor = backup
+                .selection_anchor
+                .map(|selection_anchor| self.clamp_position(selection_anchor));
+
+            *self.get_cursor_mut(index) = Cursor {
+                position,
+                selection_anchor,
+                desired_visual_x: backup.desired_visual_x,
+            };
+        }
+    }
+
+    fn get_line_ending_and_len(&self, string: &str) -> (LineEnding, usize) {
+        let mut len = 0;
+        let mut line_ending = LineEnding::default();
         let mut last_char_was_cr = false;
 
         for c in string.chars() {
             match c {
                 '\r' => {
                     last_char_was_cr = true;
-                    self.line_ending = LineEnding::CrLf;
+                    line_ending = LineEnding::CrLf;
                 }
                 '\n' => {
                     if !last_char_was_cr {
-                        self.line_ending = LineEnding::Lf;
+                        line_ending = LineEnding::Lf;
                     }
 
                     last_char_was_cr = false;
@@ -1366,22 +1436,16 @@ impl Doc {
                     if self.kind == DocKind::SingleLine {
                         break;
                     }
-
-                    self.lines.push(current_line);
-                    current_line = line_pool.pop();
                 }
                 _ => {
                     last_char_was_cr = false;
-                    current_line.push(c);
                 }
             }
+
+            len += 1;
         }
 
-        self.lines.push(current_line);
-
-        self.path = Some(path.to_path_buf());
-
-        Ok(())
+        (line_ending, len)
     }
 
     pub fn path(&self) -> Option<&Path> {

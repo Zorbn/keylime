@@ -64,24 +64,11 @@ pub fn try_save(doc: &mut Doc, config: &Config, line_pool: &mut LinePool, time: 
     }
 }
 
-pub fn reload(doc: &mut Doc, config: &Config, line_pool: &mut LinePool, time: f32) {
-    if !confirm_close(doc, "reloading", true, config, line_pool, time) {
-        return;
-    }
-
-    let Some(path) = doc.path().map(|path| path.to_owned()) else {
-        return;
-    };
-
-    if let Err(err) = doc.load(&path, line_pool) {
-        message("Failed to Reload File", &err.to_string(), MessageKind::Ok);
-    }
-}
-
 pub fn open_or_reuse(
     doc_list: &mut SlotList<Doc>,
     path: &Path,
     line_pool: &mut LinePool,
+    time: f32,
 ) -> io::Result<usize> {
     for (i, doc) in doc_list.iter().enumerate() {
         if doc.as_ref().and_then(|doc| doc.path()) == Some(path) {
@@ -91,7 +78,7 @@ pub fn open_or_reuse(
 
     let mut doc = Doc::new(line_pool, None, DocKind::MultiLine);
 
-    doc.load(path, line_pool)?;
+    doc.load(path, line_pool, time)?;
 
     Ok(doc_list.add(doc))
 }

@@ -14,13 +14,14 @@ use crate::{
     platform::dialog::{find_file, message, FindFileKind, MessageKind},
     temp_buffer::TempBuffer,
     text::{
+        cursor::Cursor,
         doc::{Doc, DocKind},
         line_pool::LinePool,
     },
     ui::{pane::Pane, slot_list::SlotList, widget::Widget, UiHandle},
 };
 
-use super::doc_io::{confirm_close, open_or_reuse, reload, try_save};
+use super::doc_io::{confirm_close, open_or_reuse, try_save};
 
 pub struct EditorPane {
     inner: Pane<Doc>,
@@ -43,6 +44,7 @@ impl EditorPane {
         doc_list: &mut SlotList<Doc>,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
+        cursor_buffer: &mut TempBuffer<Cursor>,
         config: &Config,
         time: f32,
     ) {
@@ -100,12 +102,13 @@ impl EditorPane {
                     key: Key::R,
                     mods: MOD_CTRL,
                 } => {
-                    if let Some((tab, doc)) = self
+                    if let Some((_, doc)) = self
                         .inner
                         .get_tab_with_data_mut(self.focused_tab_index(), doc_list)
                     {
-                        reload(doc, config, line_pool, time);
-                        tab.camera.recenter();
+                        if let Err(err) = doc.reload(line_pool, cursor_buffer, time) {
+                            message("Failed to Reload File", &err.to_string(), MessageKind::Ok);
+                        }
                     }
                 }
                 _ => keybind_handler.unprocessed(ui.window, keybind),
@@ -129,7 +132,7 @@ impl EditorPane {
         line_pool: &mut LinePool,
         time: f32,
     ) -> io::Result<()> {
-        let doc_index = open_or_reuse(doc_list, path, line_pool)?;
+        let doc_index = open_or_reuse(doc_list, path, line_pool, time)?;
 
         self.add_tab(doc_index, doc_list, config, line_pool, time);
 

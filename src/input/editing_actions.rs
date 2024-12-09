@@ -600,7 +600,7 @@ fn handle_shift_lines(
             Position::new(doc.get_line_len(selection.start.y), selection.start.y)
         };
 
-        doc.insert(insert_start, &text_buffer, line_pool, time);
+        doc.insert(insert_start, text_buffer.iter(), line_pool, time);
 
         // Reset the selection to prevent it being expanded by the latest insert.
         if had_selection {
