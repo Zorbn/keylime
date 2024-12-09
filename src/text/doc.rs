@@ -1325,16 +1325,21 @@ impl Doc {
         self.cursors.truncate(1);
     }
 
-    pub fn drain(&mut self, line_pool: &mut LinePool) -> Drain<Line> {
+    fn reset_edit_state(&mut self) {
         self.undo_history.clear();
         self.redo_history.clear();
 
         self.reset_cursors();
+
+        self.is_saved = true;
+        self.version = 0;
+    }
+
+    pub fn drain(&mut self, line_pool: &mut LinePool) -> Drain<Line> {
         self.line_ending = LineEnding::default();
 
         self.mark_line_dirty(0);
-        self.is_saved = true;
-        self.version = 0;
+        self.reset_edit_state();
 
         self.lines.push(line_pool.pop());
 
@@ -1354,11 +1359,9 @@ impl Doc {
 
         let (line_ending, len) = self.get_line_ending_and_len(&string);
 
-        self.line_ending = line_ending;
         self.insert(Position::zero(), string.chars().take(len), line_pool, time);
-
-        self.undo_history.clear();
-        self.is_saved = true;
+        self.reset_edit_state();
+        self.line_ending = line_ending;
 
         self.path = Some(path.to_path_buf());
 
