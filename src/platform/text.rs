@@ -170,7 +170,7 @@ impl Text {
                 glyph_step_x,
                 glyph_width: self.glyph_width.floor(),
                 glyph_height: (desired_bounds.bottom - desired_bounds.top) as f32,
-                line_height: self.line_height,
+                line_height: self.line_height.floor(),
             },
         })
     }
