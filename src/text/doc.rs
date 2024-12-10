@@ -1307,16 +1307,20 @@ impl Doc {
         }
     }
 
-    fn set_path(&mut self, path: &Path) -> io::Result<()> {
-        self.path = Some(absolute(path)?);
+    fn set_path(&mut self, path: PathBuf) -> io::Result<()> {
+        self.path = Some(if path.is_absolute() {
+            path
+        } else {
+            absolute(path)?
+        });
 
         Ok(())
     }
 
-    pub fn save(&mut self, path: &Path) -> io::Result<()> {
+    pub fn save(&mut self, path: PathBuf) -> io::Result<()> {
         let string = self.to_string();
 
-        File::create(path)?.write_all(string.as_bytes())?;
+        File::create(&path)?.write_all(string.as_bytes())?;
 
         self.set_path(path)?;
         self.is_saved = true;
@@ -1374,10 +1378,10 @@ impl Doc {
         }
     }
 
-    pub fn load(&mut self, path: &Path, line_pool: &mut LinePool, time: f32) -> io::Result<()> {
+    pub fn load(&mut self, path: PathBuf, line_pool: &mut LinePool, time: f32) -> io::Result<()> {
         self.clear(line_pool);
 
-        let string = read_to_string(path)?;
+        let string = read_to_string(&path)?;
 
         let (line_ending, len) = self.get_line_ending_and_len(&string);
 

@@ -1,4 +1,7 @@
-use std::{io, path::Path};
+use std::{
+    io,
+    path::{absolute, Path},
+};
 
 use crate::{
     config::Config,
@@ -56,7 +59,7 @@ pub fn try_save(doc: &mut Doc, config: &Config, line_pool: &mut LinePool, time: 
         doc.trim_trailing_whitespace(line_pool, time);
     }
 
-    if let Err(err) = doc.save(&path) {
+    if let Err(err) = doc.save(path) {
         message("Failed to Save File", &err.to_string(), MessageKind::Ok);
         false
     } else {
@@ -70,8 +73,10 @@ pub fn open_or_reuse(
     line_pool: &mut LinePool,
     time: f32,
 ) -> io::Result<usize> {
+    let path = absolute(path)?;
+
     for (i, doc) in doc_list.iter().enumerate() {
-        if doc.as_ref().and_then(|doc| doc.path()) == Some(path) {
+        if doc.as_ref().and_then(|doc| doc.path()) == Some(&path) {
             return Ok(i);
         }
     }
