@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use doc_io::confirm_close_all;
 use editor_pane::EditorPane;
 
@@ -138,6 +140,13 @@ impl Editor {
         time: f32,
         dt: f32,
     ) {
+        self.reload_changed_files(
+            ui.window.file_watcher().changed_files(),
+            line_pool,
+            cursor_buffer,
+            time,
+        );
+
         let mut char_handler = self.widget.get_char_handler(ui);
 
         let mut should_open_completions = char_handler
@@ -296,6 +305,28 @@ impl Editor {
         }
 
         self.update_completions(should_open_completions, handled_position);
+    }
+
+    fn reload_changed_files(
+        &mut self,
+        changed_files: &[PathBuf],
+        line_pool: &mut LinePool,
+        cursor_buffer: &mut TempBuffer<Cursor>,
+        time: f32,
+    ) {
+        for path in changed_files {
+            for doc in self.doc_list.iter_mut().flatten() {
+                if doc.path() != Some(path) {
+                    continue;
+                }
+
+                if doc.is_change_unexpected() {
+                    doc.reload(line_pool, cursor_buffer, time).unwrap();
+                }
+
+                break;
+            }
+        }
     }
 
     pub fn draw(&mut self, ui: &mut UiHandle, config: &Config) {
@@ -463,5 +494,9 @@ impl Editor {
 
     pub fn get_focused_pane_and_doc_list(&mut self) -> (&mut EditorPane, &mut SlotList<Doc>) {
         (&mut self.panes[self.focused_pane_index], &mut self.doc_list)
+    }
+
+    pub fn files(&self) -> impl Iterator<Item = &Path> {
+        self.doc_list.iter().flatten().filter_map(|doc| doc.path())
     }
 }

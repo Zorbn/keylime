@@ -243,10 +243,10 @@ impl TerminalEmulator {
 
         self.resize_grid(ui, tab, &mut pty);
 
-        let mut cursor_buffer = cursor_buffer.get_mut();
+        let cursor_buffer = cursor_buffer.get_mut();
 
         self.maintain_cursor_positions = true;
-        self.backup_doc_cursor_positions(doc, &mut cursor_buffer);
+        self.backup_doc_cursor_positions(doc, cursor_buffer);
 
         self.expand_doc_to_grid_size(doc, line_pool, time);
 
@@ -257,7 +257,7 @@ impl TerminalEmulator {
         }
 
         if self.maintain_cursor_positions {
-            self.restore_doc_cursor_positions(doc, &mut cursor_buffer);
+            self.restore_doc_cursor_positions(doc, cursor_buffer);
         }
 
         self.pty = Some(pty);

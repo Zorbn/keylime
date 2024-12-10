@@ -58,10 +58,14 @@ enum StepStatus {
 
 const CURSOR_POSITION_HISTORY_THRESHOLD: isize = 10;
 
+// One change for File::create, and one change for writing.
+const EXPECTED_CHANGE_COUNT_ON_SAVE: usize = 2;
+
 pub struct Doc {
     display_name: Option<&'static str>,
     path: Option<PathBuf>,
     is_saved: bool,
+    expected_change_count: usize,
     version: usize,
     usages: usize,
 
@@ -96,6 +100,7 @@ impl Doc {
             display_name,
             path: None,
             is_saved: true,
+            expected_change_count: 0,
             version: 0,
             usages: 0,
 
@@ -1309,8 +1314,19 @@ impl Doc {
 
         self.path = Some(path);
         self.is_saved = true;
+        self.expected_change_count = EXPECTED_CHANGE_COUNT_ON_SAVE;
 
         Ok(())
+    }
+
+    pub fn is_change_unexpected(&mut self) -> bool {
+        if self.expected_change_count == 0 {
+            true
+        } else {
+            self.expected_change_count -= 1;
+
+            false
+        }
     }
 
     fn reset_cursors(&mut self) {
@@ -1380,9 +1396,9 @@ impl Doc {
 
         let string = read_to_string(path)?;
 
-        let mut cursor_buffer = cursor_buffer.get_mut();
+        let cursor_buffer = cursor_buffer.get_mut();
 
-        self.backup_cursors(&mut cursor_buffer);
+        self.backup_cursors(cursor_buffer);
 
         self.delete(Position::zero(), self.end(), line_pool, time);
 
@@ -1393,7 +1409,7 @@ impl Doc {
 
         self.is_saved = true;
 
-        self.restore_cursors(&cursor_buffer);
+        self.restore_cursors(cursor_buffer);
 
         Ok(())
     }

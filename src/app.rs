@@ -48,7 +48,11 @@ impl App {
     }
 
     pub fn update(&mut self, window: &mut Window) {
-        let (time, dt) = window.update(self.is_animating(), self.terminal.ptys());
+        let (time, dt) = window.update(
+            self.is_animating(),
+            self.terminal.ptys(),
+            self.editor.files(),
+        );
 
         let mut ui = self.ui.get_handle(window);
 

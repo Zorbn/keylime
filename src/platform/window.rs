@@ -1,6 +1,7 @@
 use std::{
     collections::HashSet,
     mem::transmute,
+    path::Path,
     ptr::{copy_nonoverlapping, null_mut},
 };
 
@@ -8,7 +9,8 @@ use windows::{
     core::{w, Result},
     Win32::{
         Foundation::{
-            GlobalFree, BOOL, FALSE, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, RECT, WPARAM,
+            GlobalFree, BOOL, FALSE, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, RECT, WAIT_OBJECT_0,
+            WPARAM,
         },
         Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE},
         System::{
@@ -45,9 +47,10 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::{MouseClickKind, Mousebind},
     },
+    temp_buffer::TempBuffer,
 };
 
-use super::{gfx::Gfx, pty::Pty};
+use super::{file_watcher::FileWatcher, gfx::Gfx, pty::Pty};
 
 const DEFAULT_DPI: f32 = 96.0;
 
@@ -186,6 +189,7 @@ pub struct Window {
     hwnd: HWND,
 
     wait_handles: Vec<HANDLE>,
+    file_watcher: FileWatcher,
 
     is_running: bool,
     is_focused: bool,
@@ -196,8 +200,8 @@ pub struct Window {
     width: i32,
     height: i32,
 
-    wide_text_buffer: Vec<u16>,
-    text_buffer: Vec<char>,
+    wide_text_buffer: TempBuffer<u16>,
+    text_buffer: TempBuffer<char>,
 
     gfx: Option<Gfx>,
 
@@ -236,6 +240,7 @@ impl Window {
             hwnd: HWND(null_mut()),
 
             wait_handles: Vec::new(),
+            file_watcher: FileWatcher::new(),
 
             is_running: true,
             is_focused: false,
@@ -246,8 +251,8 @@ impl Window {
             width: DEFAULT_WIDTH,
             height: DEFAULT_HEIGHT,
 
-            wide_text_buffer: Vec::new(),
-            text_buffer: Vec::new(),
+            wide_text_buffer: TempBuffer::new(),
+            text_buffer: TempBuffer::new(),
 
             gfx: None,
 
@@ -277,8 +282,10 @@ impl Window {
         &mut self,
         is_animating: bool,
         ptys: impl Iterator<Item = &'a Pty>,
+        files: impl Iterator<Item = &'a Path>,
     ) -> (f32, f32) {
         self.clear_inputs();
+        self.file_watcher.update(files).unwrap();
 
         unsafe {
             let mut msg = MSG::default();
@@ -291,8 +298,32 @@ impl Window {
                         .extend_from_slice(&[pty.hprocess, pty.event]);
                 }
 
-                MsgWaitForMultipleObjects(Some(&self.wait_handles), FALSE, INFINITE, QS_ALLINPUT);
+                let dir_handles_start = self.wait_handles.len();
+
+                self.wait_handles.extend(
+                    self.file_watcher
+                        .dir_watch_handles()
+                        .iter()
+                        .map(|handles| handles.event()),
+                );
+
+                let result = MsgWaitForMultipleObjects(
+                    Some(&self.wait_handles),
+                    FALSE,
+                    INFINITE,
+                    QS_ALLINPUT,
+                );
+
+                let index = (result.0 - WAIT_OBJECT_0.0) as usize;
+
+                if index >= dir_handles_start && index < self.wait_handles.len() {
+                    self.file_watcher
+                        .handle_dir_update(index - dir_handles_start)
+                        .unwrap();
+                }
             }
+
+            self.file_watcher.check_dir_updates().unwrap();
 
             let mut queried_time = 0i64;
             let _ = QueryPerformanceCounter(&mut queried_time);
@@ -340,6 +371,10 @@ impl Window {
         self.gfx.as_mut().unwrap()
     }
 
+    pub fn file_watcher(&self) -> &FileWatcher {
+        &self.file_watcher
+    }
+
     pub fn get_char_handler(&self) -> CharHandler {
         CharHandler::new(self.chars_typed.len())
     }
@@ -360,17 +395,17 @@ impl Window {
         self.was_copy_implicit = was_copy_implicit;
         self.did_just_copy = true;
 
-        self.wide_text_buffer.clear();
+        let wide_text_buffer = self.wide_text_buffer.get_mut();
 
         for c in text {
             let mut dst = [0u16; 2];
 
             for wide_c in c.encode_utf16(&mut dst) {
-                self.wide_text_buffer.push(*wide_c);
+                wide_text_buffer.push(*wide_c);
             }
         }
 
-        self.wide_text_buffer.push(0);
+        wide_text_buffer.push(0);
 
         unsafe {
             OpenClipboard(self.hwnd)?;
@@ -379,10 +414,7 @@ impl Window {
                 let _ = CloseClipboard();
             });
 
-            let hglobal = GlobalAlloc(
-                GMEM_MOVEABLE,
-                self.wide_text_buffer.len() * size_of::<u16>(),
-            )?;
+            let hglobal = GlobalAlloc(GMEM_MOVEABLE, wide_text_buffer.len() * size_of::<u16>())?;
 
             defer!({
                 let _ = GlobalFree(hglobal);
@@ -390,11 +422,7 @@ impl Window {
 
             let memory = GlobalLock(hglobal) as *mut u16;
 
-            copy_nonoverlapping(
-                self.wide_text_buffer.as_ptr(),
-                memory,
-                self.wide_text_buffer.len(),
-            );
+            copy_nonoverlapping(wide_text_buffer.as_ptr(), memory, wide_text_buffer.len());
 
             let _ = GlobalUnlock(hglobal);
 
@@ -405,8 +433,8 @@ impl Window {
     }
 
     pub fn get_clipboard(&mut self) -> Result<&[char]> {
-        self.text_buffer.clear();
-        self.wide_text_buffer.clear();
+        let text_buffer = self.text_buffer.get_mut();
+        let wide_text_buffer = self.wide_text_buffer.get_mut();
 
         unsafe {
             OpenClipboard(self.hwnd)?;
@@ -415,10 +443,7 @@ impl Window {
                 let _ = CloseClipboard();
             });
 
-            let hglobal = GlobalAlloc(
-                GMEM_MOVEABLE,
-                self.wide_text_buffer.len() * size_of::<u16>(),
-            )?;
+            let hglobal = GlobalAlloc(GMEM_MOVEABLE, wide_text_buffer.len() * size_of::<u16>())?;
 
             defer!({
                 let _ = GlobalFree(hglobal);
@@ -430,7 +455,7 @@ impl Window {
 
             if !memory.is_null() {
                 while *memory != 0 {
-                    self.wide_text_buffer.push(*memory);
+                    wide_text_buffer.push(*memory);
                     memory = memory.add(1);
                 }
             }
@@ -438,13 +463,13 @@ impl Window {
             let _ = GlobalUnlock(hglobal);
         }
 
-        for c in char::decode_utf16(self.wide_text_buffer.iter().copied()) {
+        for c in char::decode_utf16(wide_text_buffer.iter().copied()) {
             let c = c.unwrap_or('?');
 
-            self.text_buffer.push(c);
+            text_buffer.push(c);
         }
 
-        Ok(&self.text_buffer)
+        Ok(text_buffer)
     }
 
     pub fn was_copy_implicit(&self) -> bool {

@@ -56,7 +56,7 @@ impl Text {
             DWRITE_FONT_STYLE_NORMAL,
         )?;
 
-        let font_face = font.CreateFontFace().unwrap();
+        let font_face = font.CreateFontFace()?;
 
         let mut font_metrics = DWRITE_FONT_METRICS::default();
         font_face.GetMetrics(&mut font_metrics);
@@ -110,39 +110,33 @@ impl Text {
             glyph_advances[i] = glyph_step_x;
         }
 
-        let rendering_params = self.dwrite_factory.CreateRenderingParams().unwrap();
+        let rendering_params = self.dwrite_factory.CreateRenderingParams()?;
 
-        let rendering_mode = self
-            .font_face
-            .GetRecommendedRenderingMode(
-                self.font_size,
-                1.0,
-                DWRITE_MEASURING_MODE_NATURAL,
-                &rendering_params,
-            )
-            .unwrap();
+        let rendering_mode = self.font_face.GetRecommendedRenderingMode(
+            self.font_size,
+            1.0,
+            DWRITE_MEASURING_MODE_NATURAL,
+            &rendering_params,
+        )?;
 
-        let glyph_run_analysis = self
-            .dwrite_factory
-            .CreateGlyphRunAnalysis(
-                &DWRITE_GLYPH_RUN {
-                    fontFace: ManuallyDrop::new(Some(self.font_face.clone())),
-                    fontEmSize: self.font_size,
-                    glyphCount: glyph_indices.len() as u32,
-                    glyphIndices: glyph_indices.as_ptr(),
-                    glyphAdvances: glyph_advances.as_ptr(),
-                    glyphOffsets: glyph_offsets.as_ptr(),
-                    isSideways: FALSE,
-                    bidiLevel: 0,
-                },
-                1.0,
-                None,
-                rendering_mode,
-                DWRITE_MEASURING_MODE_NATURAL,
-                0.0,
-                0.0,
-            )
-            .unwrap();
+        let glyph_run_analysis = self.dwrite_factory.CreateGlyphRunAnalysis(
+            &DWRITE_GLYPH_RUN {
+                fontFace: ManuallyDrop::new(Some(self.font_face.clone())),
+                fontEmSize: self.font_size,
+                glyphCount: glyph_indices.len() as u32,
+                glyphIndices: glyph_indices.as_ptr(),
+                glyphAdvances: glyph_advances.as_ptr(),
+                glyphOffsets: glyph_offsets.as_ptr(),
+                isSideways: FALSE,
+                bidiLevel: 0,
+            },
+            1.0,
+            None,
+            rendering_mode,
+            DWRITE_MEASURING_MODE_NATURAL,
+            0.0,
+            0.0,
+        )?;
 
         let desired_bounds =
             glyph_run_analysis.GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1)?;
@@ -152,9 +146,11 @@ impl Text {
 
         let mut result = vec![0u8; atlas_width * atlas_height * 4];
 
-        glyph_run_analysis
-            .CreateAlphaTexture(DWRITE_TEXTURE_CLEARTYPE_3x1, &desired_bounds, &mut result)
-            .unwrap();
+        glyph_run_analysis.CreateAlphaTexture(
+            DWRITE_TEXTURE_CLEARTYPE_3x1,
+            &desired_bounds,
+            &mut result,
+        )?;
 
         for i in (0..(atlas_width * atlas_height)).rev() {
             let source_index = i * 3;

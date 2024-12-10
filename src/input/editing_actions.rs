@@ -396,7 +396,7 @@ fn handle_enter(
     text_buffer: &mut TempBuffer<char>,
     time: f32,
 ) {
-    let mut text_buffer = text_buffer.get_mut();
+    let text_buffer = text_buffer.get_mut();
 
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
@@ -419,7 +419,7 @@ fn handle_enter(
             doc.get_char(previous_position) == '{' && doc.get_char(cursor.position) == '}';
 
         doc.insert_at_cursor(index, &['\n'], line_pool, time);
-        doc.insert_at_cursor(index, &text_buffer, line_pool, time);
+        doc.insert_at_cursor(index, text_buffer, line_pool, time);
 
         if do_start_block {
             let indent_width = language
@@ -431,7 +431,7 @@ fn handle_enter(
             let cursor_position = doc.get_cursor(index).position;
 
             doc.insert_at_cursor(index, &['\n'], line_pool, time);
-            doc.insert_at_cursor(index, &text_buffer, line_pool, time);
+            doc.insert_at_cursor(index, text_buffer, line_pool, time);
 
             doc.jump_cursor(index, cursor_position, false);
         }
@@ -504,10 +504,10 @@ fn handle_cut(
     text_buffer: &mut TempBuffer<char>,
     time: f32,
 ) {
-    let mut text_buffer = text_buffer.get_mut();
-    let was_copy_implicit = doc.copy_at_cursors(&mut text_buffer);
+    let text_buffer = text_buffer.get_mut();
+    let was_copy_implicit = doc.copy_at_cursors(text_buffer);
 
-    let _ = window.set_clipboard(&text_buffer, was_copy_implicit);
+    let _ = window.set_clipboard(text_buffer, was_copy_implicit);
 
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
@@ -522,10 +522,10 @@ fn handle_cut(
 }
 
 pub fn handle_copy(window: &mut Window, doc: &mut Doc, text_buffer: &mut TempBuffer<char>) {
-    let mut text_buffer = text_buffer.get_mut();
-    let was_copy_implicit = doc.copy_at_cursors(&mut text_buffer);
+    let text_buffer = text_buffer.get_mut();
+    let was_copy_implicit = doc.copy_at_cursors(text_buffer);
 
-    let _ = window.set_clipboard(&text_buffer, was_copy_implicit);
+    let _ = window.set_clipboard(text_buffer, was_copy_implicit);
 }
 
 fn handle_paste(window: &mut Window, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
@@ -571,7 +571,7 @@ fn handle_shift_lines(
 
         let selection = cursor_selection.trim_lines_without_selected_chars();
 
-        let mut text_buffer = text_buffer.get_mut();
+        let text_buffer = text_buffer.get_mut();
 
         let mut start = Position::new(0, selection.start.y);
         let mut end = Position::new(doc.get_line_len(selection.end.y), selection.end.y);
@@ -580,7 +580,7 @@ fn handle_shift_lines(
             text_buffer.push('\n');
         }
 
-        doc.collect_chars(start, end, &mut text_buffer);
+        doc.collect_chars(start, end, text_buffer);
 
         if direction < 0 {
             text_buffer.push('\n');
