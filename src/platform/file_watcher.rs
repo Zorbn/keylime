@@ -128,7 +128,7 @@ impl FileWatcher {
             }
 
             let handles = unsafe {
-                let path = HSTRING::from(dir.canonicalize()?.as_os_str());
+                let path = HSTRING::from(dir.as_os_str());
 
                 let overlapped = OVERLAPPED {
                     hEvent: CreateEventW(None, FALSE, None, None)?,

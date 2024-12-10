@@ -3,7 +3,7 @@ use std::{
     fmt::{Display, Write as _},
     fs::{read_to_string, File},
     io::{self, Write},
-    path::{Path, PathBuf},
+    path::{absolute, Path, PathBuf},
     vec::Drain,
 };
 
@@ -1307,12 +1307,18 @@ impl Doc {
         }
     }
 
-    pub fn save(&mut self, path: PathBuf) -> io::Result<()> {
+    fn set_path(&mut self, path: &Path) -> io::Result<()> {
+        self.path = Some(absolute(path)?);
+
+        Ok(())
+    }
+
+    pub fn save(&mut self, path: &Path) -> io::Result<()> {
         let string = self.to_string();
 
-        File::create(&path)?.write_all(string.as_bytes())?;
+        File::create(path)?.write_all(string.as_bytes())?;
 
-        self.path = Some(path);
+        self.set_path(path)?;
         self.is_saved = true;
         self.expected_change_count = EXPECTED_CHANGE_COUNT_ON_SAVE;
 
@@ -1379,7 +1385,7 @@ impl Doc {
         self.reset_edit_state();
         self.line_ending = line_ending;
 
-        self.path = Some(path.to_path_buf());
+        self.set_path(path)?;
 
         Ok(())
     }

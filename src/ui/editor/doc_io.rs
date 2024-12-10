@@ -56,7 +56,7 @@ pub fn try_save(doc: &mut Doc, config: &Config, line_pool: &mut LinePool, time: 
         doc.trim_trailing_whitespace(line_pool, time);
     }
 
-    if let Err(err) = doc.save(path) {
+    if let Err(err) = doc.save(&path) {
         message("Failed to Save File", &err.to_string(), MessageKind::Ok);
         false
     } else {
