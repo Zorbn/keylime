@@ -1,6 +1,12 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use std::{cell::OnceCell, ffi::c_void, path::Path, ptr::NonNull};
+use std::{
+    cell::{OnceCell, RefCell},
+    ffi::c_void,
+    path::Path,
+    ptr::NonNull,
+    rc::Rc,
+};
 
 use objc2::{
     declare_class, msg_send, msg_send_id, mutability::MainThreadOnly, rc::Retained,
@@ -8,7 +14,7 @@ use objc2::{
 };
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate, NSBackingStoreType,
-    NSColor, NSEvent, NSWindow, NSWindowDelegate, NSWindowStyleMask,
+    NSColor, NSEvent, NSWindow, NSWindowStyleMask,
 };
 use objc2_foundation::{
     ns_string, MainThreadMarker, NSDate, NSNotification, NSObject, NSObjectProtocol, NSPoint,
@@ -29,6 +35,7 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::Mousebind,
     },
+    temp_buffer::TempBuffer,
 };
 
 use super::{file_watcher::FileWatcher, gfx::Gfx, pty::Pty, result::Result};
@@ -105,7 +112,8 @@ struct Ivars {
     start_date: Retained<NSDate>,
     command_queue: OnceCell<Retained<ProtocolObject<dyn MTLCommandQueue>>>,
     pipeline_state: OnceCell<Retained<ProtocolObject<dyn MTLRenderPipelineState>>>,
-    window: OnceCell<Retained<NSWindow>>,
+    ns_window: OnceCell<Retained<NSWindow>>,
+    window: Rc<RefCell<Window>>,
 }
 
 declare_class!(
@@ -127,9 +135,11 @@ declare_class!(
         #[method(applicationDidFinishLaunching:)]
         #[allow(non_snake_case)]
         unsafe fn applicationDidFinishLaunching(&self, _notification: &NSNotification) {
+            let window = self.ivars().window.clone();
+
             let mtm = MainThreadMarker::from(self);
 
-            let window = {
+            let ns_window = {
                 let content_rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(768.0, 768.0));
 
                 let style = NSWindowStyleMask::Closable
@@ -143,8 +153,8 @@ declare_class!(
             };
 
             unsafe {
-                window.setAcceptsMouseMovedEvents(true);
-                window.setBackgroundColor(Some(&NSColor::colorWithRed_green_blue_alpha(0.0, 0.0, 0.0, 1.0)));
+                ns_window.setAcceptsMouseMovedEvents(true);
+                ns_window.setBackgroundColor(Some(&NSColor::colorWithRed_green_blue_alpha(0.0, 0.0, 0.0, 1.0)));
             }
 
             let device = {
@@ -154,8 +164,8 @@ declare_class!(
 
             let command_queue = device.newCommandQueue().expect("Failed to create a command queue.");
 
-            let frame_rect = window.frame();
-            let mtk_view = KeylimeView::new(mtm, frame_rect, Some(&device));
+            let frame_rect = ns_window.frame();
+            let mtk_view = KeylimeView::new(window, mtm, frame_rect, Some(&device));
 
             unsafe {
                 mtk_view.setClearColor(MTLClearColor { red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0 });
@@ -182,14 +192,14 @@ declare_class!(
                 mtk_view.setDelegate(Some(object));
             }
 
-            window.setContentView(Some(&mtk_view));
-            window.center();
-            window.setTitle(ns_string!("Keylime"));
-            window.makeKeyAndOrderFront(None);
+            ns_window.setContentView(Some(&mtk_view));
+            ns_window.center();
+            ns_window.setTitle(ns_string!("Keylime"));
+            ns_window.makeKeyAndOrderFront(None);
 
             idcell!(command_queue => self);
             idcell!(pipeline_state => self);
-            idcell!(window => self);
+            idcell!(ns_window => self);
 
             unsafe {
                 let app: &mut NSApplication = msg_send![_notification, object];
@@ -296,6 +306,14 @@ declare_class!(
 
             command_buffer.presentDrawable(ProtocolObject::from_ref(&*current_drawable));
             command_buffer.commit();
+
+            let mut window = self.ivars().window.borrow_mut();
+
+            for c in &window.chars_typed {
+                println!("got char: {:?}", c);
+            }
+
+            window.chars_typed.clear();
         }
 
         #[method(mtkView:drawableSizeWillChange:)]
@@ -313,11 +331,16 @@ impl Delegate {
             start_date: unsafe { NSDate::now() },
             command_queue: OnceCell::default(),
             pipeline_state: OnceCell::default(),
-            window: OnceCell::default(),
+            ns_window: OnceCell::default(),
+            window: Rc::new(RefCell::new(Window::new())),
         });
 
         unsafe { msg_send_id![super(this), init] }
     }
+}
+
+struct KeylimeViewIvars {
+    window: Rc<RefCell<Window>>,
 }
 
 declare_class!(
@@ -330,7 +353,7 @@ declare_class!(
     }
 
     impl DeclaredClass for KeylimeView {
-        type Ivars = ();
+        type Ivars = KeylimeViewIvars;
     }
 
     unsafe impl KeylimeView {
@@ -343,7 +366,28 @@ declare_class!(
 
         #[method(keyDown:)]
         #[allow(non_snake_case)]
-        unsafe fn keyDown(&self, _event: &NSEvent) {
+        unsafe fn keyDown(&self, event: &NSEvent) {
+            if let Some(characters) = unsafe { event.characters() } {
+                let window = &mut *self.ivars().window.borrow_mut();
+                let Window { wide_text_buffer, chars_typed, .. } = window;
+
+                let wide_text_buffer = wide_text_buffer.get_mut();
+
+                for i in 0..characters.length() {
+                    let wide_char = unsafe { characters.characterAtIndex(i) };
+
+                    wide_text_buffer.push(wide_char);
+                }
+
+                for c in char::decode_utf16(wide_text_buffer.iter().copied()) {
+                    let Ok(c) = c else {
+                        continue;
+                    };
+
+                    chars_typed.push(c);
+                }
+            }
+
             println!("Key down");
         }
 
@@ -365,12 +409,13 @@ declare_class!(
 
 impl KeylimeView {
     fn new(
+        window: Rc<RefCell<Window>>,
         mtm: MainThreadMarker,
         frame_rect: NSRect,
         device: Option<&ProtocolObject<dyn MTLDevice>>,
     ) -> Retained<Self> {
         let this = mtm.alloc();
-        let this = this.set_ivars(());
+        let this = this.set_ivars(KeylimeViewIvars { window });
 
         unsafe {
             msg_send_id![
@@ -410,6 +455,8 @@ pub struct Window {
     gfx: Option<Gfx>,
     file_watcher: FileWatcher,
 
+    wide_text_buffer: TempBuffer<u16>,
+
     pub chars_typed: Vec<char>,
     pub keybinds_typed: Vec<Keybind>,
     pub mousebinds_pressed: Vec<Mousebind>,
@@ -417,6 +464,20 @@ pub struct Window {
 }
 
 impl Window {
+    pub fn new() -> Self {
+        Self {
+            gfx: None,
+            file_watcher: FileWatcher {},
+
+            wide_text_buffer: TempBuffer::new(),
+
+            chars_typed: Vec::new(),
+            keybinds_typed: Vec::new(),
+            mousebinds_pressed: Vec::new(),
+            mouse_scrolls: Vec::new(),
+        }
+    }
+
     pub fn update<'a>(
         &mut self,
         is_animating: bool,
