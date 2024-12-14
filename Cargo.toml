@@ -39,5 +39,42 @@ features = [
 ]
 
 [target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.26"
-metal = "0.30"
+objc2 = "0.5"
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2-app-kit]
+version = "0.2"
+features = [
+    "NSApplication",
+    "NSRunningApplication",
+    "NSResponder",
+    "NSWindow",
+    "NSGraphics",
+]
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2-foundation]
+version = "0.2"
+features = ["NSDate", "NSThread"]
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2-metal]
+version = "0.2"
+features = [
+    "MTLAccelerationStructureTypes",
+    "MTLCommandQueue",
+    "MTLCommandBuffer",
+    "MTLCommandEncoder",
+    "MTLRenderCommandEncoder",
+    "MTLRenderPipeline",
+    "MTLRenderPass",
+    "MTLPixelFormat",
+    "MTLDevice",
+    "MTLLibrary",
+    "MTLDrawable",
+]
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2-metal-kit]
+version = "0.2"
+features = ["MTKView", "objc2-app-kit", "objc2-quartz-core"]
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2-quartz-core]
+version = "0.2"
+features = ["objc2-metal"]
