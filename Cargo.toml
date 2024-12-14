@@ -50,6 +50,7 @@ features = [
     "NSWindow",
     "NSGraphics",
     "NSColor",
+    "NSEvent",
 ]
 
 [target.'cfg(target_os = "macos")'.dependencies.objc2-foundation]

@@ -8,7 +8,7 @@ use objc2::{
 };
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate, NSBackingStoreType,
-    NSColor, NSWindow, NSWindowStyleMask,
+    NSColor, NSEvent, NSWindow, NSWindowDelegate, NSWindowStyleMask,
 };
 use objc2_foundation::{
     ns_string, MainThreadMarker, NSDate, NSNotification, NSObject, NSObjectProtocol, NSPoint,
@@ -137,21 +137,13 @@ declare_class!(
                     | NSWindowStyleMask::Miniaturizable
                     | NSWindowStyleMask::Titled;
 
-                let backing_store_type = NSBackingStoreType::NSBackingStoreBuffered;
-                let flag = false;
-
                 unsafe {
-                    NSWindow::initWithContentRect_styleMask_backing_defer(
-                        mtm.alloc(),
-                        content_rect,
-                        style,
-                        backing_store_type,
-                        flag,
-                    )
+                    NSWindow::initWithContentRect_styleMask_backing_defer(mtm.alloc(), content_rect, style, NSBackingStoreType::NSBackingStoreBuffered, false)
                 }
             };
 
             unsafe {
+                window.setAcceptsMouseMovedEvents(true);
                 window.setBackgroundColor(Some(&NSColor::colorWithRed_green_blue_alpha(0.0, 0.0, 0.0, 1.0)));
             }
 
@@ -162,10 +154,8 @@ declare_class!(
 
             let command_queue = device.newCommandQueue().expect("Failed to create a command queue.");
 
-            let mtk_view = {
-                let frame_rect = window.frame();
-                unsafe { MTKView::initWithFrame_device(mtm.alloc(), frame_rect, Some(&device)) }
-            };
+            let frame_rect = window.frame();
+            let mtk_view = KeylimeView::new(mtm, frame_rect, Some(&device));
 
             unsafe {
                 mtk_view.setClearColor(MTLClearColor { red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0 });
@@ -327,6 +317,67 @@ impl Delegate {
         });
 
         unsafe { msg_send_id![super(this), init] }
+    }
+}
+
+declare_class!(
+    struct KeylimeView;
+
+    unsafe impl ClassType for KeylimeView {
+        type Super = MTKView;
+        type Mutability = MainThreadOnly;
+        const NAME: &'static str = "KeylimeView";
+    }
+
+    impl DeclaredClass for KeylimeView {
+        type Ivars = ();
+    }
+
+    unsafe impl KeylimeView {
+        #[method(acceptsFirstResponder)]
+        #[allow(non_snake_case)]
+        unsafe fn acceptsFirstResponder(&self) -> bool {
+            println!("called");
+            true
+        }
+
+        #[method(keyDown:)]
+        #[allow(non_snake_case)]
+        unsafe fn keyDown(&self, _event: &NSEvent) {
+            println!("Key down");
+        }
+
+        #[method(mouseDown:)]
+        #[allow(non_snake_case)]
+        unsafe fn mouseDown(&self, event: &NSEvent) {
+            let click_count = unsafe { event.clickCount() };
+
+            println!("Clicked!: {:?}", click_count);
+        }
+
+        #[method(mouseMoved:)]
+        #[allow(non_snake_case)]
+        unsafe fn mouseMoved(&self, _event: &NSEvent) {
+            println!("mouse moved");
+        }
+    }
+);
+
+impl KeylimeView {
+    fn new(
+        mtm: MainThreadMarker,
+        frame_rect: NSRect,
+        device: Option<&ProtocolObject<dyn MTLDevice>>,
+    ) -> Retained<Self> {
+        let this = mtm.alloc();
+        let this = this.set_ivars(());
+
+        unsafe {
+            msg_send_id![
+                super(this),
+                initWithFrame: frame_rect, device: device
+            ]
+        }
     }
 }
 
