@@ -8,16 +8,16 @@ use objc2::{
 };
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate, NSBackingStoreType,
-    NSWindow, NSWindowStyleMask,
+    NSColor, NSWindow, NSWindowStyleMask,
 };
 use objc2_foundation::{
     ns_string, MainThreadMarker, NSDate, NSNotification, NSObject, NSObjectProtocol, NSPoint,
     NSRect, NSSize,
 };
 use objc2_metal::{
-    MTLCommandBuffer, MTLCommandEncoder, MTLCommandQueue, MTLCreateSystemDefaultDevice, MTLDevice,
-    MTLLibrary, MTLPackedFloat3, MTLPrimitiveType, MTLRenderCommandEncoder,
-    MTLRenderPipelineDescriptor, MTLRenderPipelineState,
+    MTLClearColor, MTLCommandBuffer, MTLCommandEncoder, MTLCommandQueue,
+    MTLCreateSystemDefaultDevice, MTLDevice, MTLLibrary, MTLPackedFloat3, MTLPrimitiveType,
+    MTLRenderCommandEncoder, MTLRenderPipelineDescriptor, MTLRenderPipelineState,
 };
 use objc2_metal_kit::{MTKView, MTKViewDelegate};
 
@@ -151,6 +151,10 @@ declare_class!(
                 }
             };
 
+            unsafe {
+                window.setBackgroundColor(Some(&NSColor::colorWithRed_green_blue_alpha(0.0, 0.0, 0.0, 1.0)));
+            }
+
             let device = {
                 let ptr = unsafe { MTLCreateSystemDefaultDevice() };
                 unsafe { Retained::retain(ptr) }.expect("Failed to get default system device.")
@@ -162,6 +166,10 @@ declare_class!(
                 let frame_rect = window.frame();
                 unsafe { MTKView::initWithFrame_device(mtm.alloc(), frame_rect, Some(&device)) }
             };
+
+            unsafe {
+                mtk_view.setClearColor(MTLClearColor { red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0 });
+            }
 
             let pipeline_descriptor = MTLRenderPipelineDescriptor::new();
 
