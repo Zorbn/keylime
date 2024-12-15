@@ -14,8 +14,8 @@ use objc2_app_kit::{NSEvent, NSWindow};
 use objc2_foundation::{ns_string, MainThreadMarker, NSRect};
 use objc2_metal::{
     MTLBuffer, MTLClearColor, MTLCommandBuffer, MTLCommandEncoder, MTLCommandQueue,
-    MTLCreateSystemDefaultDevice, MTLDevice, MTLIndexType, MTLLibrary, MTLPackedFloat3,
-    MTLPrimitiveType, MTLRenderCommandEncoder, MTLRenderPipelineDescriptor, MTLRenderPipelineState,
+    MTLCreateSystemDefaultDevice, MTLDevice, MTLIndexType, MTLLibrary, MTLPrimitiveType,
+    MTLRenderCommandEncoder, MTLRenderPipelineDescriptor, MTLRenderPipelineState,
     MTLResourceOptions, MTLScissorRect,
 };
 use objc2_metal_kit::{MTKView, MTKViewDelegate};
@@ -39,8 +39,8 @@ struct SceneProperties {
 };
 
 struct VertexInput {
-    metal::packed_float3 position;
-    metal::packed_float3 color;
+    metal::float4 position;
+    metal::float4 color;
 };
 
 struct VertexOutput {
@@ -56,7 +56,7 @@ vertex VertexOutput vertex_main(
     VertexOutput out;
     VertexInput in = vertices[vertex_idx];
     out.position = properties.projection * metal::float4(in.position.xyz, 1);
-    out.color = metal::float4(in.color, 1);
+    out.color = in.color;
     return out;
 }
 
@@ -74,8 +74,8 @@ struct SceneProperties {
 #[derive(Copy, Clone)]
 #[repr(C)]
 struct VertexInput {
-    position: MTLPackedFloat3,
-    color: MTLPackedFloat3,
+    position: [f32; 4],
+    color: [f32; 4],
 }
 
 struct KeylimeViewIvars {
@@ -422,54 +422,29 @@ impl Gfx {
         let right = left + dst.width;
         let bottom = top + dst.height;
 
+        let color = [
+            color.r as f32 / 255.0,
+            color.g as f32 / 255.0,
+            color.b as f32 / 255.0,
+            color.a as f32 / 255.0,
+        ];
+
         self.vertices.extend_from_slice(&[
             VertexInput {
-                position: MTLPackedFloat3 {
-                    x: left,
-                    y: top,
-                    z: 0.,
-                },
-                color: MTLPackedFloat3 {
-                    x: 1.,
-                    y: 0.,
-                    z: 0.,
-                },
+                position: [left, top, 0.0, 0.0],
+                color,
             },
             VertexInput {
-                position: MTLPackedFloat3 {
-                    x: right,
-                    y: top,
-                    z: 0.,
-                },
-                color: MTLPackedFloat3 {
-                    x: 0.,
-                    y: 1.,
-                    z: 0.,
-                },
+                position: [right, top, 0.0, 0.0],
+                color,
             },
             VertexInput {
-                position: MTLPackedFloat3 {
-                    x: right,
-                    y: bottom,
-                    z: 0.,
-                },
-                color: MTLPackedFloat3 {
-                    x: 0.,
-                    y: 0.,
-                    z: 1.,
-                },
+                position: [right, bottom, 0.0, 0.0],
+                color,
             },
             VertexInput {
-                position: MTLPackedFloat3 {
-                    x: left,
-                    y: bottom,
-                    z: 0.,
-                },
-                color: MTLPackedFloat3 {
-                    x: 0.,
-                    y: 0.,
-                    z: 1.,
-                },
+                position: [left, bottom, 0.0, 0.0],
+                color,
             },
         ]);
     }
