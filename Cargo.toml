@@ -71,6 +71,9 @@ features = [
     "MTLDevice",
     "MTLLibrary",
     "MTLDrawable",
+    "MTLBuffer",
+    "MTLResource",
+    "MTLStageInputOutputDescriptor",
 ]
 
 [target.'cfg(target_os = "macos")'.dependencies.objc2-metal-kit]

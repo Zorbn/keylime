@@ -2,9 +2,7 @@
 
 use std::{
     cell::{OnceCell, RefCell},
-    ffi::c_void,
     path::Path,
-    ptr::NonNull,
     rc::Rc,
 };
 
@@ -17,13 +15,8 @@ use objc2_app_kit::{
     NSColor, NSEvent, NSWindow, NSWindowStyleMask,
 };
 use objc2_foundation::{
-    ns_string, MainThreadMarker, NSDate, NSNotification, NSObject, NSObjectProtocol, NSPoint,
-    NSRect, NSSize,
-};
-use objc2_metal::{
-    MTLClearColor, MTLCommandBuffer, MTLCommandEncoder, MTLCommandQueue,
-    MTLCreateSystemDefaultDevice, MTLDevice, MTLLibrary, MTLPackedFloat3, MTLPrimitiveType,
-    MTLRenderCommandEncoder, MTLRenderPipelineDescriptor, MTLRenderPipelineState,
+    ns_string, MainThreadMarker, NSNotification, NSObject, NSObjectProtocol, NSPoint, NSRect,
+    NSSize,
 };
 use objc2_metal_kit::{MTKView, MTKViewDelegate};
 
@@ -40,60 +33,6 @@ use crate::{
 
 use super::{file_watcher::FileWatcher, gfx::Gfx, pty::Pty, result::Result};
 
-const SHADER_CODE: &str = "
-#include <metal_stdlib>
-
-struct SceneProperties {
-    float time;
-};
-
-struct VertexInput {
-    metal::packed_float3 position;
-    metal::packed_float3 color;
-};
-
-struct VertexOutput {
-    metal::float4 position [[position]];
-    metal::float4 color;
-};
-
-vertex VertexOutput vertex_main(
-    device const SceneProperties& properties [[buffer(0)]],
-    device const VertexInput* vertices [[buffer(1)]],
-    uint vertex_idx [[vertex_id]]
-) {
-    VertexOutput out;
-    VertexInput in = vertices[vertex_idx];
-    out.position =
-        metal::float4(
-            metal::float2x2(
-                metal::cos(properties.time), -metal::sin(properties.time),
-                metal::sin(properties.time),  metal::cos(properties.time)
-            ) * in.position.xy,
-            in.position.z,
-            1);
-    out.color = metal::float4(in.color, 1);
-    return out;
-}
-
-fragment metal::float4 fragment_main(VertexOutput in [[stage_in]]) {
-    return in.color;
-}
-";
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-struct SceneProperties {
-    time: f32,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-struct VertexInput {
-    position: MTLPackedFloat3,
-    color: MTLPackedFloat3,
-}
-
 macro_rules! idcell {
     ($name:ident => $this:expr) => {
         $this.ivars().$name.set($name).expect(&format!(
@@ -109,10 +48,8 @@ macro_rules! idcell {
 }
 
 struct Ivars {
-    start_date: Retained<NSDate>,
-    command_queue: OnceCell<Retained<ProtocolObject<dyn MTLCommandQueue>>>,
-    pipeline_state: OnceCell<Retained<ProtocolObject<dyn MTLRenderPipelineState>>>,
     ns_window: OnceCell<Retained<NSWindow>>,
+    app: Rc<RefCell<App>>,
     window: Rc<RefCell<Window>>,
 }
 
@@ -136,6 +73,7 @@ declare_class!(
         #[allow(non_snake_case)]
         unsafe fn applicationDidFinishLaunching(&self, _notification: &NSNotification) {
             let window = self.ivars().window.clone();
+            let app = self.ivars().app.borrow();
 
             let mtm = MainThreadMarker::from(self);
 
@@ -153,52 +91,28 @@ declare_class!(
             };
 
             unsafe {
+                let theme = &app.config().theme;
+
+                let r = theme.background.r as f64 / 255.0f64;
+                let g = theme.background.g as f64 / 255.0f64;
+                let b = theme.background.b as f64 / 255.0f64;
+                let a = theme.background.a as f64 / 255.0f64;
+
+                ns_window.setBackgroundColor(Some(&NSColor::colorWithRed_green_blue_alpha(r, g, b, a)));
                 ns_window.setAcceptsMouseMovedEvents(true);
-                ns_window.setBackgroundColor(Some(&NSColor::colorWithRed_green_blue_alpha(0.0, 0.0, 0.0, 1.0)));
             }
 
-            let device = {
-                let ptr = unsafe { MTLCreateSystemDefaultDevice() };
-                unsafe { Retained::retain(ptr) }.expect("Failed to get default system device.")
+            let gfx = unsafe {
+                let protocol_object = ProtocolObject::from_ref(self);
+                Gfx::new("Menlo", 12.0, window.clone(), &ns_window, mtm, protocol_object).unwrap()
             };
 
-            let command_queue = device.newCommandQueue().expect("Failed to create a command queue.");
-
-            let frame_rect = ns_window.frame();
-            let mtk_view = KeylimeView::new(window, mtm, frame_rect, Some(&device));
-
-            unsafe {
-                mtk_view.setClearColor(MTLClearColor { red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0 });
-            }
-
-            let pipeline_descriptor = MTLRenderPipelineDescriptor::new();
-
-            unsafe {
-                pipeline_descriptor.colorAttachments().objectAtIndexedSubscript(0).setPixelFormat(mtk_view.colorPixelFormat())
-            }
-
-            let library = device.newLibraryWithSource_options_error(ns_string!(SHADER_CODE), None).expect("Failed to create library.");
-
-            let vertex_function = library.newFunctionWithName(ns_string!("vertex_main"));
-            pipeline_descriptor.setVertexFunction(vertex_function.as_deref());
-
-            let fragment_function = library.newFunctionWithName(ns_string!("fragment_main"));
-            pipeline_descriptor.setFragmentFunction(fragment_function.as_deref());
-
-            let pipeline_state = device.newRenderPipelineStateWithDescriptor_error(&pipeline_descriptor).expect("Failed to create a pipeline state.");
-
-            unsafe {
-                let object = ProtocolObject::from_ref(self);
-                mtk_view.setDelegate(Some(object));
-            }
-
-            ns_window.setContentView(Some(&mtk_view));
             ns_window.center();
             ns_window.setTitle(ns_string!("Keylime"));
             ns_window.makeKeyAndOrderFront(None);
 
-            idcell!(command_queue => self);
-            idcell!(pipeline_state => self);
+            window.borrow_mut().gfx = Some(gfx);
+
             idcell!(ns_window => self);
 
             unsafe {
@@ -217,103 +131,13 @@ declare_class!(
     unsafe impl MTKViewDelegate for Delegate {
         #[method(drawInMTKView:)]
         #[allow(non_snake_case)]
-        unsafe fn drawInMTKView(&self, mtk_view: &MTKView) {
-            idcell!(command_queue <= self);
-            idcell!(pipeline_state <= self);
+        unsafe fn drawInMTKView(&self, _view: &MTKView) {
+            let window = &mut *self.ivars().window.borrow_mut();
+            let mut app = self.ivars().app.borrow_mut();
 
-            let Some(current_drawable) = (unsafe { mtk_view.currentDrawable() }) else {
-                return;
-            };
-
-            let Some(command_buffer) = command_queue.commandBuffer() else {
-                return;
-            };
-
-            let Some(pass_descriptor) = (unsafe { mtk_view.currentRenderPassDescriptor() }) else {
-                return;
-            };
-
-            let Some(encoder) = command_buffer.renderCommandEncoderWithDescriptor(&pass_descriptor) else {
-                return;
-            };
-
-            let scene_properties_data = &SceneProperties {
-                time: unsafe { self.ivars().start_date.timeIntervalSinceNow() } as f32,
-            };
-
-            let scene_properties_bytes = NonNull::from(scene_properties_data);
-
-            unsafe {
-                encoder.setVertexBytes_length_atIndex(scene_properties_bytes.cast::<c_void>(), size_of_val(scene_properties_data), 0);
-            }
-
-            let vertex_input_data: &[VertexInput] = &[
-                VertexInput {
-                    position: MTLPackedFloat3 {
-                        x: -f32::sqrt(3.0) / 4.0,
-                        y: -0.25,
-                        z: 0.,
-                    },
-                    color: MTLPackedFloat3 {
-                        x: 1.,
-                        y: 0.,
-                        z: 0.,
-                    },
-                },
-                VertexInput {
-                    position: MTLPackedFloat3 {
-                        x: f32::sqrt(3.0) / 4.0,
-                        y: -0.25,
-                        z: 0.,
-                    },
-                    color: MTLPackedFloat3 {
-                        x: 0.,
-                        y: 1.,
-                        z: 0.,
-                    },
-                },
-                VertexInput {
-                    position: MTLPackedFloat3 {
-                        x: 0.,
-                        y: 0.5,
-                        z: 0.,
-                    },
-                    color: MTLPackedFloat3 {
-                        x: 0.,
-                        y: 0.,
-                        z: 1.,
-                    },
-                },
-            ];
-
-            let vertex_input_bytes = NonNull::from(vertex_input_data);
-
-            unsafe {
-                encoder.setVertexBytes_length_atIndex(
-                    vertex_input_bytes.cast::<c_void>(),
-                    size_of_val(vertex_input_data),
-                    1,
-                );
-            }
-
-            encoder.setRenderPipelineState(pipeline_state);
-
-            unsafe {
-                encoder.drawPrimitives_vertexStart_vertexCount(MTLPrimitiveType::Triangle, 0, 3);
-            }
-
-            encoder.endEncoding();
-
-            command_buffer.presentDrawable(ProtocolObject::from_ref(&*current_drawable));
-            command_buffer.commit();
-
-            let mut window = self.ivars().window.borrow_mut();
-
-            for c in &window.chars_typed {
-                println!("got char: {:?}", c);
-            }
-
-            window.chars_typed.clear();
+            app.update(window);
+            window.clear_inputs();
+            app.draw(window);
         }
 
         #[method(mtkView:drawableSizeWillChange:)]
@@ -325,114 +149,27 @@ declare_class!(
 );
 
 impl Delegate {
-    fn new(mtm: MainThreadMarker) -> Retained<Self> {
+    fn new(app: Rc<RefCell<App>>, mtm: MainThreadMarker) -> Retained<Self> {
         let this = mtm.alloc();
         let this = this.set_ivars(Ivars {
-            start_date: unsafe { NSDate::now() },
-            command_queue: OnceCell::default(),
-            pipeline_state: OnceCell::default(),
             ns_window: OnceCell::default(),
             window: Rc::new(RefCell::new(Window::new())),
+            app,
         });
 
         unsafe { msg_send_id![super(this), init] }
     }
 }
 
-struct KeylimeViewIvars {
-    window: Rc<RefCell<Window>>,
-}
-
-declare_class!(
-    struct KeylimeView;
-
-    unsafe impl ClassType for KeylimeView {
-        type Super = MTKView;
-        type Mutability = MainThreadOnly;
-        const NAME: &'static str = "KeylimeView";
-    }
-
-    impl DeclaredClass for KeylimeView {
-        type Ivars = KeylimeViewIvars;
-    }
-
-    unsafe impl KeylimeView {
-        #[method(acceptsFirstResponder)]
-        #[allow(non_snake_case)]
-        unsafe fn acceptsFirstResponder(&self) -> bool {
-            println!("called");
-            true
-        }
-
-        #[method(keyDown:)]
-        #[allow(non_snake_case)]
-        unsafe fn keyDown(&self, event: &NSEvent) {
-            if let Some(characters) = unsafe { event.characters() } {
-                let window = &mut *self.ivars().window.borrow_mut();
-                let Window { wide_text_buffer, chars_typed, .. } = window;
-
-                let wide_text_buffer = wide_text_buffer.get_mut();
-
-                for i in 0..characters.length() {
-                    let wide_char = unsafe { characters.characterAtIndex(i) };
-
-                    wide_text_buffer.push(wide_char);
-                }
-
-                for c in char::decode_utf16(wide_text_buffer.iter().copied()) {
-                    let Ok(c) = c else {
-                        continue;
-                    };
-
-                    chars_typed.push(c);
-                }
-            }
-
-            println!("Key down");
-        }
-
-        #[method(mouseDown:)]
-        #[allow(non_snake_case)]
-        unsafe fn mouseDown(&self, event: &NSEvent) {
-            let click_count = unsafe { event.clickCount() };
-
-            println!("Clicked!: {:?}", click_count);
-        }
-
-        #[method(mouseMoved:)]
-        #[allow(non_snake_case)]
-        unsafe fn mouseMoved(&self, _event: &NSEvent) {
-            println!("mouse moved");
-        }
-    }
-);
-
-impl KeylimeView {
-    fn new(
-        window: Rc<RefCell<Window>>,
-        mtm: MainThreadMarker,
-        frame_rect: NSRect,
-        device: Option<&ProtocolObject<dyn MTLDevice>>,
-    ) -> Retained<Self> {
-        let this = mtm.alloc();
-        let this = this.set_ivars(KeylimeViewIvars { window });
-
-        unsafe {
-            msg_send_id![
-                super(this),
-                initWithFrame: frame_rect, device: device
-            ]
-        }
-    }
-}
-
 pub struct WindowRunner {
-    app: App,
+    app: Rc<RefCell<App>>,
 }
 
 impl WindowRunner {
     pub fn new(app: App) -> Result<Box<Self>> {
-        Ok(Box::new(WindowRunner { app }))
+        Ok(Box::new(WindowRunner {
+            app: Rc::new(RefCell::new(app)),
+        }))
     }
 
     pub fn run(&mut self) {
@@ -441,7 +178,7 @@ impl WindowRunner {
         let app = NSApplication::sharedApplication(mtm);
         app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
 
-        let delegate = Delegate::new(mtm);
+        let delegate = Delegate::new(self.app.clone(), mtm);
         let object = ProtocolObject::from_ref(&*delegate);
         app.setDelegate(Some(object));
 
@@ -487,6 +224,30 @@ impl Window {
         (0.0, 0.0)
     }
 
+    fn clear_inputs(&mut self) {
+        self.chars_typed.clear();
+    }
+
+    pub fn handle_key_down(&mut self, event: &NSEvent) {
+        if let Some(characters) = unsafe { event.characters() } {
+            let wide_text_buffer = self.wide_text_buffer.get_mut();
+
+            for i in 0..characters.length() {
+                let wide_char = unsafe { characters.characterAtIndex(i) };
+
+                wide_text_buffer.push(wide_char);
+            }
+
+            for c in char::decode_utf16(wide_text_buffer.iter().copied()) {
+                let Ok(c) = c else {
+                    continue;
+                };
+
+                self.chars_typed.push(c);
+            }
+        }
+    }
+
     pub fn is_running(&self) -> bool {
         true
     }
@@ -508,7 +269,7 @@ impl Window {
     }
 
     pub fn get_char_handler(&self) -> CharHandler {
-        CharHandler::new(0)
+        CharHandler::new(self.chars_typed.len())
     }
 
     pub fn get_keybind_handler(&self) -> KeybindHandler {
