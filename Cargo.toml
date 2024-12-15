@@ -74,6 +74,8 @@ features = [
     "MTLBuffer",
     "MTLResource",
     "MTLStageInputOutputDescriptor",
+    "MTLTexture",
+    "MTLTypes",
 ]
 
 [target.'cfg(target_os = "macos")'.dependencies.objc2-metal-kit]
@@ -83,3 +85,33 @@ features = ["MTKView", "objc2-app-kit", "objc2-quartz-core"]
 [target.'cfg(target_os = "macos")'.dependencies.objc2-quartz-core]
 version = "0.2"
 features = ["objc2-metal"]
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2-core-text]
+git = "https://github.com/madsmtm/objc2"
+rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9"
+features = [
+    "CTFont",
+    "CTFontDescriptor",
+    "CTFrame",
+    "CTFramesetter",
+    "CTRunDelegate",
+    "CTStringAttributes",
+    "objc2-core-foundation",
+    "objc2-core-graphics",
+]
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2-core-foundation]
+git = "https://github.com/madsmtm/objc2"
+rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9"
+features = ["CFString"]
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2-core-graphics]
+git = "https://github.com/madsmtm/objc2"
+rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9"
+features = [
+    "CGAffineTransform",
+    "CGPath",
+    "CGColorSpace",
+    "CGContext",
+    "CGBitmapContext",
+]

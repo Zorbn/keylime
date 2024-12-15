@@ -15,9 +15,10 @@ use objc2_foundation::{ns_string, MainThreadMarker, NSRect};
 use objc2_metal::{
     MTLBlendFactor, MTLBlendOperation, MTLBuffer, MTLClearColor, MTLCommandBuffer,
     MTLCommandEncoder, MTLCommandQueue, MTLCreateSystemDefaultDevice, MTLDevice, MTLIndexType,
-    MTLLibrary, MTLPrimitiveType, MTLRenderCommandEncoder,
+    MTLLibrary, MTLOrigin, MTLPixelFormat, MTLPrimitiveType, MTLRegion, MTLRenderCommandEncoder,
     MTLRenderPipelineColorAttachmentDescriptor, MTLRenderPipelineDescriptor,
-    MTLRenderPipelineState, MTLResourceOptions, MTLScissorRect,
+    MTLRenderPipelineState, MTLResourceOptions, MTLScissorRect, MTLSize, MTLTexture,
+    MTLTextureDescriptor,
 };
 use objc2_metal_kit::{MTKView, MTKViewDelegate};
 
@@ -30,7 +31,11 @@ use crate::{
     ui::color::Color,
 };
 
-use super::{result::Result, window::Window};
+use super::{
+    result::Result,
+    text::{AtlasDimensions, Text},
+    window::Window,
+};
 
 const SHADER_CODE: &str = "
 #include <metal_stdlib>
@@ -42,11 +47,13 @@ struct SceneProperties {
 struct VertexInput {
     metal::float4 position;
     metal::float4 color;
+    metal::float4 uv;
 };
 
 struct VertexOutput {
     metal::float4 position [[position]];
     metal::float4 color;
+    metal::float2 uv;
 };
 
 vertex VertexOutput vertex_main(
@@ -54,15 +61,25 @@ vertex VertexOutput vertex_main(
     device const VertexInput* vertices [[buffer(1)]],
     uint vertex_idx [[vertex_id]]
 ) {
-    VertexOutput out;
-    VertexInput in = vertices[vertex_idx];
-    out.position = properties.projection * metal::float4(in.position.xyz, 1);
-    out.color = in.color;
-    return out;
+    VertexOutput output;
+    VertexInput input = vertices[vertex_idx];
+    output.position = properties.projection * metal::float4(input.position.xyz, 1);
+    output.color = input.color;
+    output.uv = input.uv.xy;
+    return output;
 }
 
-fragment metal::float4 fragment_main(VertexOutput in [[stage_in]]) {
-    return in.color;
+fragment metal::float4 fragment_main(
+    VertexOutput input [[stage_in]],
+    metal::texture2d<float> color_texture [[texture(0)]]
+) {
+    constexpr metal::sampler texture_sampler(metal::mag_filter::nearest, metal::min_filter::nearest);
+
+    const metal::float4 color_sample = color_texture.sample(texture_sampler, input.uv);
+
+    return input.uv.y < 0.0 ?
+        input.color :
+        float4(input.color.rgb, color_sample.a);
 }
 ";
 
@@ -77,6 +94,7 @@ struct SceneProperties {
 struct VertexInput {
     position: [f32; 4],
     color: [f32; 4],
+    uv: [f32; 4],
 }
 
 struct KeylimeViewIvars {
@@ -116,7 +134,7 @@ declare_class!(
 
         #[method(mouseDown:)]
         #[allow(non_snake_case)]
-        unsafe fn mouseDown(&self, event: &NSEvent) {
+        unsafe fn mouseDown(&self, _event: &NSEvent) {
             // let click_count = unsafe { event.clickCount() };
 
             // println!("Clicked!: {:?}", click_count);
@@ -168,6 +186,12 @@ pub struct Gfx {
     encoder: Option<Retained<ProtocolObject<dyn MTLRenderCommandEncoder>>>,
 
     bounds: Rect,
+
+    atlas_dimensions: AtlasDimensions,
+    texture: Retained<ProtocolObject<dyn MTLTexture>>,
+
+    width: f32,
+    height: f32,
 }
 
 impl Gfx {
@@ -240,6 +264,38 @@ impl Gfx {
 
         ns_window.setContentView(Some(&view));
 
+        let mut atlas = Text::test(font_name, font_size, 1.0);
+
+        let texture_descriptor =
+            MTLTextureDescriptor::texture2DDescriptorWithPixelFormat_width_height_mipmapped(
+                MTLPixelFormat::RGBA8Unorm,
+                atlas.dimensions.width,
+                atlas.dimensions.height,
+                false,
+            );
+
+        let texture = device
+            .newTextureWithDescriptor(&texture_descriptor)
+            .unwrap();
+
+        let region = MTLRegion {
+            origin: MTLOrigin { x: 0, y: 0, z: 0 },
+            size: MTLSize {
+                width: atlas.dimensions.width,
+                height: atlas.dimensions.height,
+                depth: 1,
+            },
+        };
+
+        texture.replaceRegion_mipmapLevel_withBytes_bytesPerRow(
+            region,
+            0,
+            NonNull::new(atlas.data.as_mut_ptr())
+                .unwrap()
+                .cast::<c_void>(),
+            atlas.dimensions.width * 4,
+        );
+
         Ok(Gfx {
             device,
             command_queue,
@@ -256,10 +312,19 @@ impl Gfx {
             encoder: None,
 
             bounds: Rect::zero(),
+
+            atlas_dimensions: atlas.dimensions,
+            texture,
+
+            width: 0.0,
+            height: 0.0,
         })
     }
 
-    pub unsafe fn resize(&mut self, width: i32, height: i32) -> Result<()> {
+    pub fn resize(&mut self, width: i32, height: i32) -> Result<()> {
+        self.width = width as f32;
+        self.height = height as f32;
+
         Ok(())
     }
 
@@ -323,9 +388,15 @@ impl Gfx {
         self.indices.clear();
 
         if let Some(bounds) = bounds {
-            self.bounds = bounds;
+            // TODO: Figure out why the flooring/ceiling is necessary here but not on Windows.
+            self.bounds = Rect::new(
+                bounds.x.ceil(),
+                bounds.y.ceil(),
+                bounds.width.floor(),
+                bounds.height.floor(),
+            );
         } else {
-            self.bounds = Rect::new(0.0, 0.0, 768.0, 768.0);
+            self.bounds = Rect::new(0.0, 0.0, self.width, self.height);
         }
     }
 
@@ -341,7 +412,7 @@ impl Gfx {
             height: self.bounds.height as usize,
         });
 
-        let projection = ortho(0.0, 768.0, 0.0, 768.0, -1.0, 1.0);
+        let projection = ortho(0.0, self.width, 0.0, self.height, -1.0, 1.0);
 
         let scene_properties_data = &SceneProperties {
             projection_matrix: projection,
@@ -375,6 +446,8 @@ impl Gfx {
             );
 
             encoder.setVertexBuffer_offset_atIndex(Some(&vertex_buffer), 0, 1);
+
+            encoder.setFragmentTexture_atIndex(Some(&self.texture), 0);
         }
 
         unsafe {
@@ -423,6 +496,7 @@ impl Gfx {
 
     pub fn add_sprite(&mut self, src: Rect, dst: Rect, color: Color) {
         let vertex_count = self.vertices.len() as u32;
+
         self.indices.extend_from_slice(&[
             vertex_count,
             vertex_count + 1,
@@ -437,6 +511,11 @@ impl Gfx {
         let right = left + dst.width;
         let bottom = top + dst.height;
 
+        let uv_left = src.x;
+        let uv_right = src.x + src.width;
+        let uv_top = src.y;
+        let uv_bottom = src.y + src.height;
+
         let color = [
             color.r as f32 / 255.0,
             color.g as f32 / 255.0,
@@ -448,18 +527,22 @@ impl Gfx {
             VertexInput {
                 position: [left, top, 0.0, 0.0],
                 color,
+                uv: [uv_left, uv_top, 0.0, 0.0],
             },
             VertexInput {
                 position: [right, top, 0.0, 0.0],
                 color,
+                uv: [uv_right, uv_top, 0.0, 0.0],
             },
             VertexInput {
                 position: [right, bottom, 0.0, 0.0],
                 color,
+                uv: [uv_right, uv_bottom, 0.0, 0.0],
             },
             VertexInput {
                 position: [left, bottom, 0.0, 0.0],
                 color,
+                uv: [uv_left, uv_bottom, 0.0, 0.0],
             },
         ]);
     }
@@ -481,7 +564,23 @@ impl Gfx {
         text: impl IntoIterator<Item = impl Borrow<char>>,
         visual_x: isize,
     ) -> isize {
-        0
+        // TODO: Copied from Windows impl.
+        let mut current_visual_x = 0isize;
+        let mut x = 0isize;
+
+        for c in text.into_iter() {
+            let c = *c.borrow();
+
+            current_visual_x += if c == '\t' { TAB_WIDTH as isize } else { 1 };
+
+            if current_visual_x > visual_x {
+                return x;
+            }
+
+            x += 1;
+        }
+
+        x
     }
 
     pub fn get_char_width(c: char) -> isize {
@@ -504,19 +603,14 @@ impl Gfx {
         let min_char = b' ' as u32;
         let max_char = b'~' as u32;
 
-        // let AtlasDimensions {
-        //     width,
-        //     glyph_offset_x,
-        //     glyph_step_x,
-        //     glyph_width,
-        //     glyph_height,
-        //     ..
-        // } = self.atlas_dimensions;
-        let width = 1.0;
-        let glyph_offset_x = 0.0;
-        let glyph_step_x = 8.0;
-        let glyph_width = 8.0;
-        let glyph_height = 10.0;
+        let AtlasDimensions {
+            width,
+            glyph_offset_x,
+            glyph_step_x,
+            glyph_width,
+            glyph_height,
+            ..
+        } = self.atlas_dimensions;
 
         let mut i = 0;
 
@@ -538,6 +632,8 @@ impl Gfx {
 
             let mut destination_x = x + i as f32 * glyph_width;
             let mut destination_width = glyph_step_x;
+
+            assert!(destination_x == destination_x.floor());
 
             // DirectWrite might press the first character in the atlas right up against the left edge (eg. the exclamation point),
             // so we'll just shift it back to the center when rendering if necessary.
@@ -604,15 +700,15 @@ impl Gfx {
     }
 
     pub fn glyph_width(&self) -> f32 {
-        8.0
+        self.atlas_dimensions.glyph_width
     }
 
     pub fn glyph_height(&self) -> f32 {
-        10.0
+        self.atlas_dimensions.glyph_height
     }
 
     pub fn line_height(&self) -> f32 {
-        12.0
+        self.atlas_dimensions.line_height
     }
 
     pub fn line_padding(&self) -> f32 {
@@ -624,11 +720,11 @@ impl Gfx {
     }
 
     pub fn width(&self) -> f32 {
-        768.0
+        self.width
     }
 
     pub fn height(&self) -> f32 {
-        768.0
+        self.height
     }
 
     pub fn tab_height(&self) -> f32 {

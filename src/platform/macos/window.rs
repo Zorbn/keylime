@@ -78,8 +78,9 @@ declare_class!(
 
             let mtm = MainThreadMarker::from(self);
 
+            let content_rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(768.0, 768.0));
+
             let ns_window = {
-                let content_rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(768.0, 768.0));
 
                 let style = NSWindowStyleMask::Closable
                     | NSWindowStyleMask::Resizable
@@ -103,10 +104,12 @@ declare_class!(
                 ns_window.setAcceptsMouseMovedEvents(true);
             }
 
-            let gfx = unsafe {
+            let mut gfx = unsafe {
                 let protocol_object = ProtocolObject::from_ref(self);
                 Gfx::new("Menlo", 12.0, window.clone(), &ns_window, mtm, protocol_object).unwrap()
             };
+
+            gfx.resize(content_rect.size.width as i32, content_rect.size.height as i32).unwrap();
 
             ns_window.center();
             ns_window.setTitle(ns_string!("Keylime"));
@@ -143,8 +146,13 @@ declare_class!(
 
         #[method(mtkView:drawableSizeWillChange:)]
         #[allow(non_snake_case)]
-        unsafe fn mtkView_drawableSizeWillChange(&self, _view: &MTKView, _size: NSSize) {
+        unsafe fn mtkView_drawableSizeWillChange(&self, _view: &MTKView, size: NSSize) {
             // TODO: Handle resize.
+            let window = &mut *self.ivars().window.borrow_mut();
+
+            if let Some(gfx) = &mut window.gfx {
+                gfx.resize(size.width as i32, size.height as i32).unwrap();
+            }
         }
     }
 );
