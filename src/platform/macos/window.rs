@@ -11,8 +11,9 @@ use objc2::{
     runtime::ProtocolObject, ClassType, DeclaredClass,
 };
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSApplicationDelegate, NSBackingStoreType,
-    NSColor, NSEvent, NSWindow, NSWindowStyleMask,
+    NSAppearance, NSAppearanceNameAqua, NSAppearanceNameDarkAqua, NSApplication,
+    NSApplicationActivationPolicy, NSApplicationDelegate, NSBackingStoreType, NSColor, NSEvent,
+    NSWindow, NSWindowStyleMask,
 };
 use objc2_foundation::{
     ns_string, MainThreadMarker, NSNotification, NSObject, NSObjectProtocol, NSPoint, NSRect,
@@ -175,8 +176,19 @@ impl WindowRunner {
     pub fn run(&mut self) {
         let mtm = MainThreadMarker::new().unwrap();
 
+        let appearance_name = unsafe {
+            if self.app.borrow().is_dark() {
+                NSAppearanceNameDarkAqua
+            } else {
+                NSAppearanceNameAqua
+            }
+        };
+
+        let appearance = NSAppearance::appearanceNamed(&appearance_name);
+
         let app = NSApplication::sharedApplication(mtm);
         app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+        app.setAppearance(appearance.as_deref());
 
         let delegate = Delegate::new(self.app.clone(), mtm);
         let object = ProtocolObject::from_ref(&*delegate);
@@ -242,6 +254,10 @@ impl Window {
                 let Ok(c) = c else {
                     continue;
                 };
+
+                if c.is_control() {
+                    continue;
+                }
 
                 self.chars_typed.push(c);
             }

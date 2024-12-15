@@ -13,10 +13,11 @@ use objc2::{
 use objc2_app_kit::{NSEvent, NSWindow};
 use objc2_foundation::{ns_string, MainThreadMarker, NSRect};
 use objc2_metal::{
-    MTLBuffer, MTLClearColor, MTLCommandBuffer, MTLCommandEncoder, MTLCommandQueue,
-    MTLCreateSystemDefaultDevice, MTLDevice, MTLIndexType, MTLLibrary, MTLPrimitiveType,
-    MTLRenderCommandEncoder, MTLRenderPipelineDescriptor, MTLRenderPipelineState,
-    MTLResourceOptions, MTLScissorRect,
+    MTLBlendFactor, MTLBlendOperation, MTLBuffer, MTLClearColor, MTLCommandBuffer,
+    MTLCommandEncoder, MTLCommandQueue, MTLCreateSystemDefaultDevice, MTLDevice, MTLIndexType,
+    MTLLibrary, MTLPrimitiveType, MTLRenderCommandEncoder,
+    MTLRenderPipelineColorAttachmentDescriptor, MTLRenderPipelineDescriptor,
+    MTLRenderPipelineState, MTLResourceOptions, MTLScissorRect,
 };
 use objc2_metal_kit::{MTKView, MTKViewDelegate};
 
@@ -214,6 +215,20 @@ impl Gfx {
 
         let fragment_function = library.newFunctionWithName(ns_string!("fragment_main"));
         pipeline_descriptor.setFragmentFunction(fragment_function.as_deref());
+
+        let color_attachment = MTLRenderPipelineColorAttachmentDescriptor::new();
+        color_attachment.setBlendingEnabled(true);
+        color_attachment.setRgbBlendOperation(MTLBlendOperation::Add);
+        color_attachment.setAlphaBlendOperation(MTLBlendOperation::Add);
+        color_attachment.setSourceRGBBlendFactor(MTLBlendFactor::SourceAlpha);
+        color_attachment.setSourceAlphaBlendFactor(MTLBlendFactor::SourceAlpha);
+        color_attachment.setDestinationRGBBlendFactor(MTLBlendFactor::OneMinusSourceAlpha);
+        color_attachment.setDestinationAlphaBlendFactor(MTLBlendFactor::OneMinusSourceAlpha);
+        color_attachment.setPixelFormat(view.colorPixelFormat());
+
+        pipeline_descriptor
+            .colorAttachments()
+            .setObject_atIndexedSubscript(Some(&color_attachment), 0);
 
         let pipeline_state = device
             .newRenderPipelineStateWithDescriptor_error(&pipeline_descriptor)

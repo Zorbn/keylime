@@ -594,9 +594,9 @@ impl Window {
                 let _ = PostMessageW(self.hwnd, WM_PAINT, None, None);
             }
             WM_CHAR => {
-                if let Some(char) = char::from_u32(wparam.0 as u32) {
-                    if !char.is_control() {
-                        self.chars_typed.push(char);
+                if let Some(c) = char::from_u32(wparam.0 as u32) {
+                    if !c.is_control() {
+                        self.chars_typed.push(c);
                     }
                 }
             }
