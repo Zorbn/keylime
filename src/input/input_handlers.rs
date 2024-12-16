@@ -6,27 +6,32 @@ macro_rules! define_handler {
     ($name:ident, $buffer:ident, $t:ident) => {
         pub struct $name {
             i: isize,
+            len: isize,
         }
 
         #[allow(dead_code)]
         impl $name {
             pub fn new(len: usize) -> Self {
                 Self {
-                    i: len as isize - 1,
+                    i: 0,
+                    len: len as isize,
                 }
             }
 
             pub fn next(&mut self, window: &mut Window) -> Option<$t> {
-                if self.i < 0 {
-                    None
+                if self.i < self.len {
+                    let result = Some(window.$buffer.remove(self.i as usize));
+                    self.len -= 1;
+
+                    result
                 } else {
-                    self.i -= 1;
-                    Some(window.$buffer.remove((self.i + 1) as usize))
+                    None
                 }
             }
 
-            pub fn unprocessed(&self, window: &mut Window, t: $t) {
-                window.$buffer.push(t);
+            pub fn unprocessed(&mut self, window: &mut Window, t: $t) {
+                window.$buffer.insert(0, t);
+                self.i += 1;
             }
         }
     };

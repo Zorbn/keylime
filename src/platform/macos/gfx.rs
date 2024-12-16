@@ -247,6 +247,7 @@ impl Gfx {
 
         let frame_rect = ns_window.frame();
         let view = KeylimeView::new(window, mtm, frame_rect, Some(&device));
+        view.setPreferredFramesPerSecond(1);
 
         let pipeline_descriptor = MTLRenderPipelineDescriptor::new();
 
