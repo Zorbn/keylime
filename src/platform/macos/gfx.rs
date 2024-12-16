@@ -1,3 +1,5 @@
+#![deny(unsafe_op_in_unsafe_fn)]
+
 use std::{
     borrow,
     cell::RefCell,
@@ -90,6 +92,21 @@ struct VertexInput {
     uv: [f32; 4],
 }
 
+macro_rules! handle_event {
+    ($handler:ident, $self:expr, $event:expr $(, $args:expr)*) => {
+        let view = {
+            let window = &mut *$self.ivars().window.borrow_mut();
+            window.$handler($event, $($args), *);
+
+            window.gfx().view().clone()
+        };
+
+        unsafe {
+            view.setNeedsDisplay(true);
+        }
+    };
+}
+
 pub struct KeylimeViewIvars {
     window: Rc<RefCell<Window>>,
 }
@@ -117,64 +134,55 @@ declare_class!(
         #[method(keyDown:)]
         #[allow(non_snake_case)]
         unsafe fn keyDown(&self, event: &NSEvent) {
-            let window = &mut *self.ivars().window.borrow_mut();
-            window.handle_key_down(event);
+            handle_event!(handle_key_down, self, event);
         }
 
         #[method(mouseDown:)]
         #[allow(non_snake_case)]
         unsafe fn mouseDown(&self, event: &NSEvent) {
-            let window = &mut *self.ivars().window.borrow_mut();
-            window.handle_mouse_down(event, false);
+            handle_event!(handle_mouse_down, self, event, false);
         }
 
         #[method(rightMouseDown:)]
         #[allow(non_snake_case)]
         unsafe fn rightMouseDown(&self, event: &NSEvent) {
-            let window = &mut *self.ivars().window.borrow_mut();
-            window.handle_mouse_down(event, false);
+            handle_event!(handle_mouse_down, self, event, false);
         }
 
         #[method(otherMouseDown:)]
         #[allow(non_snake_case)]
         unsafe fn otherMouseDown(&self, event: &NSEvent) {
-            let window = &mut *self.ivars().window.borrow_mut();
-            window.handle_mouse_down(event, false);
+            handle_event!(handle_mouse_down, self, event, false);
         }
 
         #[method(mouseUp:)]
         #[allow(non_snake_case)]
         unsafe fn mouseUp(&self, event: &NSEvent) {
-            let window = &mut *self.ivars().window.borrow_mut();
-            window.handle_mouse_up(event);
+            handle_event!(handle_mouse_up, self, event);
         }
 
         #[method(rightMouseUp:)]
         #[allow(non_snake_case)]
         unsafe fn rightMouseUp(&self, event: &NSEvent) {
-            let window = &mut *self.ivars().window.borrow_mut();
-            window.handle_mouse_up(event);
+            handle_event!(handle_mouse_up, self, event);
         }
 
         #[method(otherMouseUp:)]
         #[allow(non_snake_case)]
         unsafe fn otherMouseUp(&self, event: &NSEvent) {
-            let window = &mut *self.ivars().window.borrow_mut();
-            window.handle_mouse_up(event);
+            handle_event!(handle_mouse_up, self, event);
         }
 
         #[method(mouseDragged:)]
         #[allow(non_snake_case)]
         unsafe fn mouseDragged(&self, event: &NSEvent) {
-            let window = &mut *self.ivars().window.borrow_mut();
-            window.handle_mouse_down(event, true);
+            handle_event!(handle_mouse_down, self, event, true);
         }
 
         #[method(scrollWheel:)]
         #[allow(non_snake_case)]
         unsafe fn scrollWheel(&self, event: &NSEvent) {
-            let window = &mut *self.ivars().window.borrow_mut();
-            window.handle_scroll_wheel(event);
+            handle_event!(handle_scroll_wheel, self, event);
         }
     }
 );
@@ -246,8 +254,13 @@ impl Gfx {
             .expect("Failed to create a command queue.");
 
         let frame_rect = ns_window.frame();
+
         let view = KeylimeView::new(window, mtm, frame_rect, Some(&device));
-        view.setPreferredFramesPerSecond(1);
+
+        unsafe {
+            view.setPaused(true);
+            view.setEnableSetNeedsDisplay(true);
+        }
 
         let pipeline_descriptor = MTLRenderPipelineDescriptor::new();
 
@@ -274,7 +287,8 @@ impl Gfx {
         let fragment_function = library.newFunctionWithName(ns_string!("fragment_main"));
         pipeline_descriptor.setFragmentFunction(fragment_function.as_deref());
 
-        let color_attachment = MTLRenderPipelineColorAttachmentDescriptor::new();
+        let pixel_format = unsafe { view.colorPixelFormat() };
+        let color_attachment = unsafe { MTLRenderPipelineColorAttachmentDescriptor::new() };
         color_attachment.setBlendingEnabled(true);
         color_attachment.setRgbBlendOperation(MTLBlendOperation::Add);
         color_attachment.setAlphaBlendOperation(MTLBlendOperation::Add);
@@ -282,11 +296,13 @@ impl Gfx {
         color_attachment.setSourceAlphaBlendFactor(MTLBlendFactor::SourceAlpha);
         color_attachment.setDestinationRGBBlendFactor(MTLBlendFactor::OneMinusSourceAlpha);
         color_attachment.setDestinationAlphaBlendFactor(MTLBlendFactor::OneMinusSourceAlpha);
-        color_attachment.setPixelFormat(view.colorPixelFormat());
+        color_attachment.setPixelFormat(pixel_format);
 
-        pipeline_descriptor
-            .colorAttachments()
-            .setObject_atIndexedSubscript(Some(&color_attachment), 0);
+        unsafe {
+            pipeline_descriptor
+                .colorAttachments()
+                .setObject_atIndexedSubscript(Some(&color_attachment), 0);
+        }
 
         let pipeline_state = device
             .newRenderPipelineStateWithDescriptor_error(&pipeline_descriptor)

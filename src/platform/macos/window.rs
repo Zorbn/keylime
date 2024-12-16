@@ -12,8 +12,8 @@ use objc2::{
 };
 use objc2_app_kit::*;
 use objc2_foundation::{
-    ns_string, MainThreadMarker, NSNotification, NSObject, NSObjectProtocol, NSPoint, NSRect,
-    NSSize, NSString,
+    ns_string, MainThreadMarker, NSDate, NSNotification, NSObject, NSObjectProtocol, NSPoint,
+    NSRect, NSSize, NSString,
 };
 use objc2_metal_kit::{MTKView, MTKViewDelegate};
 
@@ -73,7 +73,7 @@ declare_class!(
         #[allow(non_snake_case)]
         unsafe fn applicationDidFinishLaunching(&self, _notification: &NSNotification) {
             let window = self.ivars().window.clone();
-            let app = self.ivars().app.borrow();
+            let app = self.ivars().app.clone();
 
             let mtm = MainThreadMarker::from(self);
 
@@ -94,6 +94,8 @@ declare_class!(
             window.borrow_mut().scale = scale;
 
             unsafe {
+                let app = app.borrow();
+
                 let theme = &app.config().theme;
 
                 let r = theme.background.r as f64 / 255.0f64;
@@ -107,6 +109,8 @@ declare_class!(
 
             let mut gfx = unsafe {
                 let protocol_object = ProtocolObject::from_ref(self);
+
+                let app = app.borrow();
 
                 let Config {
                     font, font_size, ..
@@ -133,6 +137,7 @@ declare_class!(
             unsafe {
                 let app: &mut NSApplication = msg_send![_notification, object];
                 app.activate();
+                view.draw();
             }
         }
 
@@ -165,7 +170,7 @@ declare_class!(
 
         #[method(mtkView:drawableSizeWillChange:)]
         #[allow(non_snake_case)]
-        unsafe fn mtkView_drawableSizeWillChange(&self, _view: &MTKView, size: NSSize) {
+        unsafe fn mtkView_drawableSizeWillChange(&self, view: &MTKView, size: NSSize) {
             let window = &mut *self.ivars().window.borrow_mut();
             let app = &*self.ivars().app.borrow();
 
@@ -187,6 +192,10 @@ declare_class!(
 
                     gfx.update_font(font, *font_size, window.scale);
                 }
+            }
+
+            unsafe {
+                view.setNeedsDisplay(true);
             }
         }
     }
@@ -250,6 +259,10 @@ struct RecordedMouseClick {
 }
 
 pub struct Window {
+    was_shown: bool,
+    time: f32,
+    last_queried_time: Option<f64>,
+
     gfx: Option<Gfx>,
     scale: f32,
     file_watcher: FileWatcher,
@@ -262,13 +275,15 @@ pub struct Window {
     pub mouse_scrolls: Vec<MouseScroll>,
 
     current_pressed_button: Option<RecordedMouseClick>,
-
-    was_shown: bool,
 }
 
 impl Window {
     pub fn new() -> Self {
         Self {
+            was_shown: false,
+            time: 0.0,
+            last_queried_time: None,
+
             gfx: None,
             scale: 1.0,
             file_watcher: FileWatcher {},
@@ -281,8 +296,6 @@ impl Window {
             mouse_scrolls: Vec::new(),
 
             current_pressed_button: None,
-
-            was_shown: false,
         }
     }
 
@@ -292,7 +305,30 @@ impl Window {
         ptys: impl Iterator<Item = &'a Pty>,
         files: impl Iterator<Item = &'a Path>,
     ) -> (f32, f32) {
-        (0.0, 1.0 / 60.0)
+        let time = unsafe { NSDate::now().timeIntervalSinceReferenceDate() };
+
+        let dt = if let Some(last_queried_time) = self.last_queried_time {
+            (time - last_queried_time) as f32
+        } else {
+            0.0
+        };
+
+        self.last_queried_time = Some(time);
+        self.time += dt;
+
+        let dt = if is_animating {
+            if let Some(gfx) = &self.gfx {
+                unsafe {
+                    gfx.view().setNeedsDisplay(true);
+                }
+            }
+
+            dt
+        } else {
+            0.0
+        };
+
+        (self.time, dt)
     }
 
     fn clear_inputs(&mut self) {
