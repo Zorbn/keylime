@@ -129,7 +129,6 @@ declare_class!(
             ns_window.setContentView(Some(&view));
             ns_window.center();
             ns_window.setTitle(ns_string!("Keylime"));
-            ns_window.makeKeyAndOrderFront(None);
 
             unsafe {
                 let app: &mut NSApplication = msg_send![_notification, object];
@@ -154,6 +153,14 @@ declare_class!(
             app.update(window);
             window.clear_inputs();
             app.draw(window);
+
+            if !window.was_shown {
+                idcell!(ns_window <= self);
+
+                ns_window.makeKeyAndOrderFront(None);
+
+                window.was_shown = true;
+            }
         }
 
         #[method(mtkView:drawableSizeWillChange:)]
@@ -255,6 +262,8 @@ pub struct Window {
     pub mouse_scrolls: Vec<MouseScroll>,
 
     current_pressed_button: Option<RecordedMouseClick>,
+
+    was_shown: bool,
 }
 
 impl Window {
@@ -272,6 +281,8 @@ impl Window {
             mouse_scrolls: Vec::new(),
 
             current_pressed_button: None,
+
+            was_shown: false,
         }
     }
 
