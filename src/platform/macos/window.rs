@@ -13,7 +13,7 @@ use objc2::{
 use objc2_app_kit::*;
 use objc2_foundation::{
     ns_string, MainThreadMarker, NSNotification, NSObject, NSObjectProtocol, NSPoint, NSRect,
-    NSSize,
+    NSSize, NSString,
 };
 use objc2_metal_kit::{MTKView, MTKViewDelegate};
 
@@ -22,9 +22,11 @@ use crate::{
     config::Config,
     input::{
         input_handlers::{CharHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
+        key::Key,
         keybind::Keybind,
+        mouse_button::MouseButton,
         mouse_scroll::MouseScroll,
-        mousebind::Mousebind,
+        mousebind::{MouseClickKind, Mousebind},
     },
     temp_buffer::TempBuffer,
 };
@@ -130,7 +132,6 @@ declare_class!(
             ns_window.makeKeyAndOrderFront(None);
 
             unsafe {
-
                 let app: &mut NSApplication = msg_send![_notification, object];
                 app.activate();
             }
@@ -235,6 +236,12 @@ impl WindowRunner {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+struct RecordedMouseClick {
+    button: MouseButton,
+    kind: MouseClickKind,
+}
+
 pub struct Window {
     gfx: Option<Gfx>,
     scale: f32,
@@ -246,6 +253,8 @@ pub struct Window {
     pub keybinds_typed: Vec<Keybind>,
     pub mousebinds_pressed: Vec<Mousebind>,
     pub mouse_scrolls: Vec<MouseScroll>,
+
+    current_pressed_button: Option<RecordedMouseClick>,
 }
 
 impl Window {
@@ -261,6 +270,8 @@ impl Window {
             keybinds_typed: Vec::new(),
             mousebinds_pressed: Vec::new(),
             mouse_scrolls: Vec::new(),
+
+            current_pressed_button: None,
         }
     }
 
@@ -270,34 +281,154 @@ impl Window {
         ptys: impl Iterator<Item = &'a Pty>,
         files: impl Iterator<Item = &'a Path>,
     ) -> (f32, f32) {
-        (0.0, 0.0)
+        (0.0, 1.0 / 60.0)
     }
 
     fn clear_inputs(&mut self) {
         self.chars_typed.clear();
+        self.keybinds_typed.clear();
+        self.mousebinds_pressed.clear();
+        self.mouse_scrolls.clear();
     }
 
     pub fn handle_key_down(&mut self, event: &NSEvent) {
-        if let Some(characters) = unsafe { event.characters() } {
-            let wide_text_buffer = self.wide_text_buffer.get_mut();
+        let modifier_flags = unsafe { event.modifierFlags() };
 
-            for i in 0..characters.length() {
-                let wide_char = unsafe { characters.characterAtIndex(i) };
+        if modifier_flags
+            .intersection(
+                NSEventModifierFlags::NSEventModifierFlagCommand
+                    | NSEventModifierFlags::NSEventModifierFlagControl
+                    | NSEventModifierFlags::NSEventModifierFlagFunction
+                    | NSEventModifierFlags::NSEventModifierFlagOption,
+            )
+            .is_empty()
+        {
+            if let Some(chars) = unsafe { event.characters() } {
+                self.handle_chars(chars);
+            }
+        }
 
-                wide_text_buffer.push(wide_char);
+        let key_code = unsafe { event.keyCode() };
+
+        if let Some(key) = Key::from_macos_keycode(key_code) {
+            // TODO: This just remaps Command -> Ctrl, but really
+            // there should be native keybinds for MacOS.
+            let has_shift = modifier_flags.contains(NSShiftKeyMask);
+            let has_ctrl = modifier_flags.contains(NSCommandKeyMask);
+            let has_alt = modifier_flags.contains(NSAlternateKeyMask);
+
+            self.keybinds_typed
+                .push(Keybind::new(key, has_shift, has_ctrl, has_alt));
+        }
+    }
+
+    pub fn handle_mouse_down(&mut self, event: &NSEvent, is_drag: bool) {
+        let (x, y) = self.event_location_to_xy(event);
+
+        let modifier_flags = unsafe { event.modifierFlags() };
+        let has_shift = modifier_flags.contains(NSShiftKeyMask);
+        let has_ctrl = modifier_flags.contains(NSCommandKeyMask);
+        let has_alt = modifier_flags.contains(NSAlternateKeyMask);
+
+        let (button, kind) = if is_drag {
+            self.current_pressed_button
+                .map(|click| (Some(click.button), click.kind))
+                .unwrap_or((None, MouseClickKind::Single))
+        } else {
+            let click_count = unsafe { event.clickCount() - 1 } % 3 + 1;
+
+            let kind = match click_count {
+                1 => MouseClickKind::Single,
+                2 => MouseClickKind::Double,
+                3 => MouseClickKind::Triple,
+                _ => unreachable!(),
+            };
+
+            let button = Self::get_event_button(event);
+
+            if let Some(button) = button {
+                self.current_pressed_button = Some(RecordedMouseClick { button, kind });
             }
 
-            for c in char::decode_utf16(wide_text_buffer.iter().copied()) {
-                let Ok(c) = c else {
-                    continue;
-                };
+            (button, kind)
+        };
 
-                if c.is_control() {
-                    continue;
-                }
+        self.mousebinds_pressed.push(Mousebind::new(
+            button, x, y, has_shift, has_ctrl, has_alt, kind, is_drag,
+        ));
+    }
 
-                self.chars_typed.push(c);
+    pub fn handle_mouse_up(&mut self, event: &NSEvent) {
+        let button = Self::get_event_button(event);
+
+        if button == self.current_pressed_button.map(|click| click.button) {
+            self.current_pressed_button = None;
+        }
+    }
+
+    pub fn handle_scroll_wheel(&mut self, event: &NSEvent) {
+        let (x, y) = self.event_location_to_xy(event);
+
+        let is_precise = unsafe { event.hasPreciseScrollingDeltas() };
+
+        let delta_x = unsafe { -event.scrollingDeltaX() } as f32;
+        let delta_y = unsafe { event.scrollingDeltaY() } as f32;
+
+        let (delta, is_horizontal) = if delta_y.abs() > delta_x.abs() {
+            (delta_y, false)
+        } else {
+            (delta_x, true)
+        };
+
+        self.mouse_scrolls.push(MouseScroll {
+            delta,
+            is_horizontal,
+            is_precise,
+            x,
+            y,
+        });
+    }
+
+    fn event_location_to_xy(&mut self, event: &NSEvent) -> (f32, f32) {
+        let position = unsafe { event.locationInWindow() };
+        let x = position.x as f32 * self.scale;
+        let y = self.gfx().height() - (position.y as f32 * self.scale);
+
+        (x, y)
+    }
+
+    fn get_event_button(event: &NSEvent) -> Option<MouseButton> {
+        let button_number = unsafe { event.buttonNumber() };
+
+        match button_number {
+            0 => Some(MouseButton::Left),
+            1 => Some(MouseButton::Right),
+            2 => Some(MouseButton::Middle),
+            3 => Some(MouseButton::FirstSide),
+            4 => Some(MouseButton::SecondSide),
+            _ => None,
+        }
+    }
+
+    pub fn handle_chars(&mut self, chars: Retained<NSString>) {
+        let wide_text_buffer = self.wide_text_buffer.get_mut();
+
+        for i in 0..chars.length() {
+            let wide_char = unsafe { chars.characterAtIndex(i) };
+
+            wide_text_buffer.push(wide_char);
+        }
+
+        for c in char::decode_utf16(wide_text_buffer.iter().copied()) {
+            let Ok(c) = c else {
+                continue;
+            };
+
+            if c.is_control() || matches!(c, '\u{f700}'..='\u{f703}') {
+                continue;
             }
+
+            self.chars_typed.push(c);
         }
     }
 
@@ -326,15 +457,15 @@ impl Window {
     }
 
     pub fn get_keybind_handler(&self) -> KeybindHandler {
-        KeybindHandler::new(0)
+        KeybindHandler::new(self.keybinds_typed.len())
     }
 
     pub fn get_mousebind_handler(&self) -> MousebindHandler {
-        MousebindHandler::new(0)
+        MousebindHandler::new(self.mousebinds_pressed.len())
     }
 
     pub fn get_mouse_scroll_handler(&self) -> MouseScrollHandler {
-        MouseScrollHandler::new(0)
+        MouseScrollHandler::new(self.mouse_scrolls.len())
     }
 
     pub fn set_clipboard(&mut self, text: &[char], was_copy_implicit: bool) -> Result<()> {

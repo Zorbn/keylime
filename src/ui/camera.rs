@@ -9,6 +9,7 @@ pub enum CameraRecenterKind {
 
 pub const RECENTER_DISTANCE: usize = 3;
 const SCROLL_SPEED: f32 = 30.0;
+const PRECISE_SCROLL_SPEED: f32 = 0.1;
 const SCROLL_FRICTION: f32 = 0.0001;
 
 pub struct CameraAxis {
@@ -102,9 +103,15 @@ impl CameraAxis {
         self.velocity = v;
     }
 
-    pub fn scroll(&mut self, delta: f32) {
+    pub fn scroll(&mut self, delta: f32, is_precise: bool) {
         self.recenter_kind = CameraRecenterKind::None;
-        self.velocity -= delta * SCROLL_SPEED;
+
+        if is_precise {
+            self.velocity = 0.0;
+            self.position -= delta * PRECISE_SCROLL_SPEED;
+        } else {
+            self.velocity -= delta * SCROLL_SPEED;
+        }
     }
 
     pub fn reset(&mut self) {

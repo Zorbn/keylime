@@ -111,7 +111,6 @@ declare_class!(
         #[method(acceptsFirstResponder)]
         #[allow(non_snake_case)]
         unsafe fn acceptsFirstResponder(&self) -> bool {
-            // println!("called");
             true
         }
 
@@ -119,24 +118,63 @@ declare_class!(
         #[allow(non_snake_case)]
         unsafe fn keyDown(&self, event: &NSEvent) {
             let window = &mut *self.ivars().window.borrow_mut();
-
             window.handle_key_down(event);
-
-            // println!("Key down");
         }
 
         #[method(mouseDown:)]
         #[allow(non_snake_case)]
-        unsafe fn mouseDown(&self, _event: &NSEvent) {
-            // let click_count = unsafe { event.clickCount() };
-
-            // println!("Clicked!: {:?}", click_count);
+        unsafe fn mouseDown(&self, event: &NSEvent) {
+            let window = &mut *self.ivars().window.borrow_mut();
+            window.handle_mouse_down(event, false);
         }
 
-        #[method(mouseMoved:)]
+        #[method(rightMouseDown:)]
         #[allow(non_snake_case)]
-        unsafe fn mouseMoved(&self, _event: &NSEvent) {
-            // println!("mouse moved");
+        unsafe fn rightMouseDown(&self, event: &NSEvent) {
+            let window = &mut *self.ivars().window.borrow_mut();
+            window.handle_mouse_down(event, false);
+        }
+
+        #[method(otherMouseDown:)]
+        #[allow(non_snake_case)]
+        unsafe fn otherMouseDown(&self, event: &NSEvent) {
+            let window = &mut *self.ivars().window.borrow_mut();
+            window.handle_mouse_down(event, false);
+        }
+
+        #[method(mouseUp:)]
+        #[allow(non_snake_case)]
+        unsafe fn mouseUp(&self, event: &NSEvent) {
+            let window = &mut *self.ivars().window.borrow_mut();
+            window.handle_mouse_up(event);
+        }
+
+        #[method(rightMouseUp:)]
+        #[allow(non_snake_case)]
+        unsafe fn rightMouseUp(&self, event: &NSEvent) {
+            let window = &mut *self.ivars().window.borrow_mut();
+            window.handle_mouse_up(event);
+        }
+
+        #[method(otherMouseUp:)]
+        #[allow(non_snake_case)]
+        unsafe fn otherMouseUp(&self, event: &NSEvent) {
+            let window = &mut *self.ivars().window.borrow_mut();
+            window.handle_mouse_up(event);
+        }
+
+        #[method(mouseDragged:)]
+        #[allow(non_snake_case)]
+        unsafe fn mouseDragged(&self, event: &NSEvent) {
+            let window = &mut *self.ivars().window.borrow_mut();
+            window.handle_mouse_down(event, true);
+        }
+
+        #[method(scrollWheel:)]
+        #[allow(non_snake_case)]
+        unsafe fn scrollWheel(&self, event: &NSEvent) {
+            let window = &mut *self.ivars().window.borrow_mut();
+            window.handle_scroll_wheel(event);
         }
     }
 );
@@ -306,7 +344,8 @@ impl Gfx {
         font_size: f32,
         scale: f32,
     ) -> Result<(Retained<ProtocolObject<dyn MTLTexture>>, AtlasDimensions)> {
-        let mut atlas = Text::test(font_name, font_size, scale);
+        let mut text = Text::new(font_name, font_size, scale);
+        let mut atlas = text.generate_atlas()?;
 
         let texture_descriptor = unsafe {
             MTLTextureDescriptor::texture2DDescriptorWithPixelFormat_width_height_mipmapped(

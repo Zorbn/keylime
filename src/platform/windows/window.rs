@@ -601,7 +601,7 @@ impl Window {
                 }
             }
             WM_KEYDOWN | WM_SYSKEYDOWN => {
-                if let Some(key) = Key::from((wparam.0 & 0xffff) as u32) {
+                if let Some(key) = Key::from_windows_keycode((wparam.0 & 0xffff) as u32) {
                     let has_shift =
                         GetKeyState(Key::LShift as i32) < 0 || GetKeyState(Key::RShift as i32) < 0;
 
@@ -742,6 +742,7 @@ impl Window {
                 self.mouse_scrolls.push(MouseScroll {
                     delta,
                     is_horizontal,
+                    is_precise: false,
                     x: (x - self.x) as f32,
                     y: (y - self.y) as f32,
                 });

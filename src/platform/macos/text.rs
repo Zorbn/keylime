@@ -5,7 +5,7 @@ use std::{
 };
 
 use super::result::Result;
-use objc2::runtime::AnyObject;
+use objc2::{rc::Retained, runtime::AnyObject};
 use objc2_core_foundation::*;
 use objc2_core_graphics::*;
 use objc2_core_text::*;
@@ -27,10 +27,23 @@ pub struct AtlasDimensions {
     pub line_height: f32,
 }
 
-pub struct Text {}
+pub struct Text {
+    font_name: Retained<NSString>,
+    font_size: f64,
+}
 
 impl Text {
-    pub fn test(font_name: &str, font_size: f32, scale: f32) -> Atlas {
+    pub fn new(font_name: &str, font_size: f32, scale: f32) -> Self {
+        let font_name = NSString::from_str(font_name);
+        let font_size = (font_size * scale) as f64;
+
+        Self {
+            font_name,
+            font_size,
+        }
+    }
+
+    pub fn generate_atlas(&mut self) -> Result<Atlas> {
         const ATLAS_SIZE: usize = (b'~' - b' ') as usize;
 
         let mut atlas_text = String::with_capacity(ATLAS_SIZE);
@@ -42,10 +55,7 @@ impl Text {
         let mut attributed_string =
             NSMutableAttributedString::from_nsstring(&NSString::from_str(&atlas_text));
 
-        let font_name = NSString::from_str(font_name);
-        let font_name_cfstr = font_name.as_ref() as *const _ as CFStringRef;
-
-        let font_size = (font_size * scale) as f64;
+        let font_name_cfstr = self.font_name.as_ref() as *const _ as CFStringRef;
 
         let glyph_width;
         let glyph_step_x;
@@ -56,7 +66,7 @@ impl Text {
 
             let font = CTFontCreateWithNameAndOptions(
                 font_name_cfstr,
-                font_size,
+                self.font_size,
                 null_mut(),
                 CTFontOptions::kCTFontOptionsDefault,
             ) as *mut AnyObject;
@@ -84,8 +94,6 @@ impl Text {
             glyph_width = advances[0].width.floor();
             glyph_step_x = advances[0].width.ceil() + 1.0;
 
-            println!("glyph_width: {:?}", glyph_width);
-
             let mut advance = glyph_step_x;
             let advance = CFNumberCreate(
                 kCFAllocatorDefault,
@@ -97,8 +105,8 @@ impl Text {
 
             let descriptor = CTFontDescriptorCreateWithAttributes(attributes);
 
-            let font =
-                CTFontCreateWithFontDescriptor(descriptor, font_size, null_mut()) as *mut AnyObject;
+            let font = CTFontCreateWithFontDescriptor(descriptor, self.font_size, null_mut())
+                as *mut AnyObject;
 
             let font_attribute_name = kCTFontAttributeName as *const NSString;
 
@@ -121,7 +129,6 @@ impl Text {
         let rect;
 
         unsafe {
-            let fit_range = null_mut();
             let size = CTFramesetterSuggestFrameSizeWithConstraints(
                 framesetter,
                 CFRange {
@@ -130,7 +137,7 @@ impl Text {
                 },
                 CFDictionaryRef::from(null_mut()),
                 CGSize::new(f64::MAX, f64::MAX),
-                fit_range,
+                null_mut(),
             );
 
             rect = CGRect::new(
@@ -183,7 +190,7 @@ impl Text {
             CTFrameDraw(frame, context);
         }
 
-        Atlas {
+        Ok(Atlas {
             data: raw_data,
             dimensions: AtlasDimensions {
                 width: rect.size.width as usize,
@@ -194,14 +201,6 @@ impl Text {
                 glyph_height: rect.size.height as f32,
                 line_height: line_height.ceil() as f32,
             },
-        }
-    }
-
-    pub fn new(font_name: &str, font_size: f32, scale: f32) -> Self {
-        todo!()
-    }
-
-    pub fn generate_atlas(&mut self) -> Result<Atlas> {
-        todo!()
+        })
     }
 }

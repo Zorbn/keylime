@@ -156,10 +156,12 @@ impl Tab {
 
                 if mouse_scroll.is_horizontal {
                     self.camera.vertical.reset_velocity();
-                    self.camera.horizontal.scroll(-delta);
+                    self.camera
+                        .horizontal
+                        .scroll(-delta, mouse_scroll.is_precise);
                 } else {
                     self.camera.horizontal.reset_velocity();
-                    self.camera.vertical.scroll(delta);
+                    self.camera.vertical.scroll(delta, mouse_scroll.is_precise);
                 }
             }
         }

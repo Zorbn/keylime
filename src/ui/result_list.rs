@@ -143,7 +143,7 @@ impl<T> ResultList<T> {
             }
 
             let delta = mouse_scroll.delta * self.result_bounds.height;
-            self.camera.vertical.scroll(delta);
+            self.camera.vertical.scroll(delta, mouse_scroll.is_precise);
         }
     }
 
