@@ -10,11 +10,7 @@ use objc2::{
     declare_class, msg_send, msg_send_id, mutability::MainThreadOnly, rc::Retained,
     runtime::ProtocolObject, ClassType, DeclaredClass,
 };
-use objc2_app_kit::{
-    NSAppearance, NSAppearanceNameAqua, NSAppearanceNameDarkAqua, NSApplication,
-    NSApplicationActivationPolicy, NSApplicationDelegate, NSBackingStoreType, NSColor, NSEvent,
-    NSWindow, NSWindowStyleMask,
-};
+use objc2_app_kit::*;
 use objc2_foundation::{
     ns_string, MainThreadMarker, NSNotification, NSObject, NSObjectProtocol, NSPoint, NSRect,
     NSSize,
@@ -23,6 +19,7 @@ use objc2_metal_kit::{MTKView, MTKViewDelegate};
 
 use crate::{
     app::App,
+    config::Config,
     input::{
         input_handlers::{CharHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
         keybind::Keybind,
@@ -81,7 +78,6 @@ declare_class!(
             let content_rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(768.0, 768.0));
 
             let ns_window = {
-
                 let style = NSWindowStyleMask::Closable
                     | NSWindowStyleMask::Resizable
                     | NSWindowStyleMask::Miniaturizable
@@ -91,6 +87,9 @@ declare_class!(
                     NSWindow::initWithContentRect_styleMask_backing_defer(mtm.alloc(), content_rect, style, NSBackingStoreType::NSBackingStoreBuffered, false)
                 }
             };
+
+            let scale = ns_window.backingScaleFactor() as f32;
+            window.borrow_mut().scale = scale;
 
             unsafe {
                 let theme = &app.config().theme;
@@ -106,20 +105,32 @@ declare_class!(
 
             let mut gfx = unsafe {
                 let protocol_object = ProtocolObject::from_ref(self);
-                Gfx::new("Menlo", 12.0, window.clone(), &ns_window, mtm, protocol_object).unwrap()
+
+                let Config {
+                    font, font_size, ..
+                } = app.config();
+
+                Gfx::new(font, *font_size, window.clone(), &ns_window, mtm, protocol_object).unwrap()
             };
 
             gfx.resize(content_rect.size.width as i32, content_rect.size.height as i32).unwrap();
 
+            let view = gfx.view().clone();
+
+            window.borrow_mut().gfx = Some(gfx);
+
+            {
+                let ns_window = ns_window.clone();
+                idcell!(ns_window => self);
+            }
+
+            ns_window.setContentView(Some(&view));
             ns_window.center();
             ns_window.setTitle(ns_string!("Keylime"));
             ns_window.makeKeyAndOrderFront(None);
 
-            window.borrow_mut().gfx = Some(gfx);
-
-            idcell!(ns_window => self);
-
             unsafe {
+
                 let app: &mut NSApplication = msg_send![_notification, object];
                 app.activate();
             }
@@ -147,11 +158,27 @@ declare_class!(
         #[method(mtkView:drawableSizeWillChange:)]
         #[allow(non_snake_case)]
         unsafe fn mtkView_drawableSizeWillChange(&self, _view: &MTKView, size: NSSize) {
-            // TODO: Handle resize.
             let window = &mut *self.ivars().window.borrow_mut();
+            let app = &*self.ivars().app.borrow();
+
+            idcell!(ns_window <= self);
 
             if let Some(gfx) = &mut window.gfx {
                 gfx.resize(size.width as i32, size.height as i32).unwrap();
+            }
+
+            let scale = ns_window.backingScaleFactor() as f32;
+
+            if scale != window.scale {
+                window.scale = scale;
+
+                if let Some(gfx) = &mut window.gfx {
+                    let Config {
+                        font, font_size, ..
+                    } = app.config();
+
+                    gfx.update_font(font, *font_size, window.scale);
+                }
             }
         }
     }
@@ -210,6 +237,7 @@ impl WindowRunner {
 
 pub struct Window {
     gfx: Option<Gfx>,
+    scale: f32,
     file_watcher: FileWatcher,
 
     wide_text_buffer: TempBuffer<u16>,
@@ -224,6 +252,7 @@ impl Window {
     pub fn new() -> Self {
         Self {
             gfx: None,
+            scale: 1.0,
             file_watcher: FileWatcher {},
 
             wide_text_buffer: TempBuffer::new(),
@@ -280,8 +309,8 @@ impl Window {
         true
     }
 
-    pub fn dpi(&self) -> f32 {
-        1.0
+    pub fn scale(&self) -> f32 {
+        self.scale
     }
 
     pub fn gfx(&mut self) -> &mut Gfx {

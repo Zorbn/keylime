@@ -1,5 +1,5 @@
 use std::{
-    borrow::Borrow,
+    borrow,
     cell::RefCell,
     ffi::c_void,
     ptr::{copy_nonoverlapping, NonNull},
@@ -12,14 +12,7 @@ use objc2::{
 };
 use objc2_app_kit::{NSEvent, NSWindow};
 use objc2_foundation::{ns_string, MainThreadMarker, NSRect};
-use objc2_metal::{
-    MTLBlendFactor, MTLBlendOperation, MTLBuffer, MTLClearColor, MTLCommandBuffer,
-    MTLCommandEncoder, MTLCommandQueue, MTLCreateSystemDefaultDevice, MTLDevice, MTLIndexType,
-    MTLLibrary, MTLOrigin, MTLPixelFormat, MTLPrimitiveType, MTLRegion, MTLRenderCommandEncoder,
-    MTLRenderPipelineColorAttachmentDescriptor, MTLRenderPipelineDescriptor,
-    MTLRenderPipelineState, MTLResourceOptions, MTLScissorRect, MTLSize, MTLTexture,
-    MTLTextureDescriptor,
-};
+use objc2_metal::*;
 use objc2_metal_kit::{MTKView, MTKViewDelegate};
 
 use crate::{
@@ -97,12 +90,12 @@ struct VertexInput {
     uv: [f32; 4],
 }
 
-struct KeylimeViewIvars {
+pub struct KeylimeViewIvars {
     window: Rc<RefCell<Window>>,
 }
 
 declare_class!(
-    struct KeylimeView;
+    pub struct KeylimeView;
 
     unsafe impl ClassType for KeylimeView {
         type Super = MTKView;
@@ -203,6 +196,8 @@ impl Gfx {
         mtm: MainThreadMarker,
         delegate: &ProtocolObject<dyn MTKViewDelegate>,
     ) -> Result<Self> {
+        let scale = window.borrow().scale();
+
         let device = {
             let ptr = unsafe { MTLCreateSystemDefaultDevice() };
             unsafe { Retained::retain(ptr) }.expect("Failed to get default system device.")
@@ -262,41 +257,10 @@ impl Gfx {
             view.setDelegate(Some(delegate));
         }
 
-        ns_window.setContentView(Some(&view));
+        let (texture, atlas_dimensions) =
+            Self::create_atlas_texture(&device, font_name, font_size, scale)?;
 
-        let mut atlas = Text::test(font_name, font_size, 1.0);
-
-        let texture_descriptor =
-            MTLTextureDescriptor::texture2DDescriptorWithPixelFormat_width_height_mipmapped(
-                MTLPixelFormat::RGBA8Unorm,
-                atlas.dimensions.width,
-                atlas.dimensions.height,
-                false,
-            );
-
-        let texture = device
-            .newTextureWithDescriptor(&texture_descriptor)
-            .unwrap();
-
-        let region = MTLRegion {
-            origin: MTLOrigin { x: 0, y: 0, z: 0 },
-            size: MTLSize {
-                width: atlas.dimensions.width,
-                height: atlas.dimensions.height,
-                depth: 1,
-            },
-        };
-
-        texture.replaceRegion_mipmapLevel_withBytes_bytesPerRow(
-            region,
-            0,
-            NonNull::new(atlas.data.as_mut_ptr())
-                .unwrap()
-                .cast::<c_void>(),
-            atlas.dimensions.width * 4,
-        );
-
-        Ok(Gfx {
+        let gfx = Gfx {
             device,
             command_queue,
             pipeline_state,
@@ -313,12 +277,14 @@ impl Gfx {
 
             bounds: Rect::zero(),
 
-            atlas_dimensions: atlas.dimensions,
+            atlas_dimensions,
             texture,
 
             width: 0.0,
             height: 0.0,
-        })
+        };
+
+        Ok(gfx)
     }
 
     pub fn resize(&mut self, width: i32, height: i32) -> Result<()> {
@@ -328,7 +294,55 @@ impl Gfx {
         Ok(())
     }
 
-    pub fn update_font(&mut self, font_name: &str, font_size: f32, scale: f32) {}
+    pub fn update_font(&mut self, font_name: &str, font_size: f32, scale: f32) {
+        if let Ok(result) = Self::create_atlas_texture(&self.device, font_name, font_size, scale) {
+            (self.texture, self.atlas_dimensions) = result;
+        }
+    }
+
+    fn create_atlas_texture(
+        device: &Retained<ProtocolObject<dyn MTLDevice>>,
+        font_name: &str,
+        font_size: f32,
+        scale: f32,
+    ) -> Result<(Retained<ProtocolObject<dyn MTLTexture>>, AtlasDimensions)> {
+        let mut atlas = Text::test(font_name, font_size, scale);
+
+        let texture_descriptor = unsafe {
+            MTLTextureDescriptor::texture2DDescriptorWithPixelFormat_width_height_mipmapped(
+                MTLPixelFormat::RGBA8Unorm,
+                atlas.dimensions.width,
+                atlas.dimensions.height,
+                false,
+            )
+        };
+
+        let texture = device
+            .newTextureWithDescriptor(&texture_descriptor)
+            .unwrap();
+
+        let region = MTLRegion {
+            origin: MTLOrigin { x: 0, y: 0, z: 0 },
+            size: MTLSize {
+                width: atlas.dimensions.width,
+                height: atlas.dimensions.height,
+                depth: 1,
+            },
+        };
+
+        unsafe {
+            texture.replaceRegion_mipmapLevel_withBytes_bytesPerRow(
+                region,
+                0,
+                NonNull::new(atlas.data.as_mut_ptr())
+                    .unwrap()
+                    .cast::<c_void>(),
+                atlas.dimensions.width * 4,
+            );
+        }
+
+        Ok((texture, atlas.dimensions))
+    }
 
     pub fn begin_frame(&mut self, clear_color: Color) {
         unsafe {
@@ -547,7 +561,7 @@ impl Gfx {
         ]);
     }
 
-    pub fn measure_text(text: impl IntoIterator<Item = impl Borrow<char>>) -> isize {
+    pub fn measure_text(text: impl IntoIterator<Item = impl borrow::Borrow<char>>) -> isize {
         // TODO: Copied from Windows impl.
         let mut width = 0isize;
 
@@ -561,7 +575,7 @@ impl Gfx {
     }
 
     pub fn find_x_for_visual_x(
-        text: impl IntoIterator<Item = impl Borrow<char>>,
+        text: impl IntoIterator<Item = impl borrow::Borrow<char>>,
         visual_x: isize,
     ) -> isize {
         // TODO: Copied from Windows impl.
@@ -593,7 +607,7 @@ impl Gfx {
 
     pub fn add_text(
         &mut self,
-        text: impl IntoIterator<Item = impl Borrow<char>>,
+        text: impl IntoIterator<Item = impl borrow::Borrow<char>>,
         x: f32,
         y: f32,
         color: Color,
@@ -737,5 +751,9 @@ impl Gfx {
 
     pub fn height_lines(&self) -> isize {
         (self.height() / self.line_height()) as isize
+    }
+
+    pub fn view(&self) -> &Retained<KeylimeView> {
+        &self.view
     }
 }

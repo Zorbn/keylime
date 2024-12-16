@@ -6,22 +6,9 @@ use std::{
 
 use super::result::Result;
 use objc2::runtime::AnyObject;
-use objc2_core_foundation::{
-    kCFAllocatorDefault, CFDictionaryAddValue, CFDictionaryCreateMutable, CFDictionaryRef,
-    CFNumberCreate, CFNumberType, CFRange, CFStringRef, CGPoint, CGRect, CGSize,
-};
-use objc2_core_graphics::{
-    CGBitmapContextCreateWithData, CGBitmapContextReleaseDataCallback, CGBitmapInfo,
-    CGColorSpaceCreateDeviceRGB, CGImageAlphaInfo, CGPathAddRect, CGPathCreateMutable,
-};
-use objc2_core_text::{
-    kCTFontAttributeName, kCTFontFixedAdvanceAttribute, kCTFontNameAttribute,
-    CTFontCreateWithFontDescriptor, CTFontCreateWithNameAndOptions,
-    CTFontDescriptorCreateWithAttributes, CTFontGetAdvancesForGlyphs, CTFontGetAscent,
-    CTFontGetDescent, CTFontGetLeading, CTFontOptions, CTFontOrientation, CTFrameDraw,
-    CTFramesetterCreateFrame, CTFramesetterCreateWithAttributedString,
-    CTFramesetterSuggestFrameSizeWithConstraints,
-};
+use objc2_core_foundation::*;
+use objc2_core_graphics::*;
+use objc2_core_text::*;
 use objc2_foundation::{NSMutableAttributedString, NSRange, NSString};
 
 pub struct Atlas {
@@ -58,6 +45,8 @@ impl Text {
         let font_name = NSString::from_str(font_name);
         let font_name_cfstr = font_name.as_ref() as *const _ as CFStringRef;
 
+        let font_size = (font_size * scale) as f64;
+
         let glyph_width;
         let glyph_step_x;
         let line_height;
@@ -67,7 +56,7 @@ impl Text {
 
             let font = CTFontCreateWithNameAndOptions(
                 font_name_cfstr,
-                font_size as f64,
+                font_size,
                 null_mut(),
                 CTFontOptions::kCTFontOptionsDefault,
             ) as *mut AnyObject;
@@ -95,6 +84,8 @@ impl Text {
             glyph_width = advances[0].width.floor();
             glyph_step_x = advances[0].width.ceil() + 1.0;
 
+            println!("glyph_width: {:?}", glyph_width);
+
             let mut advance = glyph_step_x;
             let advance = CFNumberCreate(
                 kCFAllocatorDefault,
@@ -107,7 +98,7 @@ impl Text {
             let descriptor = CTFontDescriptorCreateWithAttributes(attributes);
 
             let font =
-                CTFontCreateWithFontDescriptor(descriptor, 12.0, null_mut()) as *mut AnyObject;
+                CTFontCreateWithFontDescriptor(descriptor, font_size, null_mut()) as *mut AnyObject;
 
             let font_attribute_name = kCTFontAttributeName as *const NSString;
 

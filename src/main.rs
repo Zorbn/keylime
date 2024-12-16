@@ -42,6 +42,8 @@ use platform::window::WindowRunner;
  *   trigger updates and redraws from each event. To handle animating we could have a function that does one update/draw and then
  *   continues doing them until is_animating is false. Evaluate this architecture compared to the Windows one, maybe the Windows
  *   implementation should change to match.
+ *
+ * - Rename Windows' Window::dpi() to Window::scale() which is more accurate.
  */
 
 fn main() {
