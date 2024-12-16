@@ -107,6 +107,9 @@ declare_class!(
                 ns_window.setAcceptsMouseMovedEvents(true);
             }
 
+            let protocol_object = ProtocolObject::from_ref(self);
+            ns_window.setDelegate(Some(&protocol_object));
+
             let mut gfx = unsafe {
                 let protocol_object = ProtocolObject::from_ref(self);
 
@@ -144,6 +147,19 @@ declare_class!(
         #[method(applicationShouldTerminateAfterLastWindowClosed:)]
         #[allow(non_snake_case)]
         unsafe fn applicationShouldTerminateAfterLastWindowClosed(&self, _sender: &NSApplication) -> bool {
+            true
+        }
+    }
+
+    unsafe impl NSWindowDelegate for Delegate {
+        #[method(windowShouldClose:)]
+        #[allow(non_snake_case)]
+        unsafe fn windowShouldClose(&self, _sender: &NSWindow) -> bool {
+            let window = self.ivars().window.borrow();
+            let mut app = self.ivars().app.borrow_mut();
+
+            app.close(window.time);
+
             true
         }
     }
