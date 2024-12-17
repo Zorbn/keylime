@@ -58,6 +58,7 @@ features = [
     "NSAlert",
     "NSControl",
     "NSButton",
+    "NSPasteboard",
 ]
 
 [target.'cfg(target_os = "macos")'.dependencies.objc2-foundation]

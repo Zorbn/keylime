@@ -1,16 +1,13 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use std::{cell::RefCell, path::Path, rc::Rc};
+use std::{cell::RefCell, path::Path, ptr::NonNull, rc::Rc};
 
 use objc2::{
     declare_class, msg_send, msg_send_id, mutability::MainThreadOnly, rc::Retained,
     runtime::ProtocolObject, ClassType, DeclaredClass,
 };
 use objc2_app_kit::*;
-use objc2_foundation::{
-    ns_string, MainThreadMarker, NSDate, NSNotification, NSObject, NSObjectProtocol, NSPoint,
-    NSRect, NSSize, NSString, NSThread,
-};
+use objc2_foundation::*;
 use objc2_metal_kit::{MTKView, MTKViewDelegate};
 
 use crate::{
@@ -299,6 +296,7 @@ pub struct Window {
     file_watcher: FileWatcher,
 
     wide_text_buffer: TempBuffer<u16>,
+    text_buffer: TempBuffer<char>,
 
     pub chars_typed: Vec<char>,
     pub keybinds_typed: Vec<Keybind>,
@@ -306,6 +304,8 @@ pub struct Window {
     pub mouse_scrolls: Vec<MouseScroll>,
 
     current_pressed_button: Option<RecordedMouseClick>,
+
+    implicit_copy_change_count: Option<isize>,
 }
 
 impl Window {
@@ -346,6 +346,7 @@ impl Window {
             file_watcher: FileWatcher {},
 
             wide_text_buffer: TempBuffer::new(),
+            text_buffer: TempBuffer::new(),
 
             chars_typed: Vec::new(),
             keybinds_typed: Vec::new(),
@@ -353,6 +354,8 @@ impl Window {
             mouse_scrolls: Vec::new(),
 
             current_pressed_button: None,
+
+            implicit_copy_change_count: None,
         }
     }
 
@@ -591,14 +594,82 @@ impl Window {
     }
 
     pub fn set_clipboard(&mut self, text: &[char], was_copy_implicit: bool) -> Result<()> {
+        let wide_text_buffer = self.wide_text_buffer.get_mut();
+
+        for c in text {
+            let mut dst = [0u16; 2];
+
+            for wide_c in c.encode_utf16(&mut dst) {
+                wide_text_buffer.push(*wide_c);
+            }
+        }
+
+        let wide_text_ptr = NonNull::new(wide_text_buffer.as_mut_ptr()).unwrap();
+
+        let mtm = MainThreadMarker::new().unwrap();
+
+        let text = unsafe {
+            NSString::initWithCharacters_length(mtm.alloc(), wide_text_ptr, wide_text_buffer.len())
+        };
+
+        let protocol_object = ProtocolObject::from_retained(text);
+        let protocol_objects = NSArray::from_vec(vec![protocol_object]);
+
+        let pasteboard = unsafe { NSPasteboard::generalPasteboard() };
+
+        let did_succeed = unsafe {
+            pasteboard.clearContents();
+            pasteboard.writeObjects(&protocol_objects)
+        };
+
+        if !did_succeed {
+            return Err("Failed to write to pasteboard");
+        }
+
+        if was_copy_implicit {
+            let change_count = unsafe { pasteboard.changeCount() };
+            self.implicit_copy_change_count = Some(change_count);
+        }
+
         Ok(())
     }
 
     pub fn get_clipboard(&mut self) -> Result<&[char]> {
-        Ok(&[])
+        let text = unsafe {
+            let pasteboard = NSPasteboard::generalPasteboard();
+            pasteboard.stringForType(NSPasteboardTypeString)
+        };
+
+        let Some(text) = text else {
+            return Err("Failed to get pasteboard content");
+        };
+
+        let wide_text_buffer = self.wide_text_buffer.get_mut();
+        let text_buffer = self.text_buffer.get_mut();
+
+        for i in 0..text.length() {
+            let wide_char = unsafe { text.characterAtIndex(i) };
+
+            wide_text_buffer.push(wide_char);
+        }
+
+        for c in char::decode_utf16(wide_text_buffer.iter().copied()) {
+            let Ok(c) = c else {
+                continue;
+            };
+
+            text_buffer.push(c);
+        }
+
+        Ok(text_buffer)
     }
 
     pub fn was_copy_implicit(&self) -> bool {
-        false
+        let change_count = unsafe {
+            let pasteboard = NSPasteboard::generalPasteboard();
+            pasteboard.changeCount()
+        };
+
+        self.implicit_copy_change_count == Some(change_count)
     }
 }
