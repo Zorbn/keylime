@@ -33,7 +33,10 @@ const LOWERCASE_Q: u32 = 'q' as u32;
 const LOWERCASE_L: u32 = 'l' as u32;
 const LOWERCASE_H: u32 = 'h' as u32;
 const LOWERCASE_M: u32 = 'm' as u32;
+const UPPERCASE_A: u32 = 'A' as u32;
+const UPPERCASE_B: u32 = 'B' as u32;
 const UPPERCASE_C: u32 = 'C' as u32;
+const UPPERCASE_D: u32 = 'D' as u32;
 const UPPERCASE_H: u32 = 'H' as u32;
 const UPPERCASE_J: u32 = 'J' as u32;
 const UPPERCASE_K: u32 = 'K' as u32;
@@ -292,6 +295,7 @@ impl TerminalEmulator {
                         continue;
                     }
 
+                    // Print unhandled control sequences.
                     // for c in output {
                     //     if let Some(c) = char::from_u32(*c) {
                     //         print!("{:?} ", c);
@@ -449,26 +453,65 @@ impl TerminalEmulator {
                         Some(&output[1..])
                     }
                     Some(&UPPERCASE_H) => {
-                        let y = parameters.first().copied().unwrap_or(1).saturating_sub(1);
-                        let x = parameters.get(1).copied().unwrap_or(1).saturating_sub(1);
+                        let y = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
+                        let x = Self::get_parameter(parameters, 1, 1).saturating_sub(1);
 
                         self.jump_cursor(Position::new(x as isize, y as isize), doc);
 
                         Some(&output[1..])
                     }
-                    Some(&UPPERCASE_C) => {
-                        let distance = parameters.first().copied().unwrap_or(0);
+                    Some(&UPPERCASE_A) => {
+                        let distance = Self::get_parameter(parameters, 0, 1) as isize;
+                        self.move_cursor(Position::new(0, -distance), doc);
+                        println!("{:?}", distance);
 
-                        self.move_cursor(Position::new(distance as isize, 0), doc);
+                        Some(&output[1..])
+                    }
+                    Some(&UPPERCASE_B) => {
+                        let distance = Self::get_parameter(parameters, 0, 1) as isize;
+                        self.move_cursor(Position::new(0, distance), doc);
+
+                        Some(&output[1..])
+                    }
+                    Some(&UPPERCASE_C) => {
+                        let distance = Self::get_parameter(parameters, 0, 1) as isize;
+                        self.move_cursor(Position::new(distance, 0), doc);
+
+                        Some(&output[1..])
+                    }
+                    Some(&UPPERCASE_D) => {
+                        let distance = Self::get_parameter(parameters, 0, 1) as isize;
+                        self.move_cursor(Position::new(-distance, 0), doc);
 
                         Some(&output[1..])
                     }
                     Some(&UPPERCASE_J) => {
-                        if parameters.first() == Some(&2) {
-                            // Clear screen.
-                            let start = Position::zero();
-                            let end = Position::new(self.grid_width, self.grid_height - 1);
+                        let bounds = match Self::get_parameter(parameters, 0, 0) {
+                            0 => {
+                                // Clear from the cursor to the end of the screen.
+                                let start = self.grid_cursor;
+                                let end = Position::new(self.grid_width, self.grid_height - 1);
 
+                                Some((start, end))
+                            }
+                            1 => {
+                                // Clear from the cursor to the beginning of the screen.
+                                let start = Position::zero();
+                                let end = self.grid_cursor;
+
+                                Some((start, end))
+                            }
+                            2 => {
+                                // Clear screen.
+                                let start = Position::zero();
+                                let end = Position::new(self.grid_width, self.grid_height - 1);
+
+                                Some((start, end))
+                            }
+                            _ => None,
+                        };
+
+                        if let Some((start, end)) = bounds {
                             self.delete(start, end, doc, line_pool, time);
 
                             Some(&output[1..])
@@ -486,7 +529,7 @@ impl TerminalEmulator {
                         Some(&output[1..])
                     }
                     Some(&UPPERCASE_X) => {
-                        let distance = parameters.first().copied().unwrap_or(0);
+                        let distance = Self::get_parameter(parameters, 0, 1);
 
                         // Clear characters after the cursor.
                         let start = self.grid_cursor;
@@ -556,8 +599,11 @@ impl TerminalEmulator {
         let mut parameter_count = 0;
 
         loop {
-            let parameter;
-            (output, parameter) = Self::parse_numeric_parameter(output);
+            let Some((next_output, parameter)) = Self::parse_numeric_parameter(output) else {
+                break;
+            };
+
+            output = next_output;
 
             parameter_buffer[parameter_count] = parameter;
             parameter_count += 1;
@@ -572,15 +618,23 @@ impl TerminalEmulator {
         (output, &parameter_buffer[..parameter_count])
     }
 
-    fn parse_numeric_parameter(mut output: &[u32]) -> (&[u32], usize) {
+    fn parse_numeric_parameter(mut output: &[u32]) -> Option<(&[u32], usize)> {
         let mut parameter = 0;
+
+        if !matches!(output[0], ZERO..=NINE) {
+            return None;
+        }
 
         while matches!(output[0], ZERO..=NINE) {
             parameter = parameter * 10 + (output[0] - ZERO) as usize;
             output = &output[1..];
         }
 
-        (output, parameter)
+        Some((output, parameter))
+    }
+
+    fn get_parameter(parameters: &[usize], index: usize, default: usize) -> usize {
+        parameters.get(index).copied().unwrap_or(default)
     }
 
     fn resize_grid(&mut self, ui: &mut UiHandle, tab: &Tab, pty: &mut Pty) {
