@@ -128,7 +128,7 @@ impl App {
         self.config.theme.is_dark()
     }
 
-    fn is_animating(&self) -> bool {
+    pub fn is_animating(&self) -> bool {
         self.editor.is_animating()
             || self.terminal.is_animating()
             || self.command_palette.is_animating()

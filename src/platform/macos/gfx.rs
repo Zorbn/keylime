@@ -94,12 +94,10 @@ struct VertexInput {
 
 macro_rules! handle_event {
     ($handler:ident, $self:expr, $event:expr $(, $args:expr)*) => {
-        let view = {
-            let window = &mut *$self.ivars().window.borrow_mut();
-            window.$handler($event, $($args), *);
+        let window = &mut *$self.ivars().window.borrow_mut();
+        window.$handler($event, $($args), *);
 
-            window.gfx().view().clone()
-        };
+        let view = window.gfx().view();
 
         unsafe {
             view.setNeedsDisplay(true);
@@ -219,7 +217,7 @@ pub struct Gfx {
     indices: Vec<u32>,
 
     buffers: Vec<Retained<ProtocolObject<dyn MTLBuffer>>>,
-    used_buffers: Vec<Retained<ProtocolObject<dyn MTLBuffer>>>,
+    next_buffer_index: usize,
 
     command_buffer: Option<Retained<ProtocolObject<dyn MTLCommandBuffer>>>,
     encoder: Option<Retained<ProtocolObject<dyn MTLRenderCommandEncoder>>>,
@@ -325,7 +323,7 @@ impl Gfx {
             indices: Vec::new(),
 
             buffers: Vec::new(),
-            used_buffers: Vec::new(),
+            next_buffer_index: 0,
 
             command_buffer: None,
             encoder: None,
@@ -342,7 +340,7 @@ impl Gfx {
         Ok(gfx)
     }
 
-    pub fn resize(&mut self, width: i32, height: i32) -> Result<()> {
+    pub fn resize(&mut self, width: f64, height: f64) -> Result<()> {
         self.width = width as f32;
         self.height = height as f32;
 
@@ -450,7 +448,7 @@ impl Gfx {
         self.encoder = None;
         self.command_buffer = None;
 
-        self.buffers.extend(self.used_buffers.drain(..));
+        self.next_buffer_index = 0;
     }
 
     pub fn begin(&mut self, bounds: Option<Rect>) {
@@ -490,20 +488,23 @@ impl Gfx {
 
         let scene_properties_bytes = NonNull::from(scene_properties_data);
 
-        let Some(index_buffer) = Self::get_buffer_for_vec(
-            &self.indices,
-            &self.device,
-            &mut self.buffers,
-            &mut self.used_buffers,
-        ) else {
+        let buffer_index = self.next_buffer_index;
+        self.next_buffer_index += 1;
+
+        let Some(index_buffer) =
+            Self::get_buffer_for_vec(&self.indices, &self.device, &mut self.buffers, buffer_index)
+        else {
             return;
         };
+
+        let buffer_index = self.next_buffer_index;
+        self.next_buffer_index += 1;
 
         let Some(vertex_buffer) = Self::get_buffer_for_vec(
             &self.vertices,
             &self.device,
             &mut self.buffers,
-            &mut self.used_buffers,
+            buffer_index,
         ) else {
             return;
         };
@@ -535,14 +536,17 @@ impl Gfx {
         vec: &[T],
         device: &Retained<ProtocolObject<dyn MTLDevice>>,
         buffers: &mut Vec<Retained<ProtocolObject<dyn MTLBuffer>>>,
-        used_buffers: &mut Vec<Retained<ProtocolObject<dyn MTLBuffer>>>,
+        buffer_index: usize,
     ) -> Option<Retained<ProtocolObject<dyn MTLBuffer>>> {
-        let mut buffer = buffers.pop();
+        if vec.is_empty() {
+            return None;
+        }
 
-        if !vec.is_empty()
-            && buffer
-                .as_ref()
-                .is_none_or(|buffer| buffer.length() < vec.len() * size_of::<T>())
+        let mut buffer = buffers.get(buffer_index).cloned();
+
+        if buffer
+            .as_ref()
+            .is_none_or(|buffer| buffer.length() < vec.len() * size_of::<T>())
         {
             buffer = device.newBufferWithLength_options(
                 vec.len() * size_of::<T>(),
@@ -551,17 +555,22 @@ impl Gfx {
             );
         }
 
-        if let Some(buffer) = &buffer {
-            used_buffers.push(buffer.clone());
+        let buffer = buffer.unwrap();
 
-            let contents = buffer.contents();
-
-            unsafe {
-                copy_nonoverlapping(vec.as_ptr(), contents.cast::<T>().as_ptr(), vec.len());
-            }
+        if buffer_index >= buffers.len() {
+            buffers.push(buffer.clone());
+            assert!(buffer_index < buffers.len(), "A buffer index was skipped");
+        } else {
+            buffers[buffer_index] = buffer.clone();
         }
 
-        buffer
+        let contents = buffer.contents();
+
+        unsafe {
+            copy_nonoverlapping(vec.as_ptr(), contents.cast::<T>().as_ptr(), vec.len());
+        }
+
+        Some(buffer)
     }
 
     pub fn add_sprite(&mut self, src: Rect, dst: Rect, color: Color) {

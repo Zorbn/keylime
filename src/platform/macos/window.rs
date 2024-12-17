@@ -1,10 +1,6 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use std::{
-    cell::{OnceCell, RefCell},
-    path::Path,
-    rc::Rc,
-};
+use std::{cell::RefCell, path::Path, rc::Rc};
 
 use objc2::{
     declare_class, msg_send, msg_send_id, mutability::MainThreadOnly, rc::Retained,
@@ -33,22 +29,7 @@ use crate::{
 
 use super::{file_watcher::FileWatcher, gfx::Gfx, pty::Pty, result::Result};
 
-macro_rules! idcell {
-    ($name:ident => $this:expr) => {
-        $this.ivars().$name.set($name).expect(&format!(
-            "ivar should not be initialized: `{}`",
-            stringify!($name)
-        ));
-    };
-    ($name:ident <= $this:expr) => {
-        let Some($name) = $this.ivars().$name.get() else {
-            unreachable!("ivar should be initialized: `{}`", stringify!($name));
-        };
-    };
-}
-
 struct Ivars {
-    ns_window: OnceCell<Retained<NSWindow>>,
     app: Rc<RefCell<App>>,
     window: Rc<RefCell<Window>>,
 }
@@ -77,21 +58,11 @@ declare_class!(
 
             let mtm = MainThreadMarker::from(self);
 
-            let content_rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(768.0, 768.0));
+            let (ns_window, width, height) = {
+                let window = window.borrow();
 
-            let ns_window = {
-                let style = NSWindowStyleMask::Closable
-                    | NSWindowStyleMask::Resizable
-                    | NSWindowStyleMask::Miniaturizable
-                    | NSWindowStyleMask::Titled;
-
-                unsafe {
-                    NSWindow::initWithContentRect_styleMask_backing_defer(mtm.alloc(), content_rect, style, NSBackingStoreType::NSBackingStoreBuffered, false)
-                }
+                (window.ns_window.clone(), window.width, window.height)
             };
-
-            let scale = ns_window.backingScaleFactor() as f32;
-            window.borrow_mut().scale = scale;
 
             unsafe {
                 let app = app.borrow();
@@ -122,16 +93,11 @@ declare_class!(
                 Gfx::new(font, *font_size, window.clone(), &ns_window, mtm, protocol_object).unwrap()
             };
 
-            gfx.resize(content_rect.size.width as i32, content_rect.size.height as i32).unwrap();
+            gfx.resize(width, height).unwrap();
 
             let view = gfx.view().clone();
 
             window.borrow_mut().gfx = Some(gfx);
-
-            {
-                let ns_window = ns_window.clone();
-                idcell!(ns_window => self);
-            }
 
             ns_window.setContentView(Some(&view));
             ns_window.center();
@@ -140,7 +106,7 @@ declare_class!(
             unsafe {
                 let app: &mut NSApplication = msg_send![_notification, object];
                 app.activate();
-                view.draw();
+                view.setNeedsDisplay(true);
             }
         }
 
@@ -155,12 +121,24 @@ declare_class!(
         #[method(windowShouldClose:)]
         #[allow(non_snake_case)]
         unsafe fn windowShouldClose(&self, _sender: &NSWindow) -> bool {
-            let window = self.ivars().window.borrow();
+            let time = self.ivars().window.borrow().time;
             let mut app = self.ivars().app.borrow_mut();
 
-            app.close(window.time);
+            app.close(time);
 
             true
+        }
+
+        #[method(windowDidBecomeKey:)]
+        #[allow(non_snake_case)]
+        unsafe fn windowDidBecomeKey(&self, _notification: &NSNotification) {
+            self.on_focused_changed(true);
+        }
+
+        #[method(windowDidResignKey:)]
+        #[allow(non_snake_case)]
+        unsafe fn windowDidResignKey(&self, _notification: &NSNotification) {
+            self.on_focused_changed(false);
         }
     }
 
@@ -168,19 +146,31 @@ declare_class!(
         #[method(drawInMTKView:)]
         #[allow(non_snake_case)]
         unsafe fn drawInMTKView(&self, _view: &MTKView) {
-            let window = &mut *self.ivars().window.borrow_mut();
-            let mut app = self.ivars().app.borrow_mut();
+            let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
+                return;
+            };
+
+            let Ok(mut app) = self.ivars().app.try_borrow_mut() else {
+                return;
+            };
+
+            let window = &mut *window;
 
             app.update(window);
             window.clear_inputs();
             app.draw(window);
 
             if !window.was_shown {
-                idcell!(ns_window <= self);
-
-                ns_window.makeKeyAndOrderFront(None);
-
+                window.ns_window.makeKeyAndOrderFront(None);
                 window.was_shown = true;
+            }
+
+            if app.is_animating() {
+                let gfx = window.gfx();
+
+                unsafe {
+                    gfx.view().setNeedsDisplay(true);
+                }
             }
         }
 
@@ -190,25 +180,7 @@ declare_class!(
             let window = &mut *self.ivars().window.borrow_mut();
             let app = &*self.ivars().app.borrow();
 
-            idcell!(ns_window <= self);
-
-            if let Some(gfx) = &mut window.gfx {
-                gfx.resize(size.width as i32, size.height as i32).unwrap();
-            }
-
-            let scale = ns_window.backingScaleFactor() as f32;
-
-            if scale != window.scale {
-                window.scale = scale;
-
-                if let Some(gfx) = &mut window.gfx {
-                    let Config {
-                        font, font_size, ..
-                    } = app.config();
-
-                    gfx.update_font(font, *font_size, window.scale);
-                }
-            }
+            window.resize(size.width, size.height, app);
 
             unsafe {
                 view.setNeedsDisplay(true);
@@ -221,12 +193,25 @@ impl Delegate {
     fn new(app: Rc<RefCell<App>>, mtm: MainThreadMarker) -> Retained<Self> {
         let this = mtm.alloc();
         let this = this.set_ivars(Ivars {
-            ns_window: OnceCell::default(),
-            window: Rc::new(RefCell::new(Window::new())),
+            window: Rc::new(RefCell::new(Window::new(mtm, 768.0, 768.0))),
             app,
         });
 
         unsafe { msg_send_id![super(this), init] }
+    }
+
+    fn on_focused_changed(&self, is_focused: bool) {
+        let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
+            return;
+        };
+
+        window.is_focused = is_focused;
+
+        let view = window.gfx().view();
+
+        unsafe {
+            view.setNeedsDisplay(true);
+        }
     }
 }
 
@@ -275,7 +260,12 @@ struct RecordedMouseClick {
 }
 
 pub struct Window {
+    ns_window: Retained<NSWindow>,
+    width: f64,
+    height: f64,
+
     was_shown: bool,
+    is_focused: bool,
     time: f32,
     last_queried_time: Option<f64>,
 
@@ -294,14 +284,40 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new() -> Self {
+    pub fn new(mtm: MainThreadMarker, width: f64, height: f64) -> Self {
+        let content_rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(width, height));
+
+        let ns_window = {
+            let style = NSWindowStyleMask::Closable
+                | NSWindowStyleMask::Resizable
+                | NSWindowStyleMask::Miniaturizable
+                | NSWindowStyleMask::Titled;
+
+            unsafe {
+                NSWindow::initWithContentRect_styleMask_backing_defer(
+                    mtm.alloc(),
+                    content_rect,
+                    style,
+                    NSBackingStoreType::NSBackingStoreBuffered,
+                    false,
+                )
+            }
+        };
+
+        let scale = ns_window.backingScaleFactor() as f32;
+
         Self {
+            ns_window,
+            width,
+            height,
+
             was_shown: false,
+            is_focused: false,
             time: 0.0,
             last_queried_time: None,
 
             gfx: None,
-            scale: 1.0,
+            scale,
             file_watcher: FileWatcher {},
 
             wide_text_buffer: TempBuffer::new(),
@@ -312,6 +328,29 @@ impl Window {
             mouse_scrolls: Vec::new(),
 
             current_pressed_button: None,
+        }
+    }
+
+    fn resize(&mut self, width: f64, height: f64, app: &App) {
+        self.width = width;
+        self.height = height;
+
+        if let Some(gfx) = &mut self.gfx {
+            gfx.resize(width, height).unwrap();
+        }
+
+        let scale = self.ns_window.backingScaleFactor() as f32;
+
+        if scale != self.scale {
+            self.scale = scale;
+
+            if let Some(gfx) = &mut self.gfx {
+                let Config {
+                    font, font_size, ..
+                } = app.config();
+
+                gfx.update_font(font, *font_size, self.scale);
+            }
         }
     }
 
@@ -332,17 +371,7 @@ impl Window {
         self.last_queried_time = Some(time);
         self.time += dt;
 
-        let dt = if is_animating {
-            if let Some(gfx) = &self.gfx {
-                unsafe {
-                    gfx.view().setNeedsDisplay(true);
-                }
-            }
-
-            dt
-        } else {
-            0.0
-        };
+        let dt = if is_animating { dt } else { 0.0 };
 
         (self.time, dt)
     }
@@ -495,12 +524,8 @@ impl Window {
         }
     }
 
-    pub fn is_running(&self) -> bool {
-        true
-    }
-
     pub fn is_focused(&self) -> bool {
-        true
+        self.is_focused
     }
 
     pub fn scale(&self) -> f32 {
