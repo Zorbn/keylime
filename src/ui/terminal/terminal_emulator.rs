@@ -467,7 +467,6 @@ impl TerminalEmulator {
                     Some(&UPPERCASE_A) => {
                         let distance = Self::get_parameter(parameters, 0, 1) as isize;
                         self.move_cursor(Position::new(0, -distance), doc);
-                        println!("{:?}", distance);
 
                         Some(&output[1..])
                     }
