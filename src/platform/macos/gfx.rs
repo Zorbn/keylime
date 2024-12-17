@@ -6,6 +6,7 @@ use std::{
     ffi::c_void,
     ptr::{copy_nonoverlapping, NonNull},
     rc::Rc,
+    sync::Mutex,
 };
 
 use objc2::{
@@ -94,7 +95,8 @@ struct VertexInput {
 
 macro_rules! handle_event {
     ($handler:ident, $self:expr, $event:expr $(, $args:expr)*) => {
-        let window = &mut *$self.ivars().window.borrow_mut();
+        let window = $self.ivars().window.lock().unwrap();
+        let window = &mut *window.borrow_mut();
         window.$handler($event, $($args), *);
 
         let view = window.gfx().view();
@@ -106,7 +108,7 @@ macro_rules! handle_event {
 }
 
 pub struct KeylimeViewIvars {
-    window: Rc<RefCell<Window>>,
+    window: Mutex<Rc<RefCell<Window>>>,
 }
 
 declare_class!(
@@ -191,6 +193,12 @@ declare_class!(
     }
 );
 
+// SAFETY: It's only ok to use the view to trigger a redraw, and only
+// once an NSThread has been created to signal to Cocoa that multi-threading
+// is used.
+unsafe impl Send for KeylimeView {}
+unsafe impl Sync for KeylimeView {}
+
 impl KeylimeView {
     fn new(
         window: Rc<RefCell<Window>>,
@@ -199,7 +207,9 @@ impl KeylimeView {
         device: Option<&ProtocolObject<dyn MTLDevice>>,
     ) -> Retained<Self> {
         let this = mtm.alloc();
-        let this = this.set_ivars(KeylimeViewIvars { window });
+        let this = this.set_ivars(KeylimeViewIvars {
+            window: Mutex::new(window),
+        });
 
         unsafe {
             msg_send_id![
@@ -235,6 +245,7 @@ pub struct Gfx {
 
     width: f32,
     height: f32,
+    scale: f32,
 
     pub is_fullscreen: bool,
 }
@@ -343,6 +354,7 @@ impl Gfx {
 
             width: 0.0,
             height: 0.0,
+            scale,
 
             is_fullscreen: false,
         };
@@ -358,6 +370,8 @@ impl Gfx {
     }
 
     pub fn update_font(&mut self, font_name: &str, font_size: f32, scale: f32) {
+        self.scale = scale;
+
         if let Ok(result) = Self::create_atlas_texture(&self.device, font_name, font_size, scale) {
             (self.texture, self.atlas_dimensions) = result;
         }
@@ -802,7 +816,7 @@ impl Gfx {
     }
 
     pub fn border_width(&self) -> f32 {
-        1.0
+        self.scale.floor()
     }
 
     pub fn width(&self) -> f32 {

@@ -857,7 +857,7 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn pty(&self) -> Option<&Pty> {
-        self.pty.as_ref()
+    pub fn pty(&mut self) -> Option<&mut Pty> {
+        self.pty.as_mut()
     }
 }

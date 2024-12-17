@@ -135,9 +135,9 @@ impl Terminal {
         self.pane.is_animating()
     }
 
-    pub fn ptys(&self) -> impl Iterator<Item = &Pty> {
+    pub fn ptys(&mut self) -> impl Iterator<Item = &mut Pty> {
         self.term_list
-            .iter()
-            .filter_map(|term| term.as_ref().and_then(|(_, emulator)| emulator.pty()))
+            .iter_mut()
+            .filter_map(|term| term.as_mut().and_then(|(_, emulator)| emulator.pty()))
     }
 }

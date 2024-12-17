@@ -9,7 +9,7 @@ use objc2::{
 use objc2_app_kit::*;
 use objc2_foundation::{
     ns_string, MainThreadMarker, NSDate, NSNotification, NSObject, NSObjectProtocol, NSPoint,
-    NSRect, NSSize, NSString,
+    NSRect, NSSize, NSString, NSThread,
 };
 use objc2_metal_kit::{MTKView, MTKViewDelegate};
 
@@ -102,6 +102,11 @@ declare_class!(
             ns_window.setContentView(Some(&view));
             ns_window.center();
             ns_window.setTitle(ns_string!("Keylime"));
+
+            // Create a blank thread to tell Cocoa that we are using multi-threading (for the pty).
+            // https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/Multithreading/CreatingThreads/CreatingThreads.html
+            let _ = NSThread::new();
+            assert!(NSThread::isMultiThreaded());
 
             unsafe {
                 let app: &mut NSApplication = msg_send![_notification, object];
@@ -377,9 +382,17 @@ impl Window {
     pub fn update<'a>(
         &mut self,
         is_animating: bool,
-        ptys: impl Iterator<Item = &'a Pty>,
+        ptys: impl Iterator<Item = &'a mut Pty>,
         files: impl Iterator<Item = &'a Path>,
     ) -> (f32, f32) {
+        if let Some(gfx) = &self.gfx {
+            let view = gfx.view();
+
+            for pty in ptys {
+                pty.try_set_view(view);
+            }
+        }
+
         let time = unsafe { NSDate::now().timeIntervalSinceReferenceDate() };
 
         let dt = if let Some(last_queried_time) = self.last_queried_time {

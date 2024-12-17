@@ -48,6 +48,7 @@ name = "keylime"
 version = "0.1.0"
 dependencies = [
  "basic-toml",
+ "libc",
  "objc2 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "objc2-app-kit",
  "objc2-core-foundation",
