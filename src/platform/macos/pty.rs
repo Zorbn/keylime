@@ -36,12 +36,17 @@ impl Pty {
         let pid = unsafe { libc::forkpty(&mut fd, null_mut(), null_mut(), &mut window_size) };
 
         if pid == 0 {
-            let shell = CString::new("zsh").unwrap();
-            let args = &[shell.as_ptr(), null()];
+            for child_path in child_paths {
+                let shell = CString::new(*child_path).unwrap();
+                let args = &[shell.as_ptr(), null()];
+
+                unsafe {
+                    libc::execvp(shell.as_ptr(), args.as_ptr());
+                }
+            }
 
             unsafe {
-                libc::execvp(shell.as_ptr(), args.as_ptr());
-                unreachable!();
+                libc::exit(1);
             }
         }
 

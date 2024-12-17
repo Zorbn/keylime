@@ -46,6 +46,16 @@ const MAX_SCROLLBACK_LINES: usize = 100;
 const MIN_GRID_WIDTH: isize = 80;
 const MIN_GRID_HEIGHT: isize = 24;
 
+#[cfg(target_os = "windows")]
+const SHELLS: &[&str] = &[
+    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "C:\\Windows\\system32\\cmd.exe",
+];
+
+#[cfg(target_os = "macos")]
+const SHELLS: &[&str] = &["zsh", "bash", "sh"];
+
 pub struct TerminalEmulator {
     pty: Option<Pty>,
 
@@ -70,14 +80,8 @@ impl TerminalEmulator {
         let grid_width = MIN_GRID_WIDTH;
         let grid_height = MIN_GRID_HEIGHT;
 
-        let shells = [
-            "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
-            "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-            "C:\\Windows\\system32\\cmd.exe",
-        ];
-
         let mut emulator = Self {
-            pty: Pty::new(grid_width, grid_height, &shells).ok(),
+            pty: Pty::new(grid_width, grid_height, SHELLS).ok(),
 
             grid_cursor: Position::zero(),
             grid_width,
@@ -265,7 +269,7 @@ impl TerminalEmulator {
 
         self.pty = Some(pty);
 
-        tab.camera.horizontal.reset();
+        tab.camera.horizontal.reset_velocity();
         tab.update_camera(ui, doc, dt);
     }
 
