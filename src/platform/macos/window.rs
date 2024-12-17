@@ -389,7 +389,7 @@ impl Window {
             let view = gfx.view();
 
             for pty in ptys {
-                pty.try_set_view(view);
+                pty.try_start(view);
             }
         }
 
@@ -439,7 +439,8 @@ impl Window {
             // TODO: This just remaps Command -> Ctrl, but really
             // there should be native keybinds for MacOS.
             let has_shift = modifier_flags.contains(NSShiftKeyMask);
-            let has_ctrl = modifier_flags.contains(NSCommandKeyMask);
+            let has_ctrl = modifier_flags.contains(NSCommandKeyMask)
+                | modifier_flags.contains(NSControlKeyMask);
             let has_alt = modifier_flags.contains(NSAlternateKeyMask);
 
             self.keybinds_typed

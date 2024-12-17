@@ -83,7 +83,7 @@ impl TerminalEmulator {
 
             maintain_cursor_positions: false,
 
-            is_cursor_visible: false,
+            is_cursor_visible: true,
             foreground_color: TerminalHighlightKind::Foreground,
             background_color: TerminalHighlightKind::Background,
             are_colors_swapped: false,
@@ -262,6 +262,7 @@ impl TerminalEmulator {
 
         self.pty = Some(pty);
 
+        tab.camera.horizontal.reset();
         tab.update_camera(ui, doc, dt);
     }
 

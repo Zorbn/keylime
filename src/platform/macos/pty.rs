@@ -21,9 +21,6 @@ pub struct Pty {
     read_thread_join: Option<JoinHandle<()>>,
 
     fd: i32,
-
-    pub view: Arc<Mutex<Option<Retained<KeylimeView>>>>,
-    has_view: bool,
 }
 
 impl Pty {
@@ -48,22 +45,14 @@ impl Pty {
             }
         }
 
-        let output = Arc::new(Mutex::new(Vec::new()));
-        let view = Arc::new(Mutex::new(None));
-
-        let read_thread_join = Self::run_read_thread(output.clone(), view.clone(), fd);
-
         Ok(Self {
-            output,
+            output: Arc::new(Mutex::new(Vec::new())),
             input: Vec::new(),
             input_bytes: Vec::new(),
 
-            read_thread_join: Some(read_thread_join),
+            read_thread_join: None,
 
             fd,
-
-            view,
-            has_view: false,
         })
     }
 
@@ -99,20 +88,21 @@ impl Pty {
         }
     }
 
-    pub fn try_set_view(&mut self, view: &Retained<KeylimeView>) {
-        if self.has_view {
+    pub fn try_start(&mut self, view: &Retained<KeylimeView>) {
+        if self.read_thread_join.is_some() {
             return;
         }
 
-        self.has_view = true;
-
-        let mut stored_view = self.view.lock().unwrap();
-        *stored_view = Some(view.clone());
+        self.read_thread_join = Some(Self::run_read_thread(
+            self.output.clone(),
+            view.clone(),
+            self.fd,
+        ));
     }
 
     fn run_read_thread(
         output: Arc<Mutex<Vec<u32>>>,
-        view: Arc<Mutex<Option<Retained<KeylimeView>>>>,
+        view: Retained<KeylimeView>,
         fd: i32,
     ) -> JoinHandle<()> {
         thread::spawn(move || {
@@ -126,19 +116,15 @@ impl Pty {
                     utf8_to_utf32(&buffer[..bytes_read as usize], &mut output);
                 }
 
-                let view = view.lock().unwrap();
+                unsafe {
+                    let arg = NSNumber::new_bool(true);
+                    let arg = arg.deref() as *const _ as *const AnyObject;
 
-                if let Some(view) = view.as_deref() {
-                    unsafe {
-                        let arg = NSNumber::new_bool(true);
-                        let arg = arg.deref() as *const _ as *const AnyObject;
-
-                        view.performSelectorOnMainThread_withObject_waitUntilDone(
-                            sel!(setNeedsDisplay:),
-                            Some(&*arg),
-                            false,
-                        );
-                    }
+                    view.performSelectorOnMainThread_withObject_waitUntilDone(
+                        sel!(setNeedsDisplay:),
+                        Some(&*arg),
+                        false,
+                    );
                 }
             }
         })
