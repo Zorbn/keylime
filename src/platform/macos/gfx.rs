@@ -72,7 +72,7 @@ fragment metal::float4 fragment_main(
 
     const metal::float4 color_sample = color_texture.sample(texture_sampler, input.uv);
 
-    return input.uv.y < 0.0 ?
+    return input.uv.y < 0 ?
         input.color :
         float4(input.color.rgb, color_sample.a);
 }
@@ -177,6 +177,12 @@ declare_class!(
             handle_event!(handle_mouse_down, self, event, true);
         }
 
+        #[method(mouseMoved:)]
+        #[allow(non_snake_case)]
+        unsafe fn mouseMoved(&self, event: &NSEvent) {
+            handle_event!(handle_mouse_down, self, event, true);
+        }
+
         #[method(scrollWheel:)]
         #[allow(non_snake_case)]
         unsafe fn scrollWheel(&self, event: &NSEvent) {
@@ -229,6 +235,8 @@ pub struct Gfx {
 
     width: f32,
     height: f32,
+
+    pub is_fullscreen: bool,
 }
 
 impl Gfx {
@@ -335,6 +343,8 @@ impl Gfx {
 
             width: 0.0,
             height: 0.0,
+
+            is_fullscreen: false,
         };
 
         Ok(gfx)
@@ -456,15 +466,14 @@ impl Gfx {
         self.indices.clear();
 
         if let Some(bounds) = bounds {
-            // TODO: Figure out why the flooring/ceiling is necessary here but not on Windows.
-            self.bounds = Rect::new(
-                bounds.x.ceil(),
-                bounds.y.ceil(),
-                bounds.width.floor(),
-                bounds.height.floor(),
-            );
+            self.bounds = bounds;
         } else {
             self.bounds = Rect::new(0.0, 0.0, self.width, self.height);
+        }
+
+        if !self.is_fullscreen {
+            // MacOS draws a black border over the first pixel at the top of the window.
+            self.bounds.y += 1.0;
         }
     }
 
@@ -585,8 +594,8 @@ impl Gfx {
             vertex_count + 3,
         ]);
 
-        let left = dst.x + self.bounds.x;
-        let top = dst.y + self.bounds.y;
+        let left = (dst.x + self.bounds.x).floor();
+        let top = (dst.y + self.bounds.y).floor();
         let right = left + dst.width;
         let bottom = top + dst.height;
 
@@ -712,8 +721,6 @@ impl Gfx {
             let mut destination_x = x + i as f32 * glyph_width;
             let mut destination_width = glyph_step_x;
 
-            assert!(destination_x == destination_x.floor());
-
             // DirectWrite might press the first character in the atlas right up against the left edge (eg. the exclamation point),
             // so we'll just shift it back to the center when rendering if necessary.
             if source_x < 0.0 {
@@ -791,7 +798,7 @@ impl Gfx {
     }
 
     pub fn line_padding(&self) -> f32 {
-        (self.line_height() - self.glyph_height()) / 2.0
+        ((self.line_height() - self.glyph_height()) / 2.0).ceil()
     }
 
     pub fn border_width(&self) -> f32 {
@@ -807,11 +814,11 @@ impl Gfx {
     }
 
     pub fn tab_height(&self) -> f32 {
-        self.line_height() * 1.25
+        (self.line_height() * 1.25).ceil()
     }
 
     pub fn tab_padding_y(&self) -> f32 {
-        (self.tab_height() - self.line_height()) * 0.75
+        ((self.tab_height() - self.line_height()) * 0.75).ceil()
     }
 
     pub fn height_lines(&self) -> isize {

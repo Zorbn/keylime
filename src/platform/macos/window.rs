@@ -140,6 +140,18 @@ declare_class!(
         unsafe fn windowDidResignKey(&self, _notification: &NSNotification) {
             self.on_focused_changed(false);
         }
+
+        #[method(windowDidEnterFullScreen:)]
+        #[allow(non_snake_case)]
+        unsafe fn windowDidEnterFullScreen(&self, _notification: &NSNotification) {
+            self.on_fullscreen_changed(true);
+        }
+
+        #[method(windowDidExitFullScreen:)]
+        #[allow(non_snake_case)]
+        unsafe fn windowDidExitFullScreen(&self, _notification: &NSNotification) {
+            self.on_fullscreen_changed(false);
+        }
     }
 
     unsafe impl MTKViewDelegate for Delegate {
@@ -212,6 +224,14 @@ impl Delegate {
         unsafe {
             view.setNeedsDisplay(true);
         }
+    }
+
+    fn on_fullscreen_changed(&self, is_fullscreen: bool) {
+        let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
+            return;
+        };
+
+        window.gfx().is_fullscreen = is_fullscreen;
     }
 }
 

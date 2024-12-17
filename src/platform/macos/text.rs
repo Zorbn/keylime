@@ -35,7 +35,7 @@ pub struct Text {
 impl Text {
     pub fn new(font_name: &str, font_size: f32, scale: f32) -> Self {
         let font_name = NSString::from_str(font_name);
-        let font_size = (font_size * scale) as f64;
+        let font_size = (font_size * scale).floor() as f64;
 
         Self {
             font_name,
