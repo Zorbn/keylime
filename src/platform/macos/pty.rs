@@ -6,6 +6,7 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+use libc::{kevent, EVFILT_READ, EV_ADD, EV_CLEAR};
 use objc2::{rc::Retained, runtime::AnyObject, sel};
 use objc2_foundation::{NSNumber, NSObjectNSThreadPerformAdditions};
 
@@ -20,6 +21,7 @@ pub struct Pty {
 
     read_thread_join: Option<JoinHandle<()>>,
 
+    kq: i32,
     fd: i32,
 }
 
@@ -31,6 +33,8 @@ impl Pty {
             ws_xpixel: 0,
             ws_ypixel: 0,
         };
+
+        let kq = unsafe { libc::kqueue() };
 
         let mut fd = 0;
         let pid = unsafe { libc::forkpty(&mut fd, null_mut(), null_mut(), &mut window_size) };
@@ -50,6 +54,21 @@ impl Pty {
             }
         }
 
+        let add_event = kevent {
+            ident: fd as usize,
+            filter: EVFILT_READ,
+            flags: EV_ADD | EV_CLEAR,
+            fflags: 0,
+            data: 0,
+            udata: null_mut(),
+        };
+
+        unsafe {
+            if libc::kevent(kq, &add_event, 1, null_mut(), 0, null_mut()) == -1 {
+                return Err("Failed to add pty to kqueue");
+            }
+        }
+
         Ok(Self {
             output: Arc::new(Mutex::new(Vec::new())),
             input: Vec::new(),
@@ -57,6 +76,7 @@ impl Pty {
 
             read_thread_join: None,
 
+            kq,
             fd,
         })
     }
@@ -101,6 +121,7 @@ impl Pty {
         self.read_thread_join = Some(Self::run_read_thread(
             self.output.clone(),
             view.clone(),
+            self.kq,
             self.fd,
         ));
     }
@@ -108,17 +129,44 @@ impl Pty {
     fn run_read_thread(
         output: Arc<Mutex<Vec<u32>>>,
         view: Retained<KeylimeView>,
+        kq: i32,
         fd: i32,
     ) -> JoinHandle<()> {
         thread::spawn(move || {
             let mut buffer = [0u8; 1024];
 
+            let mut event_list = [kevent {
+                ident: 0,
+                filter: 0,
+                flags: 0,
+                fflags: 0,
+                data: 0,
+                udata: null_mut(),
+            }; 1];
+
             loop {
+                let event_count = unsafe {
+                    libc::kevent(
+                        kq,
+                        null_mut(),
+                        0,
+                        event_list.as_mut_ptr(),
+                        event_list.len() as i32,
+                        null_mut(),
+                    )
+                };
+
+                if event_count != 1 {
+                    break;
+                }
+
                 let bytes_read = unsafe { libc::read(fd, buffer.as_mut_ptr() as _, buffer.len()) };
 
-                {
+                if !matches!(bytes_read, 0 | -1) {
                     let mut output = output.lock().unwrap();
                     utf8_to_utf32(&buffer[..bytes_read as usize], &mut output);
+                } else {
+                    break;
                 }
 
                 unsafe {
@@ -139,6 +187,7 @@ impl Pty {
 impl Drop for Pty {
     fn drop(&mut self) {
         unsafe {
+            libc::close(self.kq);
             libc::close(self.fd);
         }
 
