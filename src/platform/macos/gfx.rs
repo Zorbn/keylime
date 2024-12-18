@@ -6,15 +6,14 @@ use std::{
     ffi::c_void,
     ptr::{copy_nonoverlapping, NonNull},
     rc::Rc,
-    sync::Mutex,
 };
 
 use objc2::{
     declare_class, msg_send_id, mutability::MainThreadOnly, rc::Retained, runtime::ProtocolObject,
     ClassType, DeclaredClass,
 };
-use objc2_app_kit::{NSEvent, NSWindow};
-use objc2_foundation::{ns_string, MainThreadMarker, NSRect};
+use objc2_app_kit::{NSEvent, NSViewLayerContentsPlacement, NSWindow};
+use objc2_foundation::{ns_string, CGSize, MainThreadMarker, NSRect};
 use objc2_metal::*;
 use objc2_metal_kit::{MTKView, MTKViewDelegate};
 
@@ -95,8 +94,7 @@ struct VertexInput {
 
 macro_rules! handle_event {
     ($handler:ident, $self:expr, $event:expr $(, $args:expr)*) => {
-        let window = $self.ivars().window.lock().unwrap();
-        let window = &mut *window.borrow_mut();
+        let window = &mut *$self.ivars().window.borrow_mut();
         window.$handler($event, $($args), *);
 
         let view = window.gfx().view();
@@ -108,7 +106,7 @@ macro_rules! handle_event {
 }
 
 pub struct KeylimeViewIvars {
-    window: Mutex<Rc<RefCell<Window>>>,
+    window: Rc<RefCell<Window>>,
 }
 
 declare_class!(
@@ -207,9 +205,7 @@ impl KeylimeView {
         device: Option<&ProtocolObject<dyn MTLDevice>>,
     ) -> Retained<Self> {
         let this = mtm.alloc();
-        let this = this.set_ivars(KeylimeViewIvars {
-            window: Mutex::new(window),
-        });
+        let this = this.set_ivars(KeylimeViewIvars { window });
 
         unsafe {
             msg_send_id![
@@ -277,6 +273,8 @@ impl Gfx {
         unsafe {
             view.setPaused(true);
             view.setEnableSetNeedsDisplay(true);
+            view.setAutoResizeDrawable(false);
+            view.setLayerContentsPlacement(NSViewLayerContentsPlacement::TopLeft);
         }
 
         let pipeline_descriptor = MTLRenderPipelineDescriptor::new();
@@ -365,6 +363,10 @@ impl Gfx {
     pub fn resize(&mut self, width: f64, height: f64) -> Result<()> {
         self.width = width as f32;
         self.height = height as f32;
+
+        unsafe {
+            self.view.setDrawableSize(CGSize::new(width, height));
+        }
 
         Ok(())
     }

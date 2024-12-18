@@ -154,6 +154,27 @@ declare_class!(
         unsafe fn windowDidExitFullScreen(&self, _notification: &NSNotification) {
             self.on_fullscreen_changed(false);
         }
+
+        #[method(windowWillResize:toSize:)]
+        #[allow(non_snake_case)]
+        unsafe fn windowWillResize_toSize(&self, sender: &NSWindow, size: NSSize) -> NSSize {
+            let content_rect = sender.contentRectForFrameRect(NSRect::new(NSPoint::new(0.0, 0.0), size));
+
+            let view = {
+                let window = &mut *self.ivars().window.borrow_mut();
+                let app = &*self.ivars().app.borrow();
+
+                window.resize(content_rect.size.width, content_rect.size.height, app);
+
+                window.gfx().view().clone()
+            };
+
+            unsafe {
+                view.draw();
+            }
+
+            size
+        }
     }
 
     unsafe impl MTKViewDelegate for Delegate {
@@ -194,15 +215,7 @@ declare_class!(
 
         #[method(mtkView:drawableSizeWillChange:)]
         #[allow(non_snake_case)]
-        unsafe fn mtkView_drawableSizeWillChange(&self, view: &MTKView, size: NSSize) {
-            let window = &mut *self.ivars().window.borrow_mut();
-            let app = &*self.ivars().app.borrow();
-
-            window.resize(size.width, size.height, app);
-
-            unsafe {
-                view.setNeedsDisplay(true);
-            }
+        unsafe fn mtkView_drawableSizeWillChange(&self, _view: &MTKView, _size: NSSize) {
         }
     }
 );
