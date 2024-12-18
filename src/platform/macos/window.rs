@@ -170,8 +170,12 @@ declare_class!(
 
             let window = &mut *window;
 
-            app.update(window);
-            window.clear_inputs();
+            let (time, dt) = window.get_time(app.is_animating());
+            app.update(window, time, dt);
+
+            let (files, ptys) = app.files_and_ptys();
+            window.update(files, ptys);
+
             app.draw(window);
 
             if !window.was_shown {
@@ -382,24 +386,7 @@ impl Window {
         }
     }
 
-    pub fn update<'a>(
-        &mut self,
-        is_animating: bool,
-        ptys: impl Iterator<Item = &'a mut Pty>,
-        files: impl Iterator<Item = &'a Path>,
-    ) -> (f32, f32) {
-        if let Some(gfx) = &self.gfx {
-            let view = gfx.view();
-
-            for pty in ptys {
-                pty.try_start(view);
-            }
-
-            self.file_watcher.try_start(view);
-        }
-
-        self.file_watcher.update(files).unwrap();
-
+    fn get_time(&mut self, is_animating: bool) -> (f32, f32) {
         let time = unsafe { NSDate::now().timeIntervalSinceReferenceDate() };
 
         let dt = if let Some(last_queried_time) = self.last_queried_time {
@@ -414,6 +401,26 @@ impl Window {
         let dt = if is_animating { dt } else { 0.0 };
 
         (self.time, dt)
+    }
+
+    fn update<'a>(
+        &mut self,
+        files: impl Iterator<Item = &'a Path>,
+        ptys: impl Iterator<Item = &'a mut Pty>,
+    ) {
+        self.clear_inputs();
+
+        if let Some(gfx) = &self.gfx {
+            let view = gfx.view();
+
+            for pty in ptys {
+                pty.try_start(view);
+            }
+
+            self.file_watcher.try_start(view);
+        }
+
+        self.file_watcher.update(files).unwrap();
     }
 
     fn clear_inputs(&mut self) {

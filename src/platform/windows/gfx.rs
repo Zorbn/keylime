@@ -350,7 +350,7 @@ impl Gfx {
         };
 
         let (texture_data, atlas_dimensions) =
-            Self::create_atlas_texture(&device, font_name, font_size, window.dpi())?;
+            Self::create_atlas_texture(&device, font_name, font_size, window.scale())?;
 
         let gfx = Self {
             device,

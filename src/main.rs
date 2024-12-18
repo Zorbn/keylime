@@ -32,13 +32,7 @@ use platform::window::WindowRunner;
  * - Possibly all of the types/functions from the platform module should just be wrappers that
  *   wrap different internal implementations depending on the platform? eg. Window wraps WindowsWindow and MacOSWindow.
  *
- * - Rename Windows' Window::dpi() to Window::scale() which is more accurate.
- *
  * - Add support for per-platform keybinds (so that command and option work as expected).
- *
- * - Because Window::update is called at the beginning of the frame, on MacOS files are added to the file watcher one frame/event late.
- *
- * - Fix pty not updating until you type in some new terminal tabs.
  */
 
 fn main() {

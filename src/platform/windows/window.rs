@@ -117,7 +117,12 @@ impl WindowRunner {
         let WindowRunner { window, app, .. } = self;
 
         while window.is_running() {
-            app.update(window);
+            let (files, ptys) = app.files_and_ptys();
+            window.update(files, ptys);
+
+            let (time, dt) = window.get_time(app.is_animating());
+            app.update(window, time, dt);
+
             app.draw(window);
         }
 
@@ -193,7 +198,7 @@ pub struct Window {
     is_running: bool,
     is_focused: bool,
 
-    dpi: f32,
+    scale: f32,
     x: i32,
     y: i32,
     width: i32,
@@ -244,7 +249,7 @@ impl Window {
             is_running: true,
             is_focused: false,
 
-            dpi: 1.0,
+            scale: 1.0,
             x: 0,
             y: 0,
             width: DEFAULT_WIDTH,
@@ -277,12 +282,34 @@ impl Window {
         self.mouse_scrolls.clear();
     }
 
+    pub fn get_time(&mut self, is_animating: bool) -> (f32, f32) {
+        unsafe {
+            let mut queried_time = 0i64;
+            let _ = QueryPerformanceCounter(&mut queried_time);
+
+            let dt = if let Some(last_queried_time) = self.last_queried_time {
+                (queried_time - last_queried_time) as f32 / self.timer_frequency as f32
+            } else {
+                0.0
+            };
+
+            self.last_queried_time = Some(queried_time);
+
+            self.time += dt;
+
+            // Don't return massive delta times from big gaps in animation, because those
+            // might cause visual jumps or other problems. (eg. if you don't interact with
+            // the app for 15 seconds and then you do something that starts an animation,
+            // that animation shouldn't instantly jump to completion).
+            (self.time, if is_animating { dt } else { 0.0 })
+        }
+    }
+
     pub fn update<'a>(
         &mut self,
-        is_animating: bool,
         ptys: impl Iterator<Item = &'a Pty>,
         files: impl Iterator<Item = &'a Path>,
-    ) -> (f32, f32) {
+    ) {
         self.clear_inputs();
         self.file_watcher.update(files).unwrap();
 
@@ -324,29 +351,10 @@ impl Window {
 
             self.file_watcher.check_dir_updates().unwrap();
 
-            let mut queried_time = 0i64;
-            let _ = QueryPerformanceCounter(&mut queried_time);
-
-            let dt = if let Some(last_queried_time) = self.last_queried_time {
-                (queried_time - last_queried_time) as f32 / self.timer_frequency as f32
-            } else {
-                0.0
-            };
-
-            self.last_queried_time = Some(queried_time);
-
-            self.time += dt;
-
             while PeekMessageW(&mut msg, self.hwnd, 0, 0, PM_REMOVE).as_bool() {
                 let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
-
-            // Don't return massive delta times from big gaps in animation, because those
-            // might cause visual jumps or other problems. (eg. if you don't interact with
-            // the app for 15 seconds and then you do something that starts an animation,
-            // that animation shouldn't instantly jump to completion).
-            (self.time, if is_animating { dt } else { 0.0 })
         }
     }
 
@@ -362,8 +370,8 @@ impl Window {
         self.hwnd
     }
 
-    pub fn dpi(&self) -> f32 {
-        self.dpi
+    pub fn scale(&self) -> f32 {
+        self.scale
     }
 
     pub fn gfx(&mut self) -> &mut Gfx {
@@ -508,7 +516,7 @@ impl Window {
             }
             WM_CREATE => {
                 self.hwnd = hwnd;
-                self.dpi = GetDpiForWindow(hwnd) as f32 / DEFAULT_DPI;
+                self.scale = GetDpiForWindow(hwnd) as f32 / DEFAULT_DPI;
 
                 let mut window_rect = RECT {
                     left: 0,
@@ -525,8 +533,8 @@ impl Window {
                 )
                 .unwrap();
 
-                let width = ((window_rect.right - window_rect.left) as f32 * self.dpi) as i32;
-                let height = ((window_rect.bottom - window_rect.top) as f32 * self.dpi) as i32;
+                let width = ((window_rect.right - window_rect.left) as f32 * self.scale) as i32;
+                let height = ((window_rect.bottom - window_rect.top) as f32 * self.scale) as i32;
 
                 let _ = SetWindowPos(hwnd, None, 0, 0, width, height, SWP_NOMOVE);
 
@@ -537,15 +545,15 @@ impl Window {
                 self.gfx = Some(Gfx::new(font, *font_size, self).unwrap());
             }
             WM_DPICHANGED => {
-                let dpi = (wparam.0 & 0xffff) as f32 / DEFAULT_DPI;
-                self.dpi = dpi;
+                let scale = (wparam.0 & 0xffff) as f32 / DEFAULT_DPI;
+                self.scale = scale;
 
                 if let Some(gfx) = &mut self.gfx {
                     let Config {
                         font, font_size, ..
                     } = app.config();
 
-                    gfx.update_font(font, *font_size, dpi);
+                    gfx.update_font(font, *font_size, scale);
                 }
 
                 let rect = *(lparam.0 as *const RECT);

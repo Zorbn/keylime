@@ -1,7 +1,9 @@
+use std::path::Path;
+
 use crate::{
     config::Config,
     geometry::rect::Rect,
-    platform::window::Window,
+    platform::{pty::Pty, window::Window},
     temp_buffer::TempBuffer,
     text::{cursor::Cursor, line_pool::LinePool},
     ui::{command_palette::CommandPalette, editor::Editor, terminal::Terminal, Ui},
@@ -47,13 +49,7 @@ impl App {
         }
     }
 
-    pub fn update(&mut self, window: &mut Window) {
-        let (time, dt) = window.update(
-            self.is_animating(),
-            self.terminal.ptys(),
-            self.editor.files(),
-        );
-
+    pub fn update(&mut self, window: &mut Window, time: f32, dt: f32) {
         let mut ui = self.ui.get_handle(window);
 
         ui.update(&mut [
@@ -132,5 +128,11 @@ impl App {
         self.editor.is_animating()
             || self.terminal.is_animating()
             || self.command_palette.is_animating()
+    }
+
+    pub fn files_and_ptys(
+        &mut self,
+    ) -> (impl Iterator<Item = &Path>, impl Iterator<Item = &mut Pty>) {
+        (self.editor.files(), self.terminal.ptys())
     }
 }
