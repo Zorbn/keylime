@@ -10,7 +10,6 @@ mod platform;
 
 mod app;
 mod config;
-mod deferred_call;
 mod digits;
 mod geometry;
 mod input;

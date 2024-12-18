@@ -1,3 +1,4 @@
+mod deferred_call;
 pub mod dialog;
 mod file_watcher;
 pub mod gfx;

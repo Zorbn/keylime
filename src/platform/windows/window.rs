@@ -38,7 +38,6 @@ use windows::{
 use crate::{
     app::App,
     config::Config,
-    defer,
     input::{
         input_handlers::{CharHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
         key::Key,
@@ -50,7 +49,7 @@ use crate::{
     temp_buffer::TempBuffer,
 };
 
-use super::{file_watcher::FileWatcher, gfx::Gfx, pty::Pty};
+use super::{deferred_call::defer, file_watcher::FileWatcher, gfx::Gfx, pty::Pty};
 
 const DEFAULT_DPI: f32 = 96.0;
 

@@ -15,7 +15,7 @@ use windows::{
     },
 };
 
-use crate::defer;
+use super::deferred_call::defer;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum FindFileKind {

@@ -1,9 +1,10 @@
-#[macro_export]
 macro_rules! defer {
     ($e:expr) => {
         let _defer = $crate::deferred_call::DeferredCall::new(|| $e);
     };
 }
+
+pub(super) use defer;
 
 pub struct DeferredCall<F: FnOnce()> {
     f: Option<F>,
