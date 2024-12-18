@@ -343,7 +343,7 @@ impl Window {
 
             gfx: None,
             scale,
-            file_watcher: FileWatcher {},
+            file_watcher: FileWatcher::new(),
 
             wide_text_buffer: TempBuffer::new(),
             text_buffer: TempBuffer::new(),
@@ -394,7 +394,11 @@ impl Window {
             for pty in ptys {
                 pty.try_start(view);
             }
+
+            self.file_watcher.try_start(view);
         }
+
+        self.file_watcher.update(files).unwrap();
 
         let time = unsafe { NSDate::now().timeIntervalSinceReferenceDate() };
 
@@ -573,8 +577,8 @@ impl Window {
         self.gfx.as_mut().unwrap()
     }
 
-    pub fn file_watcher(&self) -> &FileWatcher {
-        &self.file_watcher
+    pub fn file_watcher(&mut self) -> &mut FileWatcher {
+        &mut self.file_watcher
     }
 
     pub fn get_char_handler(&self) -> CharHandler {

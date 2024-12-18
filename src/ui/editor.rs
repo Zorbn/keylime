@@ -141,7 +141,7 @@ impl Editor {
         dt: f32,
     ) {
         self.reload_changed_files(
-            ui.window.file_watcher().changed_files(),
+            ui.window.file_watcher().get_changed_files(),
             line_pool,
             cursor_buffer,
             time,

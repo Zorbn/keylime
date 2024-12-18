@@ -371,8 +371,8 @@ impl Window {
         self.gfx.as_mut().unwrap()
     }
 
-    pub fn file_watcher(&self) -> &FileWatcher {
-        &self.file_watcher
+    pub fn file_watcher(&mut self) -> &mut FileWatcher {
+        &mut self.file_watcher
     }
 
     pub fn get_char_handler(&self) -> CharHandler {

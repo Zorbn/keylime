@@ -170,7 +170,7 @@ impl FileWatcher {
         Ok(())
     }
 
-    pub fn changed_files(&self) -> &[PathBuf] {
+    pub fn get_changed_files(&mut self) -> &[PathBuf] {
         &self.changed_files
     }
 

@@ -59,7 +59,11 @@ enum StepStatus {
 const CURSOR_POSITION_HISTORY_THRESHOLD: isize = 10;
 
 // One change for File::create, and one change for writing.
+#[cfg(target_os = "windows")]
 const EXPECTED_CHANGE_COUNT_ON_SAVE: usize = 2;
+
+#[cfg(target_os = "macos")]
+const EXPECTED_CHANGE_COUNT_ON_SAVE: usize = 1;
 
 pub struct Doc {
     display_name: Option<&'static str>,
