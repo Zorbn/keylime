@@ -41,8 +41,7 @@ define_class!(
 
     unsafe impl NSApplicationDelegate for Delegate {
         #[method(applicationDidFinishLaunching:)]
-        #[allow(non_snake_case)]
-        unsafe fn applicationDidFinishLaunching(&self, _notification: &NSNotification) {
+        unsafe fn application_did_finish_launching(&self, _notification: &NSNotification) {
             let window = self.ivars().window.clone();
             let app = self.ivars().app.clone();
 
@@ -98,8 +97,7 @@ define_class!(
         }
 
         #[method(applicationShouldTerminateAfterLastWindowClosed:)]
-        #[allow(non_snake_case)]
-        unsafe fn applicationShouldTerminateAfterLastWindowClosed(
+        unsafe fn application_should_terminate_after_last_window_closed(
             &self,
             _sender: &NSApplication,
         ) -> bool {
@@ -109,8 +107,7 @@ define_class!(
 
     unsafe impl NSWindowDelegate for Delegate {
         #[method(windowShouldClose:)]
-        #[allow(non_snake_case)]
-        unsafe fn windowShouldClose(&self, _sender: &NSWindow) -> bool {
+        unsafe fn window_should_close(&self, _sender: &NSWindow) -> bool {
             let time = self.ivars().window.borrow().time;
             let mut app = self.ivars().app.borrow_mut();
 
@@ -120,26 +117,22 @@ define_class!(
         }
 
         #[method(windowDidBecomeKey:)]
-        #[allow(non_snake_case)]
-        unsafe fn windowDidBecomeKey(&self, _notification: &NSNotification) {
+        unsafe fn window_did_become_key(&self, _notification: &NSNotification) {
             self.on_focused_changed(true);
         }
 
         #[method(windowDidResignKey:)]
-        #[allow(non_snake_case)]
-        unsafe fn windowDidResignKey(&self, _notification: &NSNotification) {
+        unsafe fn window_did_resign_key(&self, _notification: &NSNotification) {
             self.on_focused_changed(false);
         }
 
         #[method(windowDidEnterFullScreen:)]
-        #[allow(non_snake_case)]
-        unsafe fn windowDidEnterFullScreen(&self, _notification: &NSNotification) {
+        unsafe fn window_did_enter_fullscreen(&self, _notification: &NSNotification) {
             self.on_fullscreen_changed(true);
         }
 
         #[method(windowDidExitFullScreen:)]
-        #[allow(non_snake_case)]
-        unsafe fn windowDidExitFullScreen(&self, _notification: &NSNotification) {
+        unsafe fn window_did_exit_fullscreen(&self, _notification: &NSNotification) {
             self.on_fullscreen_changed(false);
         }
     }

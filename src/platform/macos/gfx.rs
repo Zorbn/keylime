@@ -12,7 +12,7 @@ use objc2::{
     define_class, msg_send, msg_send_id,
     rc::Retained,
     runtime::{AnyObject, ProtocolObject},
-    sel, ClassType, DeclaredClass, MainThreadOnly,
+    sel, DeclaredClass, MainThreadOnly,
 };
 use objc2_app_kit::{
     NSEvent, NSView, NSViewLayerContentsPlacement, NSViewLayerContentsRedrawPolicy, NSWindow,
@@ -133,8 +133,7 @@ define_class!(
 
     unsafe impl KeylimeView {
         #[method_id(makeBackingLayer)]
-        #[allow(non_snake_case)]
-        unsafe fn makeBackingLayer(&self) -> Retained<CALayer> {
+        unsafe fn make_backing_layer(&self) -> Retained<CALayer> {
             let metal_layer = unsafe { CAMetalLayer::new() };
 
             unsafe {
@@ -161,8 +160,7 @@ define_class!(
         }
 
         #[method(setFrameSize:)]
-        #[allow(non_snake_case)]
-        unsafe fn setFrameSize(&self, new_size: NSSize) {
+        unsafe fn set_frame_size(&self, new_size: NSSize) {
             unsafe {
                 let _: () = msg_send![super(self), setFrameSize: new_size];
             }
@@ -185,8 +183,7 @@ define_class!(
         }
 
         #[method(viewDidChangeBackingProperties)]
-        #[allow(non_snake_case)]
-        unsafe fn viewDidChangeBackingProperties(&self) {
+        unsafe fn view_did_change_backing_properties(&self) {
             let metal_layer = self.ivars().metal_layer.get().unwrap();
 
             let scale = metal_layer.contentsScale();
@@ -194,7 +191,7 @@ define_class!(
             let size = CGSize::new(size.width / scale, size.height / scale);
 
             unsafe {
-                self.as_super().setFrameSize(size);
+                self.setFrameSize(size);
             }
 
             let mut window = self.ivars().window.borrow_mut();
@@ -205,74 +202,62 @@ define_class!(
         }
 
         #[method(acceptsFirstResponder)]
-        #[allow(non_snake_case)]
-        unsafe fn acceptsFirstResponder(&self) -> bool {
+        unsafe fn accepts_first_responder(&self) -> bool {
             true
         }
 
         #[method(keyDown:)]
-        #[allow(non_snake_case)]
-        unsafe fn keyDown(&self, event: &NSEvent) {
+        unsafe fn key_down(&self, event: &NSEvent) {
             handle_event!(handle_key_down, self, event);
         }
 
         #[method(mouseDown:)]
-        #[allow(non_snake_case)]
-        unsafe fn mouseDown(&self, event: &NSEvent) {
+        unsafe fn mouse_down(&self, event: &NSEvent) {
             handle_event!(handle_mouse_down, self, event, false);
         }
 
         #[method(rightMouseDown:)]
-        #[allow(non_snake_case)]
-        unsafe fn rightMouseDown(&self, event: &NSEvent) {
+        unsafe fn right_mouse_down(&self, event: &NSEvent) {
             handle_event!(handle_mouse_down, self, event, false);
         }
 
         #[method(otherMouseDown:)]
-        #[allow(non_snake_case)]
-        unsafe fn otherMouseDown(&self, event: &NSEvent) {
+        unsafe fn other_mouse_down(&self, event: &NSEvent) {
             handle_event!(handle_mouse_down, self, event, false);
         }
 
         #[method(mouseUp:)]
-        #[allow(non_snake_case)]
-        unsafe fn mouseUp(&self, event: &NSEvent) {
+        unsafe fn mouse_up(&self, event: &NSEvent) {
             handle_event!(handle_mouse_up, self, event);
         }
 
         #[method(rightMouseUp:)]
-        #[allow(non_snake_case)]
-        unsafe fn rightMouseUp(&self, event: &NSEvent) {
+        unsafe fn right_mouse_up(&self, event: &NSEvent) {
             handle_event!(handle_mouse_up, self, event);
         }
 
         #[method(otherMouseUp:)]
-        #[allow(non_snake_case)]
-        unsafe fn otherMouseUp(&self, event: &NSEvent) {
+        unsafe fn other_mouse_up(&self, event: &NSEvent) {
             handle_event!(handle_mouse_up, self, event);
         }
 
         #[method(mouseDragged:)]
-        #[allow(non_snake_case)]
-        unsafe fn mouseDragged(&self, event: &NSEvent) {
+        unsafe fn mouse_dragged(&self, event: &NSEvent) {
             handle_event!(handle_mouse_down, self, event, true);
         }
 
         #[method(mouseMoved:)]
-        #[allow(non_snake_case)]
-        unsafe fn mouseMoved(&self, event: &NSEvent) {
+        unsafe fn mouse_moved(&self, event: &NSEvent) {
             handle_event!(handle_mouse_down, self, event, true);
         }
 
         #[method(scrollWheel:)]
-        #[allow(non_snake_case)]
-        unsafe fn scrollWheel(&self, event: &NSEvent) {
+        unsafe fn scroll_wheel(&self, event: &NSEvent) {
             handle_event!(handle_scroll_wheel, self, event);
         }
 
         #[method(onDisplayLink)]
-        #[allow(non_snake_case)]
-        unsafe fn onDisplayLink(&self) {
+        unsafe fn on_display_link(&self) {
             let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
                 return;
             };
@@ -289,8 +274,7 @@ define_class!(
 
     unsafe impl CALayerDelegate for KeylimeView {
         #[method(displayLayer:)]
-        #[allow(non_snake_case)]
-        unsafe fn displayLayer(&self, _layer: &CALayer) {
+        unsafe fn display_layer(&self, _layer: &CALayer) {
             let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
                 return;
             };
