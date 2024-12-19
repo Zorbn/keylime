@@ -4,7 +4,6 @@ use std::{
     borrow,
     cell::{OnceCell, RefCell},
     ffi::c_void,
-    ops::Deref,
     ptr::{copy_nonoverlapping, NonNull},
     rc::Rc,
 };
@@ -343,8 +342,7 @@ impl KeylimeViewRef {
 
     pub unsafe fn set_needs_display(&self) {
         let arg = NSNumber::new_bool(true);
-        // TODO: Is arg.deref() the same as *arg?
-        let arg = arg.deref() as *const _ as *const AnyObject;
+        let arg = &*arg as *const _ as *const AnyObject;
 
         unsafe {
             self.inner
@@ -451,8 +449,7 @@ impl Gfx {
         let view = KeylimeView::new(app.clone(), window, mtm, frame_rect, device.clone());
 
         let display_link = unsafe {
-            let display_link =
-                CADisplayLink::displayLinkWithTarget_selector(&view, sel!(onDisplayLink));
+            let display_link = view.displayLinkWithTarget_selector(&view, sel!(onDisplayLink));
             display_link.addToRunLoop_forMode(&NSRunLoop::currentRunLoop(), NSDefaultRunLoopMode);
 
             display_link
