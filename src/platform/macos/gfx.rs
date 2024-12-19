@@ -2,22 +2,35 @@
 
 use std::{
     borrow,
-    cell::RefCell,
+    cell::{OnceCell, RefCell},
     ffi::c_void,
+    ops::Deref,
     ptr::{copy_nonoverlapping, NonNull},
     rc::Rc,
 };
 
 use objc2::{
-    declare_class, msg_send_id, mutability::MainThreadOnly, rc::Retained, runtime::ProtocolObject,
-    ClassType, DeclaredClass,
+    define_class, msg_send, msg_send_id,
+    rc::Retained,
+    runtime::{AnyObject, ProtocolObject},
+    sel, ClassType, DeclaredClass, MainThreadOnly,
 };
-use objc2_app_kit::{NSEvent, NSViewLayerContentsPlacement, NSWindow};
-use objc2_foundation::{ns_string, CGSize, MainThreadMarker, NSRect};
+use objc2_app_kit::{
+    NSEvent, NSView, NSViewLayerContentsPlacement, NSViewLayerContentsRedrawPolicy, NSWindow,
+};
+use objc2_core_foundation::CGSize;
+use objc2_foundation::{
+    ns_string, MainThreadMarker, NSDefaultRunLoopMode, NSNumber, NSObjectNSThreadPerformAdditions,
+    NSObjectProtocol, NSRect, NSRunLoop, NSSize,
+};
 use objc2_metal::*;
-use objc2_metal_kit::{MTKView, MTKViewDelegate};
+use objc2_quartz_core::{
+    CAAutoresizingMask, CADisplayLink, CALayer, CALayerDelegate, CAMetalDrawable, CAMetalLayer,
+};
 
 use crate::{
+    app::App,
+    config::Config,
     geometry::{
         matrix::ortho,
         rect::Rect,
@@ -106,23 +119,92 @@ macro_rules! handle_event {
 }
 
 pub struct KeylimeViewIvars {
+    app: Rc<RefCell<App>>,
     window: Rc<RefCell<Window>>,
+    device: Retained<ProtocolObject<dyn MTLDevice>>,
+    metal_layer: OnceCell<Retained<CAMetalLayer>>,
 }
 
-declare_class!(
+define_class!(
+    #[unsafe(super(NSView))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "KeylimeView"]
+    #[ivars = KeylimeViewIvars]
     pub struct KeylimeView;
 
-    unsafe impl ClassType for KeylimeView {
-        type Super = MTKView;
-        type Mutability = MainThreadOnly;
-        const NAME: &'static str = "KeylimeView";
-    }
-
-    impl DeclaredClass for KeylimeView {
-        type Ivars = KeylimeViewIvars;
-    }
-
     unsafe impl KeylimeView {
+        #[method_id(makeBackingLayer)]
+        #[allow(non_snake_case)]
+        unsafe fn makeBackingLayer(&self) -> Retained<CALayer> {
+            let metal_layer = unsafe { CAMetalLayer::new() };
+
+            unsafe {
+                metal_layer.setPixelFormat(PIXEL_FORMAT);
+                metal_layer.setDevice(Some(&self.ivars().device));
+
+                let protocol_object = ProtocolObject::from_ref(self);
+                metal_layer.setDelegate(Some(&protocol_object));
+
+                metal_layer.setAllowsNextDrawableTimeout(false);
+
+                metal_layer.setAutoresizingMask(
+                    CAAutoresizingMask::kCALayerWidthSizable
+                        | CAAutoresizingMask::kCALayerHeightSizable,
+                );
+
+                metal_layer.setNeedsDisplayOnBoundsChange(true);
+            }
+
+            self.ivars().metal_layer.set(metal_layer.clone()).unwrap();
+
+            let layer = Retained::<CALayer>::from(&metal_layer);
+            layer
+        }
+
+        #[method(setFrameSize:)]
+        #[allow(non_snake_case)]
+        unsafe fn setFrameSize(&self, new_size: NSSize) {
+            unsafe {
+                let _: () = msg_send![super(self), setFrameSize: new_size];
+            }
+
+            let metal_layer = self.ivars().metal_layer.get().unwrap();
+
+            let window = &mut *self.ivars().window.borrow_mut();
+            let app = &*self.ivars().app.borrow();
+
+            let scale = window.ns_window.backingScaleFactor();
+            let new_size = CGSize::new(new_size.width * scale, new_size.height * scale);
+
+            metal_layer.setContentsScale(scale);
+
+            unsafe {
+                metal_layer.setDrawableSize(new_size);
+            }
+
+            window.resize(new_size.width, new_size.height, app);
+        }
+
+        #[method(viewDidChangeBackingProperties)]
+        #[allow(non_snake_case)]
+        unsafe fn viewDidChangeBackingProperties(&self) {
+            let metal_layer = self.ivars().metal_layer.get().unwrap();
+
+            let scale = metal_layer.contentsScale();
+            let size = unsafe { metal_layer.drawableSize() };
+            let size = CGSize::new(size.width / scale, size.height / scale);
+
+            unsafe {
+                self.as_super().setFrameSize(size);
+            }
+
+            let mut window = self.ivars().window.borrow_mut();
+
+            unsafe {
+                window.gfx().view().setNeedsDisplay(true);
+            }
+        }
+
         #[method(acceptsFirstResponder)]
         #[allow(non_snake_case)]
         unsafe fn acceptsFirstResponder(&self) -> bool {
@@ -188,31 +270,129 @@ declare_class!(
         unsafe fn scrollWheel(&self, event: &NSEvent) {
             handle_event!(handle_scroll_wheel, self, event);
         }
+
+        #[method(onDisplayLink)]
+        #[allow(non_snake_case)]
+        unsafe fn onDisplayLink(&self) {
+            let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
+                return;
+            };
+
+            let gfx = window.gfx();
+
+            unsafe {
+                gfx.view().setNeedsDisplay(true);
+            }
+        }
+    }
+
+    unsafe impl NSObjectProtocol for KeylimeView {}
+
+    unsafe impl CALayerDelegate for KeylimeView {
+        #[method(displayLayer:)]
+        #[allow(non_snake_case)]
+        unsafe fn displayLayer(&self, _layer: &CALayer) {
+            let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
+                return;
+            };
+
+            let Ok(mut app) = self.ivars().app.try_borrow_mut() else {
+                return;
+            };
+
+            let window = &mut *window;
+
+            let (time, dt) = window.get_time(app.is_animating());
+            app.update(window, time, dt);
+
+            let (files, ptys) = app.files_and_ptys();
+            window.update(files, ptys);
+
+            app.draw(window);
+
+            if !window.was_shown {
+                window.ns_window.makeKeyAndOrderFront(None);
+                window.was_shown = true;
+            }
+
+            let gfx = window.gfx();
+
+            unsafe {
+                gfx.display_link.setPaused(!app.is_animating());
+            }
+        }
     }
 );
 
 // SAFETY: It's only ok to use the view to trigger a redraw, and only
 // once an NSThread has been created to signal to Cocoa that multi-threading
 // is used.
-unsafe impl Send for KeylimeView {}
-unsafe impl Sync for KeylimeView {}
+unsafe impl Send for KeylimeViewRef {}
+unsafe impl Sync for KeylimeViewRef {}
+
+pub struct KeylimeViewRef {
+    inner: Retained<KeylimeView>,
+}
+
+impl KeylimeViewRef {
+    pub fn new(inner: &Retained<KeylimeView>) -> Self {
+        Self {
+            inner: inner.clone(),
+        }
+    }
+
+    pub unsafe fn set_needs_display(&self) {
+        let arg = NSNumber::new_bool(true);
+        // TODO: Is arg.deref() the same as *arg?
+        let arg = arg.deref() as *const _ as *const AnyObject;
+
+        unsafe {
+            self.inner
+                .performSelectorOnMainThread_withObject_waitUntilDone(
+                    sel!(setNeedsDisplay:),
+                    Some(&*arg),
+                    false,
+                );
+        }
+    }
+}
+
+const PIXEL_FORMAT: MTLPixelFormat = MTLPixelFormat::BGRA8Unorm;
 
 impl KeylimeView {
     fn new(
+        app: Rc<RefCell<App>>,
         window: Rc<RefCell<Window>>,
         mtm: MainThreadMarker,
         frame_rect: NSRect,
-        device: Option<&ProtocolObject<dyn MTLDevice>>,
+        device: Retained<ProtocolObject<dyn MTLDevice>>,
     ) -> Retained<Self> {
         let this = mtm.alloc();
-        let this = this.set_ivars(KeylimeViewIvars { window });
+        let this = this.set_ivars(KeylimeViewIvars {
+            app,
+            window,
+            device,
+            metal_layer: OnceCell::new(),
+        });
 
-        unsafe {
+        let view: Retained<KeylimeView> = unsafe {
             msg_send_id![
                 super(this),
-                initWithFrame: frame_rect, device: device
+                initWithFrame: frame_rect
             ]
+        };
+
+        view.setWantsLayer(true);
+
+        unsafe {
+            view.setLayerContentsRedrawPolicy(
+                NSViewLayerContentsRedrawPolicy::NSViewLayerContentsRedrawDuringViewResize,
+            );
+
+            view.setLayerContentsPlacement(NSViewLayerContentsPlacement::ScaleAxesIndependently);
         }
+
+        view
     }
 }
 
@@ -224,6 +404,7 @@ pub struct Gfx {
     command_queue: Retained<ProtocolObject<dyn MTLCommandQueue>>,
     pipeline_state: Retained<ProtocolObject<dyn MTLRenderPipelineState>>,
     view: Retained<KeylimeView>,
+    display_link: Retained<CADisplayLink>,
 
     vertices: Vec<VertexInput>,
     indices: Vec<u32>,
@@ -231,6 +412,7 @@ pub struct Gfx {
     buffers: Vec<Retained<ProtocolObject<dyn MTLBuffer>>>,
     next_buffer_index: usize,
 
+    drawable: Option<Retained<ProtocolObject<dyn CAMetalDrawable>>>,
     command_buffer: Option<Retained<ProtocolObject<dyn MTLCommandBuffer>>>,
     encoder: Option<Retained<ProtocolObject<dyn MTLRenderCommandEncoder>>>,
 
@@ -248,12 +430,10 @@ pub struct Gfx {
 
 impl Gfx {
     pub unsafe fn new(
-        font_name: &str,
-        font_size: f32,
+        app: Rc<RefCell<App>>,
         window: Rc<RefCell<Window>>,
         ns_window: &NSWindow,
         mtm: MainThreadMarker,
-        delegate: &ProtocolObject<dyn MTKViewDelegate>,
     ) -> Result<Self> {
         let scale = window.borrow().scale();
 
@@ -268,14 +448,15 @@ impl Gfx {
 
         let frame_rect = ns_window.frame();
 
-        let view = KeylimeView::new(window, mtm, frame_rect, Some(&device));
+        let view = KeylimeView::new(app.clone(), window, mtm, frame_rect, device.clone());
 
-        unsafe {
-            view.setPaused(true);
-            view.setEnableSetNeedsDisplay(true);
-            view.setAutoResizeDrawable(false);
-            view.setLayerContentsPlacement(NSViewLayerContentsPlacement::TopLeft);
-        }
+        let display_link = unsafe {
+            let display_link =
+                CADisplayLink::displayLinkWithTarget_selector(&view, sel!(onDisplayLink));
+            display_link.addToRunLoop_forMode(&NSRunLoop::currentRunLoop(), NSDefaultRunLoopMode);
+
+            display_link
+        };
 
         let pipeline_descriptor = MTLRenderPipelineDescriptor::new();
 
@@ -283,7 +464,7 @@ impl Gfx {
             pipeline_descriptor
                 .colorAttachments()
                 .objectAtIndexedSubscript(0)
-                .setPixelFormat(view.colorPixelFormat())
+                .setPixelFormat(PIXEL_FORMAT)
         }
 
         let library = device.newLibraryWithSource_options_error(ns_string!(SHADER_CODE), None);
@@ -302,7 +483,6 @@ impl Gfx {
         let fragment_function = library.newFunctionWithName(ns_string!("fragment_main"));
         pipeline_descriptor.setFragmentFunction(fragment_function.as_deref());
 
-        let pixel_format = unsafe { view.colorPixelFormat() };
         let color_attachment = unsafe { MTLRenderPipelineColorAttachmentDescriptor::new() };
         color_attachment.setBlendingEnabled(true);
         color_attachment.setRgbBlendOperation(MTLBlendOperation::Add);
@@ -311,7 +491,7 @@ impl Gfx {
         color_attachment.setSourceAlphaBlendFactor(MTLBlendFactor::SourceAlpha);
         color_attachment.setDestinationRGBBlendFactor(MTLBlendFactor::OneMinusSourceAlpha);
         color_attachment.setDestinationAlphaBlendFactor(MTLBlendFactor::OneMinusSourceAlpha);
-        color_attachment.setPixelFormat(pixel_format);
+        color_attachment.setPixelFormat(PIXEL_FORMAT);
 
         unsafe {
             pipeline_descriptor
@@ -323,18 +503,21 @@ impl Gfx {
             .newRenderPipelineStateWithDescriptor_error(&pipeline_descriptor)
             .expect("Failed to create a pipeline state.");
 
-        unsafe {
-            view.setDelegate(Some(delegate));
-        }
+        let app = app.borrow();
+
+        let Config {
+            font, font_size, ..
+        } = app.config();
 
         let (texture, atlas_dimensions) =
-            Self::create_atlas_texture(&device, font_name, font_size, scale)?;
+            Self::create_atlas_texture(&device, font, *font_size, scale)?;
 
         let gfx = Gfx {
             device,
             command_queue,
             pipeline_state,
             view,
+            display_link,
 
             vertices: Vec::new(),
             indices: Vec::new(),
@@ -342,6 +525,7 @@ impl Gfx {
             buffers: Vec::new(),
             next_buffer_index: 0,
 
+            drawable: None,
             command_buffer: None,
             encoder: None,
 
@@ -363,10 +547,6 @@ impl Gfx {
     pub fn resize(&mut self, width: f64, height: f64) -> Result<()> {
         self.width = width as f32;
         self.height = height as f32;
-
-        unsafe {
-            self.view.setDrawableSize(CGSize::new(width, height));
-        }
 
         Ok(())
     }
@@ -425,14 +605,7 @@ impl Gfx {
     }
 
     pub fn begin_frame(&mut self, clear_color: Color) {
-        unsafe {
-            self.view.setClearColor(MTLClearColor {
-                red: clear_color.r as f64 / 255.0f64,
-                green: clear_color.g as f64 / 255.0f64,
-                blue: clear_color.b as f64 / 255.0f64,
-                alpha: clear_color.a as f64 / 255.0f64,
-            });
-        }
+        let metal_layer = self.view.ivars().metal_layer.get().unwrap();
 
         self.command_buffer = self.command_queue.commandBuffer();
 
@@ -440,9 +613,31 @@ impl Gfx {
             return;
         };
 
-        let Some(pass_descriptor) = (unsafe { self.view.currentRenderPassDescriptor() }) else {
-            return;
-        };
+        self.drawable = unsafe { metal_layer.nextDrawable() };
+        let drawable = self.drawable.as_ref().unwrap();
+
+        let color_attachment = MTLRenderPassColorAttachmentDescriptor::new();
+
+        unsafe {
+            color_attachment.setTexture(Some(&drawable.texture()));
+        }
+
+        color_attachment.setLoadAction(MTLLoadAction::Clear);
+        color_attachment.setStoreAction(MTLStoreAction::Store);
+        color_attachment.setClearColor(MTLClearColor {
+            red: clear_color.r as f64 / 255.0f64,
+            green: clear_color.g as f64 / 255.0f64,
+            blue: clear_color.b as f64 / 255.0f64,
+            alpha: clear_color.a as f64 / 255.0f64,
+        });
+
+        let pass_descriptor = MTLRenderPassDescriptor::renderPassDescriptor();
+
+        unsafe {
+            pass_descriptor
+                .colorAttachments()
+                .setObject_atIndexedSubscript(Some(&color_attachment), 0);
+        }
 
         self.encoder = command_buffer.renderCommandEncoderWithDescriptor(&pass_descriptor);
 
@@ -462,17 +657,18 @@ impl Gfx {
             return;
         };
 
-        let Some(current_drawable) = (unsafe { self.view.currentDrawable() }) else {
+        let Some(drawable) = self.drawable.as_ref() else {
             return;
         };
 
         encoder.endEncoding();
 
-        command_buffer.presentDrawable(ProtocolObject::from_ref(&*current_drawable));
+        command_buffer.presentDrawable(ProtocolObject::from_ref(&**drawable));
         command_buffer.commit();
 
         self.encoder = None;
         self.command_buffer = None;
+        self.drawable = None;
 
         self.next_buffer_index = 0;
     }

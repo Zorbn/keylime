@@ -3,12 +3,11 @@
 use std::{cell::RefCell, path::Path, ptr::NonNull, rc::Rc};
 
 use objc2::{
-    declare_class, msg_send, msg_send_id, mutability::MainThreadOnly, rc::Retained,
-    runtime::ProtocolObject, ClassType, DeclaredClass,
+    define_class, msg_send, msg_send_id, rc::Retained, runtime::ProtocolObject, DeclaredClass,
+    MainThreadOnly,
 };
 use objc2_app_kit::*;
 use objc2_foundation::*;
-use objc2_metal_kit::{MTKView, MTKViewDelegate};
 
 use crate::{
     app::App,
@@ -31,18 +30,12 @@ struct Ivars {
     window: Rc<RefCell<Window>>,
 }
 
-declare_class!(
+define_class!(
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "Delegate"]
+    #[ivars = Ivars]
     struct Delegate;
-
-    unsafe impl ClassType for Delegate {
-        type Super = NSObject;
-        type Mutability = MainThreadOnly;
-        const NAME: &'static str = "Delegate";
-    }
-
-    impl DeclaredClass for Delegate {
-        type Ivars = Ivars;
-    }
 
     unsafe impl NSObjectProtocol for Delegate {}
 
@@ -71,24 +64,16 @@ declare_class!(
                 let b = theme.background.b as f64 / 255.0f64;
                 let a = theme.background.a as f64 / 255.0f64;
 
-                ns_window.setBackgroundColor(Some(&NSColor::colorWithRed_green_blue_alpha(r, g, b, a)));
+                ns_window
+                    .setBackgroundColor(Some(&NSColor::colorWithRed_green_blue_alpha(r, g, b, a)));
                 ns_window.setAcceptsMouseMovedEvents(true);
             }
 
             let protocol_object = ProtocolObject::from_ref(self);
             ns_window.setDelegate(Some(&protocol_object));
 
-            let mut gfx = unsafe {
-                let protocol_object = ProtocolObject::from_ref(self);
-
-                let app = app.borrow();
-
-                let Config {
-                    font, font_size, ..
-                } = app.config();
-
-                Gfx::new(font, *font_size, window.clone(), &ns_window, mtm, protocol_object).unwrap()
-            };
+            let mut gfx =
+                unsafe { Gfx::new(app.clone(), window.clone(), &ns_window, mtm).unwrap() };
 
             gfx.resize(width, height).unwrap();
 
@@ -114,7 +99,10 @@ declare_class!(
 
         #[method(applicationShouldTerminateAfterLastWindowClosed:)]
         #[allow(non_snake_case)]
-        unsafe fn applicationShouldTerminateAfterLastWindowClosed(&self, _sender: &NSApplication) -> bool {
+        unsafe fn applicationShouldTerminateAfterLastWindowClosed(
+            &self,
+            _sender: &NSApplication,
+        ) -> bool {
             true
         }
     }
@@ -153,69 +141,6 @@ declare_class!(
         #[allow(non_snake_case)]
         unsafe fn windowDidExitFullScreen(&self, _notification: &NSNotification) {
             self.on_fullscreen_changed(false);
-        }
-
-        #[method(windowWillResize:toSize:)]
-        #[allow(non_snake_case)]
-        unsafe fn windowWillResize_toSize(&self, sender: &NSWindow, size: NSSize) -> NSSize {
-            let content_rect = sender.contentRectForFrameRect(NSRect::new(NSPoint::new(0.0, 0.0), size));
-
-            let view = {
-                let window = &mut *self.ivars().window.borrow_mut();
-                let app = &*self.ivars().app.borrow();
-
-                window.resize(content_rect.size.width, content_rect.size.height, app);
-
-                window.gfx().view().clone()
-            };
-
-            unsafe {
-                view.draw();
-            }
-
-            size
-        }
-    }
-
-    unsafe impl MTKViewDelegate for Delegate {
-        #[method(drawInMTKView:)]
-        #[allow(non_snake_case)]
-        unsafe fn drawInMTKView(&self, _view: &MTKView) {
-            let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
-                return;
-            };
-
-            let Ok(mut app) = self.ivars().app.try_borrow_mut() else {
-                return;
-            };
-
-            let window = &mut *window;
-
-            let (time, dt) = window.get_time(app.is_animating());
-            app.update(window, time, dt);
-
-            let (files, ptys) = app.files_and_ptys();
-            window.update(files, ptys);
-
-            app.draw(window);
-
-            if !window.was_shown {
-                window.ns_window.makeKeyAndOrderFront(None);
-                window.was_shown = true;
-            }
-
-            if app.is_animating() {
-                let gfx = window.gfx();
-
-                unsafe {
-                    gfx.view().setNeedsDisplay(true);
-                }
-            }
-        }
-
-        #[method(mtkView:drawableSizeWillChange:)]
-        #[allow(non_snake_case)]
-        unsafe fn mtkView_drawableSizeWillChange(&self, _view: &MTKView, _size: NSSize) {
         }
     }
 );
@@ -285,10 +210,7 @@ impl WindowRunner {
         let delegate = Delegate::new(self.app.clone(), mtm);
         let object = ProtocolObject::from_ref(&*delegate);
         app.setDelegate(Some(object));
-
-        unsafe {
-            app.run();
-        }
+        app.run();
     }
 }
 
@@ -299,11 +221,11 @@ struct RecordedMouseClick {
 }
 
 pub struct Window {
-    ns_window: Retained<NSWindow>,
+    pub ns_window: Retained<NSWindow>,
     width: f64,
     height: f64,
 
-    was_shown: bool,
+    pub was_shown: bool,
     is_focused: bool,
     time: f32,
     last_queried_time: Option<f64>,
@@ -376,7 +298,7 @@ impl Window {
         }
     }
 
-    fn resize(&mut self, width: f64, height: f64, app: &App) {
+    pub fn resize(&mut self, width: f64, height: f64, app: &App) {
         self.width = width;
         self.height = height;
 
@@ -399,7 +321,7 @@ impl Window {
         }
     }
 
-    fn get_time(&mut self, is_animating: bool) -> (f32, f32) {
+    pub fn get_time(&mut self, is_animating: bool) -> (f32, f32) {
         let time = unsafe { NSDate::now().timeIntervalSinceReferenceDate() };
 
         let dt = if let Some(last_queried_time) = self.last_queried_time {
@@ -416,7 +338,7 @@ impl Window {
         (self.time, dt)
     }
 
-    fn update<'a>(
+    pub fn update<'a>(
         &mut self,
         files: impl Iterator<Item = &'a Path>,
         ptys: impl Iterator<Item = &'a mut Pty>,
@@ -637,7 +559,7 @@ impl Window {
         };
 
         let protocol_object = ProtocolObject::from_retained(text);
-        let protocol_objects = NSArray::from_vec(vec![protocol_object]);
+        let protocol_objects = NSArray::from_retained_slice(&[protocol_object]);
 
         let pasteboard = unsafe { NSPasteboard::generalPasteboard() };
 

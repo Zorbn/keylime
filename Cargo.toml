@@ -38,12 +38,16 @@ features = [
     "Win32_UI_Input_KeyboardAndMouse",
 ]
 
-[target.'cfg(target_os = "macos")'.dependencies]
-objc2 = "0.5"
-libc = "0.2"
+[target.'cfg(target_os = "macos")'.dependencies.libc]
+version = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2]
+git = "https://github.com/madsmtm/objc2"
+rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9"
 
 [target.'cfg(target_os = "macos")'.dependencies.objc2-app-kit]
-version = "0.2"
+git = "https://github.com/madsmtm/objc2"
+rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9"
 features = [
     "NSApplication",
     "NSRunningApplication",
@@ -59,14 +63,26 @@ features = [
     "NSControl",
     "NSButton",
     "NSPasteboard",
+    "NSView",
+    "NSAppearance",
+    "objc2-quartz-core",
+    "objc2-core-foundation",
 ]
 
 [target.'cfg(target_os = "macos")'.dependencies.objc2-foundation]
-version = "0.2"
-features = ["NSDate", "NSThread"]
+git = "https://github.com/madsmtm/objc2"
+rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9"
+features = [
+    "NSDate",
+    "NSThread",
+    "NSRunLoop",
+    "NSTimer",
+    "objc2-core-foundation",
+]
 
 [target.'cfg(target_os = "macos")'.dependencies.objc2-metal]
-version = "0.2"
+git = "https://github.com/madsmtm/objc2"
+rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9"
 features = [
     "MTLAccelerationStructureTypes",
     "MTLCommandQueue",
@@ -86,13 +102,10 @@ features = [
     "MTLTypes",
 ]
 
-[target.'cfg(target_os = "macos")'.dependencies.objc2-metal-kit]
-version = "0.2"
-features = ["MTKView", "objc2-app-kit", "objc2-quartz-core"]
-
 [target.'cfg(target_os = "macos")'.dependencies.objc2-quartz-core]
-version = "0.2"
-features = ["objc2-metal"]
+git = "https://github.com/madsmtm/objc2"
+rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9"
+features = ["CAMetalLayer", "CATransaction", "objc2-metal"]
 
 [target.'cfg(target_os = "macos")'.dependencies.objc2-core-text]
 git = "https://github.com/madsmtm/objc2"
@@ -111,7 +124,6 @@ features = [
 [target.'cfg(target_os = "macos")'.dependencies.objc2-core-foundation]
 git = "https://github.com/madsmtm/objc2"
 rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9"
-features = ["CFString"]
 
 [target.'cfg(target_os = "macos")'.dependencies.objc2-core-graphics]
 git = "https://github.com/madsmtm/objc2"

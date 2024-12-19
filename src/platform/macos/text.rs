@@ -52,10 +52,10 @@ impl Text {
             atlas_text.push(c);
         }
 
-        let mut attributed_string =
+        let attributed_string =
             NSMutableAttributedString::from_nsstring(&NSString::from_str(&atlas_text));
 
-        let font_name_cfstr = self.font_name.as_ref() as *const _ as CFStringRef;
+        let font_name_cfstr = &*self.font_name as *const _ as CFStringRef;
 
         let glyph_width;
         let glyph_step_x;
@@ -121,7 +121,7 @@ impl Text {
         }
 
         let framesetter = unsafe {
-            CTFramesetterCreateWithAttributedString(attributed_string.as_mut() as *mut _ as _)
+            CTFramesetterCreateWithAttributedString(&*attributed_string as *const _ as _)
         };
 
         let path = unsafe { CGPathCreateMutable() };

@@ -1,6 +1,5 @@
 use std::{
     ffi::{c_char, CStr, CString},
-    ops::Deref,
     path::{Path, PathBuf},
     ptr::null_mut,
     sync::{Arc, Mutex},
@@ -8,10 +7,12 @@ use std::{
 };
 
 use libc::{kevent, EVFILT_VNODE, EV_ADD, EV_CLEAR, EV_DELETE, NOTE_WRITE, O_EVTONLY};
-use objc2::{rc::Retained, runtime::AnyObject, sel};
-use objc2_foundation::{NSNumber, NSObjectNSThreadPerformAdditions};
+use objc2::rc::Retained;
 
-use super::{gfx::KeylimeView, result::Result};
+use super::{
+    gfx::{KeylimeView, KeylimeViewRef},
+    result::Result,
+};
 
 struct WatchedPath {
     fd: i32,
@@ -147,14 +148,14 @@ impl FileWatcher {
         self.watch_thread_join = Some(Self::run_watch_thread(
             self.kq,
             self.watch_thread_changed_files.clone(),
-            view.clone(),
+            KeylimeViewRef::new(view),
         ));
     }
 
     fn run_watch_thread(
         kq: i32,
         changed_files: Arc<Mutex<Vec<PathBuf>>>,
-        view: Retained<KeylimeView>,
+        view: KeylimeViewRef,
     ) -> JoinHandle<()> {
         thread::spawn(move || {
             let mut event_list = [kevent {
@@ -189,14 +190,7 @@ impl FileWatcher {
                 }
 
                 unsafe {
-                    let arg = NSNumber::new_bool(true);
-                    let arg = arg.deref() as *const _ as *const AnyObject;
-
-                    view.performSelectorOnMainThread_withObject_waitUntilDone(
-                        sel!(setNeedsDisplay:),
-                        Some(&*arg),
-                        false,
-                    );
+                    view.set_needs_display();
                 }
             }
         })

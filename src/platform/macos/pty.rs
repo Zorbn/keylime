@@ -1,18 +1,19 @@
 use std::{
     ffi::CString,
-    ops::Deref,
     ptr::{null, null_mut},
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
 
 use libc::{kevent, EVFILT_READ, EV_ADD, EV_CLEAR};
-use objc2::{rc::Retained, runtime::AnyObject, sel};
-use objc2_foundation::{NSNumber, NSObjectNSThreadPerformAdditions};
+use objc2::rc::Retained;
 
 use crate::text::utf32::{utf32_to_utf8, utf8_to_utf32};
 
-use super::{gfx::KeylimeView, result::Result};
+use super::{
+    gfx::{KeylimeView, KeylimeViewRef},
+    result::Result,
+};
 
 pub struct Pty {
     pub output: Arc<Mutex<Vec<u32>>>,
@@ -120,7 +121,7 @@ impl Pty {
 
         self.read_thread_join = Some(Self::run_read_thread(
             self.output.clone(),
-            view.clone(),
+            KeylimeViewRef::new(view),
             self.kq,
             self.fd,
         ));
@@ -128,7 +129,7 @@ impl Pty {
 
     fn run_read_thread(
         output: Arc<Mutex<Vec<u32>>>,
-        view: Retained<KeylimeView>,
+        view: KeylimeViewRef,
         kq: i32,
         fd: i32,
     ) -> JoinHandle<()> {
@@ -170,14 +171,7 @@ impl Pty {
                 }
 
                 unsafe {
-                    let arg = NSNumber::new_bool(true);
-                    let arg = arg.deref() as *const _ as *const AnyObject;
-
-                    view.performSelectorOnMainThread_withObject_waitUntilDone(
-                        sel!(setNeedsDisplay:),
-                        Some(&*arg),
-                        false,
-                    );
+                    view.set_needs_display();
                 }
             }
         })

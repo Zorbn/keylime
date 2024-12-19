@@ -5,9 +5,8 @@ use objc2_app_kit::{
     NSAlert, NSAlertFirstButtonReturn, NSAlertSecondButtonReturn, NSAlertStyle, NSBackingStoreType,
     NSOpenPanel, NSSavePanel, NSWindowStyleMask,
 };
-use objc2_foundation::{
-    ns_string, CGPoint, CGRect, CGSize, MainThreadMarker, NSRect, NSString, NSURL,
-};
+use objc2_core_foundation::{CGPoint, CGRect, CGSize};
+use objc2_foundation::{ns_string, MainThreadMarker, NSRect, NSString, NSURL};
 
 use super::result::Result;
 
