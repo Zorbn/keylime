@@ -9,17 +9,15 @@ use std::{
 };
 
 use objc2::{
-    define_class, msg_send, msg_send_id,
-    rc::Retained,
-    runtime::{AnyObject, ProtocolObject},
-    sel, DeclaredClass, MainThreadOnly,
+    define_class, msg_send, msg_send_id, rc::Retained, runtime::ProtocolObject, sel, DeclaredClass,
+    MainThreadOnly,
 };
 use objc2_app_kit::{
     NSEvent, NSView, NSViewLayerContentsPlacement, NSViewLayerContentsRedrawPolicy, NSWindow,
 };
 use objc2_core_foundation::CGSize;
 use objc2_foundation::{
-    ns_string, MainThreadMarker, NSDefaultRunLoopMode, NSNumber, NSObjectNSThreadPerformAdditions,
+    ns_string, MainThreadMarker, NSDefaultRunLoopMode, NSObjectNSThreadPerformAdditions,
     NSObjectProtocol, NSRect, NSRunLoop, NSSize,
 };
 use objc2_metal::*;
@@ -106,14 +104,12 @@ struct VertexInput {
 
 macro_rules! handle_event {
     ($handler:ident, $self:expr, $event:expr $(, $args:expr)*) => {
-        let window = &mut *$self.ivars().window.borrow_mut();
-        window.$handler($event, $($args), *);
-
-        let view = window.gfx().view();
-
-        unsafe {
-            view.setNeedsDisplay(true);
+        {
+            let window = &mut *$self.ivars().window.borrow_mut();
+            window.$handler($event, $($args), *);
         }
+
+        $self.update();
     };
 }
 
@@ -256,17 +252,9 @@ define_class!(
             handle_event!(handle_scroll_wheel, self, event);
         }
 
-        #[method(onDisplayLink)]
-        unsafe fn on_display_link(&self) {
-            let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
-                return;
-            };
-
-            let gfx = window.gfx();
-
-            unsafe {
-                gfx.view().setNeedsDisplay(true);
-            }
+        #[method(update)]
+        fn update_objc(&self) {
+            self.update();
         }
     }
 
@@ -285,12 +273,6 @@ define_class!(
 
             let window = &mut *window;
 
-            let (time, dt) = window.get_time(app.is_animating());
-            app.update(window, time, dt);
-
-            let (files, ptys) = app.files_and_ptys();
-            window.update(files, ptys);
-
             app.draw(window);
 
             if !window.was_shown {
@@ -306,38 +288,6 @@ define_class!(
         }
     }
 );
-
-// SAFETY: It's only ok to use the view to trigger a redraw, and only
-// once an NSThread has been created to signal to Cocoa that multi-threading
-// is used.
-unsafe impl Send for KeylimeViewRef {}
-unsafe impl Sync for KeylimeViewRef {}
-
-pub struct KeylimeViewRef {
-    inner: Retained<KeylimeView>,
-}
-
-impl KeylimeViewRef {
-    pub fn new(inner: &Retained<KeylimeView>) -> Self {
-        Self {
-            inner: inner.clone(),
-        }
-    }
-
-    pub unsafe fn set_needs_display(&self) {
-        let arg = NSNumber::new_bool(true);
-        let arg = &*arg as *const _ as *const AnyObject;
-
-        unsafe {
-            self.inner
-                .performSelectorOnMainThread_withObject_waitUntilDone(
-                    sel!(setNeedsDisplay:),
-                    Some(&*arg),
-                    false,
-                );
-        }
-    }
-}
 
 const PIXEL_FORMAT: MTLPixelFormat = MTLPixelFormat::BGRA8Unorm;
 
@@ -375,6 +325,53 @@ impl KeylimeView {
         }
 
         view
+    }
+
+    fn update(&self) {
+        let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
+            return;
+        };
+
+        let Ok(mut app) = self.ivars().app.try_borrow_mut() else {
+            return;
+        };
+
+        let window = &mut *window;
+
+        let (time, dt) = window.get_time(app.is_animating());
+        app.update(window, time, dt);
+
+        let (files, ptys) = app.files_and_ptys();
+        window.update(files, ptys);
+
+        unsafe {
+            self.setNeedsDisplay(true);
+        }
+    }
+}
+
+// SAFETY: It's only ok to use the view to trigger an update,
+// and only once an NSThread has been created to signal to Cocoa
+// that multi-threading is used.
+unsafe impl Send for KeylimeViewRef {}
+unsafe impl Sync for KeylimeViewRef {}
+
+pub struct KeylimeViewRef {
+    inner: Retained<KeylimeView>,
+}
+
+impl KeylimeViewRef {
+    pub fn new(inner: &Retained<KeylimeView>) -> Self {
+        Self {
+            inner: inner.clone(),
+        }
+    }
+
+    pub unsafe fn set_needs_display(&self) {
+        unsafe {
+            self.inner
+                .performSelectorOnMainThread_withObject_waitUntilDone(sel!(update), None, false);
+        }
     }
 }
 
@@ -433,7 +430,7 @@ impl Gfx {
         let view = KeylimeView::new(app.clone(), window, mtm, frame_rect, device.clone());
 
         let display_link = unsafe {
-            let display_link = view.displayLinkWithTarget_selector(&view, sel!(onDisplayLink));
+            let display_link = view.displayLinkWithTarget_selector(&view, sel!(update));
             display_link.addToRunLoop_forMode(&NSRunLoop::currentRunLoop(), NSDefaultRunLoopMode);
 
             display_link
