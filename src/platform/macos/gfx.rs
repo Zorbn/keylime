@@ -178,6 +178,24 @@ define_class!(
             window.resize(new_size.width, new_size.height, app);
         }
 
+        #[method(viewWillStartLiveResize)]
+        unsafe fn view_will_start_live_resize(&self) {
+            let metal_layer = self.ivars().metal_layer.get().unwrap();
+
+            unsafe {
+                metal_layer.setPresentsWithTransaction(true);
+            }
+        }
+
+        #[method(viewDidEndLiveResize)]
+        unsafe fn view_did_end_live_resize(&self) {
+            let metal_layer = self.ivars().metal_layer.get().unwrap();
+
+            unsafe {
+                metal_layer.setPresentsWithTransaction(false);
+            }
+        }
+
         #[method(viewDidChangeBackingProperties)]
         unsafe fn view_did_change_backing_properties(&self) {
             let metal_layer = self.ivars().metal_layer.get().unwrap();
@@ -641,8 +659,8 @@ impl Gfx {
 
         encoder.endEncoding();
 
-        command_buffer.presentDrawable(ProtocolObject::from_ref(&**drawable));
         command_buffer.commit();
+        drawable.present();
 
         self.encoder = None;
         self.command_buffer = None;
