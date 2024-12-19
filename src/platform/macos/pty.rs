@@ -11,7 +11,7 @@ use objc2::rc::Retained;
 use crate::text::utf32::{utf32_to_utf8, utf8_to_utf32};
 
 use super::{
-    gfx::{KeylimeView, KeylimeViewRef},
+    gfx::{View, ViewRef},
     result::Result,
 };
 
@@ -114,14 +114,14 @@ impl Pty {
         }
     }
 
-    pub fn try_start(&mut self, view: &Retained<KeylimeView>) {
+    pub fn try_start(&mut self, view: &Retained<View>) {
         if self.read_thread_join.is_some() {
             return;
         }
 
         self.read_thread_join = Some(Self::run_read_thread(
             self.output.clone(),
-            KeylimeViewRef::new(view),
+            ViewRef::new(view),
             self.kq,
             self.fd,
         ));
@@ -129,7 +129,7 @@ impl Pty {
 
     fn run_read_thread(
         output: Arc<Mutex<Vec<u32>>>,
-        view: KeylimeViewRef,
+        view: ViewRef,
         kq: i32,
         fd: i32,
     ) -> JoinHandle<()> {

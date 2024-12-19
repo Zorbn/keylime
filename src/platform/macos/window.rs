@@ -25,7 +25,7 @@ use crate::{
 
 use super::{file_watcher::FileWatcher, gfx::Gfx, pty::Pty, result::Result};
 
-struct Ivars {
+struct DelegateIvars {
     app: Rc<RefCell<App>>,
     window: Rc<RefCell<Window>>,
 }
@@ -34,14 +34,14 @@ define_class!(
     #[unsafe(super(NSObject))]
     #[thread_kind = MainThreadOnly]
     #[name = "Delegate"]
-    #[ivars = Ivars]
+    #[ivars = DelegateIvars]
     struct Delegate;
 
     unsafe impl NSObjectProtocol for Delegate {}
 
     unsafe impl NSApplicationDelegate for Delegate {
         #[method(applicationDidFinishLaunching:)]
-        unsafe fn application_did_finish_launching(&self, _notification: &NSNotification) {
+        unsafe fn application_did_finish_launching(&self, notification: &NSNotification) {
             let window = self.ivars().window.clone();
             let app = self.ivars().app.clone();
 
@@ -90,7 +90,7 @@ define_class!(
             assert!(NSThread::isMultiThreaded());
 
             unsafe {
-                let app: &mut NSApplication = msg_send![_notification, object];
+                let app: &mut NSApplication = msg_send![notification, object];
                 app.activate();
                 view.setNeedsDisplay(true);
             }
@@ -141,7 +141,7 @@ define_class!(
 impl Delegate {
     fn new(app: Rc<RefCell<App>>, mtm: MainThreadMarker) -> Retained<Self> {
         let this = mtm.alloc();
-        let this = this.set_ivars(Ivars {
+        let this = this.set_ivars(DelegateIvars {
             window: Rc::new(RefCell::new(Window::new(mtm, 768.0, 768.0))),
             app,
         });

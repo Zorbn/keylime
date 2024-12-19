@@ -113,7 +113,7 @@ macro_rules! handle_event {
     };
 }
 
-pub struct KeylimeViewIvars {
+pub struct ViewIvars {
     app: Rc<RefCell<App>>,
     window: Rc<RefCell<Window>>,
     device: Retained<ProtocolObject<dyn MTLDevice>>,
@@ -123,11 +123,11 @@ pub struct KeylimeViewIvars {
 define_class!(
     #[unsafe(super(NSView))]
     #[thread_kind = MainThreadOnly]
-    #[name = "KeylimeView"]
-    #[ivars = KeylimeViewIvars]
-    pub struct KeylimeView;
+    #[name = "View"]
+    #[ivars = ViewIvars]
+    pub struct View;
 
-    unsafe impl KeylimeView {
+    unsafe impl View {
         #[method_id(makeBackingLayer)]
         unsafe fn make_backing_layer(&self) -> Retained<CALayer> {
             let metal_layer = unsafe { CAMetalLayer::new() };
@@ -276,9 +276,9 @@ define_class!(
         }
     }
 
-    unsafe impl NSObjectProtocol for KeylimeView {}
+    unsafe impl NSObjectProtocol for View {}
 
-    unsafe impl CALayerDelegate for KeylimeView {
+    unsafe impl CALayerDelegate for View {
         #[method(displayLayer:)]
         unsafe fn display_layer(&self, _layer: &CALayer) {
             let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
@@ -309,7 +309,7 @@ define_class!(
 
 const PIXEL_FORMAT: MTLPixelFormat = MTLPixelFormat::BGRA8Unorm;
 
-impl KeylimeView {
+impl View {
     fn new(
         app: Rc<RefCell<App>>,
         window: Rc<RefCell<Window>>,
@@ -318,14 +318,14 @@ impl KeylimeView {
         device: Retained<ProtocolObject<dyn MTLDevice>>,
     ) -> Retained<Self> {
         let this = mtm.alloc();
-        let this = this.set_ivars(KeylimeViewIvars {
+        let this = this.set_ivars(ViewIvars {
             app,
             window,
             device,
             metal_layer: OnceCell::new(),
         });
 
-        let view: Retained<KeylimeView> = unsafe {
+        let view: Retained<View> = unsafe {
             msg_send_id![
                 super(this),
                 initWithFrame: frame_rect
@@ -371,15 +371,15 @@ impl KeylimeView {
 // SAFETY: It's only ok to use the view to trigger an update,
 // and only once an NSThread has been created to signal to Cocoa
 // that multi-threading is used.
-unsafe impl Send for KeylimeViewRef {}
-unsafe impl Sync for KeylimeViewRef {}
+unsafe impl Send for ViewRef {}
+unsafe impl Sync for ViewRef {}
 
-pub struct KeylimeViewRef {
-    inner: Retained<KeylimeView>,
+pub struct ViewRef {
+    inner: Retained<View>,
 }
 
-impl KeylimeViewRef {
-    pub fn new(inner: &Retained<KeylimeView>) -> Self {
+impl ViewRef {
+    pub fn new(inner: &Retained<View>) -> Self {
         Self {
             inner: inner.clone(),
         }
@@ -400,7 +400,7 @@ pub struct Gfx {
     device: Retained<ProtocolObject<dyn MTLDevice>>,
     command_queue: Retained<ProtocolObject<dyn MTLCommandQueue>>,
     pipeline_state: Retained<ProtocolObject<dyn MTLRenderPipelineState>>,
-    view: Retained<KeylimeView>,
+    view: Retained<View>,
     display_link: Retained<CADisplayLink>,
 
     vertices: Vec<VertexInput>,
@@ -445,7 +445,7 @@ impl Gfx {
 
         let frame_rect = ns_window.frame();
 
-        let view = KeylimeView::new(app.clone(), window, mtm, frame_rect, device.clone());
+        let view = View::new(app.clone(), window, mtm, frame_rect, device.clone());
 
         let display_link = unsafe {
             let display_link = view.displayLinkWithTarget_selector(&view, sel!(update));
@@ -1033,7 +1033,7 @@ impl Gfx {
         (self.height() / self.line_height()) as isize
     }
 
-    pub fn view(&self) -> &Retained<KeylimeView> {
+    pub fn view(&self) -> &Retained<View> {
         &self.view
     }
 }

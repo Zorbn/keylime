@@ -10,7 +10,7 @@ use libc::{kevent, EVFILT_VNODE, EV_ADD, EV_CLEAR, EV_DELETE, NOTE_WRITE, O_EVTO
 use objc2::rc::Retained;
 
 use super::{
-    gfx::{KeylimeView, KeylimeViewRef},
+    gfx::{View, ViewRef},
     result::Result,
 };
 
@@ -140,7 +140,7 @@ impl FileWatcher {
         &self.changed_files
     }
 
-    pub fn try_start(&mut self, view: &Retained<KeylimeView>) {
+    pub fn try_start(&mut self, view: &Retained<View>) {
         if self.watch_thread_join.is_some() {
             return;
         }
@@ -148,14 +148,14 @@ impl FileWatcher {
         self.watch_thread_join = Some(Self::run_watch_thread(
             self.kq,
             self.watch_thread_changed_files.clone(),
-            KeylimeViewRef::new(view),
+            ViewRef::new(view),
         ));
     }
 
     fn run_watch_thread(
         kq: i32,
         changed_files: Arc<Mutex<Vec<PathBuf>>>,
-        view: KeylimeViewRef,
+        view: ViewRef,
     ) -> JoinHandle<()> {
         thread::spawn(move || {
             let mut event_list = [kevent {
