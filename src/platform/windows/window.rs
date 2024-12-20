@@ -55,7 +55,7 @@ use super::{deferred_call::defer, file_watcher::FileWatcher, gfx::Gfx};
 const DEFAULT_DPI: f32 = 96.0;
 
 pub struct WindowRunner {
-    window: platform::window::Window,
+    window: AnyWindow,
     app: App,
 }
 
@@ -64,7 +64,7 @@ impl WindowRunner {
         let use_dark_mode = BOOL::from(app.is_dark());
 
         let mut window_runner = Box::new(WindowRunner {
-            window: platform::window::Window {
+            window: AnyWindow {
                 inner: Window::new()?,
             },
             app,
@@ -213,7 +213,7 @@ pub struct Window {
     hwnd: HWND,
 
     wait_handles: Vec<HANDLE>,
-    file_watcher: platform::file_watcher::FileWatcher,
+    file_watcher: AnyFileWatcher,
 
     is_running: bool,
     is_focused: bool,
@@ -227,7 +227,7 @@ pub struct Window {
     wide_text_buffer: TempBuffer<u16>,
     text_buffer: TempBuffer<char>,
 
-    gfx: Option<platform::gfx::Gfx>,
+    gfx: Option<AnyGfx>,
 
     // Keep track of which mouse buttons have been pressed since the window was
     // last focused, so that we can skip stray mouse drag events that may happen
@@ -264,7 +264,7 @@ impl Window {
             hwnd: HWND(null_mut()),
 
             wait_handles: Vec::new(),
-            file_watcher: platform::file_watcher::FileWatcher {
+            file_watcher: AnyFileWatcher {
                 inner: FileWatcher::new(),
             },
 
@@ -399,11 +399,11 @@ impl Window {
         self.scale
     }
 
-    pub fn gfx(&mut self) -> &mut platform::gfx::Gfx {
+    pub fn gfx(&mut self) -> &mut AnyGfx {
         self.gfx.as_mut().unwrap()
     }
 
-    pub fn file_watcher(&mut self) -> &mut platform::file_watcher::FileWatcher {
+    pub fn file_watcher(&mut self) -> &mut AnyFileWatcher {
         &mut self.file_watcher
     }
 
@@ -567,7 +567,7 @@ impl Window {
                     font, font_size, ..
                 } = app.config();
 
-                self.gfx = Some(platform::gfx::Gfx {
+                self.gfx = Some(AnyGfx {
                     inner: Gfx::new(font, *font_size, self).unwrap(),
                 });
             }

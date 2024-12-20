@@ -4,6 +4,8 @@ use std::{
     ptr::{null_mut, NonNull},
 };
 
+use crate::platform::text::{Atlas, AtlasDimensions};
+
 use super::result::Result;
 use objc2::{rc::Retained, runtime::AnyObject};
 use objc2_core_foundation::*;

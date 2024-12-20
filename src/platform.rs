@@ -6,6 +6,7 @@ mod platform_impl;
 #[path = "platform/macos/mod.rs"]
 mod platform_impl;
 
+mod aliases;
 pub mod dialog;
 pub mod file_watcher;
 pub mod gfx;

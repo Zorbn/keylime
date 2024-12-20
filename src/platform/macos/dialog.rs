@@ -8,6 +8,8 @@ use objc2_app_kit::{
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{ns_string, MainThreadMarker, NSRect, NSString, NSURL};
 
+use crate::platform::dialog::{FindFileKind, MessageKind, MessageResponse};
+
 use super::result::Result;
 
 pub fn find_file(kind: FindFileKind) -> Result<PathBuf> {

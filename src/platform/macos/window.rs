@@ -20,14 +20,15 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::{MouseClickKind, Mousebind},
     },
+    platform::aliases::{AnyFileWatcher, AnyGfx, AnyPty, AnyWindow},
     temp_buffer::TempBuffer,
 };
 
-use super::{file_watcher::FileWatcher, gfx::Gfx, pty::Pty, result::Result};
+use super::{file_watcher::FileWatcher, gfx::Gfx, result::Result};
 
 struct DelegateIvars {
     app: Rc<RefCell<App>>,
-    window: Rc<RefCell<Window>>,
+    window: Rc<RefCell<AnyWindow>>,
 }
 
 define_class!(
@@ -50,7 +51,11 @@ define_class!(
             let (ns_window, width, height) = {
                 let window = window.borrow();
 
-                (window.ns_window.clone(), window.width, window.height)
+                (
+                    window.inner.ns_window.clone(),
+                    window.inner.width,
+                    window.inner.height,
+                )
             };
 
             unsafe {
@@ -78,7 +83,7 @@ define_class!(
 
             let view = gfx.view().clone();
 
-            window.borrow_mut().gfx = Some(gfx);
+            window.borrow_mut().inner.gfx = Some(AnyGfx { inner: gfx });
 
             ns_window.setContentView(Some(&view));
             ns_window.center();
@@ -108,7 +113,7 @@ define_class!(
     unsafe impl NSWindowDelegate for Delegate {
         #[method(windowShouldClose:)]
         unsafe fn window_should_close(&self, _sender: &NSWindow) -> bool {
-            let time = self.ivars().window.borrow().time;
+            let time = self.ivars().window.borrow().inner.time;
             let mut app = self.ivars().app.borrow_mut();
 
             app.close(time);
@@ -140,9 +145,13 @@ define_class!(
 
 impl Delegate {
     fn new(app: Rc<RefCell<App>>, mtm: MainThreadMarker) -> Retained<Self> {
+        let window = AnyWindow {
+            inner: Window::new(mtm, 768.0, 768.0),
+        };
+
         let this = mtm.alloc();
         let this = this.set_ivars(DelegateIvars {
-            window: Rc::new(RefCell::new(Window::new(mtm, 768.0, 768.0))),
+            window: Rc::new(RefCell::new(window)),
             app,
         });
 
@@ -154,9 +163,9 @@ impl Delegate {
             return;
         };
 
-        window.is_focused = is_focused;
+        window.inner.is_focused = is_focused;
 
-        let view = window.gfx().view();
+        let view = window.gfx().inner.view();
 
         unsafe {
             view.setNeedsDisplay(true);
@@ -168,7 +177,7 @@ impl Delegate {
             return;
         };
 
-        window.gfx().is_fullscreen = is_fullscreen;
+        window.gfx().inner.is_fullscreen = is_fullscreen;
     }
 }
 
@@ -223,9 +232,9 @@ pub struct Window {
     time: f32,
     last_queried_time: Option<f64>,
 
-    gfx: Option<Gfx>,
+    gfx: Option<AnyGfx>,
     scale: f32,
-    file_watcher: FileWatcher,
+    file_watcher: AnyFileWatcher,
 
     wide_text_buffer: TempBuffer<u16>,
     text_buffer: TempBuffer<char>,
@@ -275,7 +284,9 @@ impl Window {
 
             gfx: None,
             scale,
-            file_watcher: FileWatcher::new(),
+            file_watcher: AnyFileWatcher {
+                inner: FileWatcher::new(),
+            },
 
             wide_text_buffer: TempBuffer::new(),
             text_buffer: TempBuffer::new(),
@@ -296,7 +307,7 @@ impl Window {
         self.height = height;
 
         if let Some(gfx) = &mut self.gfx {
-            gfx.resize(width, height).unwrap();
+            gfx.inner.resize(width, height).unwrap();
         }
 
         let scale = self.ns_window.backingScaleFactor() as f32;
@@ -309,7 +320,7 @@ impl Window {
                     font, font_size, ..
                 } = app.config();
 
-                gfx.update_font(font, *font_size, self.scale);
+                gfx.inner.update_font(font, *font_size, self.scale);
             }
         }
     }
@@ -334,21 +345,21 @@ impl Window {
     pub fn update<'a>(
         &mut self,
         files: impl Iterator<Item = &'a Path>,
-        ptys: impl Iterator<Item = &'a mut Pty>,
+        ptys: impl Iterator<Item = &'a mut AnyPty>,
     ) {
         self.clear_inputs();
 
         if let Some(gfx) = &self.gfx {
-            let view = gfx.view();
+            let view = gfx.inner.view();
 
             for pty in ptys {
-                pty.try_start(view);
+                pty.inner.try_start(view);
             }
 
-            self.file_watcher.try_start(view);
+            self.file_watcher.inner.try_start(view);
         }
 
-        self.file_watcher.update(files).unwrap();
+        self.file_watcher.inner.update(files).unwrap();
     }
 
     fn clear_inputs(&mut self) {
@@ -508,11 +519,11 @@ impl Window {
         self.scale
     }
 
-    pub fn gfx(&mut self) -> &mut Gfx {
+    pub fn gfx(&mut self) -> &mut AnyGfx {
         self.gfx.as_mut().unwrap()
     }
 
-    pub fn file_watcher(&mut self) -> &mut FileWatcher {
+    pub fn file_watcher(&mut self) -> &mut AnyFileWatcher {
         &mut self.file_watcher
     }
 

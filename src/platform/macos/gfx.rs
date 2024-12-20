@@ -1,7 +1,6 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use std::{
-    borrow,
     cell::{OnceCell, RefCell},
     ffi::c_void,
     ptr::{copy_nonoverlapping, NonNull},
@@ -28,19 +27,12 @@ use objc2_quartz_core::{
 use crate::{
     app::App,
     config::Config,
-    geometry::{
-        matrix::ortho,
-        rect::Rect,
-        side::{SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
-    },
+    geometry::{matrix::ortho, rect::Rect},
+    platform::{self, aliases::AnyWindow, text::AtlasDimensions},
     ui::color::Color,
 };
 
-use super::{
-    result::Result,
-    text::{AtlasDimensions, Text},
-    window::Window,
-};
+use super::{result::Result, text::Text};
 
 const SHADER_CODE: &str = "
 #include <metal_stdlib>
@@ -106,7 +98,7 @@ macro_rules! handle_event {
     ($handler:ident, $self:expr, $event:expr $(, $args:expr)*) => {
         {
             let window = &mut *$self.ivars().window.borrow_mut();
-            window.$handler($event, $($args), *);
+            window.inner.$handler($event, $($args), *);
         }
 
         $self.update();
@@ -115,7 +107,7 @@ macro_rules! handle_event {
 
 pub struct ViewIvars {
     app: Rc<RefCell<App>>,
-    window: Rc<RefCell<Window>>,
+    window: Rc<RefCell<AnyWindow>>,
     device: Retained<ProtocolObject<dyn MTLDevice>>,
     metal_layer: OnceCell<Retained<CAMetalLayer>>,
 }
@@ -166,7 +158,7 @@ define_class!(
             let window = &mut *self.ivars().window.borrow_mut();
             let app = &*self.ivars().app.borrow();
 
-            let scale = window.ns_window.backingScaleFactor();
+            let scale = window.inner.ns_window.backingScaleFactor();
             let new_size = CGSize::new(new_size.width * scale, new_size.height * scale);
 
             metal_layer.setContentsScale(scale);
@@ -175,7 +167,7 @@ define_class!(
                 metal_layer.setDrawableSize(new_size);
             }
 
-            window.resize(new_size.width, new_size.height, app);
+            window.inner.resize(new_size.width, new_size.height, app);
         }
 
         #[method(viewWillStartLiveResize)]
@@ -209,9 +201,10 @@ define_class!(
             }
 
             let mut window = self.ivars().window.borrow_mut();
+            let view = window.gfx().inner.view();
 
             unsafe {
-                window.gfx().view().setNeedsDisplay(true);
+                view.setNeedsDisplay(true);
             }
         }
 
@@ -293,15 +286,15 @@ define_class!(
 
             app.draw(window);
 
-            if !window.was_shown {
-                window.ns_window.makeKeyAndOrderFront(None);
-                window.was_shown = true;
+            if !window.inner.was_shown {
+                window.inner.ns_window.makeKeyAndOrderFront(None);
+                window.inner.was_shown = true;
             }
 
             let gfx = window.gfx();
 
             unsafe {
-                gfx.display_link.setPaused(!app.is_animating());
+                gfx.inner.display_link.setPaused(!app.is_animating());
             }
         }
     }
@@ -312,7 +305,7 @@ const PIXEL_FORMAT: MTLPixelFormat = MTLPixelFormat::BGRA8Unorm;
 impl View {
     fn new(
         app: Rc<RefCell<App>>,
-        window: Rc<RefCell<Window>>,
+        window: Rc<RefCell<platform::window::Window>>,
         mtm: MainThreadMarker,
         frame_rect: NSRect,
         device: Retained<ProtocolObject<dyn MTLDevice>>,
@@ -356,11 +349,11 @@ impl View {
 
         let window = &mut *window;
 
-        let (time, dt) = window.get_time(app.is_animating());
+        let (time, dt) = window.inner.get_time(app.is_animating());
         app.update(window, time, dt);
 
         let (files, ptys) = app.files_and_ptys();
-        window.update(files, ptys);
+        window.inner.update(files, ptys);
 
         unsafe {
             self.setNeedsDisplay(true);
@@ -425,11 +418,11 @@ pub struct Gfx {
 impl Gfx {
     pub unsafe fn new(
         app: Rc<RefCell<App>>,
-        window: Rc<RefCell<Window>>,
+        window: Rc<RefCell<platform::window::Window>>,
         ns_window: &NSWindow,
         mtm: MainThreadMarker,
     ) -> Result<Self> {
-        let scale = window.borrow().scale();
+        let scale = window.borrow().inner.scale();
 
         let device = {
             let ptr = unsafe { MTLCreateSystemDefaultDevice() };
