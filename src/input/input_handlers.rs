@@ -20,7 +20,7 @@ macro_rules! define_handler {
 
             pub fn next(&mut self, window: &mut Window) -> Option<$t> {
                 if self.i < self.len {
-                    let result = Some(window.$buffer.remove(self.i as usize));
+                    let result = Some(window.$buffer().remove(self.i as usize));
                     self.len -= 1;
 
                     result
@@ -30,7 +30,7 @@ macro_rules! define_handler {
             }
 
             pub fn unprocessed(&mut self, window: &mut Window, t: $t) {
-                window.$buffer.insert(0, t);
+                window.$buffer().insert(0, t);
                 self.i += 1;
             }
         }

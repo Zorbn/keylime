@@ -123,15 +123,15 @@ impl TerminalEmulator {
                 Keybind {
                     key: Key::Enter, ..
                 } => {
-                    pty.input.push('\r' as u32);
+                    pty.input().push('\r' as u32);
                 }
                 Keybind {
                     key: Key::Escape, ..
                 } => {
-                    pty.input.push(0x1B);
+                    pty.input().push(0x1B);
                 }
                 Keybind { key: Key::Tab, .. } => {
-                    pty.input.push('\t' as u32);
+                    pty.input().push('\t' as u32);
                 }
                 Keybind {
                     key: Key::Backspace,
@@ -139,7 +139,7 @@ impl TerminalEmulator {
                 } => {
                     let key_char = if mods & MOD_CTRL != 0 { 0x8 } else { 0x7F };
 
-                    pty.input.extend_from_slice(&[key_char]);
+                    pty.input().extend_from_slice(&[key_char]);
                 }
                 Keybind {
                     key: Key::Up | Key::Down | Key::Left | Key::Right | Key::Home | Key::End,
@@ -155,25 +155,25 @@ impl TerminalEmulator {
                         _ => unreachable!(),
                     };
 
-                    pty.input.extend_from_slice(&[0x1B, LEFT_BRACKET]);
+                    pty.input().extend_from_slice(&[0x1B, LEFT_BRACKET]);
 
                     if mods != 0 {
-                        pty.input.extend_from_slice(&[ONE, SEMICOLON]);
+                        pty.input().extend_from_slice(&[ONE, SEMICOLON]);
                     }
 
                     if mods & MOD_SHIFT != 0 && mods & MOD_CTRL != 0 {
-                        pty.input.push(SIX);
+                        pty.input().push(SIX);
                     } else if mods & MOD_SHIFT != 0 && mods & MOD_ALT != 0 {
-                        pty.input.push(FOUR);
+                        pty.input().push(FOUR);
                     } else if mods & MOD_SHIFT != 0 {
-                        pty.input.push(TWO);
+                        pty.input().push(TWO);
                     } else if mods & MOD_CTRL != 0 {
-                        pty.input.push(FIVE);
+                        pty.input().push(FIVE);
                     } else if mods & MOD_ALT != 0 {
-                        pty.input.push(THREE);
+                        pty.input().push(THREE);
                     }
 
-                    pty.input.push(key_char as u32);
+                    pty.input().push(key_char as u32);
                 }
                 Keybind {
                     key: Key::C | Key::X,
@@ -191,7 +191,7 @@ impl TerminalEmulator {
                     if has_selection {
                         handle_copy(ui.window, doc, text_buffer);
                     } else {
-                        pty.input.push(keybind.key as u32 & 0x1F);
+                        pty.input().push(keybind.key as u32 & 0x1F);
                     }
                 }
                 Keybind {
@@ -201,7 +201,7 @@ impl TerminalEmulator {
                     let text = ui.window.get_clipboard().unwrap_or(&[]);
 
                     for c in text {
-                        pty.input.push(*c as u32);
+                        pty.input().push(*c as u32);
                     }
                 }
                 Keybind {
@@ -214,7 +214,7 @@ impl TerminalEmulator {
                     let key = key as u32;
 
                     if matches!(key, KEY_A..=KEY_Z) {
-                        pty.input.push(key & 0x1F);
+                        pty.input().push(key & 0x1F);
                     }
                 }
                 _ => {}
@@ -224,7 +224,7 @@ impl TerminalEmulator {
         let mut char_handler = widget.get_char_handler(ui);
 
         while let Some(c) = char_handler.next(ui.window) {
-            pty.input.push(c as u32);
+            pty.input().push(c as u32);
         }
 
         pty.flush();
@@ -257,7 +257,7 @@ impl TerminalEmulator {
 
         self.expand_doc_to_grid_size(doc, line_pool, time);
 
-        if let Ok(mut output) = pty.output.try_lock() {
+        if let Ok(mut output) = pty.output().try_lock() {
             self.handle_control_sequences(ui, doc, tab, &output, line_pool, time);
 
             output.clear();

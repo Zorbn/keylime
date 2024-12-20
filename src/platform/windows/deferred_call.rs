@@ -1,6 +1,6 @@
 macro_rules! defer {
     ($e:expr) => {
-        let _defer = $crate::platform::deferred_call::DeferredCall::new(|| $e);
+        let _defer = $crate::platform::platform_impl::deferred_call::DeferredCall::new(|| $e);
     };
 }
 

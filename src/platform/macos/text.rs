@@ -11,22 +11,6 @@ use objc2_core_graphics::*;
 use objc2_core_text::*;
 use objc2_foundation::{NSMutableAttributedString, NSRange, NSString};
 
-pub struct Atlas {
-    pub data: Vec<u8>,
-    pub dimensions: AtlasDimensions,
-}
-
-#[derive(Debug)]
-pub struct AtlasDimensions {
-    pub width: usize,
-    pub height: usize,
-    pub glyph_offset_x: f32,
-    pub glyph_step_x: f32,
-    pub glyph_width: f32,
-    pub glyph_height: f32,
-    pub line_height: f32,
-}
-
 pub struct Text {
     font_name: Retained<NSString>,
     font_size: f64,

@@ -1,18 +1,11 @@
 #![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
 
-#[cfg(target_os = "windows")]
-#[path = "platform/windows/mod.rs"]
-mod platform;
-
-#[cfg(target_os = "macos")]
-#[path = "platform/macos/mod.rs"]
-mod platform;
-
 mod app;
 mod config;
 mod digits;
 mod geometry;
 mod input;
+mod platform;
 mod temp_buffer;
 mod text;
 mod ui;

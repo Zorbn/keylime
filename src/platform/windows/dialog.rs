@@ -15,28 +15,9 @@ use windows::{
     },
 };
 
+use crate::platform::dialog::{FindFileKind, MessageKind, MessageResponse};
+
 use super::deferred_call::defer;
-
-#[derive(PartialEq, Eq, Debug)]
-pub enum FindFileKind {
-    OpenFile,
-    OpenFolder,
-    Save,
-}
-
-#[derive(PartialEq, Eq, Debug)]
-pub enum MessageKind {
-    Ok,
-    YesNo,
-    YesNoCancel,
-}
-
-#[derive(PartialEq, Eq, Debug)]
-pub enum MessageResponse {
-    Yes,
-    No,
-    Cancel,
-}
 
 pub fn find_file(kind: FindFileKind) -> Result<PathBuf> {
     let dialog_id = match kind {

@@ -46,15 +46,16 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::{MouseClickKind, Mousebind},
     },
+    platform::{self, pty::Pty},
     temp_buffer::TempBuffer,
 };
 
-use super::{deferred_call::defer, file_watcher::FileWatcher, gfx::Gfx, pty::Pty};
+use super::{deferred_call::defer, file_watcher::FileWatcher, gfx::Gfx};
 
 const DEFAULT_DPI: f32 = 96.0;
 
 pub struct WindowRunner {
-    window: Window,
+    window: platform::window::Window,
     app: App,
 }
 
@@ -63,7 +64,9 @@ impl WindowRunner {
         let use_dark_mode = BOOL::from(app.is_dark());
 
         let mut window_runner = Box::new(WindowRunner {
-            window: Window::new()?,
+            window: platform::window::Window {
+                inner: Window::new()?,
+            },
             app,
         });
 
@@ -97,15 +100,15 @@ impl WindowRunner {
             )?;
 
             DwmSetWindowAttribute(
-                window_runner.window.hwnd(),
+                window_runner.window.inner.hwnd(),
                 DWMWA_USE_IMMERSIVE_DARK_MODE,
                 &use_dark_mode as *const BOOL as _,
                 size_of::<BOOL>() as u32,
             )?;
 
-            AddClipboardFormatListener(window_runner.window.hwnd())?;
+            AddClipboardFormatListener(window_runner.window.inner.hwnd())?;
 
-            let _ = ShowWindow(window_runner.window.hwnd(), SW_SHOWDEFAULT);
+            let _ = ShowWindow(window_runner.window.inner.hwnd(), SW_SHOWDEFAULT);
 
             CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE).ok()?;
         }
@@ -116,19 +119,19 @@ impl WindowRunner {
     pub fn run(&mut self) {
         let WindowRunner { window, app, .. } = self;
 
-        while window.is_running() {
+        while window.inner.is_running() {
             let is_animating = app.is_animating();
 
             let (files, ptys) = app.files_and_ptys();
-            window.update(is_animating, files, ptys);
+            window.inner.update(is_animating, files, ptys);
 
-            let (time, dt) = window.get_time(is_animating);
+            let (time, dt) = window.inner.get_time(is_animating);
             app.update(window, time, dt);
 
             app.draw(window);
         }
 
-        app.close(self.window.time);
+        app.close(self.window.inner.time);
     }
 
     unsafe extern "system" fn window_proc(
@@ -162,14 +165,29 @@ impl WindowRunner {
 
                 DefWindowProcW(hwnd, msg, wparam, lparam)
             }
-            _ => {
-                let WindowRunner {
-                    window: window_handle,
-                    app,
-                    ..
-                } = &mut (*window_runner);
+            WM_SIZE => {
+                let width = (lparam.0 & 0xffff) as i32;
+                let height = ((lparam.0 >> 16) & 0xffff) as i32;
 
-                window_handle.window_proc(app, hwnd, msg, wparam, lparam)
+                let window_runner = &mut *window_runner;
+
+                window_runner.window.inner.width = width;
+                window_runner.window.inner.height = height;
+
+                if let Some(gfx) = &mut window_runner.window.inner.gfx {
+                    gfx.inner.resize(width, height).unwrap();
+
+                    let WindowRunner { window, app, .. } = window_runner;
+
+                    app.draw(window);
+                }
+
+                LRESULT(0)
+            }
+            _ => {
+                let WindowRunner { window, app, .. } = &mut *window_runner;
+
+                window.inner.window_proc(app, hwnd, msg, wparam, lparam)
             }
         }
     }
@@ -195,7 +213,7 @@ pub struct Window {
     hwnd: HWND,
 
     wait_handles: Vec<HANDLE>,
-    file_watcher: FileWatcher,
+    file_watcher: platform::file_watcher::FileWatcher,
 
     is_running: bool,
     is_focused: bool,
@@ -209,7 +227,7 @@ pub struct Window {
     wide_text_buffer: TempBuffer<u16>,
     text_buffer: TempBuffer<char>,
 
-    gfx: Option<Gfx>,
+    gfx: Option<platform::gfx::Gfx>,
 
     // Keep track of which mouse buttons have been pressed since the window was
     // last focused, so that we can skip stray mouse drag events that may happen
@@ -246,7 +264,9 @@ impl Window {
             hwnd: HWND(null_mut()),
 
             wait_handles: Vec::new(),
-            file_watcher: FileWatcher::new(),
+            file_watcher: platform::file_watcher::FileWatcher {
+                inner: FileWatcher::new(),
+            },
 
             is_running: true,
             is_focused: false,
@@ -314,7 +334,7 @@ impl Window {
         ptys: impl Iterator<Item = &'a mut Pty>,
     ) {
         self.clear_inputs();
-        self.file_watcher.update(files).unwrap();
+        self.file_watcher.inner.update(files).unwrap();
 
         unsafe {
             let mut msg = MSG::default();
@@ -324,13 +344,14 @@ impl Window {
 
                 for pty in ptys {
                     self.wait_handles
-                        .extend_from_slice(&[pty.hprocess, pty.event]);
+                        .extend_from_slice(&[pty.inner.hprocess, pty.inner.event]);
                 }
 
                 let dir_handles_start = self.wait_handles.len();
 
                 self.wait_handles.extend(
                     self.file_watcher
+                        .inner
                         .dir_watch_handles()
                         .iter()
                         .map(|handles| handles.event()),
@@ -347,12 +368,13 @@ impl Window {
 
                 if index >= dir_handles_start && index < self.wait_handles.len() {
                     self.file_watcher
+                        .inner
                         .handle_dir_update(index - dir_handles_start)
                         .unwrap();
                 }
             }
 
-            self.file_watcher.check_dir_updates().unwrap();
+            self.file_watcher.inner.check_dir_updates().unwrap();
 
             while PeekMessageW(&mut msg, self.hwnd, 0, 0, PM_REMOVE).as_bool() {
                 let _ = TranslateMessage(&msg);
@@ -377,11 +399,11 @@ impl Window {
         self.scale
     }
 
-    pub fn gfx(&mut self) -> &mut Gfx {
+    pub fn gfx(&mut self) -> &mut platform::gfx::Gfx {
         self.gfx.as_mut().unwrap()
     }
 
-    pub fn file_watcher(&mut self) -> &mut FileWatcher {
+    pub fn file_watcher(&mut self) -> &mut platform::file_watcher::FileWatcher {
         &mut self.file_watcher
     }
 
@@ -545,7 +567,9 @@ impl Window {
                     font, font_size, ..
                 } = app.config();
 
-                self.gfx = Some(Gfx::new(font, *font_size, self).unwrap());
+                self.gfx = Some(platform::gfx::Gfx {
+                    inner: Gfx::new(font, *font_size, self).unwrap(),
+                });
             }
             WM_DPICHANGED => {
                 let scale = (wparam.0 & 0xffff) as f32 / DEFAULT_DPI;
@@ -556,7 +580,7 @@ impl Window {
                         font, font_size, ..
                     } = app.config();
 
-                    gfx.update_font(font, *font_size, scale);
+                    gfx.inner.update_font(font, *font_size, scale);
                 }
 
                 let rect = *(lparam.0 as *const RECT);
@@ -574,18 +598,6 @@ impl Window {
             WM_MOVE => {
                 self.x = transmute::<u32, i32>((lparam.0 & 0xffff) as u32);
                 self.y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xffff) as u32);
-            }
-            WM_SIZE => {
-                let width = (lparam.0 & 0xffff) as i32;
-                let height = ((lparam.0 >> 16) & 0xffff) as i32;
-
-                self.width = width;
-                self.height = height;
-
-                if let Some(gfx) = &mut self.gfx {
-                    gfx.resize(width, height).unwrap();
-                    app.draw(self);
-                }
             }
             WM_CLOSE => {
                 self.is_running = false;

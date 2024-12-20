@@ -10,27 +10,6 @@ use objc2_foundation::{ns_string, MainThreadMarker, NSRect, NSString, NSURL};
 
 use super::result::Result;
 
-#[derive(PartialEq, Eq, Debug)]
-pub enum FindFileKind {
-    OpenFile,
-    OpenFolder,
-    Save,
-}
-
-#[derive(PartialEq, Eq, Debug)]
-pub enum MessageKind {
-    Ok,
-    YesNo,
-    YesNoCancel,
-}
-
-#[derive(PartialEq, Eq, Debug)]
-pub enum MessageResponse {
-    Yes,
-    No,
-    Cancel,
-}
-
 pub fn find_file(kind: FindFileKind) -> Result<PathBuf> {
     let mtm = MainThreadMarker::new().unwrap();
 
