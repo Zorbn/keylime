@@ -1,8 +1,11 @@
 use std::mem::ManuallyDrop;
 
 use windows::{
-    core::{Result, HSTRING},
-    Win32::{Foundation::FALSE, Graphics::DirectWrite::*},
+    core::{Error, Result, HSTRING},
+    Win32::{
+        Foundation::{E_FAIL, FALSE},
+        Graphics::DirectWrite::*,
+    },
 };
 
 use crate::platform::text::{Atlas, AtlasDimensions};
@@ -32,7 +35,9 @@ impl Text {
         let mut font_exists = FALSE;
         font_collection.FindFamilyName(&font_name, &mut font_index, &mut font_exists)?;
 
-        assert!(font_exists.as_bool());
+        if !font_exists.as_bool() {
+            return Err(Error::new(E_FAIL, "Font not found"));
+        }
 
         let font_family = font_collection.GetFontFamily(font_index)?;
 
