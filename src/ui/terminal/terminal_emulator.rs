@@ -396,6 +396,12 @@ impl TerminalEmulator {
                 (output, parameters) =
                     Self::parse_numeric_parameters(output, &mut parameter_buffer);
 
+                let parameters = if parameters.is_empty() {
+                    &[0]
+                } else {
+                    parameters
+                };
+
                 match output.first() {
                     Some(&LOWERCASE_M) => {
                         // Set text formatting.

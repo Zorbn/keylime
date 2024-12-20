@@ -117,10 +117,12 @@ impl WindowRunner {
         let WindowRunner { window, app, .. } = self;
 
         while window.is_running() {
-            let (files, ptys) = app.files_and_ptys();
-            window.update(files, ptys);
+            let is_animating = app.is_animating();
 
-            let (time, dt) = window.get_time(app.is_animating());
+            let (files, ptys) = app.files_and_ptys();
+            window.update(is_animating, files, ptys);
+
+            let (time, dt) = window.get_time(is_animating);
             app.update(window, time, dt);
 
             app.draw(window);
@@ -307,8 +309,9 @@ impl Window {
 
     pub fn update<'a>(
         &mut self,
-        ptys: impl Iterator<Item = &'a Pty>,
+        is_animating: bool,
         files: impl Iterator<Item = &'a Path>,
+        ptys: impl Iterator<Item = &'a mut Pty>,
     ) {
         self.clear_inputs();
         self.file_watcher.update(files).unwrap();

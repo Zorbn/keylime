@@ -117,6 +117,7 @@ pub struct Gfx {
     render_target_view: Option<ID3D11RenderTargetView>,
     width: i32,
     height: i32,
+    scale: f32,
     bounds: Rect,
 
     vertices: Vec<Vertex>,
@@ -349,8 +350,9 @@ impl Gfx {
             uniform_buffer_result.unwrap()
         };
 
+        let scale = window.scale();
         let (texture_data, atlas_dimensions) =
-            Self::create_atlas_texture(&device, font_name, font_size, window.scale())?;
+            Self::create_atlas_texture(&device, font_name, font_size, scale)?;
 
         let gfx = Self {
             device,
@@ -367,6 +369,7 @@ impl Gfx {
             render_target_view: None,
             width: 0,
             height: 0,
+            scale,
             bounds: Rect::zero(),
 
             vertices: Vec::new(),
@@ -550,6 +553,8 @@ impl Gfx {
     }
 
     pub fn update_font(&mut self, font_name: &str, font_size: f32, scale: f32) {
+        self.scale = scale;
+
         unsafe {
             if let Ok(atlas_texture) =
                 Self::create_atlas_texture(&self.device, font_name, font_size, scale)
@@ -947,11 +952,11 @@ impl Gfx {
     }
 
     pub fn line_padding(&self) -> f32 {
-        (self.line_height() - self.glyph_height()) / 2.0
+        ((self.line_height() - self.glyph_height()) / 2.0).ceil()
     }
 
     pub fn border_width(&self) -> f32 {
-        1.0
+        self.scale.floor()
     }
 
     pub fn width(&self) -> f32 {
@@ -963,11 +968,11 @@ impl Gfx {
     }
 
     pub fn tab_height(&self) -> f32 {
-        self.line_height() * 1.25
+        (self.line_height() * 1.25).ceil()
     }
 
     pub fn tab_padding_y(&self) -> f32 {
-        (self.tab_height() - self.line_height()) * 0.75
+        ((self.tab_height() - self.line_height()) * 0.75).ceil()
     }
 
     pub fn height_lines(&self) -> isize {

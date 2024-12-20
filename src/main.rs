@@ -25,6 +25,7 @@ use platform::window::WindowRunner;
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
  * Directory-wide search.
  * Unit testing for patterns and text editing functions.
+ * Fallback to reasonable fonts if the one in the config can't be loaded.
  * MacOS support:
  * - Refactor code that could be shared between platforms, eg. Gfx::measure_text and similar,
  *   Gfx::add_bordered_rect, Gfx::add_rect, Gfx::add_text?
