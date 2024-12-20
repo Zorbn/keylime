@@ -11,8 +11,8 @@ use objc2::rc::Retained;
 use crate::text::utf32::{utf32_to_utf8, utf8_to_utf32};
 
 use super::{
-    gfx::{View, ViewRef},
     result::Result,
+    view::{View, ViewRef},
 };
 
 pub struct Pty {

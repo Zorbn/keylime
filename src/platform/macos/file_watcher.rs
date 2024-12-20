@@ -10,8 +10,8 @@ use libc::{kevent, EVFILT_VNODE, EV_ADD, EV_CLEAR, EV_DELETE, NOTE_WRITE, O_EVTO
 use objc2::rc::Retained;
 
 use super::{
-    gfx::{View, ViewRef},
     result::Result,
+    view::{View, ViewRef},
 };
 
 struct WatchedPath {

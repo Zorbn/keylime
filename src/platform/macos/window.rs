@@ -2,10 +2,7 @@
 
 use std::{cell::RefCell, path::Path, ptr::NonNull, rc::Rc};
 
-use objc2::{
-    define_class, msg_send, msg_send_id, rc::Retained, runtime::ProtocolObject, DeclaredClass,
-    MainThreadOnly,
-};
+use objc2::{rc::Retained, runtime::ProtocolObject};
 use objc2_app_kit::*;
 use objc2_foundation::*;
 
@@ -20,166 +17,11 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::{MouseClickKind, Mousebind},
     },
-    platform::aliases::{AnyFileWatcher, AnyGfx, AnyPty, AnyWindow},
+    platform::aliases::{AnyFileWatcher, AnyGfx, AnyPty},
     temp_buffer::TempBuffer,
 };
 
-use super::{file_watcher::FileWatcher, gfx::Gfx, result::Result};
-
-struct DelegateIvars {
-    app: Rc<RefCell<App>>,
-    window: Rc<RefCell<AnyWindow>>,
-}
-
-define_class!(
-    #[unsafe(super(NSObject))]
-    #[thread_kind = MainThreadOnly]
-    #[name = "Delegate"]
-    #[ivars = DelegateIvars]
-    struct Delegate;
-
-    unsafe impl NSObjectProtocol for Delegate {}
-
-    unsafe impl NSApplicationDelegate for Delegate {
-        #[method(applicationDidFinishLaunching:)]
-        unsafe fn application_did_finish_launching(&self, notification: &NSNotification) {
-            let window = self.ivars().window.clone();
-            let app = self.ivars().app.clone();
-
-            let mtm = MainThreadMarker::from(self);
-
-            let (ns_window, width, height) = {
-                let window = window.borrow();
-
-                (
-                    window.inner.ns_window.clone(),
-                    window.inner.width,
-                    window.inner.height,
-                )
-            };
-
-            unsafe {
-                let app = app.borrow();
-
-                let theme = &app.config().theme;
-
-                let r = theme.background.r as f64 / 255.0f64;
-                let g = theme.background.g as f64 / 255.0f64;
-                let b = theme.background.b as f64 / 255.0f64;
-                let a = theme.background.a as f64 / 255.0f64;
-
-                ns_window
-                    .setBackgroundColor(Some(&NSColor::colorWithRed_green_blue_alpha(r, g, b, a)));
-                ns_window.setAcceptsMouseMovedEvents(true);
-            }
-
-            let protocol_object = ProtocolObject::from_ref(self);
-            ns_window.setDelegate(Some(&protocol_object));
-
-            let mut gfx =
-                unsafe { Gfx::new(app.clone(), window.clone(), &ns_window, mtm).unwrap() };
-
-            gfx.resize(width, height).unwrap();
-
-            let view = gfx.view().clone();
-
-            window.borrow_mut().inner.gfx = Some(AnyGfx { inner: gfx });
-
-            ns_window.setContentView(Some(&view));
-            ns_window.center();
-            ns_window.setTitle(ns_string!("Keylime"));
-
-            // Create a blank thread to tell Cocoa that we are using multi-threading (for the pty).
-            // https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/Multithreading/CreatingThreads/CreatingThreads.html
-            let _ = NSThread::new();
-            assert!(NSThread::isMultiThreaded());
-
-            unsafe {
-                let app: &mut NSApplication = msg_send![notification, object];
-                app.activate();
-                view.setNeedsDisplay(true);
-            }
-        }
-
-        #[method(applicationShouldTerminateAfterLastWindowClosed:)]
-        unsafe fn application_should_terminate_after_last_window_closed(
-            &self,
-            _sender: &NSApplication,
-        ) -> bool {
-            true
-        }
-    }
-
-    unsafe impl NSWindowDelegate for Delegate {
-        #[method(windowShouldClose:)]
-        unsafe fn window_should_close(&self, _sender: &NSWindow) -> bool {
-            let time = self.ivars().window.borrow().inner.time;
-            let mut app = self.ivars().app.borrow_mut();
-
-            app.close(time);
-
-            true
-        }
-
-        #[method(windowDidBecomeKey:)]
-        unsafe fn window_did_become_key(&self, _notification: &NSNotification) {
-            self.on_focused_changed(true);
-        }
-
-        #[method(windowDidResignKey:)]
-        unsafe fn window_did_resign_key(&self, _notification: &NSNotification) {
-            self.on_focused_changed(false);
-        }
-
-        #[method(windowDidEnterFullScreen:)]
-        unsafe fn window_did_enter_fullscreen(&self, _notification: &NSNotification) {
-            self.on_fullscreen_changed(true);
-        }
-
-        #[method(windowDidExitFullScreen:)]
-        unsafe fn window_did_exit_fullscreen(&self, _notification: &NSNotification) {
-            self.on_fullscreen_changed(false);
-        }
-    }
-);
-
-impl Delegate {
-    fn new(app: Rc<RefCell<App>>, mtm: MainThreadMarker) -> Retained<Self> {
-        let window = AnyWindow {
-            inner: Window::new(mtm, 768.0, 768.0),
-        };
-
-        let this = mtm.alloc();
-        let this = this.set_ivars(DelegateIvars {
-            window: Rc::new(RefCell::new(window)),
-            app,
-        });
-
-        unsafe { msg_send_id![super(this), init] }
-    }
-
-    fn on_focused_changed(&self, is_focused: bool) {
-        let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
-            return;
-        };
-
-        window.inner.is_focused = is_focused;
-
-        let view = window.gfx().inner.view();
-
-        unsafe {
-            view.setNeedsDisplay(true);
-        }
-    }
-
-    fn on_fullscreen_changed(&self, is_fullscreen: bool) {
-        let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
-            return;
-        };
-
-        window.gfx().inner.is_fullscreen = is_fullscreen;
-    }
-}
+use super::{delegate::Delegate, file_watcher::FileWatcher, result::Result};
 
 pub struct WindowRunner {
     app: Rc<RefCell<App>>,
@@ -224,15 +66,15 @@ struct RecordedMouseClick {
 
 pub struct Window {
     pub ns_window: Retained<NSWindow>,
-    width: f64,
-    height: f64,
+    pub width: f64,
+    pub height: f64,
 
     pub was_shown: bool,
-    is_focused: bool,
-    time: f32,
+    pub is_focused: bool,
+    pub time: f32,
     last_queried_time: Option<f64>,
 
-    gfx: Option<AnyGfx>,
+    pub gfx: Option<AnyGfx>,
     scale: f32,
     file_watcher: AnyFileWatcher,
 
