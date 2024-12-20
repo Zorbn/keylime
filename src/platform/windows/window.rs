@@ -46,7 +46,7 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::{MouseClickKind, Mousebind},
     },
-    platform::{self, pty::Pty},
+    platform::aliases::{AnyFileWatcher, AnyGfx, AnyPty, AnyWindow},
     temp_buffer::TempBuffer,
 };
 
@@ -331,7 +331,7 @@ impl Window {
         &mut self,
         is_animating: bool,
         files: impl Iterator<Item = &'a Path>,
-        ptys: impl Iterator<Item = &'a mut Pty>,
+        ptys: impl Iterator<Item = &'a mut AnyPty>,
     ) {
         self.clear_inputs();
         self.file_watcher.inner.update(files).unwrap();
