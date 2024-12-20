@@ -190,7 +190,7 @@ impl FileWatcher {
                 }
 
                 unsafe {
-                    view.set_needs_display();
+                    view.update();
                 }
             }
         })

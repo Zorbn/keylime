@@ -171,7 +171,7 @@ impl Pty {
                 }
 
                 unsafe {
-                    view.set_needs_display();
+                    view.update();
                 }
             }
         })

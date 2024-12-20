@@ -85,7 +85,7 @@ define_class!(
             unsafe {
                 let app: &mut NSApplication = msg_send![notification, object];
                 app.activate();
-                view.setNeedsDisplay(true);
+                view.update();
             }
         }
 

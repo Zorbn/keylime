@@ -263,7 +263,7 @@ impl View {
         view
     }
 
-    fn update(&self) {
+    pub fn update(&self) {
         let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
             return;
         };
@@ -309,7 +309,7 @@ impl ViewRef {
         }
     }
 
-    pub unsafe fn set_needs_display(&self) {
+    pub unsafe fn update(&self) {
         unsafe {
             self.inner
                 .performSelectorOnMainThread_withObject_waitUntilDone(sel!(update), None, false);
