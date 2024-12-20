@@ -28,7 +28,7 @@ use crate::{
     app::App,
     config::Config,
     geometry::{matrix::ortho, rect::Rect},
-    platform::{self, aliases::AnyWindow, text::AtlasDimensions},
+    platform::{aliases::AnyWindow, text::AtlasDimensions},
     ui::color::Color,
 };
 
@@ -305,7 +305,7 @@ const PIXEL_FORMAT: MTLPixelFormat = MTLPixelFormat::BGRA8Unorm;
 impl View {
     fn new(
         app: Rc<RefCell<App>>,
-        window: Rc<RefCell<platform::window::Window>>,
+        window: Rc<RefCell<AnyWindow>>,
         mtm: MainThreadMarker,
         frame_rect: NSRect,
         device: Retained<ProtocolObject<dyn MTLDevice>>,
@@ -418,7 +418,7 @@ pub struct Gfx {
 impl Gfx {
     pub unsafe fn new(
         app: Rc<RefCell<App>>,
-        window: Rc<RefCell<platform::window::Window>>,
+        window: Rc<RefCell<AnyWindow>>,
         ns_window: &NSWindow,
         mtm: MainThreadMarker,
     ) -> Result<Self> {
