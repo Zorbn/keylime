@@ -19,14 +19,7 @@ use platform::window::WindowRunner;
  * Directory-wide search.
  * Unit testing for patterns and text editing functions.
  * Fallback to reasonable fonts if the one in the config can't be loaded.
- * MacOS support:
- * - Refactor code that could be shared between platforms, eg. Gfx::measure_text and similar,
- *   Gfx::add_bordered_rect, Gfx::add_rect, Gfx::add_text?
- *
- * - Possibly all of the types/functions from the platform module should just be wrappers that
- *   wrap different internal implementations depending on the platform? eg. Window wraps WindowsWindow and MacOSWindow.
- *
- * - Add support for per-platform keybinds (so that command and option work as expected).
+ * Add support for per-platform keybinds (so that command and option work as expected).
  */
 
 fn main() {
