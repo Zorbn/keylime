@@ -57,6 +57,18 @@ impl Text {
                 CTFontOptions::kCTFontOptionsDefault,
             ) as *mut AnyObject;
 
+            let loaded_font_name = CTFontCopyFamilyName(font as _);
+
+            let did_load_requested_font = CFStringCompare(
+                font_name_cfstr,
+                loaded_font_name,
+                CFStringCompareFlags::empty(),
+            ) == CFComparisonResult::kCFCompareEqualTo;
+
+            if !did_load_requested_font {
+                return Err("Font not found");
+            }
+
             let advance_glyphs = &[b'M' as u16];
             let mut advances = [CGSize::ZERO; 1];
 
