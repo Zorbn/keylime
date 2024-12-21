@@ -166,8 +166,8 @@ impl WindowRunner {
                 DefWindowProcW(hwnd, msg, wparam, lparam)
             }
             WM_SIZE => {
-                let width = (lparam.0 & 0xffff) as i32;
-                let height = ((lparam.0 >> 16) & 0xffff) as i32;
+                let width = (lparam.0 & 0xFFFF) as i32;
+                let height = ((lparam.0 >> 16) & 0xFFFF) as i32;
 
                 let window_runner = &mut *window_runner;
 
@@ -572,7 +572,7 @@ impl Window {
                 });
             }
             WM_DPICHANGED => {
-                let scale = (wparam.0 & 0xffff) as f32 / DEFAULT_DPI;
+                let scale = (wparam.0 & 0xFFFF) as f32 / DEFAULT_DPI;
                 self.scale = scale;
 
                 if let Some(gfx) = &mut self.gfx {
@@ -596,8 +596,8 @@ impl Window {
                 );
             }
             WM_MOVE => {
-                self.x = transmute::<u32, i32>((lparam.0 & 0xffff) as u32);
-                self.y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xffff) as u32);
+                self.x = transmute::<u32, i32>((lparam.0 & 0xFFFF) as u32);
+                self.y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xFFFF) as u32);
             }
             WM_CLOSE => {
                 self.is_running = false;
@@ -623,7 +623,7 @@ impl Window {
                 }
             }
             WM_KEYDOWN | WM_SYSKEYDOWN => {
-                if let Some(key) = Self::key_from_keycode((wparam.0 & 0xffff) as u32) {
+                if let Some(key) = Self::key_from_keycode((wparam.0 & 0xFFFF) as u32) {
                     let has_shift =
                         GetKeyState(Key::LShift as i32) < 0 || GetKeyState(Key::RShift as i32) < 0;
 
@@ -682,8 +682,8 @@ impl Window {
                 let has_shift = wparam.0 & MK_SHIFT != 0;
                 let has_ctrl = wparam.0 & MK_CONTROL != 0;
 
-                let x = transmute::<u32, i32>((lparam.0 & 0xffff) as u32) as f32;
-                let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xffff) as u32) as f32;
+                let x = transmute::<u32, i32>((lparam.0 & 0xFFFF) as u32) as f32;
+                let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xFFFF) as u32) as f32;
 
                 let (kind, is_drag) = match msg {
                     WM_MOUSEMOVE => {
@@ -754,12 +754,12 @@ impl Window {
                 const WHEEL_DELTA: f32 = 120.0;
 
                 let delta =
-                    transmute::<u16, i16>(((wparam.0 >> 16) & 0xffff) as u16) as f32 / WHEEL_DELTA;
+                    transmute::<u16, i16>(((wparam.0 >> 16) & 0xFFFF) as u16) as f32 / WHEEL_DELTA;
 
                 let is_horizontal = msg == WM_MOUSEHWHEEL;
 
-                let x = transmute::<u32, i32>((lparam.0 & 0xffff) as u32);
-                let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xffff) as u32);
+                let x = transmute::<u32, i32>((lparam.0 & 0xFFFF) as u32);
+                let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xFFFF) as u32);
 
                 self.mouse_scrolls.push(MouseScroll {
                     delta,
@@ -865,8 +865,8 @@ impl Window {
             0x77 => Some(Key::F8),
             0x78 => Some(Key::F9),
             0x79 => Some(Key::F10),
-            0x7a => Some(Key::F11),
-            0x7b => Some(Key::F12),
+            0x7A => Some(Key::F11),
+            0x7B => Some(Key::F12),
             0xA0 => Some(Key::LShift),
             0xA1 => Some(Key::RShift),
             0xA2 => Some(Key::LCtrl),

@@ -97,6 +97,7 @@ impl Theme {
                 TerminalHighlightKind::BrightBlue => self.terminal.bright_blue,
                 TerminalHighlightKind::BrightMagenta => self.terminal.bright_magenta,
                 TerminalHighlightKind::BrightCyan => self.terminal.bright_cyan,
+                TerminalHighlightKind::Custom(color) => color,
             },
         }
     }

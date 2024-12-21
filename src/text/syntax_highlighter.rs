@@ -1,5 +1,7 @@
 use serde::Deserialize;
 
+use crate::ui::color::Color;
+
 use super::{
     line_pool::Line,
     syntax::{Syntax, SyntaxRange, SyntaxToken},
@@ -24,6 +26,8 @@ pub enum TerminalHighlightKind {
     BrightBlue,
     BrightMagenta,
     BrightCyan,
+
+    Custom(Color),
 }
 
 #[derive(Deserialize, PartialEq, Eq, Clone, Copy, Debug)]

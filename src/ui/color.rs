@@ -17,6 +17,10 @@ impl Color {
             a: value as u8,
         }
     }
+
+    pub const fn from_rgb(r: u8, g: u8, b: u8) -> Self {
+        Self { r, g, b, a: 255 }
+    }
 }
 
 impl<'de> Deserialize<'de> for Color {

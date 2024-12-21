@@ -328,7 +328,7 @@ impl Gfx {
 
         let uniform_buffer = {
             let desc = D3D11_BUFFER_DESC {
-                ByteWidth: ((size_of::<Uniform>() + 0xf) & 0xfffffff0) as u32,
+                ByteWidth: ((size_of::<Uniform>() + 0xF) & 0xFFFFFFF0) as u32,
                 Usage: D3D11_USAGE_DYNAMIC,
                 BindFlags: D3D11_BIND_CONSTANT_BUFFER.0 as u32,
                 CPUAccessFlags: D3D11_CPU_ACCESS_WRITE.0 as u32,
