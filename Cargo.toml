@@ -3,6 +3,9 @@ name = "keylime"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+terminal_emulator_debug = []
+
 [dependencies.serde]
 version = "1.0"
 features = ["derive"]

@@ -73,6 +73,7 @@ pub struct TerminalEmulator {
     foreground_color: TerminalHighlightKind,
     background_color: TerminalHighlightKind,
     are_colors_swapped: bool,
+    are_colors_bright: bool,
 }
 
 impl TerminalEmulator {
@@ -94,6 +95,7 @@ impl TerminalEmulator {
             foreground_color: TerminalHighlightKind::Foreground,
             background_color: TerminalHighlightKind::Background,
             are_colors_swapped: false,
+            are_colors_bright: false,
         };
 
         emulator.resize_grid_line_colors();
@@ -299,16 +301,19 @@ impl TerminalEmulator {
                         continue;
                     }
 
-                    // Print unhandled control sequences.
-                    // for c in output {
-                    //     if let Some(c) = char::from_u32(*c) {
-                    //         print!("{:?} ", c);
-                    //     } else {
-                    //         print!("{:?} ", c);
-                    //     }
-                    // }
+                    #[cfg(feature = "terminal_emulator_debug")]
+                    {
+                        // Print unhandled control sequences.
+                        for c in output.iter().take(8) {
+                            if let Some(c) = char::from_u32(*c) {
+                                print!("{:?} ", c);
+                            } else {
+                                print!("{:?} ", c);
+                            }
+                        }
 
-                    // println!();
+                        println!();
+                    }
                 }
                 // Bell:
                 0x7 => {
@@ -411,8 +416,11 @@ impl TerminalEmulator {
                                     self.foreground_color = TerminalHighlightKind::Foreground;
                                     self.background_color = TerminalHighlightKind::Background;
                                     self.are_colors_swapped = false;
+                                    self.are_colors_bright = false;
                                 }
+                                1 => self.are_colors_bright = true,
                                 7 => self.are_colors_swapped = true,
+                                22 => self.are_colors_bright = false,
                                 27 => self.are_colors_swapped = false,
                                 30 => self.foreground_color = TerminalHighlightKind::Background,
                                 31 => self.foreground_color = TerminalHighlightKind::Red,
@@ -456,7 +464,10 @@ impl TerminalEmulator {
                                 107 => {
                                     self.background_color = TerminalHighlightKind::BrightForeground
                                 }
-                                _ => {}
+                                _ => {
+                                    #[cfg(feature = "terminal_emulator_debug")]
+                                    println!("Unhandled format parameter: {:?}", parameter);
+                                }
                             }
                         }
 
@@ -862,6 +873,20 @@ impl TerminalEmulator {
         }
     }
 
+    fn color_to_bright(color: TerminalHighlightKind) -> TerminalHighlightKind {
+        match color {
+            TerminalHighlightKind::Foreground => TerminalHighlightKind::BrightForeground,
+            TerminalHighlightKind::Background => TerminalHighlightKind::BrightBackground,
+            TerminalHighlightKind::Red => TerminalHighlightKind::BrightRed,
+            TerminalHighlightKind::Green => TerminalHighlightKind::BrightGreen,
+            TerminalHighlightKind::Yellow => TerminalHighlightKind::BrightYellow,
+            TerminalHighlightKind::Blue => TerminalHighlightKind::BrightBlue,
+            TerminalHighlightKind::Magenta => TerminalHighlightKind::BrightMagenta,
+            TerminalHighlightKind::Cyan => TerminalHighlightKind::BrightCyan,
+            _ => color,
+        }
+    }
+
     fn insert(
         &mut self,
         start: Position,
@@ -876,6 +901,12 @@ impl TerminalEmulator {
             (self.background_color, self.foreground_color)
         } else {
             (self.foreground_color, self.background_color)
+        };
+
+        let colors = if self.are_colors_bright {
+            (Self::color_to_bright(colors.0), colors.1)
+        } else {
+            colors
         };
 
         for c in text {

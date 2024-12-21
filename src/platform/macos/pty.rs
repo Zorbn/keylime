@@ -46,6 +46,7 @@ impl Pty {
                 let args = &[shell.as_ptr(), null()];
 
                 unsafe {
+                    libc::setenv(c"TERM".as_ptr(), c"xterm".as_ptr(), 1);
                     libc::execvp(shell.as_ptr(), args.as_ptr());
                 }
             }
