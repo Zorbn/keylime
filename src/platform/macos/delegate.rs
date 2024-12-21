@@ -1,3 +1,5 @@
+#![deny(unsafe_op_in_unsafe_fn)]
+
 use std::{cell::RefCell, rc::Rc};
 
 use objc2::{
@@ -64,8 +66,7 @@ define_class!(
             let protocol_object = ProtocolObject::from_ref(self);
             ns_window.setDelegate(Some(&protocol_object));
 
-            let mut gfx =
-                unsafe { Gfx::new(app.clone(), window.clone(), &ns_window, mtm).unwrap() };
+            let mut gfx = Gfx::new(app.clone(), window.clone(), &ns_window, mtm).unwrap();
 
             gfx.resize(width, height).unwrap();
 

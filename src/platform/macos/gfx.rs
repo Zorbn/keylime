@@ -1,5 +1,3 @@
-#![deny(unsafe_op_in_unsafe_fn)]
-
 use std::{
     cell::RefCell,
     ffi::c_void,
@@ -115,7 +113,7 @@ pub struct Gfx {
 }
 
 impl Gfx {
-    pub unsafe fn new(
+    pub fn new(
         app: Rc<RefCell<App>>,
         window: Rc<RefCell<AnyWindow>>,
         ns_window: &NSWindow,

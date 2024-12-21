@@ -1,5 +1,3 @@
-#![deny(unsafe_op_in_unsafe_fn)]
-
 use std::{cell::RefCell, path::Path, ptr::NonNull, rc::Rc};
 
 use objc2::{rc::Retained, runtime::ProtocolObject};

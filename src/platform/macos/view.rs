@@ -1,3 +1,5 @@
+#![deny(unsafe_op_in_unsafe_fn)]
+
 use std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
@@ -288,7 +290,7 @@ impl View {
     pub unsafe fn next_drawable(&self) -> Option<Retained<ProtocolObject<dyn CAMetalDrawable>>> {
         let metal_layer = self.ivars().metal_layer.get().unwrap();
 
-        metal_layer.nextDrawable()
+        unsafe { metal_layer.nextDrawable() }
     }
 }
 
