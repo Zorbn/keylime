@@ -6,7 +6,7 @@ use crate::{
         line_pool::LinePool,
         syntax_highlighter::{HighlightKind, TerminalHighlightKind},
     },
-    ui::{color::Color, tab::Tab, terminal::color_table::COLOR_TABLE, UiHandle},
+    ui::{color::Color, terminal::color_table::COLOR_TABLE},
 };
 
 use super::{char32::*, terminal_emulator::TerminalEmulator};
@@ -14,9 +14,7 @@ use super::{char32::*, terminal_emulator::TerminalEmulator};
 impl TerminalEmulator {
     pub fn handle_escape_sequences(
         &mut self,
-        ui: &mut UiHandle,
         docs: &mut (Doc, Doc),
-        tab: &mut Tab,
         input: &mut Vec<u32>,
         mut output: &[u32],
         line_pool: &mut LinePool,
@@ -92,7 +90,12 @@ impl TerminalEmulator {
                 // Newline:
                 0xA => {
                     if self.grid_cursor.y == self.scroll_bottom {
-                        self.scroll_grid(ui, tab, doc, line_pool, time);
+                        self.scroll_grid_region_up(
+                            self.scroll_top..=self.scroll_bottom,
+                            doc,
+                            line_pool,
+                            time,
+                        );
                     } else {
                         self.move_cursor(Position::new(0, 1), doc);
                     }
@@ -404,6 +407,36 @@ impl TerminalEmulator {
 
                 for _ in 0..count {
                     self.scroll_grid_region_up(scroll_top..=scroll_bottom, doc, line_pool, time);
+                }
+
+                Some(&output[1..])
+            }
+            Some(&UPPERCASE_S) => {
+                // Scroll up.
+                let count = Self::get_parameter(parameters, 0, 1);
+
+                for _ in 0..count {
+                    self.scroll_grid_region_up(
+                        self.scroll_top..=self.scroll_bottom,
+                        doc,
+                        line_pool,
+                        time,
+                    );
+                }
+
+                Some(&output[1..])
+            }
+            Some(&UPPERCASE_T) => {
+                // Scroll down.
+                let count = Self::get_parameter(parameters, 0, 1);
+
+                for _ in 0..count {
+                    self.scroll_grid_region_down(
+                        self.scroll_top..=self.scroll_bottom,
+                        doc,
+                        line_pool,
+                        time,
+                    );
                 }
 
                 Some(&output[1..])

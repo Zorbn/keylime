@@ -262,22 +262,15 @@ impl TerminalEmulator {
         let (input, output) = pty.input_output();
 
         if let Ok(mut output) = output.try_lock() {
-            self.handle_escape_sequences(
-                ui,
-                docs,
-                tab,
-                input,
-                &output,
-                line_pool,
-                &config.theme,
-                time,
-            );
+            self.handle_escape_sequences(docs, input, &output, line_pool, &config.theme, time);
 
             output.clear();
         }
 
+        let doc = self.get_doc_mut(docs);
+        self.trim_excess_lines(ui, tab, doc, line_pool, time);
+
         if self.maintain_cursor_positions {
-            let doc = self.get_doc_mut(docs);
             self.restore_doc_cursor_positions(doc, cursor_buffer);
         }
 
@@ -349,7 +342,7 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn scroll_grid(
+    pub fn trim_excess_lines(
         &mut self,
         ui: &mut UiHandle,
         tab: &mut Tab,
@@ -357,31 +350,27 @@ impl TerminalEmulator {
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        self.scroll_grid_region_up(self.scroll_top..=self.scroll_bottom, doc, line_pool, time);
+        let max_lines = self.grid_height as usize + MAX_SCROLLBACK_LINES;
+
+        if doc.lines().len() <= max_lines {
+            return;
+        }
 
         let gfx = ui.gfx();
 
         let camera_offset_y =
             tab.camera.vertical.position - doc.lines().len() as f32 * gfx.line_height();
 
-        let max_lines = self.grid_height as usize + MAX_SCROLLBACK_LINES;
+        let excess_lines = doc.lines().len() - max_lines;
 
-        if doc.lines().len() > max_lines {
-            let excess_lines = doc.lines().len() - max_lines;
+        let start = Position::zero();
+        let end = Position::new(0, excess_lines as isize);
 
-            let start = Position::zero();
-            let end = Position::new(0, excess_lines as isize);
-
-            doc.delete(start, end, line_pool, time);
-            doc.recycle_highlighted_lines_up_to_y(excess_lines);
-        }
+        doc.delete(start, end, line_pool, time);
+        doc.recycle_highlighted_lines_up_to_y(excess_lines);
 
         tab.camera.vertical.position =
             doc.lines().len() as f32 * gfx.line_height() + camera_offset_y;
-
-        tab.camera
-            .vertical
-            .recenter(CameraRecenterKind::OnScrollBorder);
     }
 
     // Scrolls the text in the region down, giving the impression that the camera is panning up.
