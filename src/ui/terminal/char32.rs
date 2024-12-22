@@ -29,5 +29,6 @@ pub const UPPERCASE_H: u32 = 'H' as u32;
 pub const UPPERCASE_J: u32 = 'J' as u32;
 pub const UPPERCASE_K: u32 = 'K' as u32;
 pub const UPPERCASE_L: u32 = 'L' as u32;
+pub const UPPERCASE_M: u32 = 'M' as u32;
 pub const UPPERCASE_X: u32 = 'X' as u32;
 pub const ZERO: u32 = '0' as u32;

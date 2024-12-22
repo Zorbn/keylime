@@ -1,5 +1,3 @@
-use std::iter;
-
 use crate::{
     config::theme::Theme,
     geometry::position::Position,
@@ -388,40 +386,24 @@ impl TerminalEmulator {
                 }
 
                 for _ in 0..count {
-                    let delete_start = self.grid_position_to_doc_position(
-                        Position::new(self.grid_width, scroll_bottom - 1),
-                        doc,
-                    );
+                    self.scroll_grid_region_down(scroll_top..=scroll_bottom, doc, line_pool, time);
+                }
 
-                    let delete_end = self.grid_position_to_doc_position(
-                        Position::new(self.grid_width, scroll_bottom),
-                        doc,
-                    );
+                Some(&output[1..])
+            }
+            Some(&UPPERCASE_M) => {
+                // Delete lines.
+                let count = Self::get_parameter(parameters, 0, 1);
 
-                    let insert_start =
-                        self.grid_position_to_doc_position(Position::new(0, scroll_top), doc);
+                let scroll_top = self.scroll_top.max(self.grid_cursor.y);
+                let scroll_bottom = self.scroll_bottom;
 
-                    doc.delete(delete_start, delete_end, line_pool, time);
+                if scroll_top > scroll_bottom {
+                    return None;
+                }
 
-                    let new_line_chars = iter::repeat(' ')
-                        .take(self.grid_width as usize)
-                        .chain("\n".chars());
-
-                    doc.insert(insert_start, new_line_chars, line_pool, time);
-
-                    let bottom_grid_line = self.grid_line_colors.remove(scroll_bottom as usize);
-                    self.grid_line_colors
-                        .insert(scroll_top as usize, bottom_grid_line);
-
-                    self.delete(
-                        Position::new(0, scroll_top),
-                        Position::new(self.grid_width, scroll_top),
-                        doc,
-                        line_pool,
-                        time,
-                    );
-
-                    self.highlight_lines(scroll_top, scroll_bottom, doc);
+                for _ in 0..count {
+                    self.scroll_grid_region_up(scroll_top..=scroll_bottom, doc, line_pool, time);
                 }
 
                 Some(&output[1..])
@@ -457,8 +439,8 @@ impl TerminalEmulator {
                 let bottom =
                     Self::get_parameter(parameters, 1, self.grid_height as usize) as isize - 1;
 
-                self.scroll_top = top;
-                self.scroll_bottom = bottom;
+                self.scroll_bottom = bottom.clamp(0, self.grid_height - 1);
+                self.scroll_top = top.clamp(0, self.scroll_bottom);
 
                 Some(&output[1..])
             }

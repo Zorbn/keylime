@@ -20,9 +20,6 @@ use platform::window::WindowRunner;
  * Unit testing for patterns and text editing functions.
  * Fallback to reasonable fonts if the one in the config can't be loaded.
  * Add support for per-platform keybinds (so that command and option work as expected).
- * Terminal improvements:
- *  - Fix maintain_cursor_positions to work with multiple buffers,
- *  - Using vim in the terminal with :syntax on, :filetype=c pressing o on a line other than the first one causes it to disappear.
  */
 
 fn main() {

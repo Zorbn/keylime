@@ -1,4 +1,4 @@
-use std::{iter, mem::swap};
+use std::{iter, mem::swap, ops::RangeInclusive};
 
 use crate::{
     config::Config,
@@ -254,8 +254,6 @@ impl TerminalEmulator {
         let cursor_buffer = cursor_buffer.get_mut();
 
         self.maintain_cursor_positions = true;
-        // TODO: Do this for both docs, each doc needs its own maintain_cursor_positions probably.
-        self.saved_maintain_cursor_positions = true;
 
         let doc = self.get_doc_mut(docs);
         self.backup_doc_cursor_positions(doc, cursor_buffer);
@@ -359,48 +357,7 @@ impl TerminalEmulator {
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        let should_use_scrollback = self.scroll_top == 0 && !self.is_in_alternate_buffer;
-
-        let insert_start = if should_use_scrollback {
-            self.grid_position_to_doc_position(
-                Position::new(self.grid_width, self.scroll_bottom),
-                doc,
-            )
-        } else {
-            // We need to delete the line that got scrolled out:
-            let delete_start =
-                self.grid_position_to_doc_position(Position::new(0, self.scroll_top), doc);
-            let delete_end = Position::new(0, delete_start.y + 1);
-
-            let insert_start = self.grid_position_to_doc_position(
-                Position::new(self.grid_width, self.scroll_bottom - 1),
-                doc,
-            );
-
-            doc.delete(delete_start, delete_end, line_pool, time);
-
-            insert_start
-        };
-
-        let new_line_chars = "\n"
-            .chars()
-            .chain(iter::repeat(' ').take(self.grid_width as usize));
-
-        doc.insert(insert_start, new_line_chars, line_pool, time);
-
-        let top_grid_line = self.grid_line_colors.remove(self.scroll_top as usize);
-        self.grid_line_colors
-            .insert(self.scroll_bottom as usize, top_grid_line);
-
-        self.delete(
-            Position::new(0, self.scroll_bottom),
-            Position::new(self.grid_width, self.scroll_bottom),
-            doc,
-            line_pool,
-            time,
-        );
-
-        self.highlight_lines(self.scroll_top, self.scroll_bottom, doc);
+        self.scroll_grid_region_up(self.scroll_top..=self.scroll_bottom, doc, line_pool, time);
 
         let gfx = ui.gfx();
 
@@ -427,8 +384,101 @@ impl TerminalEmulator {
             .recenter(CameraRecenterKind::OnScrollBorder);
     }
 
+    // Scrolls the text in the region down, giving the impression that the camera is panning up.
+    pub fn scroll_grid_region_down(
+        &mut self,
+        region: RangeInclusive<isize>,
+        doc: &mut Doc,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        let scroll_top = *region.start();
+        let scroll_bottom = *region.end();
+
+        let delete_start = self
+            .grid_position_to_doc_position(Position::new(self.grid_width, scroll_bottom - 1), doc);
+
+        let delete_end =
+            self.grid_position_to_doc_position(Position::new(self.grid_width, scroll_bottom), doc);
+
+        let insert_start = self.grid_position_to_doc_position(Position::new(0, scroll_top), doc);
+
+        doc.delete(delete_start, delete_end, line_pool, time);
+
+        let new_line_chars = iter::repeat(' ')
+            .take(self.grid_width as usize)
+            .chain("\n".chars());
+
+        doc.insert(insert_start, new_line_chars, line_pool, time);
+
+        let bottom_grid_line = self.grid_line_colors.remove(scroll_bottom as usize);
+        self.grid_line_colors
+            .insert(scroll_top as usize, bottom_grid_line);
+
+        self.delete(
+            Position::new(0, scroll_top),
+            Position::new(self.grid_width, scroll_top),
+            doc,
+            line_pool,
+            time,
+        );
+
+        self.highlight_lines(region, doc);
+    }
+
+    // Scrolls the text in the region up, giving the impression that the camera is panning down.
+    pub fn scroll_grid_region_up(
+        &mut self,
+        region: RangeInclusive<isize>,
+        doc: &mut Doc,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        let scroll_top = *region.start();
+        let scroll_bottom = *region.end();
+
+        let should_use_scrollback = scroll_top == 0 && !self.is_in_alternate_buffer;
+
+        let insert_start = if should_use_scrollback {
+            self.grid_position_to_doc_position(Position::new(self.grid_width, scroll_bottom), doc)
+        } else {
+            // We need to delete the line that got scrolled out:
+            let delete_start =
+                self.grid_position_to_doc_position(Position::new(0, scroll_top), doc);
+            let delete_end = Position::new(0, delete_start.y + 1);
+
+            let insert_start = self.grid_position_to_doc_position(
+                Position::new(self.grid_width, scroll_bottom - 1),
+                doc,
+            );
+
+            doc.delete(delete_start, delete_end, line_pool, time);
+
+            insert_start
+        };
+
+        let new_line_chars = "\n"
+            .chars()
+            .chain(iter::repeat(' ').take(self.grid_width as usize));
+
+        doc.insert(insert_start, new_line_chars, line_pool, time);
+
+        let top_grid_line = self.grid_line_colors.remove(scroll_top as usize);
+        self.grid_line_colors
+            .insert(scroll_bottom as usize, top_grid_line);
+
+        self.delete(
+            Position::new(0, scroll_bottom),
+            Position::new(self.grid_width, scroll_bottom),
+            doc,
+            line_pool,
+            time,
+        );
+
+        self.highlight_lines(region, doc);
+    }
+
     pub fn switch_to_alternate_buffer(&mut self) {
-        println!("switching to alternate buffer");
         if self.is_in_alternate_buffer {
             return;
         }
@@ -437,7 +487,6 @@ impl TerminalEmulator {
     }
 
     pub fn switch_to_normal_buffer(&mut self) {
-        println!("switching to normal buffer");
         if !self.is_in_alternate_buffer {
             return;
         }
@@ -594,8 +643,8 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn highlight_lines(&mut self, top: isize, bottom: isize, doc: &mut Doc) {
-        for y in top..=bottom {
+    pub fn highlight_lines(&mut self, range: RangeInclusive<isize>, doc: &mut Doc) {
+        for y in range {
             let doc_position = self.grid_position_to_doc_position(Position::new(0, y), doc);
 
             doc.highlight_line_from_terminal_colors(
