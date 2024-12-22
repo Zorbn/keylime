@@ -276,10 +276,15 @@ impl TerminalEmulator {
 
         self.pty = Some(pty);
 
-        let doc = self.get_doc(docs);
+        if self.is_in_alternate_buffer {
+            // The alternate buffer is always the size of the camera and doesn't need to scroll.
+            tab.camera.reset();
+        } else {
+            let doc = self.get_doc(docs);
 
-        tab.camera.horizontal.reset_velocity();
-        tab.update_camera(ui, doc, dt);
+            tab.camera.horizontal.reset_velocity();
+            tab.update_camera(ui, doc, dt);
+        }
     }
 
     fn resize_grid(&mut self, ui: &mut UiHandle, tab: &Tab, pty: &mut Pty) {
