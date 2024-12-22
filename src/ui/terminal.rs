@@ -15,6 +15,9 @@ use crate::{
 
 use super::{slot_list::SlotList, widget::Widget, Ui, UiHandle};
 
+mod char32;
+mod color_table;
+mod escape_sequences;
 mod terminal_emulator;
 mod terminal_pane;
 
