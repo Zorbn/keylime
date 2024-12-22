@@ -158,11 +158,7 @@ impl Text {
             )
         };
 
-        let mut raw_data = Vec::new();
-        raw_data.resize(
-            rect.size.width as usize * rect.size.height as usize * 4,
-            0u8,
-        );
+        let mut raw_data = vec![0u8; rect.size.width as usize * rect.size.height as usize * 4];
 
         let bitmap_info = CGBitmapInfo(
             CGBitmapInfo::kCGBitmapByteOrder32Big.0

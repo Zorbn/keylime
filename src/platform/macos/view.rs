@@ -58,7 +58,7 @@ define_class!(
                 metal_layer.setDevice(Some(&self.ivars().device));
 
                 let protocol_object = ProtocolObject::from_ref(self);
-                metal_layer.setDelegate(Some(&protocol_object));
+                metal_layer.setDelegate(Some(protocol_object));
 
                 metal_layer.setAllowsNextDrawableTimeout(false);
 
@@ -72,8 +72,7 @@ define_class!(
 
             self.ivars().metal_layer.set(metal_layer.clone()).unwrap();
 
-            let layer = Retained::<CALayer>::from(&metal_layer);
-            layer
+            Retained::<CALayer>::from(&metal_layer)
         }
 
         #[method(setFrameSize:)]

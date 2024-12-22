@@ -13,7 +13,7 @@ use crate::{
     text::{
         cursor::Cursor, doc::Doc, line_pool::LinePool, syntax_highlighter::TerminalHighlightKind,
     },
-    ui::{camera::CameraRecenterKind, tab::Tab, widget::Widget, UiHandle},
+    ui::{tab::Tab, widget::Widget, UiHandle},
 };
 
 use super::char32::*;

@@ -64,7 +64,7 @@ define_class!(
             }
 
             let protocol_object = ProtocolObject::from_ref(self);
-            ns_window.setDelegate(Some(&protocol_object));
+            ns_window.setDelegate(Some(protocol_object));
 
             let mut gfx = Gfx::new(app.clone(), window.clone(), &ns_window, mtm).unwrap();
 

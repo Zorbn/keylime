@@ -43,7 +43,7 @@ impl WindowRunner {
             }
         };
 
-        let appearance = NSAppearance::appearanceNamed(&appearance_name);
+        let appearance = NSAppearance::appearanceNamed(appearance_name);
 
         let app = NSApplication::sharedApplication(mtm);
         app.setActivationPolicy(NSApplicationActivationPolicy::Regular);

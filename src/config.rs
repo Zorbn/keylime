@@ -35,7 +35,7 @@ struct SyntaxDesc<'a> {
     ranges: Vec<SyntaxRange>,
 }
 
-impl<'a> SyntaxDesc<'a> {
+impl SyntaxDesc<'_> {
     pub fn get_syntax(self) -> Syntax {
         let mut keywords = HashSet::new();
 

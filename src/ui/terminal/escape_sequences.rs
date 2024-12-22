@@ -610,7 +610,7 @@ impl TerminalEmulator {
 
                 Some(Color::from_hex(COLOR_TABLE[index]))
             }
-            _ => return None,
+            _ => None,
         }
     }
 

@@ -448,10 +448,10 @@ impl Gfx {
 
         if buffer
             .as_ref()
-            .is_none_or(|buffer| buffer.length() < vec.len() * size_of::<T>())
+            .is_none_or(|buffer| buffer.length() < size_of_val(vec))
         {
             buffer = device.newBufferWithLength_options(
-                vec.len() * size_of::<T>(),
+                size_of_val(vec),
                 MTLResourceOptions::MTLResourceCPUCacheModeWriteCombined
                     | MTLResourceOptions::MTLResourceStorageModeShared,
             );
