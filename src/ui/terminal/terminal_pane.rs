@@ -12,26 +12,22 @@ use crate::{
     ui::{pane::Pane, slot_list::SlotList, widget::Widget, UiHandle},
 };
 
-use super::terminal_emulator::TerminalEmulator;
+use super::{terminal_emulator::TerminalEmulator, Term};
 
 pub struct TerminalPane {
-    inner: Pane<(Doc, TerminalEmulator)>,
+    inner: Pane<Term>,
 }
 
 const TERMINAL_DISPLAY_NAME: Option<&str> = Some("Terminal");
 
 impl TerminalPane {
-    pub fn new(
-        term_list: &mut SlotList<(Doc, TerminalEmulator)>,
-        line_pool: &mut LinePool,
-    ) -> Self {
-        let mut inner = Pane::new(|(doc, _)| doc, |(doc, _)| doc);
-
-        let term = (
-            Doc::new(line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
-            TerminalEmulator::new(),
+    pub fn new(term_list: &mut SlotList<Term>, line_pool: &mut LinePool) -> Self {
+        let mut inner = Pane::<Term>::new(
+            |(docs, emulator)| emulator.get_doc(docs),
+            |(docs, emulator)| emulator.get_doc_mut(docs),
         );
 
+        let term = Self::new_term(line_pool);
         let doc_index = term_list.add(term);
         inner.add_tab(doc_index, term_list);
 
@@ -42,7 +38,7 @@ impl TerminalPane {
         &mut self,
         widget: &Widget,
         ui: &mut UiHandle,
-        term_list: &mut SlotList<(Doc, TerminalEmulator)>,
+        term_list: &mut SlotList<Term>,
         line_pool: &mut LinePool,
     ) {
         let mut keybind_handler = widget.get_keybind_handler(ui);
@@ -53,11 +49,7 @@ impl TerminalPane {
                     key: Key::N,
                     mods: MOD_CTRL,
                 } => {
-                    let term = (
-                        Doc::new(line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
-                        TerminalEmulator::new(),
-                    );
-
+                    let term = Self::new_term(line_pool);
                     let term_index = term_list.add(term);
 
                     self.add_tab(term_index, term_list);
@@ -71,8 +63,11 @@ impl TerminalPane {
 
                         self.remove_tab(term_list);
 
-                        if let Some((mut doc, _)) = term_list.remove(term_index) {
-                            doc.clear(line_pool)
+                        if let Some(((mut normal_doc, mut alternate_doc), _)) =
+                            term_list.remove(term_index)
+                        {
+                            normal_doc.clear(line_pool);
+                            alternate_doc.clear(line_pool);
                         }
                     }
                 }
@@ -82,10 +77,20 @@ impl TerminalPane {
 
         self.inner.update(widget, ui);
     }
+
+    fn new_term(line_pool: &mut LinePool) -> Term {
+        (
+            (
+                Doc::new(line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
+                Doc::new(line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
+            ),
+            TerminalEmulator::new(),
+        )
+    }
 }
 
 impl Deref for TerminalPane {
-    type Target = Pane<(Doc, TerminalEmulator)>;
+    type Target = Pane<Term>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner

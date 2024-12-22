@@ -1,4 +1,4 @@
-use std::iter;
+use std::{iter, mem::swap};
 
 use crate::{
     config::Config,
@@ -32,6 +32,8 @@ const SHELLS: &[&str] = &[
 #[cfg(target_os = "macos")]
 const SHELLS: &[&str] = &["zsh", "bash", "sh"];
 
+type GridLineColors = Vec<Vec<(TerminalHighlightKind, TerminalHighlightKind)>>;
+
 pub struct TerminalEmulator {
     pty: Option<Pty>,
 
@@ -41,9 +43,16 @@ pub struct TerminalEmulator {
     pub grid_cursor: Position,
     pub grid_width: isize,
     pub grid_height: isize,
-    pub grid_line_colors: Vec<Vec<(TerminalHighlightKind, TerminalHighlightKind)>>,
+    pub grid_line_colors: GridLineColors,
 
     maintain_cursor_positions: bool,
+
+    // Data for either the normal buffer or the alternate buffer,
+    // depending on which one isn't currently being used.
+    pub saved_grid_cursor: Position,
+    pub saved_grid_line_colors: GridLineColors,
+
+    saved_maintain_cursor_positions: bool,
 
     pub is_cursor_visible: bool,
     pub foreground_color: TerminalHighlightKind,
@@ -52,6 +61,7 @@ pub struct TerminalEmulator {
     pub are_colors_bright: bool,
     pub scroll_top: isize,
     pub scroll_bottom: isize,
+    pub is_in_alternate_buffer: bool,
 }
 
 impl TerminalEmulator {
@@ -69,6 +79,11 @@ impl TerminalEmulator {
 
             maintain_cursor_positions: false,
 
+            saved_grid_cursor: Position::zero(),
+            saved_grid_line_colors: Vec::new(),
+
+            saved_maintain_cursor_positions: false,
+
             is_cursor_visible: true,
             foreground_color: TerminalHighlightKind::Foreground,
             background_color: TerminalHighlightKind::Background,
@@ -76,6 +91,7 @@ impl TerminalEmulator {
             are_colors_bright: false,
             scroll_top: 0,
             scroll_bottom: grid_height - 1,
+            is_in_alternate_buffer: false,
         };
 
         emulator.resize_grid_line_colors();
@@ -87,7 +103,7 @@ impl TerminalEmulator {
         &mut self,
         widget: &Widget,
         ui: &mut UiHandle,
-        doc: &mut Doc,
+        docs: &mut (Doc, Doc),
         tab: &mut Tab,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
@@ -97,6 +113,8 @@ impl TerminalEmulator {
         let Some(mut pty) = self.pty.take() else {
             return;
         };
+
+        let doc = self.get_doc_mut(docs);
 
         let mut keybind_handler = widget.get_keybind_handler(ui);
 
@@ -219,7 +237,7 @@ impl TerminalEmulator {
     pub fn update_output(
         &mut self,
         ui: &mut UiHandle,
-        doc: &mut Doc,
+        docs: &mut (Doc, Doc),
         tab: &mut Tab,
         line_pool: &mut LinePool,
         cursor_buffer: &mut TempBuffer<Cursor>,
@@ -236,8 +254,11 @@ impl TerminalEmulator {
         let cursor_buffer = cursor_buffer.get_mut();
 
         self.maintain_cursor_positions = true;
-        self.backup_doc_cursor_positions(doc, cursor_buffer);
+        // TODO: Do this for both docs, each doc needs its own maintain_cursor_positions probably.
+        self.saved_maintain_cursor_positions = true;
 
+        let doc = self.get_doc_mut(docs);
+        self.backup_doc_cursor_positions(doc, cursor_buffer);
         self.expand_doc_to_grid_size(doc, line_pool, time);
 
         let (input, output) = pty.input_output();
@@ -245,7 +266,7 @@ impl TerminalEmulator {
         if let Ok(mut output) = output.try_lock() {
             self.handle_escape_sequences(
                 ui,
-                doc,
+                docs,
                 tab,
                 input,
                 &output,
@@ -258,10 +279,13 @@ impl TerminalEmulator {
         }
 
         if self.maintain_cursor_positions {
+            let doc = self.get_doc_mut(docs);
             self.restore_doc_cursor_positions(doc, cursor_buffer);
         }
 
         self.pty = Some(pty);
+
+        let doc = self.get_doc(docs);
 
         tab.camera.horizontal.reset_velocity();
         tab.update_camera(ui, doc, dt);
@@ -294,14 +318,31 @@ impl TerminalEmulator {
     }
 
     fn resize_grid_line_colors(&mut self) {
-        self.grid_line_colors.resize(
-            self.grid_height as usize,
-            Vec::with_capacity(self.grid_width as usize),
+        Self::resize_grid_line_colors_for_buffer(
+            &mut self.grid_line_colors,
+            self.grid_width,
+            self.grid_height,
+        );
+        Self::resize_grid_line_colors_for_buffer(
+            &mut self.saved_grid_line_colors,
+            self.grid_width,
+            self.grid_height,
+        );
+    }
+
+    fn resize_grid_line_colors_for_buffer(
+        grid_line_colors: &mut GridLineColors,
+        grid_width: isize,
+        grid_height: isize,
+    ) {
+        grid_line_colors.resize(
+            grid_height as usize,
+            Vec::with_capacity(grid_width as usize),
         );
 
-        for y in 0..self.grid_height {
-            self.grid_line_colors[y as usize].resize(
-                self.grid_width as usize,
+        for y in 0..grid_height {
+            grid_line_colors[y as usize].resize(
+                grid_width as usize,
                 (
                     TerminalHighlightKind::Foreground,
                     TerminalHighlightKind::Background,
@@ -318,7 +359,11 @@ impl TerminalEmulator {
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        let new_line_y = if self.scroll_top > 0 {
+        let should_use_scrollback = self.scroll_top == 0 && !self.is_in_alternate_buffer;
+
+        let new_line_y = if should_use_scrollback {
+            self.scroll_bottom
+        } else {
             // We need to delete the line that got scrolled out:
             let start = self.grid_position_to_doc_position(Position::new(0, self.scroll_top), doc);
             let end = Position::new(0, start.y + 1);
@@ -326,8 +371,6 @@ impl TerminalEmulator {
             doc.delete(start, end, line_pool, time);
 
             self.scroll_bottom - 1
-        } else {
-            self.scroll_bottom
         };
 
         let new_line_chars = "\n"
@@ -375,6 +418,35 @@ impl TerminalEmulator {
         tab.camera
             .vertical
             .recenter(CameraRecenterKind::OnScrollBorder);
+    }
+
+    pub fn switch_to_alternate_buffer(&mut self) {
+        println!("switching to alternate buffer");
+        if self.is_in_alternate_buffer {
+            return;
+        }
+
+        self.switch_buffer();
+    }
+
+    pub fn switch_to_normal_buffer(&mut self) {
+        println!("switching to normal buffer");
+        if !self.is_in_alternate_buffer {
+            return;
+        }
+
+        self.switch_buffer();
+    }
+
+    pub fn switch_buffer(&mut self) {
+        swap(&mut self.grid_cursor, &mut self.saved_grid_cursor);
+        swap(&mut self.grid_line_colors, &mut self.saved_grid_line_colors);
+        swap(
+            &mut self.maintain_cursor_positions,
+            &mut self.saved_maintain_cursor_positions,
+        );
+
+        self.is_in_alternate_buffer = !self.is_in_alternate_buffer;
     }
 
     fn expand_doc_to_grid_size(&mut self, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
@@ -588,6 +660,22 @@ impl TerminalEmulator {
             for x in start_x..end_x {
                 self.insert(Position::new(x, y), &[' '], doc, line_pool, time);
             }
+        }
+    }
+
+    pub fn get_doc<'a>(&self, (normal_doc, alternate_doc): &'a (Doc, Doc)) -> &'a Doc {
+        if self.is_in_alternate_buffer {
+            alternate_doc
+        } else {
+            normal_doc
+        }
+    }
+
+    pub fn get_doc_mut<'a>(&self, (normal_doc, alternate_doc): &'a mut (Doc, Doc)) -> &'a mut Doc {
+        if self.is_in_alternate_buffer {
+            alternate_doc
+        } else {
+            normal_doc
         }
     }
 

@@ -17,7 +17,7 @@ impl TerminalEmulator {
     pub fn handle_escape_sequences(
         &mut self,
         ui: &mut UiHandle,
-        doc: &mut Doc,
+        docs: &mut (Doc, Doc),
         tab: &mut Tab,
         input: &mut Vec<u32>,
         mut output: &[u32],
@@ -26,6 +26,8 @@ impl TerminalEmulator {
         time: f32,
     ) {
         while !output.is_empty() {
+            let doc = self.get_doc_mut(docs);
+
             // Backspace:
             match output[0] {
                 0x1B => {
@@ -130,20 +132,31 @@ impl TerminalEmulator {
 
                 match output.first() {
                     Some(&LOWERCASE_L) => {
-                        if parameters.first() == Some(&25) {
-                            self.is_cursor_visible = false;
+                        match parameters.first() {
+                            Some(&25) => self.is_cursor_visible = false,
+                            Some(&1047) | Some(&1049) => self.switch_to_normal_buffer(),
+                            // Otherwise, ignored.
+                            _ => {}
                         }
 
-                        // Otherwise, ignored.
                         Some(&output[1..])
                     }
                     Some(&LOWERCASE_H) => {
-                        if parameters.first() == Some(&25) {
-                            self.is_cursor_visible = true;
-                            self.jump_doc_cursors_to_grid_cursor(doc);
+                        println!(
+                            "parameter count: {}, first: {:?}",
+                            parameters.len(),
+                            parameters.first()
+                        );
+                        match parameters.first() {
+                            Some(&25) => {
+                                self.is_cursor_visible = true;
+                                self.jump_doc_cursors_to_grid_cursor(doc);
+                            }
+                            Some(&1047) | Some(&1049) => self.switch_to_alternate_buffer(),
+                            // Otherwise, ignored.
+                            _ => {}
                         }
 
-                        // Otherwise, ignored.
                         Some(&output[1..])
                     }
                     Some(&LOWERCASE_M) => {

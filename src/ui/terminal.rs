@@ -21,9 +21,11 @@ mod escape_sequences;
 mod terminal_emulator;
 mod terminal_pane;
 
+type Term = ((Doc, Doc), TerminalEmulator);
+
 pub struct Terminal {
     pane: TerminalPane,
-    term_list: SlotList<(Doc, TerminalEmulator)>,
+    term_list: SlotList<Term>,
 
     pub widget: Widget,
 }
@@ -90,14 +92,14 @@ impl Terminal {
 
         let focused_tab_index = self.pane.focused_tab_index();
 
-        if let Some((tab, (doc, emulator))) = self
+        if let Some((tab, (docs, emulator))) = self
             .pane
             .get_tab_with_data_mut(focused_tab_index, &mut self.term_list)
         {
             emulator.update_input(
                 &self.widget,
                 ui,
-                doc,
+                docs,
                 tab,
                 line_pool,
                 text_buffer,
@@ -109,11 +111,11 @@ impl Terminal {
         for tab in &mut self.pane.tabs {
             let term_index = tab.data_index();
 
-            let Some((doc, emulator)) = self.term_list.get_mut(term_index) else {
+            let Some((docs, emulator)) = self.term_list.get_mut(term_index) else {
                 continue;
             };
 
-            emulator.update_output(ui, doc, tab, line_pool, cursor_buffer, config, time, dt);
+            emulator.update_output(ui, docs, tab, line_pool, cursor_buffer, config, time, dt);
         }
     }
 
