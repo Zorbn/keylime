@@ -25,7 +25,7 @@ impl Pty {
         &mut self.inner.input
     }
 
-    pub fn output(&self) -> &Arc<Mutex<Vec<u32>>> {
-        &self.inner.output
+    pub fn input_output(&mut self) -> (&mut Vec<u32>, &Arc<Mutex<Vec<u32>>>) {
+        (&mut self.inner.input, &self.inner.output)
     }
 }

@@ -110,7 +110,7 @@ impl Terminal {
                 continue;
             };
 
-            emulator.update_output(ui, doc, tab, line_pool, cursor_buffer, time, dt);
+            emulator.update_output(ui, doc, tab, line_pool, cursor_buffer, config, time, dt);
         }
     }
 
