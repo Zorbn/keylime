@@ -10,7 +10,11 @@ use crate::{
     },
     platform::{gfx::Gfx, pty::Pty},
     temp_buffer::TempBuffer,
-    text::{cursor::Cursor, doc::Doc, line_pool::LinePool},
+    text::{
+        cursor::Cursor,
+        doc::{Doc, DocKind},
+        line_pool::LinePool,
+    },
 };
 
 use super::{slot_list::SlotList, widget::Widget, Ui, UiHandle};
@@ -21,7 +25,28 @@ mod escape_sequences;
 mod terminal_emulator;
 mod terminal_pane;
 
-type Term = ((Doc, Doc), TerminalEmulator);
+pub struct TerminalDocs {
+    normal: Doc,
+    alternate: Doc,
+}
+
+impl TerminalDocs {
+    pub fn new(line_pool: &mut LinePool) -> Self {
+        const TERMINAL_DISPLAY_NAME: Option<&str> = Some("Terminal");
+
+        Self {
+            normal: Doc::new(line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
+            alternate: Doc::new(line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
+        }
+    }
+
+    pub fn clear(&mut self, line_pool: &mut LinePool) {
+        self.normal.clear(line_pool);
+        self.alternate.clear(line_pool);
+    }
+}
+
+type Term = (TerminalDocs, TerminalEmulator);
 
 pub struct Terminal {
     pane: TerminalPane,

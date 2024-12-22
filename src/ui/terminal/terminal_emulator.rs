@@ -16,7 +16,7 @@ use crate::{
     ui::{tab::Tab, widget::Widget, UiHandle},
 };
 
-use super::char32::*;
+use super::{char32::*, TerminalDocs};
 
 const MAX_SCROLLBACK_LINES: usize = 100;
 const MIN_GRID_WIDTH: isize = 1;
@@ -103,7 +103,7 @@ impl TerminalEmulator {
         &mut self,
         widget: &Widget,
         ui: &mut UiHandle,
-        docs: &mut (Doc, Doc),
+        docs: &mut TerminalDocs,
         tab: &mut Tab,
         line_pool: &mut LinePool,
         text_buffer: &mut TempBuffer<char>,
@@ -237,7 +237,7 @@ impl TerminalEmulator {
     pub fn update_output(
         &mut self,
         ui: &mut UiHandle,
-        docs: &mut (Doc, Doc),
+        docs: &mut TerminalDocs,
         tab: &mut Tab,
         line_pool: &mut LinePool,
         cursor_buffer: &mut TempBuffer<Cursor>,
@@ -713,19 +713,19 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn get_doc<'a>(&self, (normal_doc, alternate_doc): &'a (Doc, Doc)) -> &'a Doc {
+    pub fn get_doc<'a>(&self, docs: &'a TerminalDocs) -> &'a Doc {
         if self.is_in_alternate_buffer {
-            alternate_doc
+            &docs.alternate
         } else {
-            normal_doc
+            &docs.normal
         }
     }
 
-    pub fn get_doc_mut<'a>(&self, (normal_doc, alternate_doc): &'a mut (Doc, Doc)) -> &'a mut Doc {
+    pub fn get_doc_mut<'a>(&self, docs: &'a mut TerminalDocs) -> &'a mut Doc {
         if self.is_in_alternate_buffer {
-            alternate_doc
+            &mut docs.alternate
         } else {
-            normal_doc
+            &mut docs.normal
         }
     }
 

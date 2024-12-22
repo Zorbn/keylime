@@ -9,12 +9,12 @@ use crate::{
     ui::{color::Color, terminal::color_table::COLOR_TABLE},
 };
 
-use super::{char32::*, terminal_emulator::TerminalEmulator};
+use super::{char32::*, terminal_emulator::TerminalEmulator, TerminalDocs};
 
 impl TerminalEmulator {
     pub fn handle_escape_sequences(
         &mut self,
-        docs: &mut (Doc, Doc),
+        docs: &mut TerminalDocs,
         input: &mut Vec<u32>,
         mut output: &[u32],
         line_pool: &mut LinePool,

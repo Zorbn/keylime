@@ -5,20 +5,15 @@ use crate::{
         key::Key,
         keybind::{Keybind, MOD_CTRL},
     },
-    text::{
-        doc::{Doc, DocKind},
-        line_pool::LinePool,
-    },
+    text::line_pool::LinePool,
     ui::{pane::Pane, slot_list::SlotList, widget::Widget, UiHandle},
 };
 
-use super::{terminal_emulator::TerminalEmulator, Term};
+use super::{terminal_emulator::TerminalEmulator, Term, TerminalDocs};
 
 pub struct TerminalPane {
     inner: Pane<Term>,
 }
-
-const TERMINAL_DISPLAY_NAME: Option<&str> = Some("Terminal");
 
 impl TerminalPane {
     pub fn new(term_list: &mut SlotList<Term>, line_pool: &mut LinePool) -> Self {
@@ -63,11 +58,8 @@ impl TerminalPane {
 
                         self.remove_tab(term_list);
 
-                        if let Some(((mut normal_doc, mut alternate_doc), _)) =
-                            term_list.remove(term_index)
-                        {
-                            normal_doc.clear(line_pool);
-                            alternate_doc.clear(line_pool);
+                        if let Some((mut docs, _)) = term_list.remove(term_index) {
+                            docs.clear(line_pool);
                         }
                     }
                 }
@@ -79,13 +71,7 @@ impl TerminalPane {
     }
 
     fn new_term(line_pool: &mut LinePool) -> Term {
-        (
-            (
-                Doc::new(line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
-                Doc::new(line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
-            ),
-            TerminalEmulator::new(),
-        )
+        (TerminalDocs::new(line_pool), TerminalEmulator::new())
     }
 }
 
