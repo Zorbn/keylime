@@ -26,7 +26,7 @@ impl IndentWidth {
             IndentWidth::Spaces(indent_width) => (' ', indent_width),
         };
 
-        iter::repeat(c).take(count)
+        iter::repeat_n(c, count)
     }
 }
 

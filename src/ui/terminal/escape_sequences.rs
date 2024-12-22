@@ -1,3 +1,5 @@
+use std::iter;
+
 use crate::{
     config::theme::Theme,
     geometry::position::Position,
@@ -89,7 +91,7 @@ impl TerminalEmulator {
                 }
                 // Newline:
                 0xA => {
-                    if self.grid_cursor.y == self.grid_height - 1 {
+                    if self.grid_cursor.y == self.scroll_bottom {
                         self.scroll_grid(ui, tab, doc, line_pool, time);
                     } else {
                         self.move_cursor(Position::new(0, 1), doc);
@@ -341,11 +343,46 @@ impl TerminalEmulator {
                 }
             }
             Some(&UPPERCASE_L) => {
-                // Clear line.
-                let start = Position::new(0, self.grid_cursor.y);
-                let end = Position::new(self.grid_width, start.y);
+                // Insert lines.
+                let count = Self::get_parameter(parameters, 0, 1);
 
-                self.delete(start, end, doc, line_pool, time);
+                for _ in 0..count {
+                    let start = self.grid_position_to_doc_position(
+                        Position::new(self.grid_width, self.grid_height - 2),
+                        doc,
+                    );
+
+                    let end = self.grid_position_to_doc_position(
+                        Position::new(self.grid_width, self.grid_height - 1),
+                        doc,
+                    );
+
+                    doc.delete(start, end, line_pool, time);
+
+                    let new_line_chars = iter::repeat(' ')
+                        .take(self.grid_width as usize)
+                        .chain("\n".chars());
+
+                    let start = self
+                        .grid_position_to_doc_position(Position::new(0, self.grid_cursor.y), doc);
+
+                    doc.insert(start, new_line_chars, line_pool, time);
+
+                    let bottom_grid_line =
+                        self.grid_line_colors.remove(self.grid_height as usize - 1);
+                    self.grid_line_colors
+                        .insert(self.grid_cursor.y as usize, bottom_grid_line);
+
+                    self.delete(
+                        Position::new(0, self.grid_cursor.y),
+                        Position::new(self.grid_width, self.grid_cursor.y),
+                        doc,
+                        line_pool,
+                        time,
+                    );
+
+                    self.highlight_lines(self.grid_cursor.y, self.grid_height - 1, doc);
+                }
 
                 Some(&output[1..])
             }
@@ -384,7 +421,14 @@ impl TerminalEmulator {
                 Some(&output[1..])
             }
             Some(&LOWERCASE_R) => {
-                // Set scroll range, unsupported.
+                // Set scroll region.
+                let top = Self::get_parameter(parameters, 0, 1) as isize - 1;
+                let bottom =
+                    Self::get_parameter(parameters, 1, self.grid_height as usize) as isize - 1;
+
+                self.scroll_top = top;
+                self.scroll_bottom = bottom;
+
                 Some(&output[1..])
             }
             Some(&LOWERCASE_N) => {

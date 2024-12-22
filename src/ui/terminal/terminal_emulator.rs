@@ -1,3 +1,5 @@
+use std::iter;
+
 use crate::{
     config::Config,
     geometry::{position::Position, rect::Rect},
@@ -39,7 +41,7 @@ pub struct TerminalEmulator {
     pub grid_cursor: Position,
     pub grid_width: isize,
     pub grid_height: isize,
-    grid_line_colors: Vec<Vec<(TerminalHighlightKind, TerminalHighlightKind)>>,
+    pub grid_line_colors: Vec<Vec<(TerminalHighlightKind, TerminalHighlightKind)>>,
 
     maintain_cursor_positions: bool,
 
@@ -48,6 +50,8 @@ pub struct TerminalEmulator {
     pub background_color: TerminalHighlightKind,
     pub are_colors_swapped: bool,
     pub are_colors_bright: bool,
+    pub scroll_top: isize,
+    pub scroll_bottom: isize,
 }
 
 impl TerminalEmulator {
@@ -70,6 +74,8 @@ impl TerminalEmulator {
             background_color: TerminalHighlightKind::Background,
             are_colors_swapped: false,
             are_colors_bright: false,
+            scroll_top: 0,
+            scroll_bottom: grid_height - 1,
         };
 
         emulator.resize_grid_line_colors();
@@ -280,6 +286,9 @@ impl TerminalEmulator {
             self.grid_width = grid_width;
             self.grid_height = grid_height;
 
+            self.scroll_top = 0;
+            self.scroll_bottom = grid_height - 1;
+
             self.resize_grid_line_colors();
         }
     }
@@ -309,24 +318,39 @@ impl TerminalEmulator {
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        let start = doc.end();
-        doc.insert(start, ['\n'], line_pool, time);
+        let new_line_y = if self.scroll_top > 0 {
+            // We need to delete the line that got scrolled out:
+            let start = self.grid_position_to_doc_position(Position::new(0, self.scroll_top), doc);
+            let end = Position::new(0, start.y + 1);
 
-        for _ in 0..self.grid_width {
-            let start = doc.end();
-            doc.insert(start, [' '], line_pool, time);
-        }
+            doc.delete(start, end, line_pool, time);
 
-        let first_grid_line = self.grid_line_colors.remove(0);
-        self.grid_line_colors.push(first_grid_line);
+            self.scroll_bottom - 1
+        } else {
+            self.scroll_bottom
+        };
+
+        let new_line_chars = "\n"
+            .chars()
+            .chain(iter::repeat(' ').take(self.grid_width as usize));
+
+        let start =
+            self.grid_position_to_doc_position(Position::new(self.grid_width, new_line_y), doc);
+        doc.insert(start, new_line_chars, line_pool, time);
+
+        let top_grid_line = self.grid_line_colors.remove(self.scroll_top as usize);
+        self.grid_line_colors
+            .insert(self.scroll_bottom as usize, top_grid_line);
 
         self.delete(
-            Position::new(0, self.grid_height - 1),
-            Position::new(self.grid_width, self.grid_height - 1),
+            Position::new(0, self.scroll_bottom),
+            Position::new(self.grid_width, self.scroll_bottom),
             doc,
             line_pool,
             time,
         );
+
+        self.highlight_lines(self.scroll_top, self.scroll_bottom, doc);
 
         let gfx = ui.gfx();
 
@@ -389,7 +413,7 @@ impl TerminalEmulator {
         self.clamp_position(Position::new(position.x + delta.x, position.y + delta.y))
     }
 
-    fn grid_position_to_doc_position(&self, position: Position, doc: &Doc) -> Position {
+    pub fn grid_position_to_doc_position(&self, position: Position, doc: &Doc) -> Position {
         Position::new(
             position.x,
             doc.lines().len() as isize - self.grid_height + position.y,
@@ -488,6 +512,17 @@ impl TerminalEmulator {
             TerminalHighlightKind::Magenta => TerminalHighlightKind::BrightMagenta,
             TerminalHighlightKind::Cyan => TerminalHighlightKind::BrightCyan,
             _ => color,
+        }
+    }
+
+    pub fn highlight_lines(&mut self, top: isize, bottom: isize, doc: &mut Doc) {
+        for y in top..=bottom {
+            let doc_position = self.grid_position_to_doc_position(Position::new(0, y), doc);
+
+            doc.highlight_line_from_terminal_colors(
+                &self.grid_line_colors[y as usize],
+                doc_position.y as usize,
+            );
         }
     }
 
