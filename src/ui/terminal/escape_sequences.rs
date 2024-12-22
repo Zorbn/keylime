@@ -142,11 +142,6 @@ impl TerminalEmulator {
                         Some(&output[1..])
                     }
                     Some(&LOWERCASE_H) => {
-                        println!(
-                            "parameter count: {}, first: {:?}",
-                            parameters.len(),
-                            parameters.first()
-                        );
                         match parameters.first() {
                             Some(&25) => {
                                 self.is_cursor_visible = true;
@@ -322,7 +317,7 @@ impl TerminalEmulator {
                 Some(&output[1..])
             }
             Some(&UPPERCASE_J) => {
-                let bounds = match Self::get_parameter(parameters, 0, 0) {
+                let (start, end) = match Self::get_parameter(parameters, 0, 0) {
                     0 => {
                         // Clear from the cursor to the end of the screen.
                         let start = self.grid_cursor;
@@ -345,66 +340,89 @@ impl TerminalEmulator {
                         Some((start, end))
                     }
                     _ => None,
-                };
+                }?;
 
-                if let Some((start, end)) = bounds {
-                    self.delete(start, end, doc, line_pool, time);
+                self.delete(start, end, doc, line_pool, time);
 
-                    Some(&output[1..])
-                } else {
-                    None
-                }
+                Some(&output[1..])
+            }
+            Some(&UPPERCASE_K) => {
+                let (start, end) = match Self::get_parameter(parameters, 0, 0) {
+                    0 => {
+                        // Clear from the cursor to the end of the line.
+                        let start = self.grid_cursor;
+                        let end = Position::new(self.grid_width, start.y);
+
+                        Some((start, end))
+                    }
+                    1 => {
+                        // Clear from the cursor to the beginning of the line.
+                        let start = Position::new(0, self.grid_cursor.y);
+                        let end = Position::new(self.grid_cursor.x, start.y);
+
+                        Some((start, end))
+                    }
+                    2 => {
+                        // Clear line.
+                        let start = Position::new(0, self.grid_cursor.y);
+                        let end = Position::new(self.grid_width, start.y);
+
+                        Some((start, end))
+                    }
+                    _ => None,
+                }?;
+
+                self.delete(start, end, doc, line_pool, time);
+
+                Some(&output[1..])
             }
             Some(&UPPERCASE_L) => {
                 // Insert lines.
                 let count = Self::get_parameter(parameters, 0, 1);
 
+                let scroll_top = self.scroll_top.max(self.grid_cursor.y);
+                let scroll_bottom = self.scroll_bottom;
+
+                if scroll_top > scroll_bottom {
+                    return None;
+                }
+
                 for _ in 0..count {
-                    let start = self.grid_position_to_doc_position(
-                        Position::new(self.grid_width, self.grid_height - 2),
+                    let delete_start = self.grid_position_to_doc_position(
+                        Position::new(self.grid_width, scroll_bottom - 1),
                         doc,
                     );
 
-                    let end = self.grid_position_to_doc_position(
-                        Position::new(self.grid_width, self.grid_height - 1),
+                    let delete_end = self.grid_position_to_doc_position(
+                        Position::new(self.grid_width, scroll_bottom),
                         doc,
                     );
 
-                    doc.delete(start, end, line_pool, time);
+                    let insert_start =
+                        self.grid_position_to_doc_position(Position::new(0, scroll_top), doc);
+
+                    doc.delete(delete_start, delete_end, line_pool, time);
 
                     let new_line_chars = iter::repeat(' ')
                         .take(self.grid_width as usize)
                         .chain("\n".chars());
 
-                    let start = self
-                        .grid_position_to_doc_position(Position::new(0, self.grid_cursor.y), doc);
+                    doc.insert(insert_start, new_line_chars, line_pool, time);
 
-                    doc.insert(start, new_line_chars, line_pool, time);
-
-                    let bottom_grid_line =
-                        self.grid_line_colors.remove(self.grid_height as usize - 1);
+                    let bottom_grid_line = self.grid_line_colors.remove(scroll_bottom as usize);
                     self.grid_line_colors
-                        .insert(self.grid_cursor.y as usize, bottom_grid_line);
+                        .insert(scroll_top as usize, bottom_grid_line);
 
                     self.delete(
-                        Position::new(0, self.grid_cursor.y),
-                        Position::new(self.grid_width, self.grid_cursor.y),
+                        Position::new(0, scroll_top),
+                        Position::new(self.grid_width, scroll_top),
                         doc,
                         line_pool,
                         time,
                     );
 
-                    self.highlight_lines(self.grid_cursor.y, self.grid_height - 1, doc);
+                    self.highlight_lines(scroll_top, scroll_bottom, doc);
                 }
-
-                Some(&output[1..])
-            }
-            Some(&UPPERCASE_K) => {
-                // Clear line after the cursor.
-                let start = self.grid_cursor;
-                let end = Position::new(self.grid_width, start.y);
-
-                self.delete(start, end, doc, line_pool, time);
 
                 Some(&output[1..])
             }

@@ -361,25 +361,32 @@ impl TerminalEmulator {
     ) {
         let should_use_scrollback = self.scroll_top == 0 && !self.is_in_alternate_buffer;
 
-        let new_line_y = if should_use_scrollback {
-            self.scroll_bottom
+        let insert_start = if should_use_scrollback {
+            self.grid_position_to_doc_position(
+                Position::new(self.grid_width, self.scroll_bottom),
+                doc,
+            )
         } else {
             // We need to delete the line that got scrolled out:
-            let start = self.grid_position_to_doc_position(Position::new(0, self.scroll_top), doc);
-            let end = Position::new(0, start.y + 1);
+            let delete_start =
+                self.grid_position_to_doc_position(Position::new(0, self.scroll_top), doc);
+            let delete_end = Position::new(0, delete_start.y + 1);
 
-            doc.delete(start, end, line_pool, time);
+            let insert_start = self.grid_position_to_doc_position(
+                Position::new(self.grid_width, self.scroll_bottom - 1),
+                doc,
+            );
 
-            self.scroll_bottom - 1
+            doc.delete(delete_start, delete_end, line_pool, time);
+
+            insert_start
         };
 
         let new_line_chars = "\n"
             .chars()
             .chain(iter::repeat(' ').take(self.grid_width as usize));
 
-        let start =
-            self.grid_position_to_doc_position(Position::new(self.grid_width, new_line_y), doc);
-        doc.insert(start, new_line_chars, line_pool, time);
+        doc.insert(insert_start, new_line_chars, line_pool, time);
 
         let top_grid_line = self.grid_line_colors.remove(self.scroll_top as usize);
         self.grid_line_colors
