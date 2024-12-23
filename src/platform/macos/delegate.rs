@@ -174,8 +174,17 @@ impl Delegate {
     }
 
     fn on_close(&self) {
-        let time = self.ivars().window.borrow().inner.time;
+        let mut window = self.ivars().window.borrow_mut();
+
+        if !window.inner.is_running {
+            return;
+        }
+
+        window.inner.is_running = false;
+
         let mut app = self.ivars().app.borrow_mut();
+
+        let time = window.inner.time;
 
         app.close(time);
     }

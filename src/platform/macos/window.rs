@@ -86,6 +86,7 @@ pub struct Window {
 
     pub was_shown: bool,
     pub is_focused: bool,
+    pub is_running: bool,
     pub time: f32,
     last_queried_time: Option<f64>,
 
@@ -136,6 +137,7 @@ impl Window {
 
             was_shown: false,
             is_focused: false,
+            is_running: true,
             time: 0.0,
             last_queried_time: None,
 
