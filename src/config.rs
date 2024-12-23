@@ -219,7 +219,7 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            font: "Consolas".into(),
+            font: String::new(),
             font_size: 13.0,
             trim_trailing_whitespace: DEFAULT_TRIM_TRAILING_WHITESPACE(),
             terminal_height: DEFAULT_TERMINAL_HEIGHT(),

@@ -15,11 +15,14 @@ use crate::{
     app::App,
     config::Config,
     geometry::{matrix::ortho, rect::Rect},
-    platform::{aliases::AnyWindow, text::AtlasDimensions},
+    platform::{
+        aliases::{AnyText, AnyWindow},
+        text::AtlasDimensions,
+    },
     ui::color::Color,
 };
 
-use super::{result::Result, text::Text, view::View};
+use super::{result::Result, view::View};
 
 const SHADER_CODE: &str = "
 #include <metal_stdlib>
@@ -248,7 +251,7 @@ impl Gfx {
         font_size: f32,
         scale: f32,
     ) -> Result<(Retained<ProtocolObject<dyn MTLTexture>>, AtlasDimensions)> {
-        let mut text = Text::new(font_name, font_size, scale);
+        let mut text = AnyText::new(font_name, font_size, scale)?;
         let mut atlas = text.generate_atlas()?;
 
         let texture_descriptor = unsafe {

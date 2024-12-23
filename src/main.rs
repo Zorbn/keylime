@@ -18,7 +18,6 @@ use platform::window::WindowRunner;
  * More command palette commands (open folder, new file/folder, recycle file/folder, etc).
  * Directory-wide search.
  * Unit testing for patterns and text editing functions.
- * Fallback to reasonable fonts if the one in the config can't be loaded.
  * Add support for per-platform keybinds (so that command and option work as expected).
  */
 

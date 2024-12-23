@@ -18,11 +18,11 @@ use windows::{
 
 use crate::{
     geometry::{matrix::ortho, rect::Rect},
-    platform::text::AtlasDimensions,
+    platform::{aliases::AnyText, text::AtlasDimensions},
     ui::color::Color,
 };
 
-use super::{text::Text, window::Window};
+use super::window::Window;
 
 const SHADER_CODE: &str = r#"
 cbuffer constants : register(b0) {
@@ -393,8 +393,8 @@ impl Gfx {
         font_size: f32,
         scale: f32,
     ) -> Result<(TextureData, AtlasDimensions)> {
-        let mut text = Text::new(font_name, font_size, scale)?;
-        let atlas = text.generate_atlas().unwrap();
+        let mut text = AnyText::new(font_name, font_size, scale)?;
+        let atlas = text.generate_atlas()?;
 
         let texture_data = Self::create_texture(
             device,

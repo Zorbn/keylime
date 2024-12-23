@@ -77,9 +77,6 @@ impl Text {
         })
     }
 
-    // For now the atlas is static and only supports ASCII characters.
-    // It could be upgraded to support any character and use the atlas
-    // as a cache that gets updated when new characters are needed.
     pub unsafe fn generate_atlas(&mut self) -> Result<Atlas> {
         const ATLAS_SIZE: usize = (b'~' - b' ') as usize;
 
