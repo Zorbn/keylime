@@ -137,6 +137,10 @@ impl TerminalEmulator {
                             Some(&25) => self.is_cursor_visible = false,
                             Some(&1047) | Some(&1049) => self.switch_to_normal_buffer(),
                             // Otherwise, ignored.
+                            #[cfg(feature = "terminal_emulator_debug")]
+                            Some(parameter) => {
+                                println!("Unhandled mode disabled: {}", parameter)
+                            }
                             _ => {}
                         }
 
@@ -150,6 +154,10 @@ impl TerminalEmulator {
                             }
                             Some(&1047) | Some(&1049) => self.switch_to_alternate_buffer(),
                             // Otherwise, ignored.
+                            #[cfg(feature = "terminal_emulator_debug")]
+                            Some(parameter) => {
+                                println!("Unhandled mode enabled: {}", parameter)
+                            }
                             _ => {}
                         }
 
