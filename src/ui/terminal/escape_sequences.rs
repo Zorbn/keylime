@@ -524,8 +524,6 @@ impl TerminalEmulator {
         match kind {
             0 => {
                 // Setting the terminal title, ignored.
-                output = &output[2..];
-
                 loop {
                     if let Some(remaining) = Self::consume_string_terminator(output) {
                         output = remaining;
@@ -539,7 +537,7 @@ impl TerminalEmulator {
             }
             8 => {
                 // Making text into a link, ignored.
-                output = &output[3..];
+                output = &output[1..];
 
                 loop {
                     if output.is_empty() {
