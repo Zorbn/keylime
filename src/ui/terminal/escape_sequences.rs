@@ -522,38 +522,6 @@ impl TerminalEmulator {
         output = &output[1..];
 
         match kind {
-            0 => {
-                // Setting the terminal title, ignored.
-                loop {
-                    if let Some(remaining) = Self::consume_string_terminator(output) {
-                        output = remaining;
-                        break;
-                    }
-
-                    output = &output[1..];
-                }
-
-                Some(output)
-            }
-            8 => {
-                // Making text into a link, ignored.
-                output = &output[1..];
-
-                loop {
-                    if output.is_empty() {
-                        break;
-                    }
-
-                    if let Some(remaining) = Self::consume_string_terminator(output) {
-                        output = remaining;
-                        break;
-                    }
-
-                    output = &output[1..];
-                }
-
-                Some(output)
-            }
             10 | 11 => {
                 // Setting/requesting foreground/background color.
 
@@ -582,7 +550,25 @@ impl TerminalEmulator {
 
                 Some(output)
             }
-            _ => None,
+            _ => {
+                #[cfg(feature = "terminal_emulator_debug")]
+                println!("Unhandled osc sequence: {}", kind);
+
+                loop {
+                    if output.is_empty() {
+                        break;
+                    }
+
+                    if let Some(remaining) = Self::consume_string_terminator(output) {
+                        output = remaining;
+                        break;
+                    }
+
+                    output = &output[1..];
+                }
+
+                Some(output)
+            }
         }
     }
 
