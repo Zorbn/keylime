@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::{
-    config::Config,
+    config::{Config, ConfigError},
     geometry::rect::Rect,
     platform::{pty::Pty, window::Window},
     temp_buffer::TempBuffer,
@@ -20,6 +20,7 @@ pub struct App {
     command_palette: CommandPalette,
 
     config: Config,
+    config_error: Option<ConfigError>,
 }
 
 impl App {
@@ -28,7 +29,10 @@ impl App {
         let text_buffer = TempBuffer::new();
         let cursor_buffer = TempBuffer::new();
 
-        let config = Config::load().unwrap_or_default();
+        let (config, config_error) = match Config::load() {
+            Ok(config) => (config, None),
+            Err(err) => (Config::default(), Some(err)),
+        };
 
         let mut ui = Ui::new();
         let editor = Editor::new(&mut ui, &mut line_pool);
@@ -46,10 +50,19 @@ impl App {
             command_palette,
 
             config,
+            config_error,
         }
     }
 
     pub fn update(&mut self, window: &mut Window, time: f32, dt: f32) {
+        if let Some(err) = window
+            .was_shown()
+            .then(|| self.config_error.take())
+            .flatten()
+        {
+            err.show_message();
+        }
+
         let mut ui = self.ui.get_handle(window);
 
         ui.update(&mut [

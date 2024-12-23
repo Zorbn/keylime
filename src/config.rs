@@ -73,6 +73,21 @@ struct ConfigDesc<'a> {
     theme: &'a str,
 }
 
+pub struct ConfigError {
+    title: &'static str,
+    text: String,
+}
+
+impl ConfigError {
+    pub fn new(title: &'static str, text: String) -> Self {
+        Self { title, text }
+    }
+
+    pub fn show_message(&self) {
+        message(self.title, &self.text, MessageKind::Ok);
+    }
+}
+
 pub struct Config {
     pub font: String,
     pub font_size: f32,
@@ -84,7 +99,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load() -> Option<Config> {
+    pub fn load() -> Result<Config, ConfigError> {
         let config_dir = Self::get_config_directory();
 
         let mut path = PathBuf::new();
@@ -138,7 +153,7 @@ impl Config {
         let theme_string = Self::load_file_string(&path)?;
         let theme = Self::load_file_data(&path, &theme_string)?;
 
-        Some(Config {
+        Ok(Config {
             font: config_desc.font.to_owned(),
             font_size: config_desc.font_size,
             trim_trailing_whitespace: config_desc.trim_trailing_whitespace,
@@ -149,43 +164,36 @@ impl Config {
         })
     }
 
-    fn load_file_string(path: &Path) -> Option<String> {
+    fn load_file_string(path: &Path) -> Result<String, ConfigError> {
         let file_name = path
             .file_stem()
             .and_then(|file_name| file_name.to_str())
             .unwrap_or_default();
 
         match read_to_string(path) {
-            Ok(string) => Some(string),
-            Err(err) => {
-                message(
-                    "Error Opening Config",
-                    &format!("Unable to open \"{}\": {}", file_name, err),
-                    MessageKind::Ok,
-                );
-
-                None
-            }
+            Ok(string) => Ok(string),
+            Err(err) => Err(ConfigError::new(
+                "Error Opening Config",
+                format!("Unable to open \"{}\": {}", file_name, err),
+            )),
         }
     }
 
-    fn load_file_data<'a, T: Deserialize<'a> + 'a>(path: &Path, string: &'a str) -> Option<T> {
+    fn load_file_data<'a, T: Deserialize<'a> + 'a>(
+        path: &Path,
+        string: &'a str,
+    ) -> Result<T, ConfigError> {
         let file_name = path
             .file_stem()
             .and_then(|file_name| file_name.to_str())
             .unwrap_or_default();
 
         match basic_toml::from_str::<T>(string) {
-            Ok(data) => Some(data),
-            Err(err) => {
-                message(
-                    "Error Loading Config",
-                    &format!("Unable to load \"{}\": {}", file_name, err),
-                    MessageKind::Ok,
-                );
-
-                None
-            }
+            Ok(data) => Ok(data),
+            Err(err) => Err(ConfigError::new(
+                "Error Loading Config",
+                format!("Unable to load \"{}\": {}", file_name, err),
+            )),
         }
     }
 

@@ -25,8 +25,7 @@ use super::gfx::PIXEL_FORMAT;
 
 macro_rules! handle_event {
     ($handler:ident, $self:expr, $event:expr $(, $args:expr)*) => {
-        {
-            let window = &mut *$self.ivars().window.borrow_mut();
+        if let Ok(mut window) = $self.ivars().window.try_borrow_mut() {
             window.inner.$handler($event, $($args), *);
         }
 

@@ -136,7 +136,7 @@ impl Window {
             height,
 
             was_shown: false,
-            is_focused: false,
+            is_focused: true,
             is_running: true,
             time: 0.0,
             last_queried_time: None,

@@ -35,6 +35,14 @@ impl Window {
         self.inner.is_focused()
     }
 
+    pub fn was_shown(&self) -> bool {
+        #[cfg(target_os = "windows")]
+        return true;
+
+        #[cfg(target_os = "macos")]
+        self.inner.was_shown
+    }
+
     pub fn gfx(&mut self) -> &mut Gfx {
         self.inner.gfx()
     }

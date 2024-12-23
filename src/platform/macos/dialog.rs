@@ -13,9 +13,7 @@ use crate::platform::dialog::{FindFileKind, MessageKind, MessageResponse};
 use super::result::Result;
 
 pub fn find_file(kind: FindFileKind) -> Result<PathBuf> {
-    if !has_app_launched() {
-        return Err("Application has not finished launching");
-    }
+    assert_app_launched();
 
     let mtm = MainThreadMarker::new().unwrap();
 
@@ -80,10 +78,7 @@ unsafe fn find_file_save(
 }
 
 pub fn message(title: &str, text: &str, kind: MessageKind) -> MessageResponse {
-    if !has_app_launched() {
-        println!("{}: {}", title, text);
-        return MessageResponse::Yes;
-    }
+    assert_app_launched();
 
     let mtm = MainThreadMarker::new().unwrap();
 
@@ -114,8 +109,9 @@ pub fn message(title: &str, text: &str, kind: MessageKind) -> MessageResponse {
     }
 }
 
-fn has_app_launched() -> bool {
+fn assert_app_launched() {
     let current_application = unsafe { NSRunningApplication::currentApplication() };
+    let is_finished_launching = unsafe { current_application.isFinishedLaunching() };
 
-    unsafe { current_application.isFinishedLaunching() }
+    assert!(is_finished_launching);
 }
