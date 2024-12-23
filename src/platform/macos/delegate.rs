@@ -97,15 +97,19 @@ define_class!(
         ) -> bool {
             true
         }
+
+        #[method(applicationShouldTerminate:)]
+        unsafe fn application_should_terminate(&self, _sender: &NSApplication) -> bool {
+            self.on_close();
+
+            true
+        }
     }
 
     unsafe impl NSWindowDelegate for Delegate {
         #[method(windowShouldClose:)]
         unsafe fn window_should_close(&self, _sender: &NSWindow) -> bool {
-            let time = self.ivars().window.borrow().inner.time;
-            let mut app = self.ivars().app.borrow_mut();
-
-            app.close(time);
+            self.on_close();
 
             true
         }
@@ -167,5 +171,12 @@ impl Delegate {
         };
 
         window.gfx().inner.is_fullscreen = is_fullscreen;
+    }
+
+    fn on_close(&self) {
+        let time = self.ivars().window.borrow().inner.time;
+        let mut app = self.ivars().app.borrow_mut();
+
+        app.close(time);
     }
 }

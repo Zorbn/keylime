@@ -1,6 +1,6 @@
 use std::{cell::RefCell, path::Path, ptr::NonNull, rc::Rc};
 
-use objc2::{rc::Retained, runtime::ProtocolObject};
+use objc2::{rc::Retained, runtime::ProtocolObject, sel};
 use objc2_app_kit::*;
 use objc2_foundation::*;
 
@@ -48,6 +48,23 @@ impl WindowRunner {
         let app = NSApplication::sharedApplication(mtm);
         app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
         app.setAppearance(appearance.as_deref());
+
+        let menubar = NSMenu::new(mtm);
+        let app_menu_item = NSMenuItem::new(mtm);
+        menubar.addItem(&app_menu_item);
+        app.setMainMenu(Some(&menubar));
+
+        let app_menu = NSMenu::new(mtm);
+        let quit_item = unsafe {
+            NSMenuItem::initWithTitle_action_keyEquivalent(
+                mtm.alloc(),
+                ns_string!("Quit Keylime"),
+                Some(sel!(terminate:)),
+                ns_string!("q"),
+            )
+        };
+        app_menu.addItem(&quit_item);
+        app_menu_item.setSubmenu(Some(&app_menu));
 
         let delegate = Delegate::new(self.app.clone(), mtm);
         let object = ProtocolObject::from_ref(&*delegate);
