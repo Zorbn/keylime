@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use objc2::rc::Retained;
 use objc2_app_kit::{
     NSAlert, NSAlertFirstButtonReturn, NSAlertSecondButtonReturn, NSAlertStyle, NSBackingStoreType,
-    NSOpenPanel, NSSavePanel, NSWindowStyleMask,
+    NSOpenPanel, NSRunningApplication, NSSavePanel, NSWindowStyleMask,
 };
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{ns_string, MainThreadMarker, NSRect, NSString, NSURL};
@@ -13,6 +13,10 @@ use crate::platform::dialog::{FindFileKind, MessageKind, MessageResponse};
 use super::result::Result;
 
 pub fn find_file(kind: FindFileKind) -> Result<PathBuf> {
+    if !has_app_launched() {
+        return Err("Application has not finished launching");
+    }
+
     let mtm = MainThreadMarker::new().unwrap();
 
     let content_rect = CGRect::new(CGPoint::ZERO, CGSize::new(500.0, 500.0));
@@ -76,6 +80,11 @@ unsafe fn find_file_save(
 }
 
 pub fn message(title: &str, text: &str, kind: MessageKind) -> MessageResponse {
+    if !has_app_launched() {
+        println!("{}: {}", title, text);
+        return MessageResponse::Yes;
+    }
+
     let mtm = MainThreadMarker::new().unwrap();
 
     let response = unsafe {
@@ -103,4 +112,10 @@ pub fn message(title: &str, text: &str, kind: MessageKind) -> MessageResponse {
     } else {
         MessageResponse::Cancel
     }
+}
+
+fn has_app_launched() -> bool {
+    let current_application = unsafe { NSRunningApplication::currentApplication() };
+
+    unsafe { current_application.isFinishedLaunching() }
 }
