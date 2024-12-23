@@ -124,13 +124,13 @@ define_class!(
             self.on_focused_changed(false);
         }
 
-        #[method(windowDidEnterFullScreen:)]
-        unsafe fn window_did_enter_fullscreen(&self, _notification: &NSNotification) {
+        #[method(windowWillEnterFullScreen:)]
+        unsafe fn window_will_enter_fullscreen(&self, _notification: &NSNotification) {
             self.on_fullscreen_changed(true);
         }
 
-        #[method(windowDidExitFullScreen:)]
-        unsafe fn window_did_exit_fullscreen(&self, _notification: &NSNotification) {
+        #[method(windowWillExitFullScreen:)]
+        unsafe fn window_will_exit_fullscreen(&self, _notification: &NSNotification) {
             self.on_fullscreen_changed(false);
         }
     }
