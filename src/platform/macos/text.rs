@@ -1,6 +1,7 @@
 use core::f64;
 use std::{
     ffi::c_void,
+    ops::RangeInclusive,
     ptr::{null_mut, NonNull},
 };
 
@@ -90,12 +91,11 @@ impl Text {
         })
     }
 
-    pub unsafe fn generate_atlas(&mut self) -> Result<Atlas> {
-        const ATLAS_SIZE: usize = (b'~' - b' ') as usize;
+    pub unsafe fn generate_atlas(&mut self, characters: RangeInclusive<char>) -> Result<Atlas> {
+        let atlas_size = *characters.end() as usize - *characters.start() as usize + 1;
+        let mut atlas_text = String::with_capacity(atlas_size);
 
-        let mut atlas_text = String::with_capacity(ATLAS_SIZE);
-
-        for c in '!'..='~' {
+        for c in characters {
             atlas_text.push(c);
         }
 
@@ -175,7 +175,6 @@ impl Text {
             dimensions: AtlasDimensions {
                 width: rect.size.width as usize,
                 height: rect.size.height as usize,
-                glyph_offset_x: 0.0,
                 glyph_step_x: self.glyph_step_x as f32,
                 glyph_width: self.glyph_width as f32,
                 glyph_height: rect.size.height as f32,

@@ -6,18 +6,18 @@ pub fn utf8_to_utf32(utf8: &[u8], result: &mut Vec<u32>) {
     while i < utf8.len() {
         let first_byte = utf8[i] as u32;
 
-        if first_byte < 0x80 {
+        if first_byte & 0x80 == 0 {
             result.push(first_byte);
 
             i += 1;
-        } else if first_byte < 0xE0 {
+        } else if first_byte & 0xE0 == 0xC0 {
             let second_byte = utf8[i + 1] as u32;
             i += 2;
 
             let value = ((first_byte & 0x1F) << 6) | (second_byte & 0x3F);
 
             result.push(value);
-        } else if first_byte < 0xF0 {
+        } else if first_byte & 0xF0 == 0xE0 {
             let second_byte = utf8[i + 1] as u32;
             let third_byte = utf8[i + 2] as u32;
             i += 3;
@@ -26,7 +26,7 @@ pub fn utf8_to_utf32(utf8: &[u8], result: &mut Vec<u32>) {
                 ((first_byte & 0xF) << 12) | ((second_byte & 0x3F) << 6) | (third_byte & 0x3F);
 
             result.push(value);
-        } else if first_byte > 0xF8 {
+        } else if first_byte & 0xF8 == 0xF0 {
             let second_byte = utf8[i + 1] as u32;
             let third_byte = utf8[i + 2] as u32;
             let fourth_byte = utf8[i + 3] as u32;

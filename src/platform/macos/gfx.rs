@@ -17,7 +17,7 @@ use crate::{
     geometry::{matrix::ortho, rect::Rect},
     platform::{
         aliases::{AnyText, AnyWindow},
-        text::AtlasDimensions,
+        text::{AtlasDimensions, GlyphCacheResult, GlyphSpan},
     },
     ui::color::Color,
 };
@@ -62,11 +62,11 @@ fragment metal::float4 fragment_main(
 ) {
     constexpr metal::sampler texture_sampler(metal::mag_filter::nearest, metal::min_filter::nearest);
 
-    const metal::float4 color_sample = color_texture.sample(texture_sampler, input.uv);
-
-    return input.uv.y < 0 ?
+    return input.uv.x < 0 ?
         input.color :
-        float4(input.color.rgb, color_sample.a);
+            input.uv.y < 0 ?
+                color_texture.sample(texture_sampler, input.uv + float2(0.0, 1.0)) :
+                float4(input.color.rgb, color_texture.sample(texture_sampler, input.uv).a);
 }
 ";
 
@@ -105,8 +105,8 @@ pub struct Gfx {
 
     bounds: Rect,
 
-    atlas_dimensions: AtlasDimensions,
-    texture: Retained<ProtocolObject<dyn MTLTexture>>,
+    text: AnyText,
+    texture: Option<Retained<ProtocolObject<dyn MTLTexture>>>,
 
     width: f32,
     height: f32,
@@ -195,8 +195,7 @@ impl Gfx {
             font, font_size, ..
         } = app.config();
 
-        let (texture, atlas_dimensions) =
-            Self::create_atlas_texture(&device, font, *font_size, scale)?;
+        let text = AnyText::new(font, *font_size, scale)?;
 
         let gfx = Gfx {
             device,
@@ -217,8 +216,8 @@ impl Gfx {
 
             bounds: Rect::zero(),
 
-            atlas_dimensions,
-            texture,
+            text,
+            texture: None,
 
             width: 0.0,
             height: 0.0,
@@ -239,38 +238,49 @@ impl Gfx {
 
     pub fn update_font(&mut self, font_name: &str, font_size: f32, scale: f32) {
         self.scale = scale;
-
-        if let Ok(result) = Self::create_atlas_texture(&self.device, font_name, font_size, scale) {
-            (self.texture, self.atlas_dimensions) = result;
-        }
+        self.text = AnyText::new(font_name, font_size, scale).unwrap();
     }
 
-    fn create_atlas_texture(
-        device: &Retained<ProtocolObject<dyn MTLDevice>>,
-        font_name: &str,
-        font_size: f32,
-        scale: f32,
-    ) -> Result<(Retained<ProtocolObject<dyn MTLTexture>>, AtlasDimensions)> {
-        let mut text = AnyText::new(font_name, font_size, scale)?;
-        let mut atlas = text.generate_atlas()?;
+    pub fn get_glyph_span(&mut self, c: char) -> GlyphSpan {
+        let (span, result) = self.text.get_glyph_span(c);
+        self.handle_glyph_cache_result(result);
 
-        let texture_descriptor = unsafe {
-            MTLTextureDescriptor::texture2DDescriptorWithPixelFormat_width_height_mipmapped(
-                MTLPixelFormat::RGBA8Unorm,
-                atlas.dimensions.width,
-                atlas.dimensions.height,
-                false,
-            )
+        span
+    }
+
+    fn handle_glyph_cache_result(&mut self, result: GlyphCacheResult) {
+        let atlas = &mut self.text.atlas;
+
+        let (x, width) = match result {
+            GlyphCacheResult::Hit => return,
+            GlyphCacheResult::Miss => (0, atlas.dimensions.width),
+            GlyphCacheResult::Resize => {
+                let texture_descriptor = unsafe {
+                    MTLTextureDescriptor::texture2DDescriptorWithPixelFormat_width_height_mipmapped(
+                        MTLPixelFormat::RGBA8Unorm,
+                        atlas.dimensions.width,
+                        atlas.dimensions.height,
+                        false,
+                    )
+                };
+
+                let texture = self
+                    .device
+                    .newTextureWithDescriptor(&texture_descriptor)
+                    .unwrap();
+
+                self.texture = Some(texture);
+
+                (0, atlas.dimensions.width)
+            }
         };
 
-        let texture = device
-            .newTextureWithDescriptor(&texture_descriptor)
-            .unwrap();
+        let texture = self.texture.as_ref().unwrap();
 
         let region = MTLRegion {
-            origin: MTLOrigin { x: 0, y: 0, z: 0 },
+            origin: MTLOrigin { x, y: 0, z: 0 },
             size: MTLSize {
-                width: atlas.dimensions.width,
+                width,
                 height: atlas.dimensions.height,
                 depth: 1,
             },
@@ -286,8 +296,6 @@ impl Gfx {
                 atlas.dimensions.width * 4,
             );
         }
-
-        Ok((texture, atlas.dimensions))
     }
 
     pub fn begin_frame(&mut self, clear_color: Color) {
@@ -423,7 +431,9 @@ impl Gfx {
 
             encoder.setVertexBuffer_offset_atIndex(Some(&vertex_buffer), 0, 1);
 
-            encoder.setFragmentTexture_atIndex(Some(&self.texture), 0);
+            if let Some(texture) = self.texture.as_ref() {
+                encoder.setFragmentTexture_atIndex(Some(texture), 0);
+            }
         }
 
         unsafe {
@@ -532,7 +542,7 @@ impl Gfx {
     }
 
     pub fn atlas_dimensions(&self) -> &AtlasDimensions {
-        &self.atlas_dimensions
+        &self.text.atlas.dimensions
     }
 
     pub fn scale(&self) -> f32 {

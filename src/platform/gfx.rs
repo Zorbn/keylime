@@ -1,5 +1,7 @@
 use std::borrow::Borrow;
 
+use unicode_width::UnicodeWidthChar;
+
 use crate::{
     geometry::{
         rect::Rect,
@@ -8,7 +10,10 @@ use crate::{
     ui::color::Color,
 };
 
-use super::{platform_impl, text::AtlasDimensions};
+use super::{
+    platform_impl,
+    text::{AtlasDimensions, GlyphSpan},
+};
 
 const TAB_WIDTH: usize = 4;
 
@@ -34,15 +39,9 @@ impl Gfx {
     }
 
     pub fn measure_text(text: impl IntoIterator<Item = impl Borrow<char>>) -> isize {
-        let mut width = 0isize;
-
-        for c in text.into_iter() {
-            let c = *c.borrow();
-
-            width += if c == '\t' { TAB_WIDTH as isize } else { 1 };
-        }
-
-        width
+        text.into_iter()
+            .map(|c| Self::get_char_width(*c.borrow()))
+            .sum()
     }
 
     pub fn find_x_for_visual_x(
@@ -70,8 +69,12 @@ impl Gfx {
     pub fn get_char_width(c: char) -> isize {
         match c {
             '\t' => TAB_WIDTH as isize,
-            _ => 1,
+            _ => UnicodeWidthChar::width(c).unwrap_or(1) as isize,
         }
+    }
+
+    fn get_glyph_span(&mut self, c: char) -> GlyphSpan {
+        self.inner.get_glyph_span(c)
     }
 
     pub fn add_text(
@@ -81,13 +84,9 @@ impl Gfx {
         y: f32,
         color: Color,
     ) -> isize {
-        let min_char = b' ' as u32;
-        let max_char = b'~' as u32;
-
         let AtlasDimensions {
             width,
-            glyph_offset_x,
-            glyph_step_x,
+            height,
             glyph_width,
             glyph_height,
             ..
@@ -98,35 +97,31 @@ impl Gfx {
         for c in text.into_iter() {
             let c = *c.borrow();
 
-            let char_index = c as u32;
-
-            if char_index <= min_char || char_index > max_char {
+            if c.is_whitespace() {
                 i += Self::get_char_width(c);
                 continue;
             }
 
-            let atlas_char_index = char_index - min_char - 1;
+            let span = self.get_glyph_span(c);
 
-            let mut source_x =
-                (glyph_step_x * atlas_char_index as f32 - glyph_offset_x) / width as f32;
-            let mut source_width = glyph_step_x / width as f32;
+            let source_x = span.x as f32 / width as f32;
+            let source_y = if span.is_monochrome { 0.0 } else { -1.0 };
+            let source_width = span.width as f32 / width as f32;
+            let source_height = span.height as f32 / height as f32;
 
-            let mut destination_x = x + i as f32 * glyph_width;
-            let mut destination_width = glyph_step_x;
-
-            // DirectWrite might press the first character in the atlas right up against the left edge (eg. the exclamation point),
-            // so we'll just shift it back to the center when rendering if necessary.
-            if source_x < 0.0 {
-                destination_width += source_x * width as f32;
-                destination_x -= source_x * width as f32;
-
-                source_width += source_x;
-                source_x = 0.0;
-            }
+            let destination_x = x + i as f32 * glyph_width;
+            let destination_y = y + (glyph_height - span.height as f32) / 2.0;
+            let destination_width = span.width as f32;
+            let destination_height = span.height as f32;
 
             self.inner.add_sprite(
-                Rect::new(source_x, 0.0, source_width, 1.0),
-                Rect::new(destination_x, y, destination_width, glyph_height),
+                Rect::new(source_x, source_y, source_width, source_height),
+                Rect::new(
+                    destination_x,
+                    destination_y,
+                    destination_width,
+                    destination_height,
+                ),
                 color,
             );
 
@@ -174,7 +169,7 @@ impl Gfx {
 
     pub fn add_rect(&mut self, rect: Rect, color: Color) {
         self.inner
-            .add_sprite(Rect::new(-1.0, -1.0, -1.0, -1.0), rect, color);
+            .add_sprite(Rect::new(-1.0, 0.0, -1.0, -1.0), rect, color);
     }
 
     pub fn glyph_width(&self) -> f32 {
