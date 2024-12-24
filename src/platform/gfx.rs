@@ -54,7 +54,7 @@ impl Gfx {
         for c in text.into_iter() {
             let c = *c.borrow();
 
-            current_visual_x += if c == '\t' { TAB_WIDTH as isize } else { 1 };
+            current_visual_x += Gfx::get_char_width(c);
 
             if current_visual_x > visual_x {
                 return x;
@@ -105,10 +105,10 @@ impl Gfx {
 
             let span = self.get_glyph_span(c);
 
-            let source_x = span.x as f32 / width as f32;
-            let source_y = if span.is_monochrome { 0.0 } else { -1.0 };
-            let source_width = span.width as f32 / width as f32;
-            let source_height = span.height as f32 / height as f32;
+            let source_x = span.x as f32;
+            let source_y = if span.is_monochrome { 0.0 } else { -1000.0 };
+            let source_width = span.width as f32;
+            let source_height = span.height as f32;
 
             let destination_x = x + i as f32 * glyph_width;
             let destination_y = y + (glyph_height - span.height as f32) / 2.0;

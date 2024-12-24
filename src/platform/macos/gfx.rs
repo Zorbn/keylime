@@ -29,6 +29,7 @@ const SHADER_CODE: &str = "
 
 struct SceneProperties {
     metal::float4x4 projection;
+    float2 texture_size;
 };
 
 struct VertexInput {
@@ -41,6 +42,7 @@ struct VertexOutput {
     metal::float4 position [[position]];
     metal::float4 color;
     metal::float2 uv;
+    float2 texture_size;
 };
 
 vertex VertexOutput vertex_main(
@@ -53,6 +55,7 @@ vertex VertexOutput vertex_main(
     output.position = properties.projection * metal::float4(input.position.xyz, 1);
     output.color = input.color;
     output.uv = input.uv.xy;
+    output.texture_size = properties.texture_size;
     return output;
 }
 
@@ -65,8 +68,8 @@ fragment metal::float4 fragment_main(
     return input.uv.x < 0 ?
         input.color :
             input.uv.y < 0 ?
-                color_texture.sample(texture_sampler, input.uv + float2(0.0, 1.0)) :
-                float4(input.color.rgb, color_texture.sample(texture_sampler, input.uv).a);
+                color_texture.sample(texture_sampler, (input.uv + float2(0.0, 1000.0)) / input.texture_size) :
+                float4(input.color.rgb, color_texture.sample(texture_sampler, input.uv / input.texture_size).a);
 }
 ";
 
@@ -74,6 +77,7 @@ fragment metal::float4 fragment_main(
 #[repr(C)]
 struct SceneProperties {
     projection_matrix: [f32; 16],
+    texture_size: [f32; 2],
 }
 
 #[derive(Copy, Clone)]
@@ -99,6 +103,7 @@ pub struct Gfx {
     buffers: Vec<Retained<ProtocolObject<dyn MTLBuffer>>>,
     next_buffer_index: usize,
 
+    glyph_cache_result: GlyphCacheResult,
     drawable: Option<Retained<ProtocolObject<dyn CAMetalDrawable>>>,
     command_buffer: Option<Retained<ProtocolObject<dyn MTLCommandBuffer>>>,
     encoder: Option<Retained<ProtocolObject<dyn MTLRenderCommandEncoder>>>,
@@ -210,6 +215,7 @@ impl Gfx {
             buffers: Vec::new(),
             next_buffer_index: 0,
 
+            glyph_cache_result: GlyphCacheResult::Hit,
             drawable: None,
             command_buffer: None,
             encoder: None,
@@ -243,15 +249,15 @@ impl Gfx {
 
     pub fn get_glyph_span(&mut self, c: char) -> GlyphSpan {
         let (span, result) = self.text.get_glyph_span(c);
-        self.handle_glyph_cache_result(result);
+        self.glyph_cache_result = self.glyph_cache_result.worse(result);
 
         span
     }
 
-    fn handle_glyph_cache_result(&mut self, result: GlyphCacheResult) {
+    fn handle_glyph_cache_result(&mut self) {
         let atlas = &mut self.text.atlas;
 
-        let (x, width) = match result {
+        let (x, width) = match self.glyph_cache_result {
             GlyphCacheResult::Hit => return,
             GlyphCacheResult::Miss => (0, atlas.dimensions.width),
             GlyphCacheResult::Resize => {
@@ -366,6 +372,8 @@ impl Gfx {
     }
 
     pub fn begin(&mut self, bounds: Option<Rect>) {
+        self.glyph_cache_result = GlyphCacheResult::Hit;
+
         self.vertices.clear();
         self.indices.clear();
 
@@ -382,6 +390,8 @@ impl Gfx {
     }
 
     pub fn end(&mut self) {
+        self.handle_glyph_cache_result();
+
         let Some(encoder) = self.encoder.as_ref() else {
             return;
         };
@@ -395,8 +405,14 @@ impl Gfx {
 
         let projection = ortho(0.0, self.width, 0.0, self.height, -1.0, 1.0);
 
+        let atlas_dimensions = self.atlas_dimensions();
+
         let scene_properties_data = &SceneProperties {
             projection_matrix: projection,
+            texture_size: [
+                atlas_dimensions.width as f32,
+                atlas_dimensions.height as f32,
+            ],
         };
 
         let scene_properties_bytes = NonNull::from(scene_properties_data);

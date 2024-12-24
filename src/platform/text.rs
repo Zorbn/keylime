@@ -25,10 +25,27 @@ pub struct GlyphSpan {
     pub is_monochrome: bool,
 }
 
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum GlyphCacheResult {
     Hit,
     Miss,
     Resize,
+}
+
+impl GlyphCacheResult {
+    pub fn worse(self, other: GlyphCacheResult) -> GlyphCacheResult {
+        match other {
+            GlyphCacheResult::Hit => self,
+            GlyphCacheResult::Miss => {
+                if self == GlyphCacheResult::Hit {
+                    other
+                } else {
+                    self
+                }
+            }
+            GlyphCacheResult::Resize => other,
+        }
+    }
 }
 
 pub struct Text {
@@ -96,17 +113,23 @@ impl Text {
     }
 
     pub fn get_glyph_span(&mut self, c: char) -> (GlyphSpan, GlyphCacheResult) {
-        let priority_result = self.needs_first_resize.then_some(GlyphCacheResult::Resize);
+        let mut result = if self.needs_first_resize {
+            GlyphCacheResult::Resize
+        } else {
+            GlyphCacheResult::Hit
+        };
+
+        self.needs_first_resize = false;
 
         if let Some(span) = self.cache.get(&c) {
-            return (*span, priority_result.unwrap_or(GlyphCacheResult::Hit));
+            return (*span, result);
         }
 
         let x = self.atlas_used_width;
         let sub_atlas = self.generate_atlas(c..=c).unwrap();
         let glyph_right = x + sub_atlas.dimensions.width;
 
-        let result = if glyph_right == 0
+        if glyph_right == 0
             || glyph_right > self.atlas.dimensions.width
             || sub_atlas.dimensions.height > self.atlas.dimensions.height
         {
@@ -149,9 +172,9 @@ impl Text {
             self.atlas.data = new_atlas_data;
             self.atlas.dimensions = new_atlas_dimensions;
 
-            GlyphCacheResult::Resize
+            result = result.worse(GlyphCacheResult::Resize)
         } else {
-            GlyphCacheResult::Miss
+            result = result.worse(GlyphCacheResult::Miss)
         };
 
         let offset_x = x;
@@ -201,7 +224,7 @@ impl Text {
         self.cache.insert(c, span);
         self.atlas_used_width += span.width;
 
-        (span, priority_result.unwrap_or(result))
+        (span, result)
     }
 
     fn generate_atlas(&mut self, characters: RangeInclusive<char>) -> Result<Atlas> {
