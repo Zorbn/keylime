@@ -69,6 +69,7 @@ impl Gfx {
     pub fn get_char_width(c: char) -> isize {
         match c {
             '\t' => TAB_WIDTH as isize,
+            '\0' => 0,
             _ => UnicodeWidthChar::width(c).unwrap_or(1) as isize,
         }
     }

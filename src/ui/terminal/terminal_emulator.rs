@@ -8,7 +8,7 @@ use crate::{
         key::Key,
         keybind::{Keybind, MOD_ALT, MOD_CTRL, MOD_SHIFT},
     },
-    platform::pty::Pty,
+    platform::{gfx::Gfx, pty::Pty},
     temp_buffer::TempBuffer,
     text::{
         cursor::Cursor, doc::Doc, line_pool::LinePool, syntax_highlighter::TerminalHighlightKind,
@@ -618,7 +618,7 @@ impl TerminalEmulator {
 
             self.insert(self.grid_cursor, &[*c], doc, line_pool, time);
 
-            self.grid_cursor.x += 1;
+            self.grid_cursor.x += Gfx::get_char_width(*c);
             self.jump_doc_cursors_to_grid_cursor(doc);
         }
     }
@@ -670,19 +670,23 @@ impl TerminalEmulator {
             colors
         };
 
-        for c in text {
-            let next_position = self.move_position(position, Position::new(1, 0));
+        for mut c in text {
+            for _ in 0..Gfx::get_char_width(*c) {
+                let next_position = self.move_position(position, Position::new(1, 0));
 
-            {
-                let position = self.grid_position_to_doc_position(position, doc);
-                let next_position = self.grid_position_to_doc_position(next_position, doc);
+                {
+                    let position = self.grid_position_to_doc_position(position, doc);
+                    let next_position = self.grid_position_to_doc_position(next_position, doc);
 
-                doc.delete(position, next_position, line_pool, time);
-                doc.insert(position, [*c], line_pool, time);
+                    doc.delete(position, next_position, line_pool, time);
+                    doc.insert(position, [*c], line_pool, time);
+                }
+
+                self.grid_line_colors[position.y as usize][position.x as usize] = colors;
+                position = next_position;
+
+                c = &'\0';
             }
-
-            self.grid_line_colors[position.y as usize][position.x as usize] = colors;
-            position = next_position;
         }
 
         self.jump_doc_cursors_to_grid_cursor(doc);

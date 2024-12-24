@@ -24,7 +24,6 @@ impl TerminalEmulator {
         while !output.is_empty() {
             let doc = self.get_doc_mut(docs);
 
-            // Backspace:
             match output[0] {
                 0x1B => {
                     let remaining = match output.get(1) {

@@ -430,6 +430,10 @@ impl Window {
         let wide_text_buffer = self.wide_text_buffer.get_mut();
 
         for c in text {
+            if *c == '\0' {
+                continue;
+            }
+
             let mut dst = [0u16; 2];
 
             for wide_c in c.encode_utf16(&mut dst) {
