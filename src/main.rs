@@ -19,8 +19,6 @@ use platform::window::WindowRunner;
  * Directory-wide search.
  * Unit testing for patterns and text editing functions.
  * Add support for per-platform keybinds (so that command and option work as expected).
- * Support unicode:
- *  - For ASCII characters a hashmap lookup isn't needed to determine their atlas offset,
  * Support unicode on Windows:
  *  - Pty,
  *  - Text/Gfx

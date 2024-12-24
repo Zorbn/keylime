@@ -2,20 +2,39 @@ use std::{collections::HashMap, ops::RangeInclusive};
 
 use super::{platform_impl, result::Result};
 
+#[derive(Debug, Default, Clone, Copy)]
+pub struct AtlasDimensions {
+    pub width: usize,
+    pub height: usize,
+    pub glyph_step_x: usize,
+    pub glyph_width: usize,
+    pub glyph_height: usize,
+    pub line_height: usize,
+}
+
+#[derive(Debug, Default)]
 pub struct Atlas {
     pub data: Vec<u8>,
     pub dimensions: AtlasDimensions,
     pub has_color_glyphs: bool,
 }
 
-#[derive(Debug)]
-pub struct AtlasDimensions {
-    pub width: usize,
-    pub height: usize,
-    pub glyph_step_x: f32,
-    pub glyph_width: f32,
-    pub glyph_height: f32,
-    pub line_height: f32,
+impl Atlas {
+    fn copy_to(&self, other: &mut Atlas, offset_x: usize) {
+        for y in 0..self.dimensions.height {
+            for x in 0..self.dimensions.width {
+                let i = (x + y * self.dimensions.width) * 4;
+
+                let other_x = x + offset_x;
+                let other_i = (other_x + y * other.dimensions.width) * 4;
+
+                other.data[other_i] = self.data[i];
+                other.data[other_i + 1] = self.data[i + 1];
+                other.data[other_i + 2] = self.data[i + 2];
+                other.data[other_i + 3] = self.data[i + 3];
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -24,6 +43,19 @@ pub struct GlyphSpan {
     pub width: usize,
     pub height: usize,
     pub has_color_glyphs: bool,
+}
+
+impl GlyphSpan {
+    pub fn default_for(atlas: &Atlas, c: char) -> GlyphSpan {
+        let index = c as usize - *DEFAULT_GLYPHS.start() as usize;
+
+        GlyphSpan {
+            x: index * atlas.dimensions.glyph_step_x,
+            width: atlas.dimensions.glyph_step_x,
+            height: atlas.dimensions.glyph_height,
+            has_color_glyphs: false,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -78,37 +110,14 @@ impl Text {
             cache: HashMap::new(),
             needs_first_resize: true,
             atlas_used_width: 0,
-            atlas: Atlas {
-                data: Vec::new(),
-                dimensions: AtlasDimensions {
-                    width: 0,
-                    height: 0,
-                    glyph_step_x: 0.0,
-                    glyph_width: 0.0,
-                    glyph_height: 0.0,
-                    line_height: 0.0,
-                },
-                has_color_glyphs: false,
-            },
+            atlas: Atlas::default(),
         };
 
         text.atlas = text.generate_atlas(DEFAULT_GLYPHS)?;
         text.atlas_used_width = text.atlas.dimensions.width;
 
-        let glyph_step_x = text.atlas.dimensions.glyph_step_x as usize;
-
         for c in DEFAULT_GLYPHS {
-            let index = c as usize - *DEFAULT_GLYPHS.start() as usize;
-
-            text.cache.insert(
-                c,
-                GlyphSpan {
-                    x: index * glyph_step_x,
-                    width: glyph_step_x,
-                    height: text.atlas.dimensions.height,
-                    has_color_glyphs: false,
-                },
-            );
+            text.cache.insert(c, GlyphSpan::default_for(&text.atlas, c));
         }
 
         Ok(text)
@@ -122,6 +131,10 @@ impl Text {
         };
 
         self.needs_first_resize = false;
+
+        if DEFAULT_GLYPHS.contains(&c) {
+            return (GlyphSpan::default_for(&self.atlas, c), result);
+        }
 
         if let Some(span) = self.cache.get(&c) {
             return (*span, result);
@@ -147,53 +160,25 @@ impl Text {
                 .height
                 .max(sub_atlas.dimensions.height);
 
-            let new_atlas_dimensions = AtlasDimensions {
-                width: new_width,
-                height: new_height,
-                glyph_step_x: self.atlas.dimensions.glyph_step_x,
-                glyph_width: self.atlas.dimensions.glyph_width,
-                glyph_height: self.atlas.dimensions.glyph_height,
-                line_height: self.atlas.dimensions.line_height,
+            let mut new_atlas_dimensions = self.atlas.dimensions;
+            new_atlas_dimensions.width = new_width;
+            new_atlas_dimensions.height = new_height;
+
+            let mut new_atlas = Atlas {
+                data: vec![0u8; new_width * new_height * 4],
+                dimensions: new_atlas_dimensions,
+                has_color_glyphs: false,
             };
-            let mut new_atlas_data =
-                vec![0u8; new_atlas_dimensions.height * new_atlas_dimensions.width * 4];
 
-            for y in 0..self.atlas.dimensions.height {
-                for x in 0..self.atlas.dimensions.width {
-                    let i = (x + y * self.atlas.dimensions.width) * 4;
-
-                    let atlas_i = (x + y * new_atlas_dimensions.width) * 4;
-
-                    new_atlas_data[atlas_i] = self.atlas.data[i];
-                    new_atlas_data[atlas_i + 1] = self.atlas.data[i + 1];
-                    new_atlas_data[atlas_i + 2] = self.atlas.data[i + 2];
-                    new_atlas_data[atlas_i + 3] = self.atlas.data[i + 3];
-                }
-            }
-
-            self.atlas.data = new_atlas_data;
-            self.atlas.dimensions = new_atlas_dimensions;
+            self.atlas.copy_to(&mut new_atlas, 0);
+            self.atlas = new_atlas;
 
             result = result.worse(GlyphCacheResult::Resize)
         } else {
             result = result.worse(GlyphCacheResult::Miss)
         };
 
-        let offset_x = x;
-
-        for y in 0..sub_atlas.dimensions.height {
-            for x in 0..sub_atlas.dimensions.width {
-                let i = (x + y * sub_atlas.dimensions.width) * 4;
-
-                let atlas_x = x + offset_x;
-                let atlas_i = (atlas_x + y * self.atlas.dimensions.width) * 4;
-
-                self.atlas.data[atlas_i] = sub_atlas.data[i];
-                self.atlas.data[atlas_i + 1] = sub_atlas.data[i + 1];
-                self.atlas.data[atlas_i + 2] = sub_atlas.data[i + 2];
-                self.atlas.data[atlas_i + 3] = sub_atlas.data[i + 3];
-            }
-        }
+        sub_atlas.copy_to(&mut self.atlas, x);
 
         let span = GlyphSpan {
             x,

@@ -108,8 +108,8 @@ impl Gfx {
             let source_width = span.width as f32;
             let source_height = span.height as f32;
 
-            let destination_x = x + i as f32 * glyph_width;
-            let destination_y = y + (glyph_height - span.height as f32) / 2.0;
+            let destination_x = x + i as f32 * glyph_width as f32;
+            let destination_y = y + (glyph_height as f32 - span.height as f32) / 2.0;
             let destination_width = span.width as f32;
             let destination_height = span.height as f32;
 
@@ -172,15 +172,15 @@ impl Gfx {
     }
 
     pub fn glyph_width(&self) -> f32 {
-        self.inner.atlas_dimensions().glyph_width
+        self.inner.atlas_dimensions().glyph_width as f32
     }
 
     pub fn glyph_height(&self) -> f32 {
-        self.inner.atlas_dimensions().glyph_height
+        self.inner.atlas_dimensions().glyph_height as f32
     }
 
     pub fn line_height(&self) -> f32 {
-        self.inner.atlas_dimensions().line_height
+        self.inner.atlas_dimensions().line_height as f32
     }
 
     pub fn line_padding(&self) -> f32 {

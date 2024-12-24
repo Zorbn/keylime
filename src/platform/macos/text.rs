@@ -3,7 +3,6 @@ use std::{
     ffi::c_void,
     ops::{Deref, RangeInclusive},
     ptr::{null_mut, NonNull},
-    slice::from_raw_parts,
 };
 
 use crate::platform::text::{Atlas, AtlasDimensions};
@@ -18,9 +17,9 @@ use objc2_foundation::{NSMutableAttributedString, NSRange, NSRect, NSString};
 pub struct Text {
     font: *mut AnyObject,
 
-    glyph_width: f64,
-    glyph_step_x: f64,
-    line_height: f64,
+    glyph_width: usize,
+    glyph_step_x: usize,
+    line_height: usize,
 }
 
 impl Text {
@@ -62,15 +61,16 @@ impl Text {
 
         let line_height =
             CTFontGetAscent(font as _) + CTFontGetDescent(font as _) + CTFontGetLeading(font as _);
+        let line_height = line_height.ceil() as usize;
 
-        let glyph_width = advances[0].width.floor();
-        let glyph_step_x = advances[0].width.ceil() + 1.0;
+        let glyph_width = advances[0].width.floor() as usize;
+        let glyph_step_x = advances[0].width.ceil() as usize + 1;
 
         let attributes = CFDictionaryCreateMutable(kCFAllocatorDefault, 2, null_mut(), null_mut());
 
         CFDictionaryAddValue(attributes, kCTFontNameAttribute, font_name_cfstr);
 
-        let mut advance = glyph_step_x;
+        let mut advance = glyph_step_x as f64;
         let advance = CFNumberCreate(
             kCFAllocatorDefault,
             CFNumberType::kCFNumberFloat64Type,
@@ -124,10 +124,10 @@ impl Text {
             dimensions: AtlasDimensions {
                 width: rect.size.width as usize,
                 height: rect.size.height as usize,
-                glyph_step_x: self.glyph_step_x as f32,
-                glyph_width: self.glyph_width as f32,
-                glyph_height: rect.size.height as f32,
-                line_height: self.line_height.ceil() as f32,
+                glyph_step_x: self.glyph_step_x,
+                glyph_width: self.glyph_width,
+                glyph_height: rect.size.height as usize,
+                line_height: self.line_height,
             },
             has_color_glyphs,
         })
