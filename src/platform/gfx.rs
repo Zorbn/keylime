@@ -86,8 +86,6 @@ impl Gfx {
         color: Color,
     ) -> isize {
         let AtlasDimensions {
-            width,
-            height,
             glyph_width,
             glyph_height,
             ..
@@ -106,7 +104,7 @@ impl Gfx {
             let span = self.get_glyph_span(c);
 
             let source_x = span.x as f32;
-            let source_y = if span.is_monochrome { 0.0 } else { -1000.0 };
+            let source_y = if span.has_color_glyphs { -1000.0 } else { 0.0 };
             let source_width = span.width as f32;
             let source_height = span.height as f32;
 

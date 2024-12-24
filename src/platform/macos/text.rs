@@ -1,18 +1,19 @@
 use core::f64;
 use std::{
     ffi::c_void,
-    ops::RangeInclusive,
+    ops::{Deref, RangeInclusive},
     ptr::{null_mut, NonNull},
+    slice::from_raw_parts,
 };
 
 use crate::platform::text::{Atlas, AtlasDimensions};
 
 use super::result::Result;
-use objc2::runtime::AnyObject;
+use objc2::{rc::Retained, runtime::AnyObject};
 use objc2_core_foundation::*;
 use objc2_core_graphics::*;
 use objc2_core_text::*;
-use objc2_foundation::{NSMutableAttributedString, NSRange, NSString};
+use objc2_foundation::{NSMutableAttributedString, NSRange, NSRect, NSString};
 
 pub struct Text {
     font: *mut AnyObject,
@@ -115,8 +116,28 @@ impl Text {
 
         attributed_string.endEditing();
 
+        let (raw_data, rect) = Self::frameset(&attributed_string);
+        let has_color_glyphs = Self::has_color_glyphs(&attributed_string);
+
+        Ok(Atlas {
+            data: raw_data,
+            dimensions: AtlasDimensions {
+                width: rect.size.width as usize,
+                height: rect.size.height as usize,
+                glyph_step_x: self.glyph_step_x as f32,
+                glyph_width: self.glyph_width as f32,
+                glyph_height: rect.size.height as f32,
+                line_height: self.line_height.ceil() as f32,
+            },
+            has_color_glyphs,
+        })
+    }
+
+    unsafe fn frameset(
+        attributed_string: &Retained<NSMutableAttributedString>,
+    ) -> (Vec<u8>, NSRect) {
         let framesetter =
-            CTFramesetterCreateWithAttributedString(&*attributed_string as *const _ as _);
+            CTFramesetterCreateWithAttributedString(attributed_string.deref() as *const _ as _);
 
         let size = CTFramesetterSuggestFrameSizeWithConstraints(
             framesetter,
@@ -170,16 +191,41 @@ impl Text {
 
         CTFrameDraw(frame, context);
 
-        Ok(Atlas {
-            data: raw_data,
-            dimensions: AtlasDimensions {
-                width: rect.size.width as usize,
-                height: rect.size.height as usize,
-                glyph_step_x: self.glyph_step_x as f32,
-                glyph_width: self.glyph_width as f32,
-                glyph_height: rect.size.height as f32,
-                line_height: self.line_height.ceil() as f32,
+        (raw_data, rect)
+    }
+
+    unsafe fn has_color_glyphs(attributed_string: &Retained<NSMutableAttributedString>) -> bool {
+        let typesetter =
+            CTTypesetterCreateWithAttributedString(attributed_string.deref() as *const _ as _);
+        let line = CTTypesetterCreateLine(
+            typesetter,
+            CFRange {
+                location: 0,
+                length: attributed_string.length() as i64,
             },
-        })
+        );
+
+        let runs = CTLineGetGlyphRuns(line);
+
+        if runs.is_null() {
+            return false;
+        }
+
+        let count = CFArrayGetCount(runs);
+
+        for i in 0..count {
+            let run = CFArrayGetValueAtIndex(runs, i);
+
+            let attributes = CTRunGetAttributes(run);
+            let font = CFDictionaryGetValue(attributes, kCTFontAttributeName);
+
+            let traits = CTFontGetSymbolicTraits(font);
+
+            if traits.contains(CTFontSymbolicTraits::kCTFontTraitColorGlyphs) {
+                return true;
+            }
+        }
+
+        false
     }
 }

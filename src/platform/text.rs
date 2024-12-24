@@ -5,6 +5,7 @@ use super::{platform_impl, result::Result};
 pub struct Atlas {
     pub data: Vec<u8>,
     pub dimensions: AtlasDimensions,
+    pub has_color_glyphs: bool,
 }
 
 #[derive(Debug)]
@@ -22,7 +23,7 @@ pub struct GlyphSpan {
     pub x: usize,
     pub width: usize,
     pub height: usize,
-    pub is_monochrome: bool,
+    pub has_color_glyphs: bool,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -87,6 +88,7 @@ impl Text {
                     glyph_height: 0.0,
                     line_height: 0.0,
                 },
+                has_color_glyphs: false,
             },
         };
 
@@ -104,7 +106,7 @@ impl Text {
                     x: index * glyph_step_x,
                     width: glyph_step_x,
                     height: text.atlas.dimensions.height,
-                    is_monochrome: true,
+                    has_color_glyphs: false,
                 },
             );
         }
@@ -179,9 +181,6 @@ impl Text {
 
         let offset_x = x;
 
-        let mut glyph_color = None;
-        let mut is_monochrome = true;
-
         for y in 0..sub_atlas.dimensions.height {
             for x in 0..sub_atlas.dimensions.width {
                 let i = (x + y * sub_atlas.dimensions.width) * 4;
@@ -193,24 +192,6 @@ impl Text {
                 self.atlas.data[atlas_i + 1] = sub_atlas.data[i + 1];
                 self.atlas.data[atlas_i + 2] = sub_atlas.data[i + 2];
                 self.atlas.data[atlas_i + 3] = sub_atlas.data[i + 3];
-
-                if is_monochrome {
-                    if let Some(glyph_color) = glyph_color {
-                        let color = sub_atlas.data[i] as usize
-                            | ((sub_atlas.data[i] as usize) << 8)
-                            | ((sub_atlas.data[i] as usize) << 16);
-
-                        if color != glyph_color {
-                            is_monochrome = false;
-                        }
-                    } else if sub_atlas.data[i + 3] > 0 {
-                        glyph_color = Some(
-                            sub_atlas.data[i] as usize
-                                | ((sub_atlas.data[i] as usize) << 8)
-                                | ((sub_atlas.data[i] as usize) << 16),
-                        );
-                    }
-                }
             }
         }
 
@@ -218,7 +199,7 @@ impl Text {
             x,
             width: sub_atlas.dimensions.width,
             height: sub_atlas.dimensions.height,
-            is_monochrome,
+            has_color_glyphs: sub_atlas.has_color_glyphs,
         };
 
         self.cache.insert(c, span);

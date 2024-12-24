@@ -120,9 +120,13 @@ git = "https://github.com/madsmtm/objc2"
 rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9"
 features = [
     "CTFont",
+    "CTFontTraits",
     "CTFontDescriptor",
     "CTFrame",
     "CTFramesetter",
+    "CTTypesetter",
+    "CTLine",
+    "CTRun",
     "CTRunDelegate",
     "CTStringAttributes",
     "objc2-core-foundation",
