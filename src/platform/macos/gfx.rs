@@ -55,7 +55,7 @@ vertex VertexOutput vertex_main(
     VertexInput input = vertices[vertex_idx];
     output.position = properties.projection * float4(input.position.xy, 0, 1);
     output.color = input.color;
-    output.uv = input.uv;
+    output.uv = float3(input.uv.xy / properties.texture_size, input.uv.z);
     output.texture_size = properties.texture_size;
     return output;
 }
@@ -66,7 +66,7 @@ fragment float4 fragment_main(
 ) {
     constexpr metal::sampler texture_sampler(metal::mag_filter::nearest, metal::min_filter::nearest);
 
-    float4 color_sample = color_texture.sample(texture_sampler, input.uv.xy / input.texture_size);
+    float4 color_sample = color_texture.sample(texture_sampler, input.uv.xy);
 
     float4 glyph_color = float4(input.color.rgb, color_sample.a);
     float4 color_glyph_color = color_sample;

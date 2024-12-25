@@ -18,7 +18,11 @@ use windows::{
 
 use crate::{
     geometry::{matrix::ortho, rect::Rect},
-    platform::{aliases::AnyText, text::AtlasDimensions},
+    platform::{
+        aliases::AnyText,
+        gfx::SpriteKind,
+        text::{AtlasDimensions, GlyphCacheResult, GlyphSpan},
+    },
     ui::color::Color,
 };
 
@@ -27,17 +31,18 @@ use super::window::Window;
 const SHADER_CODE: &str = r#"
 cbuffer constants : register(b0) {
 	float4x4 projectionMatrix;
+	float2 textureSize;
 }
 
 struct VSInput {
 	float2 position : POSITION;
-	float2 uv : TEX;
+	float3 uv : TEX;
 	float4 color : COLOR0;
 };
 
 struct VSOutput {
 	float4 position : SV_POSITION;
-	float2 uv : TEX;
+	float3 uv : TEX;
 	float4 color : COLOR0;
 };
 
@@ -52,19 +57,18 @@ SamplerState _sampler : register(s0);
 VSOutput VsMain(VSInput input) {
 	VSOutput output;
 	output.position = mul(projectionMatrix, float4(input.position.xy, 0.0f, 1.0f));
-	output.uv = input.uv;
+	output.uv = float3(input.uv.xy / textureSize.xy, input.uv.z);
 	output.color = input.color;
 	return output;
 }
 
 PSOutput PsMain(VSOutput input) : SV_Target {
     float4 normalizedColor = input.color / 255.0;
+    float4 textureSample = _texture.Sample(_sampler, input.uv.xy);
 
     PSOutput output;
-    output.color = float4(normalizedColor.rgb, 1.0);
-    output.alphaMask = input.uv.y < 0.0 ?
-        normalizedColor.aaaa :
-        _texture.Sample(_sampler, input.uv).rgbr;
+    output.color = input.uv.z == 1.0 ? textureSample : float4(normalizedColor.rgb, 1.0);
+    output.alphaMask = input.uv.z > 0.0 ? normalizedColor.aaaa : textureSample.rgbr;
     return output;
 }
 "#;
@@ -79,6 +83,7 @@ struct TextureData {
 #[allow(unused)]
 struct Uniform {
     projection_matrix: [f32; 16],
+    texture_size: [f32; 2],
 }
 
 #[derive(Clone, Copy)]
@@ -88,6 +93,7 @@ struct Vertex {
     y: f32,
     u: f32,
     v: f32,
+    kind: f32,
     r: f32,
     g: f32,
     b: f32,
@@ -103,7 +109,7 @@ pub struct Gfx {
     vertex_shader: ID3D11VertexShader,
     input_layout: ID3D11InputLayout,
     pixel_shader: ID3D11PixelShader,
-    texture_data: TextureData,
+    texture_data: Option<TextureData>,
     uniform_buffer: ID3D11Buffer,
 
     render_target_view: Option<ID3D11RenderTargetView>,
@@ -120,7 +126,8 @@ pub struct Gfx {
     index_buffer: Option<ID3D11Buffer>,
     index_buffer_capacity: usize,
 
-    atlas_dimensions: AtlasDimensions,
+    text: AnyText,
+    glyph_cache_result: GlyphCacheResult,
 }
 
 impl Gfx {
@@ -263,7 +270,7 @@ impl Gfx {
                 D3D11_INPUT_ELEMENT_DESC {
                     SemanticName: s!("TEX"),
                     SemanticIndex: 0,
-                    Format: DXGI_FORMAT_R32G32_FLOAT,
+                    Format: DXGI_FORMAT_R32G32B32_FLOAT,
                     InputSlot: 0,
                     AlignedByteOffset: offset_of!(Vertex, u) as u32,
                     InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
@@ -343,8 +350,7 @@ impl Gfx {
         };
 
         let scale = window.scale();
-        let (texture_data, atlas_dimensions) =
-            Self::create_atlas_texture(&device, font_name, font_size, scale)?;
+        let text = AnyText::new(font_name, font_size, scale)?;
 
         let gfx = Self {
             device,
@@ -355,7 +361,7 @@ impl Gfx {
             vertex_shader,
             input_layout,
             pixel_shader,
-            texture_data,
+            texture_data: None,
             uniform_buffer,
 
             render_target_view: None,
@@ -372,7 +378,8 @@ impl Gfx {
             index_buffer: None,
             index_buffer_capacity: 0,
 
-            atlas_dimensions,
+            text,
+            glyph_cache_result: GlyphCacheResult::Hit,
         };
 
         Ok(gfx)
@@ -385,25 +392,6 @@ impl Gfx {
         ));
 
         panic!("Shader compile error: {}", message);
-    }
-
-    unsafe fn create_atlas_texture(
-        device: &ID3D11Device,
-        font_name: &str,
-        font_size: f32,
-        scale: f32,
-    ) -> Result<(TextureData, AtlasDimensions)> {
-        let mut text = AnyText::new(font_name, font_size, scale)?;
-        let atlas = text.generate_atlas()?;
-
-        let texture_data = Self::create_texture(
-            device,
-            atlas.dimensions.width as u32,
-            atlas.dimensions.height as u32,
-            &atlas.data,
-        )?;
-
-        Ok((texture_data, atlas.dimensions))
     }
 
     unsafe fn create_texture(
@@ -524,35 +512,58 @@ impl Gfx {
 
         self.context.RSSetViewports(Some(&[viewport]));
 
-        let uniform = Uniform {
-            projection_matrix: ortho(0.0, self.width as f32, 0.0, self.height as f32, -1.0, 1.0),
-        };
+        Ok(())
+    }
 
+    unsafe fn update_uniform(&mut self, uniform: Uniform) {
         let mut resource = D3D11_MAPPED_SUBRESOURCE::default();
-        self.context.Map(
-            &self.uniform_buffer,
-            0,
-            D3D11_MAP_WRITE_DISCARD,
-            0,
-            Some(&mut resource),
-        )?;
+
+        self.context
+            .Map(
+                &self.uniform_buffer,
+                0,
+                D3D11_MAP_WRITE_DISCARD,
+                0,
+                Some(&mut resource),
+            )
+            .unwrap();
 
         copy_nonoverlapping(&uniform, resource.pData as *mut Uniform, 1);
 
         self.context.Unmap(&self.uniform_buffer, 0);
-
-        Ok(())
     }
 
     pub fn update_font(&mut self, font_name: &str, font_size: f32, scale: f32) {
         self.scale = scale;
+        self.text = AnyText::new(font_name, font_size, scale).unwrap();
+    }
+
+    pub fn get_glyph_span(&mut self, c: char) -> GlyphSpan {
+        let (span, result) = self.text.get_glyph_span(c);
+        self.glyph_cache_result = self.glyph_cache_result.worse(result);
+
+        span
+    }
+
+    fn handle_glyph_cache_result(&mut self) {
+        let atlas = &self.text.atlas;
+
+        if self.glyph_cache_result == GlyphCacheResult::Hit {
+            return;
+        }
+
+        println!("updating");
+
+        // TODO: Don't recreate the texture after a miss, just update its contents.
 
         unsafe {
-            if let Ok(atlas_texture) =
-                Self::create_atlas_texture(&self.device, font_name, font_size, scale)
-            {
-                (self.texture_data, self.atlas_dimensions) = atlas_texture;
-            }
+            self.texture_data = Self::create_texture(
+                &self.device,
+                atlas.dimensions.width as u32,
+                atlas.dimensions.height as u32,
+                &atlas.data,
+            )
+            .ok();
         }
     }
 
@@ -579,6 +590,8 @@ impl Gfx {
     }
 
     pub fn begin(&mut self, bounds: Option<Rect>) {
+        self.glyph_cache_result = GlyphCacheResult::Hit;
+
         self.vertices.clear();
         self.indices.clear();
 
@@ -590,7 +603,19 @@ impl Gfx {
     }
 
     pub fn end(&mut self) {
+        self.handle_glyph_cache_result();
+
+        let uniform = Uniform {
+            projection_matrix: ortho(0.0, self.width as f32, 0.0, self.height as f32, -1.0, 1.0),
+            texture_size: [
+                self.text.atlas.dimensions.width as f32,
+                self.text.atlas.dimensions.height as f32,
+            ],
+        };
+
         unsafe {
+            self.update_uniform(uniform);
+
             if (self.vertex_buffer.is_none() && !self.vertices.is_empty())
                 || self.vertex_buffer_capacity < self.vertices.len()
             {
@@ -685,10 +710,12 @@ impl Gfx {
 
             self.context.IASetInputLayout(&self.input_layout);
 
-            self.context
-                .PSSetShaderResources(0, Some(&[Some(self.texture_data.texture_view.clone())]));
-            self.context
-                .PSSetSamplers(0, Some(&[Some(self.texture_data.sampler_state.clone())]));
+            if let Some(texture_data) = self.texture_data.as_ref() {
+                self.context
+                    .PSSetShaderResources(0, Some(&[Some(texture_data.texture_view.clone())]));
+                self.context
+                    .PSSetSamplers(0, Some(&[Some(texture_data.sampler_state.clone())]));
+            }
 
             self.context.IASetVertexBuffers(
                 0,
@@ -717,7 +744,7 @@ impl Gfx {
         }
     }
 
-    pub fn add_sprite(&mut self, src: Rect, dst: Rect, color: Color) {
+    pub fn add_sprite(&mut self, src: Rect, dst: Rect, color: Color, kind: SpriteKind) {
         let left = dst.x + self.bounds.x;
         let top = dst.y + self.bounds.y;
         let right = left + dst.width;
@@ -744,12 +771,15 @@ impl Gfx {
             vertices_len + 3,
         ]);
 
+        let kind = kind as usize as f32;
+
         self.vertices.extend_from_slice(&[
             Vertex {
                 x: left,
                 y: top,
                 u: uv_left,
                 v: uv_top,
+                kind,
                 r,
                 g,
                 b,
@@ -760,6 +790,7 @@ impl Gfx {
                 y: top,
                 u: uv_right,
                 v: uv_top,
+                kind,
                 r,
                 g,
                 b,
@@ -770,6 +801,7 @@ impl Gfx {
                 y: bottom,
                 u: uv_right,
                 v: uv_bottom,
+                kind,
                 r,
                 g,
                 b,
@@ -780,6 +812,7 @@ impl Gfx {
                 y: bottom,
                 u: uv_left,
                 v: uv_bottom,
+                kind,
                 r,
                 g,
                 b,
@@ -789,7 +822,7 @@ impl Gfx {
     }
 
     pub fn atlas_dimensions(&self) -> &AtlasDimensions {
-        &self.atlas_dimensions
+        &self.text.atlas.dimensions
     }
 
     pub fn scale(&self) -> f32 {

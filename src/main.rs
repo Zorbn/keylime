@@ -20,8 +20,9 @@ use platform::window::WindowRunner;
  * Unit testing for patterns and text editing functions.
  * Add support for per-platform keybinds (so that command and option work as expected).
  * Support unicode on Windows:
- *  - Pty,
- *  - Text/Gfx
+ *  - Do updates of texture rather than always recreating it,
+ *  - Support colored glyphs & fallback fonts,
+ *  - Pty sometimes has issues on startup where the prompt is pushed down (probably unrelated to unicode),
  */
 
 fn main() {

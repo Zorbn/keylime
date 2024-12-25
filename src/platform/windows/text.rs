@@ -1,4 +1,4 @@
-use std::mem::ManuallyDrop;
+use std::{mem::ManuallyDrop, ops::RangeInclusive};
 
 use windows::{
     core::{Error, Result, HSTRING},
@@ -77,17 +77,17 @@ impl Text {
         })
     }
 
-    pub unsafe fn generate_atlas(&mut self) -> Result<Atlas> {
-        const ATLAS_SIZE: usize = (b'~' - b' ') as usize;
+    pub unsafe fn generate_atlas(&mut self, characters: RangeInclusive<char>) -> Result<Atlas> {
+        let atlas_size = *characters.end() as usize - *characters.start() as usize + 1;
 
         let glyph_step_x = self.glyph_width.ceil() + 1.0;
-        let glyph_offsets = [DWRITE_GLYPH_OFFSET::default(); ATLAS_SIZE];
+        let glyph_offsets = vec![DWRITE_GLYPH_OFFSET::default(); atlas_size];
 
-        let mut glyph_indices = [0u16; ATLAS_SIZE];
-        let mut glyph_advances = [0.0; ATLAS_SIZE];
+        let mut glyph_indices = vec![0u16; atlas_size];
+        let mut glyph_advances = vec![0.0; atlas_size];
 
-        for i in 0..ATLAS_SIZE {
-            let code_points = [b' ' as u32 + i as u32 + 1];
+        for (i, c) in characters.enumerate() {
+            let code_points = [c as u32];
 
             self.font_face.GetGlyphIndices(
                 code_points.as_ptr(),
@@ -129,24 +129,32 @@ impl Text {
         let desired_bounds =
             glyph_run_analysis.GetAlphaTextureBounds(DWRITE_TEXTURE_CLEARTYPE_3x1)?;
 
-        let atlas_width = (desired_bounds.right - desired_bounds.left) as usize;
+        let unshifted_atlas_width = (desired_bounds.right - desired_bounds.left) as usize;
+        let atlas_width = (desired_bounds.right + desired_bounds.left.max(0)) as usize;
         let atlas_height = (desired_bounds.bottom - desired_bounds.top) as usize;
 
+        let mut unshifted_result = vec![0u8; unshifted_atlas_width * atlas_height * 3];
         let mut result = vec![0u8; atlas_width * atlas_height * 4];
 
         glyph_run_analysis.CreateAlphaTexture(
             DWRITE_TEXTURE_CLEARTYPE_3x1,
             &desired_bounds,
-            &mut result,
+            &mut unshifted_result,
         )?;
 
-        for i in (0..(atlas_width * atlas_height)).rev() {
-            let source_index = i * 3;
-            let destination_index = i * 4;
+        let src_shift_width = desired_bounds.left.min(0).abs() as usize;
+        let dst_shift_width = desired_bounds.left.max(0) as usize;
 
-            result[destination_index] = result[source_index];
-            result[destination_index + 1] = result[source_index + 1];
-            result[destination_index + 2] = result[source_index + 2];
+        for y in 0..atlas_height {
+            for x in 0..atlas_width.min(unshifted_atlas_width) {
+                let src_i = (src_shift_width + x + y * unshifted_atlas_width) * 3;
+                let dst_i = (dst_shift_width + x + y * atlas_width) * 4;
+
+                result[dst_i] = unshifted_result[src_i];
+                result[dst_i + 1] = unshifted_result[src_i + 1];
+                result[dst_i + 2] = unshifted_result[src_i + 2];
+                result[dst_i + 3] = 0;
+            }
         }
 
         Ok(Atlas {
@@ -154,12 +162,12 @@ impl Text {
             dimensions: AtlasDimensions {
                 width: atlas_width,
                 height: atlas_height,
-                glyph_offset_x: desired_bounds.left as f32,
-                glyph_step_x,
-                glyph_width: self.glyph_width.floor(),
-                glyph_height: (desired_bounds.bottom - desired_bounds.top) as f32,
-                line_height: self.line_height.floor(),
+                glyph_step_x: glyph_step_x as usize,
+                glyph_width: self.glyph_width.floor() as usize,
+                glyph_height: (desired_bounds.bottom - desired_bounds.top) as usize,
+                line_height: self.line_height.floor() as usize,
             },
+            has_color_glyphs: false,
         })
     }
 }
