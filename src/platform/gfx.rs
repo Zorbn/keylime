@@ -15,6 +15,12 @@ use super::{
     text::{AtlasDimensions, GlyphSpan},
 };
 
+pub(super) enum SpriteKind {
+    Glyph = 0,
+    ColorGlyph = 1,
+    Rect = 2,
+}
+
 const TAB_WIDTH: usize = 4;
 
 pub struct Gfx {
@@ -103,8 +109,14 @@ impl Gfx {
 
             let span = self.get_glyph_span(c);
 
+            let kind = if span.has_color_glyphs {
+                SpriteKind::ColorGlyph
+            } else {
+                SpriteKind::Glyph
+            };
+
             let source_x = span.x as f32;
-            let source_y = if span.has_color_glyphs { -1000.0 } else { 0.0 };
+            let source_y = 0.0;
             let source_width = span.width as f32;
             let source_height = span.height as f32;
 
@@ -113,7 +125,7 @@ impl Gfx {
             let destination_width = span.width as f32;
             let destination_height = span.height as f32;
 
-            self.inner.add_sprite(
+            self.add_sprite(
                 Rect::new(source_x, source_y, source_width, source_height),
                 Rect::new(
                     destination_x,
@@ -122,6 +134,7 @@ impl Gfx {
                     destination_height,
                 ),
                 color,
+                kind,
             );
 
             i += Self::get_char_width(c);
@@ -167,8 +180,16 @@ impl Gfx {
     }
 
     pub fn add_rect(&mut self, rect: Rect, color: Color) {
-        self.inner
-            .add_sprite(Rect::new(-1.0, 0.0, -1.0, -1.0), rect, color);
+        self.add_sprite(
+            Rect::new(-1.0, 0.0, -1.0, -1.0),
+            rect,
+            color,
+            SpriteKind::Rect,
+        );
+    }
+
+    fn add_sprite(&mut self, src: Rect, dst: Rect, color: Color, kind: SpriteKind) {
+        self.inner.add_sprite(src, dst, color, kind);
     }
 
     pub fn glyph_width(&self) -> f32 {

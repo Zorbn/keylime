@@ -17,6 +17,7 @@ use crate::{
     geometry::{matrix::ortho, rect::Rect},
     platform::{
         aliases::{AnyText, AnyWindow},
+        gfx::SpriteKind,
         text::{AtlasDimensions, GlyphCacheResult, GlyphSpan},
     },
     ui::color::Color,
@@ -33,15 +34,15 @@ struct SceneProperties {
 };
 
 struct VertexInput {
-    metal::float4 position;
-    metal::float4 color;
-    metal::float4 uv;
+    float2 position;
+    float4 color;
+    float3 uv;
 };
 
 struct VertexOutput {
-    metal::float4 position [[position]];
-    metal::float4 color;
-    metal::float2 uv;
+    float4 position [[position]];
+    float4 color;
+    float3 uv;
     float2 texture_size;
 };
 
@@ -52,24 +53,28 @@ vertex VertexOutput vertex_main(
 ) {
     VertexOutput output;
     VertexInput input = vertices[vertex_idx];
-    output.position = properties.projection * metal::float4(input.position.xyz, 1);
+    output.position = properties.projection * float4(input.position.xy, 0, 1);
     output.color = input.color;
-    output.uv = input.uv.xy;
+    output.uv = input.uv;
     output.texture_size = properties.texture_size;
     return output;
 }
 
-fragment metal::float4 fragment_main(
+fragment float4 fragment_main(
     VertexOutput input [[stage_in]],
     metal::texture2d<float> color_texture [[texture(0)]]
 ) {
     constexpr metal::sampler texture_sampler(metal::mag_filter::nearest, metal::min_filter::nearest);
 
-    return input.uv.x < 0 ?
-        input.color :
-            input.uv.y < 0 ?
-                color_texture.sample(texture_sampler, (input.uv + float2(0.0, 1000.0)) / input.texture_size) :
-                float4(input.color.rgb, color_texture.sample(texture_sampler, input.uv / input.texture_size).a);
+    float4 color_sample = color_texture.sample(texture_sampler, input.uv.xy / input.texture_size);
+
+    float4 glyph_color = float4(input.color.rgb, color_sample.a);
+    float4 color_glyph_color = color_sample;
+    float4 rect_color = input.color;
+
+    float4 colors[] = {glyph_color, color_glyph_color, rect_color};
+
+    return colors[(int)input.uv.z];
 }
 ";
 
@@ -81,11 +86,11 @@ struct SceneProperties {
 }
 
 #[derive(Copy, Clone)]
-#[repr(C)]
+#[repr(C, align(16))]
 struct VertexInput {
     position: [f32; 4],
     color: [f32; 4],
-    uv: [f32; 4],
+    uv: [f32; 3],
 }
 
 pub const PIXEL_FORMAT: MTLPixelFormat = MTLPixelFormat::BGRA8Unorm;
@@ -504,7 +509,7 @@ impl Gfx {
         Some(buffer)
     }
 
-    pub fn add_sprite(&mut self, src: Rect, dst: Rect, color: Color) {
+    pub fn add_sprite(&mut self, src: Rect, dst: Rect, color: Color, kind: SpriteKind) {
         let vertex_count = self.vertices.len() as u32;
 
         self.indices.extend_from_slice(&[
@@ -533,26 +538,28 @@ impl Gfx {
             color.a as f32 / 255.0,
         ];
 
+        let kind = kind as usize as f32;
+
         self.vertices.extend_from_slice(&[
             VertexInput {
                 position: [left, top, 0.0, 0.0],
                 color,
-                uv: [uv_left, uv_top, 0.0, 0.0],
+                uv: [uv_left, uv_top, kind],
             },
             VertexInput {
                 position: [right, top, 0.0, 0.0],
                 color,
-                uv: [uv_right, uv_top, 0.0, 0.0],
+                uv: [uv_right, uv_top, kind],
             },
             VertexInput {
                 position: [right, bottom, 0.0, 0.0],
                 color,
-                uv: [uv_right, uv_bottom, 0.0, 0.0],
+                uv: [uv_right, uv_bottom, kind],
             },
             VertexInput {
                 position: [left, bottom, 0.0, 0.0],
                 color,
-                uv: [uv_left, uv_bottom, 0.0, 0.0],
+                uv: [uv_left, uv_bottom, kind],
             },
         ]);
     }
