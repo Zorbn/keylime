@@ -71,6 +71,8 @@ impl WindowRunner {
         });
 
         unsafe {
+            CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE).ok()?;
+
             let window_class = WNDCLASSEXW {
                 cbSize: size_of::<WNDCLASSEXW>() as u32,
                 lpfnWndProc: Some(Self::window_proc),
@@ -109,8 +111,6 @@ impl WindowRunner {
             AddClipboardFormatListener(window_runner.window.inner.hwnd())?;
 
             let _ = ShowWindow(window_runner.window.inner.hwnd(), SW_SHOWDEFAULT);
-
-            CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE).ok()?;
         }
 
         Ok(window_runner)
