@@ -95,8 +95,7 @@ const BACKUP_FONT_NAME: &str = "Consolas";
 #[cfg(target_os = "macos")]
 const BACKUP_FONT_NAME: &str = "Menlo";
 
-// const DEFAULT_GLYPHS: RangeInclusive<char> = '!'..='~';
-const DEFAULT_GLYPHS: RangeInclusive<char> = '!'..='!';
+const DEFAULT_GLYPHS: RangeInclusive<char> = '!'..='~';
 
 impl Text {
     pub fn new(font_name: &str, font_size: f32, scale: f32) -> Result<Self> {
@@ -117,17 +116,9 @@ impl Text {
         text.atlas = text.generate_atlas(DEFAULT_GLYPHS)?;
         text.atlas_used_width = text.atlas.dimensions.width;
 
-        // for c in DEFAULT_GLYPHS {
-        //     text.cache.insert(c, GlyphSpan::default_for(&text.atlas, c));
-        // }
-        let span = GlyphSpan {
-            x: 0,
-            width: text.atlas.dimensions.width,
-            height: text.atlas.dimensions.height,
-            has_color_glyphs: text.atlas.has_color_glyphs,
-        };
-
-        text.cache.insert(*DEFAULT_GLYPHS.start(), span);
+        for c in DEFAULT_GLYPHS {
+            text.cache.insert(c, GlyphSpan::default_for(&text.atlas, c));
+        }
 
         Ok(text)
     }
@@ -141,9 +132,9 @@ impl Text {
 
         self.needs_first_resize = false;
 
-        // if DEFAULT_GLYPHS.contains(&c) {
-        //     return (GlyphSpan::default_for(&self.atlas, c), result);
-        // }
+        if DEFAULT_GLYPHS.contains(&c) {
+            return (GlyphSpan::default_for(&self.atlas, c), result);
+        }
 
         if let Some(span) = self.cache.get(&c) {
             return (*span, result);

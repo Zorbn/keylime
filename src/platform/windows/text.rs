@@ -162,7 +162,7 @@ impl Text {
             }
         }
 
-        let glyph_step_x = self.glyph_width.ceil() + 1.0;
+        let glyph_step_x = self.glyph_width.ceil() + ATLAS_PADDING;
 
         let text_layout = self.dwrite_factory.CreateTextLayout(
             &wide_characters,
@@ -182,10 +182,7 @@ impl Text {
 
         let text_layout = text_layout.cast::<IDWriteTextLayout1>()?;
         text_layout.SetTypography(&self.typography, range)?;
-        // text_layout
-        // .SetCharacterSpacing(0.0, glyph_step_x - self.glyph_width, 0.0, range)
-        // .unwrap();
-        text_layout.SetCharacterSpacing(0.0, ATLAS_PADDING, 0.0, range)?;
+        text_layout.SetCharacterSpacing(0.0, glyph_step_x - self.glyph_width, 0.0, range)?;
 
         let mut text_metrics = DWRITE_TEXT_METRICS::default();
         text_layout.GetMetrics(&mut text_metrics)?;
@@ -259,6 +256,14 @@ impl Text {
             raw_data[i] = r;
             raw_data[i + 1] = g;
             raw_data[i + 2] = b;
+        }
+
+        if !has_color_glyphs {
+            // Prevent texture bleeding if a color glyph is added to the atlas after these ones.
+            // Color glyphs care about alpha, even if these glyphs don't.
+            for i in (0..raw_data.len()).step_by(4) {
+                raw_data[i + 3] = 0;
+            }
         }
 
         Ok(Atlas {
