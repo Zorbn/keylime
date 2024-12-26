@@ -94,4 +94,8 @@ impl Window {
     pub fn was_copy_implicit(&self) -> bool {
         self.inner.was_copy_implicit()
     }
+
+    pub(super) fn is_char_copy_pastable(c: char) -> bool {
+        c == '\n' || Gfx::get_char_width(c) > 0
+    }
 }

@@ -430,7 +430,7 @@ impl Window {
         let wide_text_buffer = self.wide_text_buffer.get_mut();
 
         for c in text {
-            if *c == '\0' {
+            if !AnyWindow::is_char_copy_pastable(*c) {
                 continue;
             }
 
@@ -501,6 +501,10 @@ impl Window {
 
         for c in char::decode_utf16(wide_text_buffer.iter().copied()) {
             let c = c.unwrap_or('?');
+
+            if !AnyWindow::is_char_copy_pastable(c) {
+                continue;
+            }
 
             text_buffer.push(c);
         }

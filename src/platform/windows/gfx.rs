@@ -68,7 +68,8 @@ PSOutput PsMain(VSOutput input) : SV_Target {
 
     PSOutput output;
     output.color = input.uv.z == 1.0 ? textureSample : float4(normalizedColor.rgb, 1.0);
-    output.alphaMask = input.uv.z > 0.0 ? normalizedColor.aaaa : textureSample.rgbr;
+    output.alphaMask = input.uv.z == 0.0 ? textureSample.rgbr : normalizedColor.aaaa;
+    output.alphaMask = input.uv.z == 1.0 ? textureSample.aaaa : output.alphaMask;
     return output;
 }
 "#;

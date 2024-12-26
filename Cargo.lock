@@ -51,6 +51,7 @@ dependencies = [
  "serde",
  "unicode-width",
  "windows",
+ "windows-core",
 ]
 
 [[package]]
