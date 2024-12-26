@@ -23,6 +23,7 @@ use platform::window::WindowRunner;
  *  - Do updates of texture rather than always recreating it,
  *  - Support colored glyphs & fallback fonts,
  *  - Pty sometimes has issues on startup where the prompt is pushed down (probably unrelated to unicode),
+ * Fix case where cursor cannot be kept out of the scroll border because there aren't enough visible lines (eg. set font size to 24.0).
  */
 
 fn main() {

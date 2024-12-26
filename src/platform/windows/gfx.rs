@@ -66,10 +66,15 @@ PSOutput PsMain(VSOutput input) : SV_Target {
     float4 normalizedColor = input.color / 255.0;
     float4 textureSample = _texture.Sample(_sampler, input.uv.xy);
 
+    float4 alphaMasks[] = {
+        textureSample.rgbr,
+        textureSample.aaaa,
+        normalizedColor.aaaa,
+    };
+
     PSOutput output;
-    output.color = input.uv.z == 1.0 ? textureSample : float4(normalizedColor.rgb, 1.0);
-    output.alphaMask = input.uv.z == 0.0 ? textureSample.rgbr : normalizedColor.aaaa;
-    output.alphaMask = input.uv.z == 1.0 ? textureSample.aaaa : output.alphaMask;
+    output.color = input.uv.z == 1.0 ? float4(textureSample.rgb / textureSample.a, 1.0) : float4(normalizedColor.rgb, 1.0);
+    output.alphaMask = alphaMasks[(int)input.uv.z];
     return output;
 }
 "#;

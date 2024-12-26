@@ -24,6 +24,7 @@ use Common::{D2D1_ALPHA_MODE_IGNORE, D2D1_ALPHA_MODE_PREMULTIPLIED};
 use crate::platform::text::{Atlas, AtlasDimensions};
 
 const LOCALE: PCWSTR = w!("en-us");
+const ATLAS_PADDING: f32 = 2.0;
 
 pub struct Text {
     dwrite_factory: IDWriteFactory4,
@@ -35,6 +36,8 @@ pub struct Text {
     text_format: IDWriteTextFormat,
     text_rendering_params: IDWriteRenderingParams3,
     typography: IDWriteTypography,
+    system_font_fallback: IDWriteFontFallback,
+    system_font_collection: IDWriteFontCollection1,
 
     glyph_width: f32,
     line_height: f32,
@@ -122,6 +125,11 @@ impl Text {
 
         let typography = dwrite_factory.CreateTypography()?;
 
+        let system_font_fallback = dwrite_factory.GetSystemFontFallback()?;
+        let mut system_font_collection = None;
+        dwrite_factory.GetSystemFontCollection(FALSE, &mut system_font_collection, FALSE)?;
+        let system_font_collection = system_font_collection.unwrap();
+
         Ok(Self {
             dwrite_factory,
             d2d_factory,
@@ -132,6 +140,8 @@ impl Text {
             text_format,
             text_rendering_params,
             typography,
+            system_font_fallback,
+            system_font_collection,
 
             glyph_width,
             line_height,
@@ -175,6 +185,7 @@ impl Text {
         // text_layout
         // .SetCharacterSpacing(0.0, glyph_step_x - self.glyph_width, 0.0, range)
         // .unwrap();
+        text_layout.SetCharacterSpacing(0.0, ATLAS_PADDING, 0.0, range)?;
 
         let mut text_metrics = DWRITE_TEXT_METRICS::default();
         text_layout.GetMetrics(&mut text_metrics)?;
@@ -202,7 +213,7 @@ impl Text {
                 },
                 dpiX: 0.0,
                 dpiY: 0.0,
-                usage: D2D1_RENDER_TARGET_USAGE_GDI_COMPATIBLE,
+                usage: D2D1_RENDER_TARGET_USAGE_NONE,
                 minLevel: D2D1_FEATURE_LEVEL_DEFAULT,
             },
         )?;
@@ -271,21 +282,15 @@ impl Text {
 
         let analysis_source: IDWriteTextAnalysisSource = analysis_source.into();
 
-        let font_fallback = self.dwrite_factory.GetSystemFontFallback()?;
-        let mut font_collection = None;
-        self.dwrite_factory
-            .GetSystemFontCollection(FALSE, &mut font_collection, FALSE)?;
-        let font_collection = font_collection.unwrap();
-
         let mut mapped_length = 0;
         let mut mapped_font = None;
         let mut scale = 0.0;
 
-        font_fallback.MapCharacters(
+        self.system_font_fallback.MapCharacters(
             &analysis_source,
             0,
             wide_characters.len() as u32,
-            &font_collection,
+            &self.system_font_collection,
             None,
             DWRITE_FONT_WEIGHT_REGULAR,
             DWRITE_FONT_STYLE_NORMAL,
@@ -299,9 +304,8 @@ impl Text {
         let mapped_font_face = mapped_font.CreateFontFace()?;
 
         let mut glyph_indices = [0u16];
-        let code_points = [c as u32];
 
-        mapped_font_face.GetGlyphIndices(code_points.as_ptr(), 1, glyph_indices.as_mut_ptr())?;
+        mapped_font_face.GetGlyphIndices([c as u32].as_ptr(), 1, glyph_indices.as_mut_ptr())?;
 
         let glyph_run = DWRITE_GLYPH_RUN {
             fontFace: ManuallyDrop::new(Some(mapped_font_face.clone())),
