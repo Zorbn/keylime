@@ -430,7 +430,7 @@ impl Gfx {
                     Count: 1,
                     ..Default::default()
                 },
-                Usage: D3D11_USAGE_IMMUTABLE,
+                Usage: D3D11_USAGE_DEFAULT,
                 BindFlags: D3D11_BIND_SHADER_RESOURCE.0 as u32,
                 ..Default::default()
             };
@@ -554,22 +554,30 @@ impl Gfx {
     fn handle_glyph_cache_result(&mut self) {
         let atlas = &self.text.atlas;
 
-        if self.glyph_cache_result == GlyphCacheResult::Hit {
-            return;
-        }
+        match self.glyph_cache_result {
+            GlyphCacheResult::Hit => return,
+            GlyphCacheResult::Miss => unsafe {
+                let texture_data = self.texture_data.as_ref().unwrap();
 
-        println!("updating");
-
-        // TODO: Don't recreate the texture after a miss, just update its contents.
-
-        unsafe {
-            self.texture_data = Self::create_texture(
-                &self.device,
-                atlas.dimensions.width as u32,
-                atlas.dimensions.height as u32,
-                &atlas.data,
-            )
-            .ok();
+                self.context.UpdateSubresource(
+                    &texture_data.texture,
+                    0,
+                    None,
+                    self.text.atlas.data.as_ptr() as _,
+                    self.text.atlas.dimensions.width as u32 * 4,
+                    (self.text.atlas.dimensions.width * self.text.atlas.dimensions.height) as u32
+                        * 4,
+                );
+            },
+            GlyphCacheResult::Resize => unsafe {
+                self.texture_data = Self::create_texture(
+                    &self.device,
+                    atlas.dimensions.width as u32,
+                    atlas.dimensions.height as u32,
+                    &atlas.data,
+                )
+                .ok();
+            },
         }
     }
 
