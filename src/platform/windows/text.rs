@@ -6,24 +6,27 @@ use windows::{
         Foundation::{E_FAIL, FALSE},
         Graphics::{
             Direct2D::{
-                Common::{D2D1_ALPHA_MODE_UNKNOWN, D2D1_COLOR_F, D2D1_PIXEL_FORMAT, D2D_POINT_2F},
+                Common::{D2D1_COLOR_F, D2D1_PIXEL_FORMAT, D2D_POINT_2F},
                 *,
             },
             DirectWrite::*,
             Dxgi::Common::DXGI_FORMAT_UNKNOWN,
             Imaging::{
-                CLSID_WICImagingFactory, GUID_WICPixelFormat32bppPBGRA, IWICImagingFactory,
+                CLSID_WICImagingFactory, GUID_WICPixelFormat32bppBGR, IWICImagingFactory,
                 WICBitmapCacheOnDemand,
             },
         },
         System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
     },
 };
+use Common::D2D1_ALPHA_MODE_IGNORE;
 
 use crate::platform::text::{Atlas, AtlasDimensions};
 
 // TODO: Replace unwraps with ?.
 // TODO: Figure out why ClearType looks wrong.
+//       - Use a transparent surface only when rendering color glyphs: https://stackoverflow.com/questions/26308800/how-do-you-use-direct2d-to-render-cleartype-text-on-a-transparent-background.
+//         Otherwise, use cleartype with an rgb surface and convert it to rgba afterwards.
 // TODO: Support color glyphs: https://learn.microsoft.com/en-us/windows/win32/directwrite/color-fonts.
 
 pub struct Text {
@@ -32,6 +35,7 @@ pub struct Text {
     imaging_factory: IWICImagingFactory,
 
     text_format: IDWriteTextFormat,
+    text_rendering_params: IDWriteRenderingParams1,
     typography: IDWriteTypography,
 
     glyph_width: f32,
@@ -56,6 +60,7 @@ impl Text {
             }),
         )
         .unwrap();
+
         let dwrite_factory: IDWriteFactory1 =
             DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED).unwrap();
 
@@ -119,6 +124,15 @@ impl Text {
         let imaging_factory: IWICImagingFactory =
             CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER).unwrap();
 
+        let text_rendering_params = dwrite_factory.CreateCustomRenderingParams(
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            DWRITE_PIXEL_GEOMETRY_RGB,
+            DWRITE_RENDERING_MODE_DEFAULT,
+        )?;
+
         let typography = dwrite_factory.CreateTypography()?;
 
         Ok(Self {
@@ -127,6 +141,7 @@ impl Text {
             imaging_factory,
 
             text_format,
+            text_rendering_params,
             typography,
 
             glyph_width,
@@ -161,9 +176,9 @@ impl Text {
 
         let text_layout = text_layout.cast::<IDWriteTextLayout1>().unwrap();
         text_layout.SetTypography(&self.typography, range).unwrap();
-        text_layout
-            .SetCharacterSpacing(0.0, 0.0, glyph_step_x, range)
-            .unwrap();
+        // text_layout
+        // .SetCharacterSpacing(0.0, glyph_step_x - self.glyph_width, 0.0, range)
+        // .unwrap();
 
         let mut text_metrics = DWRITE_TEXT_METRICS::default();
         text_layout.GetMetrics(&mut text_metrics).unwrap();
@@ -176,7 +191,8 @@ impl Text {
             .CreateBitmap(
                 width,
                 height,
-                &GUID_WICPixelFormat32bppPBGRA,
+                // &GUID_WICPixelFormat32bppPBGRA,
+                &GUID_WICPixelFormat32bppBGR,
                 WICBitmapCacheOnDemand,
             )
             .unwrap();
@@ -189,7 +205,7 @@ impl Text {
                     r#type: D2D1_RENDER_TARGET_TYPE_DEFAULT,
                     pixelFormat: D2D1_PIXEL_FORMAT {
                         format: DXGI_FORMAT_UNKNOWN,
-                        alphaMode: D2D1_ALPHA_MODE_UNKNOWN,
+                        alphaMode: D2D1_ALPHA_MODE_IGNORE,
                     },
                     dpiX: 0.0,
                     dpiY: 0.0,
@@ -199,7 +215,9 @@ impl Text {
             )
             .unwrap();
 
-        render_target.SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
+        render_target.SetTextRenderingParams(&self.text_rendering_params);
+
+        // render_target.SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
 
         let brush = render_target
             .CreateSolidColorBrush(
@@ -243,6 +261,16 @@ impl Text {
             raw_data[i + 1] = g;
             raw_data[i + 2] = b;
         }
+
+        //         for i in (0..(width * height)).rev() {
+        //             let source_index = i as usize * 3;
+        //             let destination_index = i as usize * 4;
+        //
+        //             raw_data[destination_index] = raw_data[source_index + 2];
+        //             raw_data[destination_index + 1] = raw_data[source_index + 1];
+        //             raw_data[destination_index + 2] = raw_data[source_index];
+        //             raw_data[destination_index + 3] = 0;
+        //         }
 
         Ok(Atlas {
             data: raw_data,
