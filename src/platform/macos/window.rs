@@ -15,7 +15,7 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::{MouseClickKind, Mousebind},
     },
-    platform::aliases::{AnyFileWatcher, AnyGfx, AnyPty},
+    platform::aliases::{AnyFileWatcher, AnyGfx, AnyPty, AnyWindow},
     temp_buffer::TempBuffer,
 };
 

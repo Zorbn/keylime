@@ -102,12 +102,10 @@ impl Gfx {
         for c in text.into_iter() {
             let c = *c.borrow();
 
-            if c.is_whitespace() {
+            if c.is_whitespace() || c.is_control() {
                 i += Self::get_char_width(c);
                 continue;
             }
-
-            let c = if c.is_control() { '�' } else { c };
 
             let span = self.get_glyph_span(c);
 
