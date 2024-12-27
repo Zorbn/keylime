@@ -555,7 +555,7 @@ impl TerminalEmulator {
 
                 loop {
                     if output.is_empty() {
-                        break;
+                        return None;
                     }
 
                     if let Some(remaining) = Self::consume_string_terminator(output) {

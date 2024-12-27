@@ -107,6 +107,8 @@ impl Gfx {
                 continue;
             }
 
+            let c = if c.is_control() { '�' } else { c };
+
             let span = self.get_glyph_span(c);
 
             let kind = if span.has_color_glyphs {

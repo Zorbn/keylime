@@ -66,15 +66,12 @@ pub struct TerminalEmulator {
 
 impl TerminalEmulator {
     pub fn new() -> Self {
-        let grid_width = MIN_GRID_WIDTH;
-        let grid_height = MIN_GRID_HEIGHT;
-
-        let mut emulator = Self {
-            pty: Pty::new(grid_width, grid_height, SHELLS).ok(),
+        Self {
+            pty: None,
 
             grid_cursor: Position::zero(),
-            grid_width,
-            grid_height,
+            grid_width: 0,
+            grid_height: 0,
             grid_line_colors: Vec::new(),
 
             maintain_cursor_positions: false,
@@ -90,13 +87,9 @@ impl TerminalEmulator {
             are_colors_swapped: false,
             are_colors_bright: false,
             scroll_top: 0,
-            scroll_bottom: grid_height - 1,
+            scroll_bottom: 0,
             is_in_alternate_buffer: false,
-        };
-
-        emulator.resize_grid_line_colors();
-
-        emulator
+        }
     }
 
     pub fn update_input(
@@ -245,11 +238,11 @@ impl TerminalEmulator {
         time: f32,
         dt: f32,
     ) {
+        self.resize_grid(ui, tab);
+
         let Some(mut pty) = self.pty.take() else {
             return;
         };
-
-        self.resize_grid(ui, tab, &mut pty);
 
         let cursor_buffer = cursor_buffer.get_mut();
 
@@ -287,7 +280,27 @@ impl TerminalEmulator {
         }
     }
 
-    fn resize_grid(&mut self, ui: &mut UiHandle, tab: &Tab, pty: &mut Pty) {
+    fn resize_grid(&mut self, ui: &mut UiHandle, tab: &Tab) {
+        let (grid_width, grid_height) = Self::get_grid_size(ui, tab);
+
+        if grid_width != self.grid_width || grid_height != self.grid_height {
+            if let Some(pty) = self.pty.as_mut() {
+                pty.resize(grid_width, grid_height);
+            } else {
+                self.pty = Pty::new(grid_width, grid_height, SHELLS).ok();
+            }
+
+            self.grid_width = grid_width;
+            self.grid_height = grid_height;
+
+            self.scroll_top = 0;
+            self.scroll_bottom = grid_height - 1;
+
+            self.resize_grid_line_colors();
+        }
+    }
+
+    fn get_grid_size(ui: &mut UiHandle, tab: &Tab) -> (isize, isize) {
         let Rect {
             width: doc_width,
             height: doc_height,
@@ -300,17 +313,7 @@ impl TerminalEmulator {
         let grid_height = (doc_height / ui.gfx().line_height()).floor() as isize;
         let grid_height = grid_height.max(MIN_GRID_HEIGHT);
 
-        if grid_width != self.grid_width || grid_height != self.grid_height {
-            pty.resize(grid_width, grid_height);
-
-            self.grid_width = grid_width;
-            self.grid_height = grid_height;
-
-            self.scroll_top = 0;
-            self.scroll_bottom = grid_height - 1;
-
-            self.resize_grid_line_colors();
-        }
+        (grid_width, grid_height)
     }
 
     fn resize_grid_line_colors(&mut self) {
