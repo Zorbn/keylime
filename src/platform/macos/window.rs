@@ -21,6 +21,9 @@ use crate::{
 
 use super::{delegate::Delegate, file_watcher::FileWatcher, result::Result};
 
+const DEFAULT_WIDTH: f64 = 768.0;
+const DEFAULT_HEIGHT: f64 = 768.0;
+
 pub struct WindowRunner {
     app: Rc<RefCell<App>>,
 }
@@ -108,8 +111,11 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(mtm: MainThreadMarker, width: f64, height: f64) -> Self {
-        let content_rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(width, height));
+    pub fn new(mtm: MainThreadMarker) -> Self {
+        let content_rect = NSRect::new(
+            NSPoint::new(0.0, 0.0),
+            NSSize::new(DEFAULT_WIDTH, DEFAULT_HEIGHT),
+        );
 
         let ns_window = {
             let style = NSWindowStyleMask::Closable
@@ -132,8 +138,8 @@ impl Window {
 
         Self {
             ns_window,
-            width,
-            height,
+            width: DEFAULT_WIDTH,
+            height: DEFAULT_HEIGHT,
 
             was_shown: false,
             is_focused: true,

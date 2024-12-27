@@ -19,8 +19,6 @@ use platform::window::WindowRunner;
  * Directory-wide search.
  * Unit testing for patterns and text editing functions.
  * Add support for per-platform keybinds (so that command and option work as expected).
- * Support unicode on Windows:
- *  - Pty sometimes has issues on startup where the prompt is pushed down (probably unrelated to unicode),
  * Fix case where cursor cannot be kept out of the scroll border because there aren't enough visible lines (eg. set font size to 24.0).
  */
 

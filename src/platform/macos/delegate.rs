@@ -139,7 +139,7 @@ define_class!(
 impl Delegate {
     pub fn new(app: Rc<RefCell<App>>, mtm: MainThreadMarker) -> Retained<Self> {
         let window = AnyWindow {
-            inner: Window::new(mtm, 768.0, 768.0),
+            inner: Window::new(mtm),
         };
 
         let this = mtm.alloc();

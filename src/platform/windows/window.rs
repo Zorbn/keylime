@@ -1,6 +1,6 @@
 use std::{
     collections::HashSet,
-    mem::transmute,
+    mem::{transmute, ManuallyDrop},
     path::Path,
     ptr::{copy_nonoverlapping, null_mut},
 };
@@ -53,10 +53,12 @@ use crate::{
 use super::{deferred_call::defer, file_watcher::FileWatcher, gfx::Gfx};
 
 const DEFAULT_DPI: f32 = 96.0;
+const DEFAULT_WIDTH: i32 = 640;
+const DEFAULT_HEIGHT: i32 = 480;
 
 pub struct WindowRunner {
-    window: AnyWindow,
-    app: App,
+    window: ManuallyDrop<AnyWindow>,
+    app: ManuallyDrop<App>,
 }
 
 impl WindowRunner {
@@ -64,10 +66,10 @@ impl WindowRunner {
         let use_dark_mode = BOOL::from(app.is_dark());
 
         let mut window_runner = Box::new(WindowRunner {
-            window: AnyWindow {
+            window: ManuallyDrop::new(AnyWindow {
                 inner: Window::new()?,
-            },
-            app,
+            }),
+            app: ManuallyDrop::new(app),
         });
 
         unsafe {
@@ -193,8 +195,15 @@ impl WindowRunner {
     }
 }
 
-const DEFAULT_WIDTH: i32 = 640;
-const DEFAULT_HEIGHT: i32 = 480;
+impl Drop for WindowRunner {
+    fn drop(&mut self) {
+        unsafe {
+            ManuallyDrop::drop(&mut self.window);
+            ManuallyDrop::drop(&mut self.app);
+            CoUninitialize();
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 struct RecordedMouseClick {
@@ -894,7 +903,6 @@ impl Drop for Window {
     fn drop(&mut self) {
         unsafe {
             let _ = DestroyWindow(self.hwnd);
-            // CoUninitialize();
         }
     }
 }
