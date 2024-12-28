@@ -4,6 +4,7 @@ pub const FIVE: u32 = '5' as u32;
 pub const FOUR: u32 = '4' as u32;
 pub const GREATER_THAN: u32 = '>' as u32;
 pub const LEFT_BRACKET: u32 = '[' as u32;
+pub const LEFT_PAREN: u32 = '(' as u32;
 pub const LOWERCASE_C: u32 = 'c' as u32;
 pub const LOWERCASE_D: u32 = 'd' as u32;
 pub const LOWERCASE_H: u32 = 'h' as u32;

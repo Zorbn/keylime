@@ -37,6 +37,15 @@ impl TerminalEmulator {
                         Some(&RIGHT_BRACKET) => {
                             self.handle_escape_sequences_osc(input, &output[2..], theme)
                         }
+                        Some(&LEFT_PAREN) => {
+                            match output.get(2) {
+                                Some(&UPPERCASE_B) => {
+                                    // Use ASCII character set (other character sets are unsupported).
+                                    Some(&output[3..])
+                                }
+                                _ => None,
+                            }
+                        }
                         Some(&EQUAL) => {
                             // Enter alternative keypad mode, ignored.
                             Some(&output[2..])
@@ -149,7 +158,7 @@ impl TerminalEmulator {
                             // Otherwise, ignored.
                             #[cfg(feature = "terminal_emulator_debug")]
                             Some(parameter) => {
-                                println!("Unhandled mode disabled: {}", parameter)
+                                println!("Unhandled private mode disabled: {}", parameter)
                             }
                             _ => {}
                         }
@@ -166,7 +175,7 @@ impl TerminalEmulator {
                             // Otherwise, ignored.
                             #[cfg(feature = "terminal_emulator_debug")]
                             Some(parameter) => {
-                                println!("Unhandled mode enabled: {}", parameter)
+                                println!("Unhandled private mode enabled: {}", parameter)
                             }
                             _ => {}
                         }
@@ -299,6 +308,30 @@ impl TerminalEmulator {
                             println!("Unhandled format parameter: {:?}", parameter);
                         }
                     }
+                }
+
+                Some(&output[1..])
+            }
+            Some(&LOWERCASE_L) => {
+                match parameters.first() {
+                    // Otherwise, ignored.
+                    #[cfg(feature = "terminal_emulator_debug")]
+                    Some(parameter) => {
+                        println!("Unhandled mode disabled: {}", parameter)
+                    }
+                    _ => {}
+                }
+
+                Some(&output[1..])
+            }
+            Some(&LOWERCASE_H) => {
+                match parameters.first() {
+                    // Otherwise, ignored.
+                    #[cfg(feature = "terminal_emulator_debug")]
+                    Some(parameter) => {
+                        println!("Unhandled mode enabled: {}", parameter)
+                    }
+                    _ => {}
                 }
 
                 Some(&output[1..])
