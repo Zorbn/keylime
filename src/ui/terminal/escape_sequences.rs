@@ -79,6 +79,17 @@ impl TerminalEmulator {
                     output = &output[1..];
                     continue;
                 }
+                // Tab:
+                0x9 => {
+                    let next_tab_stop = (self.grid_cursor.x / 8 + 1) * 8;
+
+                    while self.grid_cursor.x < next_tab_stop {
+                        self.insert_at_cursor(&[' '], doc, line_pool, time);
+                    }
+
+                    output = &output[1..];
+                    continue;
+                }
                 // Carriage Return:
                 0xD => {
                     self.jump_cursor(Position::new(0, self.grid_cursor.y), doc);
