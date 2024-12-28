@@ -250,7 +250,8 @@ impl TerminalEmulator {
 
         let doc = self.get_doc_mut(docs);
         self.backup_doc_cursor_positions(doc, cursor_buffer);
-        self.expand_doc_to_grid_size(doc, line_pool, time);
+
+        self.expand_docs_to_grid_size(docs, line_pool, time);
 
         let (input, output) = pty.input_output();
 
@@ -500,6 +501,16 @@ impl TerminalEmulator {
         );
 
         self.is_in_alternate_buffer = !self.is_in_alternate_buffer;
+    }
+
+    fn expand_docs_to_grid_size(
+        &mut self,
+        docs: &mut TerminalDocs,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        self.expand_doc_to_grid_size(&mut docs.normal, line_pool, time);
+        self.expand_doc_to_grid_size(&mut docs.alternate, line_pool, time);
     }
 
     fn expand_doc_to_grid_size(&mut self, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
