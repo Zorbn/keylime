@@ -31,11 +31,14 @@ pub struct Text {
     d2d_factory: ID2D1Factory,
     imaging_factory: IWICImagingFactory,
 
+    font: IDWriteFont,
+    font_face: IDWriteFontFace,
     font_size: f32,
 
     text_format: IDWriteTextFormat,
     text_rendering_params: IDWriteRenderingParams3,
     typography: IDWriteTypography,
+
     system_font_fallback: IDWriteFontFallback,
     system_font_collection: IDWriteFontCollection1,
 
@@ -135,6 +138,8 @@ impl Text {
             d2d_factory,
             imaging_factory,
 
+            font,
+            font_face,
             font_size,
 
             text_format,
@@ -287,26 +292,30 @@ impl Text {
 
         let analysis_source: IDWriteTextAnalysisSource = analysis_source.into();
 
-        let mut mapped_length = 0;
-        let mut mapped_font = None;
-        let mut scale = 0.0;
+        let mapped_font_face = if self.font.HasCharacter(c as u32)?.as_bool() {
+            &self.font_face
+        } else {
+            let mut mapped_length = 0;
+            let mut mapped_font = None;
+            let mut scale = 0.0;
 
-        self.system_font_fallback.MapCharacters(
-            &analysis_source,
-            0,
-            wide_characters.len() as u32,
-            &self.system_font_collection,
-            None,
-            DWRITE_FONT_WEIGHT_REGULAR,
-            DWRITE_FONT_STYLE_NORMAL,
-            DWRITE_FONT_STRETCH_NORMAL,
-            &mut mapped_length,
-            &mut mapped_font,
-            &mut scale,
-        )?;
+            self.system_font_fallback.MapCharacters(
+                &analysis_source,
+                0,
+                wide_characters.len() as u32,
+                &self.system_font_collection,
+                None,
+                DWRITE_FONT_WEIGHT_REGULAR,
+                DWRITE_FONT_STYLE_NORMAL,
+                DWRITE_FONT_STRETCH_NORMAL,
+                &mut mapped_length,
+                &mut mapped_font,
+                &mut scale,
+            )?;
 
-        let mapped_font = mapped_font.ok_or(Error::new(E_FAIL, "Mapped font not found"))?;
-        let mapped_font_face = mapped_font.CreateFontFace()?;
+            let mapped_font = mapped_font.ok_or(Error::new(E_FAIL, "Mapped font not found"))?;
+            &mapped_font.CreateFontFace()?
+        };
 
         let mut glyph_indices = [0u16];
 
