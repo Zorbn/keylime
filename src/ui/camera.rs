@@ -54,7 +54,7 @@ impl CameraAxis {
 
         if self.recenter_kind != CameraRecenterKind::None {
             let visual_distance = match self.recenter_kind {
-                CameraRecenterKind::OnScrollBorder => {
+                CameraRecenterKind::OnScrollBorder if min_scroll_border < max_scroll_border => {
                     if target_position < view_size / 2.0 {
                         target_position - min_scroll_border
                     } else {
