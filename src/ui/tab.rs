@@ -6,7 +6,7 @@ use crate::{
     digits::get_digits,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
-        editing_actions::{handle_char, handle_keybind, handle_left_click},
+        editing_actions::{handle_action, handle_char, handle_left_click},
         keybind::{MOD_CTRL, MOD_SHIFT},
         mouse_button::MouseButton,
         mousebind::Mousebind,
@@ -166,11 +166,11 @@ impl Tab {
             }
         }
 
-        let mut keybind_handler = widget.get_keybind_handler(ui);
+        let mut action_handler = widget.get_action_handler(ui);
 
-        while let Some(keybind) = keybind_handler.next(ui.window) {
-            let was_handled = handle_keybind(
-                keybind,
+        while let Some(action) = action_handler.next(ui.window) {
+            let was_handled = handle_action(
+                action,
                 ui.window,
                 doc,
                 language,
@@ -180,7 +180,7 @@ impl Tab {
             );
 
             if !was_handled {
-                keybind_handler.unprocessed(ui.window, keybind);
+                action_handler.unprocessed(ui.window, action);
             }
         }
 

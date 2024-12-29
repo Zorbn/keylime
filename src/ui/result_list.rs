@@ -3,7 +3,7 @@ use std::{borrow::Borrow, vec::Drain};
 use crate::{
     config::Config,
     geometry::{rect::Rect, side::SIDE_ALL, visual_position::VisualPosition},
-    input::{key::Key, keybind::Keybind, mouse_button::MouseButton, mousebind::Mousebind},
+    input::{action::action_keybind, mouse_button::MouseButton, mousebind::Mousebind},
     platform::gfx::Gfx,
 };
 
@@ -148,39 +148,24 @@ impl<T> ResultList<T> {
     }
 
     fn handle_keybinds(&mut self, input: &mut ResultListInput, widget: &Widget, ui: &mut UiHandle) {
-        let mut keybind_handler = widget.get_keybind_handler(ui);
+        let mut action_handler = widget.get_action_handler(ui);
 
-        while let Some(keybind) = keybind_handler.next(ui.window) {
-            match keybind {
-                Keybind {
-                    key: Key::Escape,
-                    mods: 0,
-                } => *input = ResultListInput::Close,
-                Keybind {
-                    key: Key::Enter,
-                    mods,
-                } => *input = ResultListInput::Submit { mods },
-                Keybind {
-                    key: Key::Tab,
-                    mods: 0,
-                } => *input = ResultListInput::Complete,
-                Keybind {
-                    key: Key::Up,
-                    mods: 0,
-                } => {
+        while let Some(action) = action_handler.next(ui.window) {
+            match action {
+                action_keybind!(key: Escape, mods: 0) => *input = ResultListInput::Close,
+                action_keybind!(key: Enter, mods) => *input = ResultListInput::Submit { mods },
+                action_keybind!(key: Tab, mods: 0) => *input = ResultListInput::Complete,
+                action_keybind!(key: Up, mods: 0) => {
                     if self.selected_result_index > 0 {
                         self.selected_result_index -= 1;
                     }
                 }
-                Keybind {
-                    key: Key::Down,
-                    mods: 0,
-                } => {
+                action_keybind!(key: Down, mods: 0) => {
                     if self.selected_result_index < self.results.len() - 1 {
                         self.selected_result_index += 1;
                     }
                 }
-                _ => keybind_handler.unprocessed(ui.window, keybind),
+                _ => action_handler.unprocessed(ui.window, action),
             }
         }
     }

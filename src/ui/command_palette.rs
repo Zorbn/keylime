@@ -10,8 +10,8 @@ use crate::{
         side::{SIDE_ALL, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     },
     input::{
-        key::Key,
-        keybind::{Keybind, MOD_CTRL, MOD_SHIFT},
+        action::{action_keybind, action_name},
+        keybind::MOD_SHIFT,
     },
     platform::gfx::Gfx,
     temp_buffer::TempBuffer,
@@ -139,26 +139,17 @@ impl CommandPalette {
 
         let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
 
-        let mut global_keybind_handler = ui.window.get_keybind_handler();
+        let mut global_action_handler = ui.window.get_action_handler();
 
-        while let Some(keybind) = global_keybind_handler.next(ui.window) {
-            match keybind {
-                Keybind {
-                    key: Key::P,
-                    mods: MOD_CTRL,
-                } => {
+        while let Some(action) = global_action_handler.next(ui.window) {
+            match action {
+                action_name!(OpenCommandPalette) => {
                     self.open(ui, MODE_OPEN_FILE, pane, doc_list, config, line_pool, time);
                 }
-                Keybind {
-                    key: Key::F,
-                    mods: MOD_CTRL,
-                } => {
+                action_name!(OpenSearch) => {
                     self.open(ui, MODE_SEARCH, pane, doc_list, config, line_pool, time);
                 }
-                Keybind {
-                    key: Key::H,
-                    mods: MOD_CTRL,
-                } => {
+                action_name!(OpenSearchAndReplace) => {
                     self.open(
                         ui,
                         MODE_SEARCH_AND_REPLACE_START,
@@ -169,24 +160,18 @@ impl CommandPalette {
                         time,
                     );
                 }
-                Keybind {
-                    key: Key::G,
-                    mods: MOD_CTRL,
-                } => {
+                action_name!(OpenGoToLine) => {
                     self.open(ui, MODE_GO_TO_LINE, pane, doc_list, config, line_pool, time);
                 }
-                _ => global_keybind_handler.unprocessed(ui.window, keybind),
+                _ => global_action_handler.unprocessed(ui.window, action),
             }
         }
 
-        let mut keybind_handler = self.widget.get_keybind_handler(ui);
+        let mut action_handler = self.widget.get_action_handler(ui);
 
-        while let Some(keybind) = keybind_handler.next(ui.window) {
-            match keybind {
-                Keybind {
-                    key: Key::Backspace,
-                    mods: 0 | MOD_CTRL,
-                } => {
+        while let Some(action) = action_handler.next(ui.window) {
+            match action {
+                action_keybind!(key: Backspace) => {
                     let on_backspace = self.mode.on_backspace;
 
                     let args = CommandPaletteEventArgs {
@@ -199,10 +184,10 @@ impl CommandPalette {
                     };
 
                     if !(on_backspace)(args) {
-                        keybind_handler.unprocessed(ui.window, keybind);
+                        action_handler.unprocessed(ui.window, action);
                     }
                 }
-                _ => keybind_handler.unprocessed(ui.window, keybind),
+                _ => action_handler.unprocessed(ui.window, action),
             }
         }
 

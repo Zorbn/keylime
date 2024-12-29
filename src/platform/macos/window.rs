@@ -1,4 +1,4 @@
-use std::{cell::RefCell, path::Path, ptr::NonNull, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, path::Path, ptr::NonNull, rc::Rc};
 
 use objc2::{rc::Retained, runtime::ProtocolObject, sel};
 use objc2_app_kit::*;
@@ -8,7 +8,8 @@ use crate::{
     app::App,
     config::Config,
     input::{
-        input_handlers::{CharHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
+        action::{Action, ActionName},
+        input_handlers::{ActionHandler, CharHandler, MouseScrollHandler, MousebindHandler},
         key::Key,
         keybind::Keybind,
         mouse_button::MouseButton,
@@ -19,7 +20,7 @@ use crate::{
     temp_buffer::TempBuffer,
 };
 
-use super::{delegate::Delegate, file_watcher::FileWatcher, result::Result};
+use super::{delegate::Delegate, file_watcher::FileWatcher, keymaps::new_keymaps, result::Result};
 
 const DEFAULT_WIDTH: f64 = 768.0;
 const DEFAULT_HEIGHT: f64 = 768.0;
@@ -100,8 +101,9 @@ pub struct Window {
     wide_text_buffer: TempBuffer<u16>,
     text_buffer: TempBuffer<char>,
 
+    keymaps: HashMap<Keybind, ActionName>,
     pub chars_typed: Vec<char>,
-    pub keybinds_typed: Vec<Keybind>,
+    pub actions_typed: Vec<Action>,
     pub mousebinds_pressed: Vec<Mousebind>,
     pub mouse_scrolls: Vec<MouseScroll>,
 
@@ -156,8 +158,9 @@ impl Window {
             wide_text_buffer: TempBuffer::new(),
             text_buffer: TempBuffer::new(),
 
+            keymaps: new_keymaps(),
             chars_typed: Vec::new(),
-            keybinds_typed: Vec::new(),
+            actions_typed: Vec::new(),
             mousebinds_pressed: Vec::new(),
             mouse_scrolls: Vec::new(),
 
@@ -229,7 +232,7 @@ impl Window {
 
     fn clear_inputs(&mut self) {
         self.chars_typed.clear();
-        self.keybinds_typed.clear();
+        self.actions_typed.clear();
         self.mousebinds_pressed.clear();
         self.mouse_scrolls.clear();
     }
@@ -254,15 +257,17 @@ impl Window {
         let key_code = unsafe { event.keyCode() };
 
         if let Some(key) = Self::key_from_keycode(key_code) {
-            // TODO: This just remaps Command -> Ctrl, but really
-            // there should be native keybinds for MacOS.
             let has_shift = modifier_flags.contains(NSShiftKeyMask);
-            let has_ctrl = modifier_flags.contains(NSCommandKeyMask)
-                | modifier_flags.contains(NSControlKeyMask);
+            let has_ctrl = modifier_flags.contains(NSControlKeyMask);
             let has_alt = modifier_flags.contains(NSAlternateKeyMask);
+            let has_cmd = modifier_flags.contains(NSCommandKeyMask);
 
-            self.keybinds_typed
-                .push(Keybind::new(key, has_shift, has_ctrl, has_alt));
+            let action = Action::from_keybind(
+                Keybind::new(key, has_shift, has_ctrl, has_alt, has_cmd),
+                &self.keymaps,
+            );
+
+            self.actions_typed.push(action);
         }
     }
 
@@ -396,8 +401,8 @@ impl Window {
         CharHandler::new(self.chars_typed.len())
     }
 
-    pub fn get_keybind_handler(&self) -> KeybindHandler {
-        KeybindHandler::new(self.keybinds_typed.len())
+    pub fn get_action_handler(&self) -> ActionHandler {
+        ActionHandler::new(self.actions_typed.len())
     }
 
     pub fn get_mousebind_handler(&self) -> MousebindHandler {
@@ -543,13 +548,13 @@ impl Window {
             0x31 => Some(Key::Space),
             0x33 => Some(Key::Backspace),
             0x35 => Some(Key::Escape),
-            // 0x37 => Some(Key::Command),
+            0x37 => Some(Key::Cmd),
             0x38 => Some(Key::Shift),
-            // 0x3A => Some(Key::Option),
-            0x3B => Some(Key::Control),
-            // 0x3C => Some(Key::RightShift),
-            // 0x3D => Some(Key::RightOption),
-            // 0x3E => Some(Key::RightControl),
+            0x3A => Some(Key::Alt),
+            0x3B => Some(Key::Ctrl),
+            0x3C => Some(Key::RShift),
+            0x3D => Some(Key::RAlt),
+            0x3E => Some(Key::RCtrl),
             0x60 => Some(Key::F5),
             0x61 => Some(Key::F6),
             0x62 => Some(Key::F7),

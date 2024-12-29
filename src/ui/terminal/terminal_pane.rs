@@ -1,15 +1,11 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::{
-    input::{
-        key::Key,
-        keybind::{Keybind, MOD_CTRL},
-    },
     text::line_pool::LinePool,
     ui::{pane::Pane, slot_list::SlotList, widget::Widget, UiHandle},
 };
 
-use super::{terminal_emulator::TerminalEmulator, Term, TerminalDocs};
+use super::{action_name, terminal_emulator::TerminalEmulator, Term, TerminalDocs};
 
 pub struct TerminalPane {
     inner: Pane<Term>,
@@ -36,23 +32,17 @@ impl TerminalPane {
         term_list: &mut SlotList<Term>,
         line_pool: &mut LinePool,
     ) {
-        let mut keybind_handler = widget.get_keybind_handler(ui);
+        let mut action_handler = widget.get_action_handler(ui);
 
-        while let Some(keybind) = keybind_handler.next(ui.window) {
-            match keybind {
-                Keybind {
-                    key: Key::N,
-                    mods: MOD_CTRL,
-                } => {
+        while let Some(action) = action_handler.next(ui.window) {
+            match action {
+                action_name!(NewTab) => {
                     let term = Self::new_term(line_pool);
                     let term_index = term_list.add(term);
 
                     self.add_tab(term_index, term_list);
                 }
-                Keybind {
-                    key: Key::W,
-                    mods: MOD_CTRL,
-                } => {
+                action_name!(CloseTab) => {
                     if let Some(tab) = self.tabs.get(self.focused_tab_index) {
                         let term_index = tab.data_index();
 
@@ -63,7 +53,7 @@ impl TerminalPane {
                         }
                     }
                 }
-                _ => keybind_handler.unprocessed(ui.window, keybind),
+                _ => action_handler.unprocessed(ui.window, action),
             }
         }
 

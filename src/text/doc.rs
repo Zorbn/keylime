@@ -1504,6 +1504,16 @@ impl Doc {
         self.path.is_none() && self.is_saved()
     }
 
+    pub fn has_selection(&self) -> bool {
+        for index in self.cursor_indices() {
+            if self.get_cursor(index).get_selection().is_some() {
+                return true;
+            }
+        }
+
+        false
+    }
+
     pub fn kind(&self) -> DocKind {
         self.kind
     }

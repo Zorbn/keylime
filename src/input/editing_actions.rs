@@ -12,10 +12,16 @@ use crate::{
 };
 
 use super::{
-    key::Key,
-    keybind::{Keybind, MOD_ALT, MOD_CTRL, MOD_SHIFT},
+    action::{action_keybind, action_name, Action},
+    keybind::MOD_SHIFT,
     mousebind::MouseClickKind,
 };
+
+enum DeleteKind {
+    Char,
+    Word,
+    Line,
+}
 
 pub fn handle_char(c: char, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
     for index in doc.cursor_indices() {
@@ -46,8 +52,8 @@ pub fn handle_char(c: char, doc: &mut Doc, line_pool: &mut LinePool, time: f32) 
     }
 }
 
-pub fn handle_keybind(
-    keybind: Keybind,
+pub fn handle_action(
+    action: Action,
     window: &mut Window,
     doc: &mut Doc,
     language: Option<&Language>,
@@ -55,142 +61,132 @@ pub fn handle_keybind(
     text_buffer: &mut TempBuffer<char>,
     time: f32,
 ) -> bool {
-    match keybind {
-        Keybind {
-            key: Key::Up | Key::Down | Key::Left | Key::Right,
-            mods,
-        } => {
-            let key = keybind.key;
-            handle_arrow(key, mods, doc, line_pool, text_buffer, time);
+    match action {
+        action_name!(MoveLeft, mods) => {
+            handle_move(Position::new(-1, 0), mods & MOD_SHIFT != 0, doc)
         }
-        Keybind {
-            key: Key::Backspace,
-            mods,
-        } => {
-            handle_backspace(mods, doc, language, line_pool, time);
+        action_name!(MoveRight, mods) => {
+            handle_move(Position::new(1, 0), mods & MOD_SHIFT != 0, doc)
         }
-        Keybind {
-            key: Key::Delete,
-            mods,
-        } => {
-            handle_delete(mods, doc, line_pool, time);
+        action_name!(MoveUp, mods) => handle_move(Position::new(0, -1), mods & MOD_SHIFT != 0, doc),
+        action_name!(MoveDown, mods) => {
+            handle_move(Position::new(0, 1), mods & MOD_SHIFT != 0, doc)
         }
-        Keybind {
-            key: Key::Enter,
-            mods: 0,
-        } => {
+        action_name!(MoveLeftWord, mods) => {
+            doc.move_cursors_to_next_word(-1, mods & MOD_SHIFT != 0)
+        }
+        action_name!(MoveRightWord, mods) => {
+            doc.move_cursors_to_next_word(1, mods & MOD_SHIFT != 0)
+        }
+        action_name!(MoveUpParagraph, mods) => {
+            doc.move_cursors_to_next_paragraph(-1, mods & MOD_SHIFT != 0)
+        }
+        action_name!(MoveDownParagraph, mods) => {
+            doc.move_cursors_to_next_paragraph(1, mods & MOD_SHIFT != 0)
+        }
+        action_name!(ShiftLinesUp) => handle_shift_lines(-1, doc, line_pool, text_buffer, time),
+        action_name!(ShiftLinesDown) => handle_shift_lines(1, doc, line_pool, text_buffer, time),
+        action_name!(UndoCursorPosition) => doc.undo_cursor_position(),
+        action_name!(RedoCursorPosition) => doc.redo_cursor_position(),
+        action_name!(AddCursorUp) => handle_add_cursor(Position::new(0, -1), doc),
+        action_name!(AddCursorDown) => handle_add_cursor(Position::new(0, 1), doc),
+        action_name!(DeleteBackward) => {
+            handle_delete_backward(DeleteKind::Char, doc, language, line_pool, time)
+        }
+        action_name!(DeleteBackwardWord) => {
+            handle_delete_backward(DeleteKind::Word, doc, language, line_pool, time)
+        }
+        action_name!(DeleteBackwardLine) => {
+            handle_delete_backward(DeleteKind::Line, doc, language, line_pool, time)
+        }
+        action_name!(DeleteForward) => {
+            handle_delete_forward(DeleteKind::Char, doc, line_pool, time)
+        }
+        action_name!(DeleteForwardWord) => {
+            handle_delete_forward(DeleteKind::Word, doc, line_pool, time)
+        }
+        action_keybind!(key: Enter, mods: 0) => {
             handle_enter(doc, language, line_pool, text_buffer, time);
         }
-        Keybind {
-            key: Key::Tab,
-            mods,
-        } => {
+        action_keybind!(key: Tab, mods) => {
             handle_tab(mods, doc, language, line_pool, time);
         }
-        Keybind {
-            key: Key::PageUp,
-            mods: 0 | MOD_SHIFT,
-        } => {
-            let mods = keybind.mods;
+        action_name!(PageUp, mods) => {
             let height_lines = window.gfx().height_lines();
 
             doc.move_cursors(Position::new(0, -height_lines), mods & MOD_SHIFT != 0);
         }
-        Keybind {
-            key: Key::PageDown,
-            mods: 0 | MOD_SHIFT,
-        } => {
-            let mods = keybind.mods;
+        action_name!(PageDown, mods) => {
             let height_lines = window.gfx().height_lines();
 
             doc.move_cursors(Position::new(0, height_lines), mods & MOD_SHIFT != 0);
         }
-        Keybind {
-            key: Key::Home,
-            mods,
-        } => {
-            handle_home(mods, doc);
+        action_name!(Home, mods) => {
+            handle_home(mods & MOD_SHIFT != 0, doc);
         }
-        Keybind {
-            key: Key::End,
-            mods,
-        } => {
-            handle_end(mods, doc);
+        action_name!(End, mods) => {
+            handle_end(mods & MOD_SHIFT != 0, doc);
         }
-        Keybind {
-            key: Key::A,
-            mods: MOD_CTRL,
-        } => {
+        action_name!(GoToStart, mods) => {
+            for index in doc.cursor_indices() {
+                doc.jump_cursor(index, Position::zero(), mods & MOD_SHIFT != 0);
+            }
+        }
+        action_name!(GoToEnd, mods) => {
+            for index in doc.cursor_indices() {
+                doc.jump_cursor(index, doc.end(), mods & MOD_SHIFT != 0);
+            }
+        }
+        action_name!(SelectAll) => {
             let y = doc.lines().len() as isize - 1;
             let x = doc.get_line_len(y);
 
             doc.jump_cursors(Position::zero(), false);
             doc.jump_cursors(Position::new(x, y), true);
         }
-        Keybind {
-            key: Key::Escape,
-            mods: 0,
-        } => {
+        action_keybind!(key: Escape, mods: 0) => {
             if doc.cursors_len() > 1 {
                 doc.clear_extra_cursors(CursorIndex::Some(0));
             } else {
                 doc.end_cursor_selection(CursorIndex::Main);
             }
         }
-        Keybind {
-            key: Key::Z,
-            mods: MOD_CTRL,
-        } => {
+        action_name!(Undo) => {
             doc.undo(line_pool, ActionKind::Done);
         }
-        Keybind {
-            key: Key::Y,
-            mods: MOD_CTRL,
-        } => {
+        action_name!(Redo) => {
             doc.undo(line_pool, ActionKind::Undone);
         }
-        Keybind {
-            key: Key::C,
-            mods: MOD_CTRL,
-        } => {
+        action_name!(Copy) => {
             handle_copy(window, doc, text_buffer);
         }
-        Keybind {
-            key: Key::X,
-            mods: MOD_CTRL,
-        } => {
+        action_name!(Cut) => {
             handle_cut(window, doc, line_pool, text_buffer, time);
         }
-        Keybind {
-            key: Key::V,
-            mods: MOD_CTRL,
-        } => {
+        action_name!(Paste) => {
             handle_paste(window, doc, line_pool, time);
         }
-        Keybind {
-            key: Key::D,
-            mods: MOD_CTRL,
-        } => {
+        action_name!(AddCursorAtNextOccurance) => {
             doc.add_cursor_at_next_occurance();
         }
-        Keybind {
-            key: Key::ForwardSlash,
-            mods: MOD_CTRL,
-        } => {
+        action_name!(ToggleComments) => {
             if let Some(language) = language {
                 doc.toggle_comments_at_cursors(&language.comment, line_pool, time);
             }
         }
-        Keybind {
-            key: Key::LBracket | Key::RBracket,
-            mods: MOD_CTRL,
-        } => {
+        action_name!(Indent) => {
             let indent_width = language
                 .map(|language| language.indent_width)
                 .unwrap_or_default();
-            let do_unindent = keybind.key == Key::LBracket;
 
-            doc.indent_lines_at_cursors(indent_width, do_unindent, line_pool, time);
+            doc.indent_lines_at_cursors(indent_width, false, line_pool, time);
+        }
+        action_name!(Unindent) => {
+            let indent_width = language
+                .map(|language| language.indent_width)
+                .unwrap_or_default();
+
+            doc.indent_lines_at_cursors(indent_width, true, line_pool, time);
         }
         _ => return false,
     }
@@ -198,70 +194,37 @@ pub fn handle_keybind(
     true
 }
 
-fn handle_arrow(
-    key: Key,
-    mods: u8,
-    doc: &mut Doc,
-    line_pool: &mut LinePool,
-    text_buffer: &mut TempBuffer<char>,
-    time: f32,
-) {
-    let direction = match key {
-        Key::Up => Position::new(0, -1),
-        Key::Down => Position::new(0, 1),
-        Key::Left => Position::new(-1, 0),
-        Key::Right => Position::new(1, 0),
-        _ => unreachable!(),
-    };
+fn handle_move(direction: Position, should_select: bool, doc: &mut Doc) {
+    for index in doc.cursor_indices() {
+        let cursor = doc.get_cursor(index);
 
-    let should_select = mods & MOD_SHIFT != 0;
-
-    if (mods & MOD_CTRL != 0) && (mods & MOD_ALT != 0) && matches!(key, Key::Up | Key::Down) {
-        let cursor = doc.get_cursor(CursorIndex::Main);
-
-        let position = doc.move_position_with_desired_visual_x(
-            cursor.position,
-            direction,
-            Some(cursor.desired_visual_x),
-        );
-
-        doc.add_cursor(position);
-    } else if mods & MOD_CTRL != 0 {
-        match key {
-            Key::Up => doc.move_cursors_to_next_paragraph(-1, should_select),
-            Key::Down => doc.move_cursors_to_next_paragraph(1, should_select),
-            Key::Left => doc.move_cursors_to_next_word(-1, should_select),
-            Key::Right => doc.move_cursors_to_next_word(1, should_select),
-            _ => unreachable!(),
-        }
-    } else if mods & MOD_ALT != 0 {
-        match key {
-            Key::Up => handle_shift_lines(-1, doc, line_pool, text_buffer, time),
-            Key::Down => handle_shift_lines(1, doc, line_pool, text_buffer, time),
-            Key::Left => doc.undo_cursor_position(),
-            Key::Right => doc.redo_cursor_position(),
-            _ => unreachable!(),
-        }
-    } else {
-        for index in doc.cursor_indices() {
-            let cursor = doc.get_cursor(index);
-
-            match cursor.get_selection() {
-                Some(selection) if !should_select => {
-                    if matches!(key, Key::Left | Key::Up) {
-                        doc.jump_cursor(index, selection.start, false);
-                    } else if matches!(key, Key::Right | Key::Down) {
-                        doc.jump_cursor(index, selection.end, false);
-                    }
-
-                    if matches!(key, Key::Up | Key::Down) {
-                        doc.move_cursor(index, direction, false);
-                    }
+        match cursor.get_selection() {
+            Some(selection) if !should_select => {
+                if direction.x < 0 || direction.y < 0 {
+                    doc.jump_cursor(index, selection.start, false);
+                } else if direction.x > 0 || direction.y > 0 {
+                    doc.jump_cursor(index, selection.end, false);
                 }
-                _ => doc.move_cursor(index, direction, should_select),
+
+                if direction.y != 0 {
+                    doc.move_cursor(index, direction, false);
+                }
             }
+            _ => doc.move_cursor(index, direction, should_select),
         }
     }
+}
+
+fn handle_add_cursor(direction: Position, doc: &mut Doc) {
+    let cursor = doc.get_cursor(CursorIndex::Main);
+
+    let position = doc.move_position_with_desired_visual_x(
+        cursor.position,
+        direction,
+        Some(cursor.desired_visual_x),
+    );
+
+    doc.add_cursor(position);
 }
 
 pub fn handle_left_click(
@@ -324,8 +287,8 @@ pub fn handle_left_click(
     doc.jump_cursors(end, true);
 }
 
-fn handle_backspace(
-    mods: u8,
+fn handle_delete_backward(
+    kind: DeleteKind,
     doc: &mut Doc,
     language: Option<&Language>,
     line_pool: &mut LinePool,
@@ -343,19 +306,23 @@ fn handle_backspace(
         } else {
             let mut end = cursor.position;
 
-            let start = if mods & MOD_CTRL != 0 {
-                doc.move_position_to_next_word(end, -1)
-            } else if end.x > 0 && end.x == doc.get_line_start(end.y) {
-                doc.get_indent_start(end, indent_width)
-            } else {
-                let start = doc.move_position(end, Position::new(-1, 0));
-                let start_char = doc.get_char(start);
+            let start = match kind {
+                DeleteKind::Char => {
+                    if end.x > 0 && end.x == doc.get_line_start(end.y) {
+                        doc.get_indent_start(end, indent_width)
+                    } else {
+                        let start = doc.move_position(end, Position::new(-1, 0));
+                        let start_char = doc.get_char(start);
 
-                if get_matching_char(start_char) == Some(doc.get_char(cursor.position)) {
-                    end = doc.move_position(end, Position::new(1, 0));
+                        if get_matching_char(start_char) == Some(doc.get_char(cursor.position)) {
+                            end = doc.move_position(end, Position::new(1, 0));
+                        }
+
+                        start
+                    }
                 }
-
-                start
+                DeleteKind::Word => doc.move_position_to_next_word(end, -1),
+                DeleteKind::Line => Position::new(0, end.y),
             };
 
             (start, end)
@@ -366,7 +333,7 @@ fn handle_backspace(
     }
 }
 
-fn handle_delete(mods: u8, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
+fn handle_delete_forward(kind: DeleteKind, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
 
@@ -375,10 +342,10 @@ fn handle_delete(mods: u8, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
         } else {
             let start = cursor.position;
 
-            let end = if mods & MOD_CTRL != 0 {
-                doc.move_position_to_next_word(start, 1)
-            } else {
-                doc.move_position(start, Position::new(1, 0))
+            let end = match kind {
+                DeleteKind::Char => doc.move_position(start, Position::new(1, 0)),
+                DeleteKind::Word => doc.move_position_to_next_word(start, 1),
+                DeleteKind::Line => Position::new(doc.get_line_len(start.y), start.y),
             };
 
             (start, end)
@@ -461,39 +428,29 @@ fn handle_tab(
     }
 }
 
-fn handle_home(mods: u8, doc: &mut Doc) {
+fn handle_home(should_select: bool, doc: &mut Doc) {
     for index in doc.cursor_indices() {
-        let position = if mods & MOD_CTRL != 0 {
-            Position::new(0, 0)
+        let cursor = doc.get_cursor(index);
+        let line_start_x = doc.get_line_start(cursor.position.y);
+
+        let x = if line_start_x == cursor.position.x {
+            0
         } else {
-            let cursor = doc.get_cursor(index);
-            let line_start_x = doc.get_line_start(cursor.position.y);
-
-            let x = if line_start_x == cursor.position.x {
-                0
-            } else {
-                line_start_x
-            };
-
-            Position::new(x, cursor.position.y)
+            line_start_x
         };
 
-        doc.jump_cursor(index, position, mods & MOD_SHIFT != 0);
+        let position = Position::new(x, cursor.position.y);
+
+        doc.jump_cursor(index, position, should_select);
     }
 }
 
-fn handle_end(mods: u8, doc: &mut Doc) {
+fn handle_end(should_select: bool, doc: &mut Doc) {
     for index in doc.cursor_indices() {
-        let position = if mods & MOD_CTRL != 0 {
-            doc.end()
-        } else {
-            let mut position = doc.get_cursor(index).position;
-            position.x = doc.get_line_len(position.y);
+        let mut position = doc.get_cursor(index).position;
+        position.x = doc.get_line_len(position.y);
 
-            position
-        };
-
-        doc.jump_cursor(index, position, mods & MOD_SHIFT != 0);
+        doc.jump_cursor(index, position, should_select);
     }
 }
 

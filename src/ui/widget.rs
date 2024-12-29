@@ -1,6 +1,6 @@
 use crate::{
     geometry::rect::Rect,
-    input::input_handlers::{CharHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
+    input::input_handlers::{ActionHandler, CharHandler, MouseScrollHandler, MousebindHandler},
 };
 
 use super::{Ui, UiHandle};
@@ -33,11 +33,11 @@ impl Widget {
         }
     }
 
-    pub fn get_keybind_handler(&self, ui: &UiHandle) -> KeybindHandler {
+    pub fn get_action_handler(&self, ui: &UiHandle) -> ActionHandler {
         if self.is_focused(ui) {
-            ui.window.get_keybind_handler()
+            ui.window.get_action_handler()
         } else {
-            KeybindHandler::new(0)
+            ActionHandler::new(0)
         }
     }
 

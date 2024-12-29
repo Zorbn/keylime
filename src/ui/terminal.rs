@@ -4,10 +4,7 @@ use terminal_pane::TerminalPane;
 use crate::{
     config::Config,
     geometry::rect::Rect,
-    input::{
-        key::Key,
-        keybind::{Keybind, MOD_CTRL},
-    },
+    input::action::action_name,
     platform::{gfx::Gfx, pty::Pty},
     temp_buffer::TempBuffer,
     text::{
@@ -94,21 +91,18 @@ impl Terminal {
         time: f32,
         dt: f32,
     ) {
-        let mut global_keybind_handler = ui.window.get_keybind_handler();
+        let mut global_action_handler = ui.window.get_action_handler();
 
-        while let Some(keybind) = global_keybind_handler.next(ui.window) {
-            match keybind {
-                Keybind {
-                    key: Key::Grave,
-                    mods: MOD_CTRL,
-                } => {
+        while let Some(action) = global_action_handler.next(ui.window) {
+            match action {
+                action_name!(FocusTerminal) => {
                     if self.widget.is_focused(ui) {
                         self.widget.release_focus(ui);
                     } else {
                         self.widget.take_focus(ui);
                     }
                 }
-                _ => global_keybind_handler.unprocessed(ui.window, keybind),
+                _ => global_action_handler.unprocessed(ui.window, action),
             }
         }
 

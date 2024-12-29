@@ -7,8 +7,7 @@ use crate::{
     config::Config,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
-        key::Key,
-        keybind::{Keybind, MOD_ALT, MOD_CTRL, MOD_CTRL_ALT},
+        action::{action_keybind, action_name},
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
@@ -183,60 +182,46 @@ impl Editor {
             }
         }
 
-        let mut keybind_handler = self.widget.get_keybind_handler(ui);
+        let mut action_handler = self.widget.get_action_handler(ui);
 
-        while let Some(keybind) = keybind_handler.next(ui.window) {
-            match keybind {
-                Keybind {
-                    key: Key::Backspace,
-                    ..
-                } => {
+        while let Some(action) = action_handler.next(ui.window) {
+            match action {
+                action_keybind!(key: Backspace) => {
                     should_open_completions = true;
 
-                    keybind_handler.unprocessed(ui.window, keybind);
+                    action_handler.unprocessed(ui.window, action);
                 }
-                Keybind {
-                    key: Key::N,
-                    mods: MOD_CTRL_ALT,
-                } => {
+                action_name!(NewPane) => {
                     self.add_pane(line_pool);
                 }
-                Keybind {
-                    key: Key::W,
-                    mods: MOD_CTRL_ALT,
-                } => {
+                action_name!(ClosePane) => {
                     self.close_pane(config, line_pool, time);
                 }
-                Keybind {
-                    key: Key::PageUp,
-                    mods: MOD_CTRL | MOD_CTRL_ALT,
-                } => {
+                action_name!(PreviousPane) => {
+                    self.previous_pane();
+                }
+                action_name!(NextPane) => {
+                    self.next_pane();
+                }
+                action_name!(PreviousTab) => {
                     let pane = &self.panes[self.focused_pane_index];
 
-                    if (keybind.mods & MOD_ALT != 0 || pane.focused_tab_index() == 0)
-                        && self.focused_pane_index > 0
-                    {
-                        self.focused_pane_index -= 1;
+                    if pane.focused_tab_index() == 0 {
+                        self.previous_pane();
                     } else {
-                        keybind_handler.unprocessed(ui.window, keybind);
+                        action_handler.unprocessed(ui.window, action);
                     }
                 }
-                Keybind {
-                    key: Key::PageDown,
-                    mods: MOD_CTRL | MOD_CTRL_ALT,
-                } => {
+                action_name!(NextTab) => {
                     let pane = &self.panes[self.focused_pane_index];
 
-                    if (keybind.mods & MOD_ALT != 0
-                        || pane.focused_tab_index() == pane.tabs_len() - 1)
-                        && self.focused_pane_index < self.panes.len() - 1
-                    {
-                        self.focused_pane_index += 1;
+                    if pane.focused_tab_index() == pane.tabs_len() - 1 {
+                        self.next_pane();
                     } else {
-                        keybind_handler.unprocessed(ui.window, keybind);
+                        action_handler.unprocessed(ui.window, action);
                     }
                 }
-                _ => keybind_handler.unprocessed(ui.window, keybind),
+                _ => action_handler.unprocessed(ui.window, action),
             }
         }
 
@@ -486,6 +471,18 @@ impl Editor {
 
         self.panes.remove(self.focused_pane_index);
         self.clamp_focused_pane();
+    }
+
+    fn previous_pane(&mut self) {
+        if self.focused_pane_index > 0 {
+            self.focused_pane_index -= 1;
+        }
+    }
+
+    fn next_pane(&mut self) {
+        if self.focused_pane_index < self.panes.len() - 1 {
+            self.focused_pane_index += 1;
+        }
     }
 
     pub fn on_close(&mut self, config: &Config, line_pool: &mut LinePool, time: f32) {

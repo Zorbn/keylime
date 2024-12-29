@@ -1,6 +1,6 @@
 use crate::platform::window::Window;
 
-use super::{keybind::Keybind, mouse_scroll::MouseScroll, mousebind::Mousebind};
+use super::{action::Action, mouse_scroll::MouseScroll, mousebind::Mousebind};
 
 macro_rules! define_handler {
     ($name:ident, $buffer:ident, $t:ident) => {
@@ -38,6 +38,6 @@ macro_rules! define_handler {
 }
 
 define_handler!(CharHandler, chars_typed, char);
-define_handler!(KeybindHandler, keybinds_typed, Keybind);
+define_handler!(ActionHandler, actions_typed, Action);
 define_handler!(MousebindHandler, mousebinds_pressed, Mousebind);
 define_handler!(MouseScrollHandler, mouse_scrolls, MouseScroll);

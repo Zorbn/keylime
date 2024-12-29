@@ -4,9 +4,10 @@ use crate::{
     config::Config,
     geometry::{position::Position, rect::Rect},
     input::{
+        action::{action_keybind, action_name, ActionName},
         editing_actions::handle_copy,
         key::Key,
-        keybind::{Keybind, MOD_ALT, MOD_CTRL, MOD_SHIFT},
+        keybind::{MOD_ALT, MOD_CTRL, MOD_SHIFT},
     },
     platform::{gfx::Gfx, pty::Pty},
     temp_buffer::TempBuffer,
@@ -109,36 +110,27 @@ impl TerminalEmulator {
 
         let doc = self.get_doc_mut(docs);
 
-        let mut keybind_handler = widget.get_keybind_handler(ui);
+        let mut action_handler = widget.get_action_handler(ui);
 
-        while let Some(keybind) = keybind_handler.next(ui.window) {
-            match keybind {
-                Keybind {
-                    key: Key::Enter, ..
-                } => {
+        while let Some(action) = action_handler.next(ui.window) {
+            match action {
+                action_keybind!(key: Enter) => {
                     pty.input().push('\r' as u32);
                 }
-                Keybind {
-                    key: Key::Escape, ..
-                } => {
+                action_keybind!(key: Escape) => {
                     pty.input().push(0x1B);
                 }
-                Keybind { key: Key::Tab, .. } => {
+                action_keybind!(key: Tab) => {
                     pty.input().push('\t' as u32);
                 }
-                Keybind {
-                    key: Key::Backspace,
-                    mods,
-                } => {
+                action_keybind!(key: Backspace, mods) => {
                     let key_char = if mods & MOD_CTRL != 0 { 0x8 } else { 0x7F };
 
                     pty.input().extend_from_slice(&[key_char]);
                 }
-                Keybind {
-                    key: Key::Up | Key::Down | Key::Left | Key::Right | Key::Home | Key::End,
-                    mods,
-                } => {
-                    let key_char = match keybind.key {
+                action_keybind!(keys: key @ (Key::Up | Key::Down | Key::Left | Key::Right | Key::Home | Key::End), mods) =>
+                {
+                    let key_char = match key {
                         Key::Up => 'A',
                         Key::Down => 'B',
                         Key::Left => 'D',
@@ -168,39 +160,19 @@ impl TerminalEmulator {
 
                     pty.input().push(key_char as u32);
                 }
-                Keybind {
-                    key: Key::C | Key::X,
-                    mods: MOD_CTRL,
-                } => {
-                    let mut has_selection = false;
-
-                    for index in doc.cursor_indices() {
-                        if doc.get_cursor(index).get_selection().is_some() {
-                            has_selection = true;
-                            break;
-                        }
-                    }
-
-                    if has_selection {
-                        handle_copy(ui.window, doc, text_buffer);
-                    } else {
-                        pty.input().push(keybind.key as u32 & 0x1F);
-                    }
+                action_name!(names: Some(ActionName::Copy | ActionName::Cut))
+                    if doc.has_selection() =>
+                {
+                    handle_copy(ui.window, doc, text_buffer);
                 }
-                Keybind {
-                    key: Key::V,
-                    mods: MOD_CTRL,
-                } => {
+                action_name!(Paste) => {
                     let text = ui.window.get_clipboard().unwrap_or(&[]);
 
                     for c in text {
                         pty.input().push(*c as u32);
                     }
                 }
-                Keybind {
-                    key,
-                    mods: MOD_CTRL,
-                } => {
+                action_keybind!(key, mods: MOD_CTRL) => {
                     const KEY_A: u32 = Key::A as u32;
                     const KEY_Z: u32 = Key::Z as u32;
 

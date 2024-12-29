@@ -1,8 +1,8 @@
 use crate::{
     app::App,
     input::{
-        input_handlers::{CharHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
-        keybind::Keybind,
+        action::Action,
+        input_handlers::{ActionHandler, CharHandler, MouseScrollHandler, MousebindHandler},
         mouse_scroll::MouseScroll,
         mousebind::Mousebind,
     },
@@ -55,8 +55,8 @@ impl Window {
         self.inner.get_char_handler()
     }
 
-    pub fn get_keybind_handler(&self) -> KeybindHandler {
-        self.inner.get_keybind_handler()
+    pub fn get_action_handler(&self) -> ActionHandler {
+        self.inner.get_action_handler()
     }
 
     pub fn get_mousebind_handler(&self) -> MousebindHandler {
@@ -71,8 +71,8 @@ impl Window {
         &mut self.inner.chars_typed
     }
 
-    pub fn keybinds_typed(&mut self) -> &mut Vec<Keybind> {
-        &mut self.inner.keybinds_typed
+    pub fn actions_typed(&mut self) -> &mut Vec<Action> {
+        &mut self.inner.actions_typed
     }
 
     pub fn mousebinds_pressed(&mut self) -> &mut Vec<Mousebind> {

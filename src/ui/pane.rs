@@ -1,12 +1,7 @@
 use crate::{
     config::{theme::Theme, Config},
     geometry::{rect::Rect, visual_position::VisualPosition},
-    input::{
-        key::Key,
-        keybind::{Keybind, MOD_CTRL},
-        mouse_button::MouseButton,
-        mousebind::Mousebind,
-    },
+    input::{action::action_name, mouse_button::MouseButton, mousebind::Mousebind},
     platform::gfx::Gfx,
     text::doc::Doc,
 };
@@ -102,27 +97,21 @@ impl<T> Pane<T> {
             }
         }
 
-        let mut keybind_handler = widget.get_keybind_handler(ui);
+        let mut action_handler = widget.get_action_handler(ui);
 
-        while let Some(keybind) = keybind_handler.next(ui.window) {
-            match keybind {
-                Keybind {
-                    key: Key::PageUp,
-                    mods: MOD_CTRL,
-                } => {
+        while let Some(action) = action_handler.next(ui.window) {
+            match action {
+                action_name!(PreviousTab) => {
                     if self.focused_tab_index > 0 {
                         self.focused_tab_index -= 1;
                     }
                 }
-                Keybind {
-                    key: Key::PageDown,
-                    mods: MOD_CTRL,
-                } => {
+                action_name!(NextTab) => {
                     if self.focused_tab_index < self.tabs.len() - 1 {
                         self.focused_tab_index += 1;
                     }
                 }
-                _ => keybind_handler.unprocessed(ui.window, keybind),
+                _ => action_handler.unprocessed(ui.window, action),
             }
         }
     }
