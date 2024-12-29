@@ -715,11 +715,11 @@ impl TerminalEmulator {
     fn parse_numeric_parameter(mut output: &[u32]) -> Option<(&[u32], usize)> {
         let mut parameter = 0;
 
-        if !matches!(output[0], ZERO..=NINE) {
+        if !matches!(output.get(0)?, ZERO..=NINE) {
             return None;
         }
 
-        while matches!(output[0], ZERO..=NINE) {
+        while matches!(output.get(0)?, ZERO..=NINE) {
             parameter = parameter * 10 + (output[0] - ZERO) as usize;
             output = &output[1..];
         }
