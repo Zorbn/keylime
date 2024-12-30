@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::input::{
     action::ActionName,
     key::Key,
-    keybind::{Keybind, MOD_ALT, MOD_CTRL},
+    keybind::{Keybind, MOD_ALT, MOD_CTRL, MOD_SHIFT},
 };
 
 pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
@@ -69,7 +69,7 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
                 key: Key::N,
                 mods: MOD_CTRL,
             },
-            ActionName::NewFile,
+            ActionName::NewTab,
         ),
         (
             Keybind {

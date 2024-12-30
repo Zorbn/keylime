@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     mem::{transmute, ManuallyDrop},
     path::Path,
     ptr::{copy_nonoverlapping, null_mut},
@@ -29,7 +29,10 @@ use windows::{
         },
         UI::{
             HiDpi::GetDpiForWindow,
-            Input::KeyboardAndMouse::{GetDoubleClickTime, GetKeyState},
+            Input::KeyboardAndMouse::{
+                GetDoubleClickTime, GetKeyState, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_RCONTROL,
+                VK_RMENU, VK_RSHIFT,
+            },
             WindowsAndMessaging::*,
         },
     },
@@ -39,7 +42,8 @@ use crate::{
     app::App,
     config::Config,
     input::{
-        input_handlers::{CharHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
+        action::{Action, ActionName},
+        input_handlers::{ActionHandler, CharHandler, MouseScrollHandler, MousebindHandler},
         key::Key,
         keybind::Keybind,
         mouse_button::MouseButton,
@@ -50,7 +54,7 @@ use crate::{
     temp_buffer::TempBuffer,
 };
 
-use super::{deferred_call::defer, file_watcher::FileWatcher, gfx::Gfx};
+use super::{deferred_call::defer, file_watcher::FileWatcher, gfx::Gfx, keymaps::new_keymaps};
 
 const DEFAULT_DPI: f32 = 96.0;
 const DEFAULT_WIDTH: i32 = 640;
@@ -246,8 +250,9 @@ pub struct Window {
     last_click: Option<RecordedMouseClick>,
     double_click_time: f32,
 
+    keymaps: HashMap<Keybind, ActionName>,
     pub chars_typed: Vec<char>,
-    pub keybinds_typed: Vec<Keybind>,
+    pub actions_typed: Vec<Action>,
     pub mousebinds_pressed: Vec<Mousebind>,
     pub mouse_scrolls: Vec<MouseScroll>,
 
@@ -296,8 +301,9 @@ impl Window {
             last_click: None,
             double_click_time: triple_click_time,
 
+            keymaps: new_keymaps(),
             chars_typed: Vec::new(),
-            keybinds_typed: Vec::new(),
+            actions_typed: Vec::new(),
             mousebinds_pressed: Vec::new(),
             mouse_scrolls: Vec::new(),
 
@@ -308,7 +314,7 @@ impl Window {
 
     fn clear_inputs(&mut self) {
         self.chars_typed.clear();
-        self.keybinds_typed.clear();
+        self.actions_typed.clear();
         self.mousebinds_pressed.clear();
         self.mouse_scrolls.clear();
     }
@@ -420,8 +426,8 @@ impl Window {
         CharHandler::new(self.chars_typed.len())
     }
 
-    pub fn get_keybind_handler(&self) -> KeybindHandler {
-        KeybindHandler::new(self.keybinds_typed.len())
+    pub fn get_action_handler(&self) -> ActionHandler {
+        ActionHandler::new(self.actions_typed.len())
     }
 
     pub fn get_mousebind_handler(&self) -> MousebindHandler {
@@ -641,17 +647,23 @@ impl Window {
             }
             WM_KEYDOWN | WM_SYSKEYDOWN => {
                 if let Some(key) = Self::key_from_keycode((wparam.0 & 0xFFFF) as u32) {
-                    let has_shift =
-                        GetKeyState(Key::LShift as i32) < 0 || GetKeyState(Key::RShift as i32) < 0;
+                    const LSHIFT: i32 = VK_LSHIFT.0 as i32;
+                    const RSHIFT: i32 = VK_RSHIFT.0 as i32;
+                    const LCTRL: i32 = VK_LCONTROL.0 as i32;
+                    const RCTRL: i32 = VK_RCONTROL.0 as i32;
+                    const LALT: i32 = VK_LMENU.0 as i32;
+                    const RALT: i32 = VK_RMENU.0 as i32;
 
-                    let has_ctrl =
-                        GetKeyState(Key::LCtrl as i32) < 0 || GetKeyState(Key::RCtrl as i32) < 0;
+                    let has_shift = GetKeyState(LSHIFT) < 0 || GetKeyState(RSHIFT) < 0;
+                    let has_ctrl = GetKeyState(LCTRL) < 0 || GetKeyState(RCTRL) < 0;
+                    let has_alt = GetKeyState(LALT) < 0 || GetKeyState(RALT) < 0;
 
-                    let has_alt =
-                        GetKeyState(Key::LAlt as i32) < 0 || GetKeyState(Key::RAlt as i32) < 0;
+                    let action = Action::from_keybind(
+                        Keybind::new(key, has_shift, has_ctrl, has_alt, false),
+                        &self.keymaps,
+                    );
 
-                    self.keybinds_typed
-                        .push(Keybind::new(key, has_shift, has_ctrl, has_alt));
+                    self.actions_typed.push(action);
                 }
 
                 return DefWindowProcW(hwnd, msg, wparam, lparam);

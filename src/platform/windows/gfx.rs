@@ -555,7 +555,7 @@ impl Gfx {
         let atlas = &self.text.atlas;
 
         match self.glyph_cache_result {
-            GlyphCacheResult::Hit => return,
+            GlyphCacheResult::Hit => {}
             GlyphCacheResult::Miss => unsafe {
                 let texture_data = self.texture_data.as_ref().unwrap();
 

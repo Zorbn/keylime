@@ -357,7 +357,7 @@ struct AnalysisSource<'a> {
     string: &'a [u16],
 }
 
-impl<'a> IDWriteTextAnalysisSource_Impl for AnalysisSource_Impl<'a> {
+impl IDWriteTextAnalysisSource_Impl for AnalysisSource_Impl<'_> {
     fn GetTextAtPosition(
         &self,
         _textposition: u32,
