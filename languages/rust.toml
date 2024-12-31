@@ -55,6 +55,7 @@ tokens = [
 ]
 ranges = [
     { start = '"', end = '"', escape = '\', kind = "String" },
+    { start = 'r#*"', end = '"#*', kind = "String" },
     { start = '#%[', end = '%]', kind = "Meta" },
     { start = '#!%[', end = '%]', kind = "Meta" },
     { start = '/%*', end = '%*/', kind = "Comment" },
