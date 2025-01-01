@@ -346,13 +346,6 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
         ),
         (
             Keybind {
-                key: Key::Backspace,
-                mods: MOD_CTRL,
-            },
-            ActionName::DeleteForward,
-        ),
-        (
-            Keybind {
                 key: Key::Delete,
                 mods: 0,
             },
