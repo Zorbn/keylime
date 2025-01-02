@@ -1,6 +1,6 @@
 use std::{
     env::current_dir,
-    fs::read_dir,
+    fs::{read_dir, File},
     path::{Path, PathBuf},
 };
 
@@ -78,14 +78,19 @@ fn on_submit_open_file(
     }: CommandPaletteEventArgs,
     _: bool,
 ) -> CommandPaletteAction {
+    let string = command_palette.doc.to_string();
+    // Trim trailing whitespace, this allows entering "/path/to/file " to create "file"
+    // when just "/path/to/file" could auto-complete to another result like "/path/to/filewithlongername"
+    let string = string.trim_end();
+
+    let path = Path::new(&string);
+
+    if !path.exists() {
+        let _ = File::create(path);
+    }
+
     if pane
-        .open_file(
-            Path::new(&command_palette.doc.to_string()),
-            doc_list,
-            config,
-            line_pool,
-            time,
-        )
+        .open_file(path, doc_list, config, line_pool, time)
         .is_ok()
     {
         CommandPaletteAction::Close
@@ -125,28 +130,11 @@ fn on_complete_results_file(
 
 fn on_update_results_file(
     CommandPaletteEventArgs {
-        command_palette,
-        line_pool,
-        time,
-        ..
+        command_palette, ..
     }: CommandPaletteEventArgs,
 ) {
-    let path = get_command_palette_path(command_palette);
-
-    let dir = if path.is_dir() {
-        let line_len = command_palette.doc.get_line_len(0);
-        let last_char = command_palette.doc.get_char(Position::new(line_len - 1, 0));
-
-        if line_len > 0 && !matches!(last_char, '/' | '\\' | '.') {
-            command_palette
-                .doc
-                .insert(Position::new(line_len, 0), ['/'], line_pool, time);
-        }
-
-        path.as_path()
-    } else {
-        path.parent().unwrap_or(Path::new("."))
-    };
+    let mut path = PathBuf::new();
+    let dir = get_command_palette_dir(command_palette, &mut path);
 
     let Ok(entries) = read_dir(dir) else {
         return;
@@ -160,11 +148,15 @@ fn on_update_results_file(
         let entry_path = entry.path();
 
         if does_path_match_prefix(&path, &entry_path) {
-            if let Some(result) = entry_path
+            if let Some(mut result) = entry_path
                 .file_name()
                 .and_then(|name| name.to_str())
                 .map(|str| str.to_owned())
             {
+                if entry_path.is_dir() {
+                    result.push('/');
+                }
+
                 command_palette.result_list.results.push(result);
             }
         }
@@ -194,12 +186,37 @@ fn on_backspace_file(
     }
 }
 
-fn get_command_palette_path(command_palette: &CommandPalette) -> PathBuf {
-    let mut path = PathBuf::new();
-    path.push(".");
-    path.push(command_palette.doc.to_string());
+fn get_command_palette_dir<'a>(
+    command_palette: &CommandPalette,
+    path: &'a mut PathBuf,
+) -> &'a Path {
+    let path_separators: &[char] = if cfg!(target_os = "windows") {
+        &['/', '\\']
+    } else {
+        &['/']
+    };
 
-    path
+    let string = command_palette.doc.to_string();
+
+    let can_path_be_dir = 'dir_check: {
+        for separator in path_separators {
+            if string.ends_with([*separator]) {
+                break 'dir_check true;
+            }
+        }
+
+        string.is_empty()
+    };
+
+    path.clear();
+    path.push(".");
+    path.push(&string);
+
+    if can_path_be_dir && path.is_dir() {
+        path.as_path()
+    } else {
+        path.parent().unwrap_or(Path::new("."))
+    }
 }
 
 fn find_path_component_start(command_palette: &CommandPalette, position: Position) -> Position {
