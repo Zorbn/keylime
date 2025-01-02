@@ -1,4 +1,4 @@
-use crate::geometry::position::Position;
+use crate::{geometry::position::Position, ui::result_list::ResultListSubmitKind};
 
 use super::{
     mode::{CommandPaletteEventArgs, CommandPaletteMode},
@@ -18,8 +18,12 @@ fn on_submit_go_to_line(
         doc_list,
         ..
     }: CommandPaletteEventArgs,
-    _: bool,
+    kind: ResultListSubmitKind,
 ) -> CommandPaletteAction {
+    if kind != ResultListSubmitKind::Normal {
+        return CommandPaletteAction::Stay;
+    }
+
     let focused_tab_index = pane.focused_tab_index();
 
     let line_text = command_palette.doc.to_string();

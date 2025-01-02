@@ -3,7 +3,12 @@ use std::{borrow::Borrow, vec::Drain};
 use crate::{
     config::Config,
     geometry::{rect::Rect, side::SIDE_ALL, visual_position::VisualPosition},
-    input::{action::action_keybind, mouse_button::MouseButton, mousebind::Mousebind},
+    input::{
+        action::{action_keybind, action_name},
+        keybind::MOD_SHIFT,
+        mouse_button::MouseButton,
+        mousebind::Mousebind,
+    },
     platform::gfx::Gfx,
 };
 
@@ -13,10 +18,17 @@ use super::{
     UiHandle,
 };
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum ResultListSubmitKind {
+    Normal,
+    Alternate,
+    Delete,
+}
+
 pub enum ResultListInput {
     None,
     Complete,
-    Submit { mods: u8 },
+    Submit { kind: ResultListSubmitKind },
     Close,
 }
 
@@ -24,6 +36,7 @@ pub struct ResultList<T> {
     pub results: Vec<T>,
     selected_result_index: usize,
     handled_selected_result_index: usize,
+    pub do_allow_delete: bool,
 
     max_visible_results: usize,
     result_bounds: Rect,
@@ -38,6 +51,7 @@ impl<T> ResultList<T> {
             results: Vec::new(),
             selected_result_index: 0,
             handled_selected_result_index: 0,
+            do_allow_delete: false,
 
             max_visible_results,
             result_bounds: Rect::zero(),
@@ -128,7 +142,13 @@ impl<T> ResultList<T> {
             self.mark_selected_result_handled();
 
             if mousebind.button.is_some() {
-                *input = ResultListInput::Submit { mods };
+                let kind = if mods & MOD_SHIFT != 0 {
+                    ResultListSubmitKind::Alternate
+                } else {
+                    ResultListSubmitKind::Normal
+                };
+
+                *input = ResultListInput::Submit { kind };
             }
         }
 
@@ -153,7 +173,21 @@ impl<T> ResultList<T> {
         while let Some(action) = action_handler.next(ui.window) {
             match action {
                 action_keybind!(key: Escape, mods: 0) => *input = ResultListInput::Close,
-                action_keybind!(key: Enter, mods) => *input = ResultListInput::Submit { mods },
+                action_keybind!(key: Enter, mods: 0) => {
+                    *input = ResultListInput::Submit {
+                        kind: ResultListSubmitKind::Normal,
+                    }
+                }
+                action_keybind!(key: Enter, mods: MOD_SHIFT) => {
+                    *input = ResultListInput::Submit {
+                        kind: ResultListSubmitKind::Alternate,
+                    }
+                }
+                action_name!(DeleteForward) if self.do_allow_delete => {
+                    *input = ResultListInput::Submit {
+                        kind: ResultListSubmitKind::Delete,
+                    }
+                }
                 action_keybind!(key: Tab, mods: 0) => *input = ResultListInput::Complete,
                 action_keybind!(key: Up, mods: 0) => {
                     if self.selected_result_index > 0 {

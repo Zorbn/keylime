@@ -9,13 +9,11 @@ use crate::{
         rect::Rect,
         side::{SIDE_ALL, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     },
-    input::{
-        action::{action_keybind, action_name},
-        keybind::MOD_SHIFT,
-    },
+    input::action::{action_keybind, action_name},
     platform::gfx::Gfx,
     temp_buffer::TempBuffer,
     text::{
+        cursor_index::CursorIndex,
         doc::{Doc, DocKind},
         line_pool::{Line, LinePool},
     },
@@ -23,7 +21,7 @@ use crate::{
 
 use super::{
     editor::{editor_pane::EditorPane, Editor},
-    result_list::{ResultList, ResultListInput},
+    result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     slot_list::SlotList,
     tab::Tab,
     widget::Widget,
@@ -191,6 +189,9 @@ impl CommandPalette {
             }
         }
 
+        self.result_list.do_allow_delete = self.doc.cursors_len() == 1
+            && self.doc.get_cursor(CursorIndex::Main).position == self.doc.end();
+
         let result_input = self.result_list.update(&self.widget, ui, true, true, dt);
 
         match result_input {
@@ -198,16 +199,8 @@ impl CommandPalette {
             ResultListInput::Complete => {
                 self.complete_result(pane, doc_list, config, line_pool, time)
             }
-            ResultListInput::Submit { mods } => {
-                self.submit(
-                    ui,
-                    mods & MOD_SHIFT != 0,
-                    pane,
-                    doc_list,
-                    config,
-                    line_pool,
-                    time,
-                );
+            ResultListInput::Submit { kind } => {
+                self.submit(ui, kind, pane, doc_list, config, line_pool, time);
             }
             ResultListInput::Close => self.close(ui, line_pool),
         }
@@ -228,7 +221,7 @@ impl CommandPalette {
     fn submit(
         &mut self,
         ui: &mut UiHandle,
-        has_shift: bool,
+        kind: ResultListSubmitKind,
         pane: &mut EditorPane,
         doc_list: &mut SlotList<Doc>,
         config: &Config,
@@ -248,7 +241,7 @@ impl CommandPalette {
             time,
         };
 
-        let action = (on_submit)(args, has_shift);
+        let action = (on_submit)(args, kind);
 
         match action {
             CommandPaletteAction::Stay => {}

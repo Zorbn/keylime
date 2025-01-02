@@ -1,7 +1,7 @@
 use crate::{
     geometry::position::Position,
     text::{cursor_index::CursorIndex, doc::Doc, selection::Selection},
-    ui::tab::Tab,
+    ui::{result_list::ResultListSubmitKind, tab::Tab},
 };
 
 use super::{
@@ -35,8 +35,15 @@ fn on_submit_search(
         doc_list,
         ..
     }: CommandPaletteEventArgs,
-    has_shift: bool,
+    kind: ResultListSubmitKind,
 ) -> CommandPaletteAction {
+    if !matches!(
+        kind,
+        ResultListSubmitKind::Normal | ResultListSubmitKind::Alternate
+    ) {
+        return CommandPaletteAction::Stay;
+    }
+
     let focused_tab_index = pane.focused_tab_index();
 
     let Some(search_term) = command_palette.doc.get_line(0) else {
@@ -47,12 +54,24 @@ fn on_submit_search(
         return CommandPaletteAction::Stay;
     };
 
-    search(search_term, tab, doc, has_shift);
+    search(
+        search_term,
+        tab,
+        doc,
+        kind == ResultListSubmitKind::Alternate,
+    );
 
     CommandPaletteAction::Stay
 }
 
-fn on_submit_search_and_replace_start(_: CommandPaletteEventArgs, _: bool) -> CommandPaletteAction {
+fn on_submit_search_and_replace_start(
+    _: CommandPaletteEventArgs,
+    kind: ResultListSubmitKind,
+) -> CommandPaletteAction {
+    if kind != ResultListSubmitKind::Normal {
+        return CommandPaletteAction::Stay;
+    }
+
     CommandPaletteAction::Open(MODE_SEARCH_AND_REPLACE_END)
 }
 
@@ -65,8 +84,15 @@ fn on_submit_search_and_replace_end(
         time,
         ..
     }: CommandPaletteEventArgs,
-    has_shift: bool,
+    kind: ResultListSubmitKind,
 ) -> CommandPaletteAction {
+    if !matches!(
+        kind,
+        ResultListSubmitKind::Normal | ResultListSubmitKind::Alternate
+    ) {
+        return CommandPaletteAction::Stay;
+    }
+
     let focused_tab_index = pane.focused_tab_index();
 
     let Some(search_term) = command_palette.previous_results.last() else {
@@ -81,7 +107,7 @@ fn on_submit_search_and_replace_end(
         return CommandPaletteAction::Stay;
     };
 
-    if !has_shift && doc.cursors_len() == 1 {
+    if kind == ResultListSubmitKind::Normal && doc.cursors_len() == 1 {
         if let Some(Selection { start, end }) = doc.get_cursor(CursorIndex::Main).get_selection() {
             let mut has_match = false;
             let mut position = start;
@@ -114,15 +140,20 @@ fn on_submit_search_and_replace_end(
         }
     }
 
-    search(search_term, tab, doc, has_shift);
+    search(
+        search_term,
+        tab,
+        doc,
+        kind == ResultListSubmitKind::Alternate,
+    );
 
     CommandPaletteAction::Stay
 }
 
-fn search(search_term: &[char], tab: &mut Tab, doc: &mut Doc, has_shift: bool) {
+fn search(search_term: &[char], tab: &mut Tab, doc: &mut Doc, is_reverse: bool) {
     let start = doc.get_cursor(CursorIndex::Main).position;
 
-    if let Some(position) = doc.search(search_term, start, has_shift) {
+    if let Some(position) = doc.search(search_term, start, is_reverse) {
         let end = doc.move_position(position, Position::new(search_term.len() as isize, 0));
 
         doc.jump_cursors(position, false);

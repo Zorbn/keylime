@@ -4,7 +4,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{geometry::position::Position, text::cursor_index::CursorIndex};
+use crate::{
+    geometry::position::Position,
+    platform::recycle::recycle,
+    text::{cursor_index::CursorIndex, doc::Doc, line_pool::LinePool},
+    ui::result_list::ResultListSubmitKind,
+};
 
 use super::{
     mode::{CommandPaletteEventArgs, CommandPaletteMode},
@@ -66,7 +71,17 @@ fn on_open_file(
     }
 }
 
-fn on_submit_open_file(mut args: CommandPaletteEventArgs, _: bool) -> CommandPaletteAction {
+fn on_submit_open_file(
+    mut args: CommandPaletteEventArgs,
+    kind: ResultListSubmitKind,
+) -> CommandPaletteAction {
+    if !matches!(
+        kind,
+        ResultListSubmitKind::Normal | ResultListSubmitKind::Delete
+    ) {
+        return CommandPaletteAction::Stay;
+    }
+
     let CommandPaletteEventArgs {
         command_palette,
         pane,
@@ -83,8 +98,16 @@ fn on_submit_open_file(mut args: CommandPaletteEventArgs, _: bool) -> CommandPal
 
     let path = Path::new(string);
 
+    if kind == ResultListSubmitKind::Delete {
+        if path.exists() && recycle(path).is_ok() {
+            delete_last_path_component(true, &mut command_palette.doc, line_pool, *time);
+        }
+
+        return CommandPaletteAction::Stay;
+    }
+
     if !path.exists() {
-        if ends_with_path_separator(string) {
+        if string.ends_with(is_char_path_separator) {
             let _ = create_dir_all(path);
 
             on_update_results_file(args);
@@ -121,11 +144,7 @@ fn on_complete_results_file(
         return;
     };
 
-    let line_len = command_palette.doc.get_line_len(0);
-    let end = Position::new(line_len, 0);
-    let start = find_path_component_start(command_palette, end);
-
-    command_palette.doc.delete(start, end, line_pool, time);
+    delete_last_path_component(false, &mut command_palette.doc, line_pool, time);
 
     let line_len = command_palette.doc.get_line_len(0);
     let mut start = Position::new(line_len, 0);
@@ -185,8 +204,8 @@ fn on_backspace_file(
     let end = cursor.position;
     let mut start = command_palette.doc.move_position(end, Position::new(-1, 0));
 
-    if matches!(command_palette.doc.get_char(start), '/' | '\\') {
-        start = find_path_component_start(command_palette, start);
+    if is_char_path_separator(command_palette.doc.get_char(start)) {
+        start = find_path_component_start(&command_palette.doc, start);
 
         command_palette.doc.delete(start, end, line_pool, time);
 
@@ -201,7 +220,7 @@ fn get_command_palette_dir<'a>(
     path: &'a mut PathBuf,
 ) -> &'a Path {
     let string = command_palette.doc.to_string();
-    let can_path_be_dir = string.is_empty() || ends_with_path_separator(&string);
+    let can_path_be_dir = string.is_empty() || string.ends_with(is_char_path_separator);
 
     path.clear();
     path.push(".");
@@ -214,31 +233,41 @@ fn get_command_palette_dir<'a>(
     }
 }
 
-fn ends_with_path_separator(string: &str) -> bool {
-    let path_separators: &[char] = if cfg!(target_os = "windows") {
-        &['/', '\\']
+fn delete_last_path_component(
+    can_delete_dirs: bool,
+    doc: &mut Doc,
+    line_pool: &mut LinePool,
+    time: f32,
+) {
+    let line_len = doc.get_line_len(0);
+    let end = Position::new(line_len, 0);
+
+    let find_start = if can_delete_dirs {
+        doc.move_position(end, Position::new(-1, 0))
     } else {
-        &['/']
+        end
     };
 
-    for separator in path_separators {
-        if string.ends_with([*separator]) {
-            return true;
-        }
-    }
+    let start = find_path_component_start(doc, find_start);
 
-    false
+    doc.delete(start, end, line_pool, time);
 }
 
-fn find_path_component_start(command_palette: &CommandPalette, position: Position) -> Position {
+fn is_char_path_separator(c: char) -> bool {
+    if cfg!(target_os = "windows") {
+        matches!(c, '/' | '\\')
+    } else {
+        matches!(c, '/')
+    }
+}
+
+fn find_path_component_start(doc: &Doc, position: Position) -> Position {
     let mut start = position;
 
     while start > Position::zero() {
-        let next_start = command_palette
-            .doc
-            .move_position(start, Position::new(-1, 0));
+        let next_start = doc.move_position(start, Position::new(-1, 0));
 
-        if matches!(command_palette.doc.get_char(next_start), '/' | '\\') {
+        if is_char_path_separator(doc.get_char(next_start)) {
             break;
         }
 

@@ -22,7 +22,7 @@ use crate::{
 };
 
 use super::{
-    result_list::{ResultList, ResultListInput},
+    result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     slot_list::SlotList,
     widget::Widget,
     Ui, UiHandle,
@@ -238,7 +238,10 @@ impl Editor {
 
         match result_input {
             ResultListInput::None => {}
-            ResultListInput::Complete | ResultListInput::Submit { .. } => {
+            ResultListInput::Complete
+            | ResultListInput::Submit {
+                kind: ResultListSubmitKind::Normal,
+            } => {
                 if let Some(result) = self.completion_result_list.get_selected_result() {
                     let pane = &mut self.panes[self.focused_pane_index];
                     let focused_tab_index = pane.focused_tab_index();
@@ -265,6 +268,7 @@ impl Editor {
                     &mut self.completion_result_pool,
                 );
             }
+            _ => {}
         }
 
         let handled_position = self.get_cursor_position();

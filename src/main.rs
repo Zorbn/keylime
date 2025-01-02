@@ -15,7 +15,6 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
- * Allow recycling files/folders the selected folder in the file finder by pressing (forward) delete when the cursor is at the end of the line.
  * Directory-wide search.
  * Unit testing for patterns and text editing functions.
  */

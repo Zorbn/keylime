@@ -1,7 +1,7 @@
 use crate::{
     config::Config,
     text::{doc::Doc, line_pool::LinePool},
-    ui::{editor::editor_pane::EditorPane, slot_list::SlotList},
+    ui::{editor::editor_pane::EditorPane, result_list::ResultListSubmitKind, slot_list::SlotList},
 };
 
 use super::{CommandPalette, CommandPaletteAction};
@@ -18,7 +18,7 @@ pub struct CommandPaletteEventArgs<'a> {
 pub struct CommandPaletteMode {
     pub title: &'static str,
     pub on_open: fn(CommandPaletteEventArgs),
-    pub on_submit: fn(CommandPaletteEventArgs, bool) -> CommandPaletteAction,
+    pub on_submit: fn(CommandPaletteEventArgs, ResultListSubmitKind) -> CommandPaletteAction,
     pub on_complete_result: fn(CommandPaletteEventArgs),
     pub on_update_results: fn(CommandPaletteEventArgs),
     pub on_backspace: fn(CommandPaletteEventArgs) -> bool,
