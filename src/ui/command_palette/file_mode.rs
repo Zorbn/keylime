@@ -1,6 +1,6 @@
 use std::{
     env::current_dir,
-    fs::{read_dir, File},
+    fs::{create_dir_all, read_dir, File},
     path::{Path, PathBuf},
 };
 
@@ -66,31 +66,41 @@ fn on_open_file(
     }
 }
 
-fn on_submit_open_file(
-    CommandPaletteEventArgs {
+fn on_submit_open_file(mut args: CommandPaletteEventArgs, _: bool) -> CommandPaletteAction {
+    let CommandPaletteEventArgs {
         command_palette,
         pane,
         doc_list,
         config,
         line_pool,
         time,
-        ..
-    }: CommandPaletteEventArgs,
-    _: bool,
-) -> CommandPaletteAction {
+    } = &mut args;
+
     let string = command_palette.doc.to_string();
     // Trim trailing whitespace, this allows entering "/path/to/file " to create "file"
     // when just "/path/to/file" could auto-complete to another result like "/path/to/filewithlongername"
     let string = string.trim_end();
 
-    let path = Path::new(&string);
+    let path = Path::new(string);
 
     if !path.exists() {
-        let _ = File::create(path);
+        if ends_with_path_separator(string) {
+            let _ = create_dir_all(path);
+
+            on_update_results_file(args);
+
+            return CommandPaletteAction::Stay;
+        } else {
+            if let Some(parent) = path.parent() {
+                let _ = create_dir_all(parent);
+            }
+
+            let _ = File::create(path);
+        }
     }
 
     if pane
-        .open_file(path, doc_list, config, line_pool, time)
+        .open_file(path, doc_list, config, line_pool, *time)
         .is_ok()
     {
         CommandPaletteAction::Close
@@ -190,23 +200,8 @@ fn get_command_palette_dir<'a>(
     command_palette: &CommandPalette,
     path: &'a mut PathBuf,
 ) -> &'a Path {
-    let path_separators: &[char] = if cfg!(target_os = "windows") {
-        &['/', '\\']
-    } else {
-        &['/']
-    };
-
     let string = command_palette.doc.to_string();
-
-    let can_path_be_dir = 'dir_check: {
-        for separator in path_separators {
-            if string.ends_with([*separator]) {
-                break 'dir_check true;
-            }
-        }
-
-        string.is_empty()
-    };
+    let can_path_be_dir = string.is_empty() || ends_with_path_separator(&string);
 
     path.clear();
     path.push(".");
@@ -217,6 +212,22 @@ fn get_command_palette_dir<'a>(
     } else {
         path.parent().unwrap_or(Path::new("."))
     }
+}
+
+fn ends_with_path_separator(string: &str) -> bool {
+    let path_separators: &[char] = if cfg!(target_os = "windows") {
+        &['/', '\\']
+    } else {
+        &['/']
+    };
+
+    for separator in path_separators {
+        if string.ends_with([*separator]) {
+            return true;
+        }
+    }
+
+    false
 }
 
 fn find_path_component_start(command_palette: &CommandPalette, position: Position) -> Position {
