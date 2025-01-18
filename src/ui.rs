@@ -20,6 +20,7 @@ pub mod widget;
 pub struct Ui {
     next_widget_id: usize,
     focused_widget_id: usize,
+    hovered_widget_id: usize,
     last_focused_widget_id: usize,
 }
 
@@ -28,6 +29,7 @@ impl Ui {
         Self {
             next_widget_id: 0,
             focused_widget_id: 0,
+            hovered_widget_id: 0,
             last_focused_widget_id: 0,
         }
     }
@@ -53,38 +55,63 @@ impl<'a> UiHandle<'a> {
 
     pub fn update(&mut self, focusable_widgets: &mut [&mut Widget]) {
         let mut focused_widget_index = None;
+        let mut hovered_widget_index = None;
 
         let mut mousebind_handler = self.window.get_mousebind_handler();
 
         while let Some(mousebind) = mousebind_handler.next(self.window) {
+            let position = VisualPosition::new(mousebind.x, mousebind.y);
+            let widget_index = Self::get_widget_index_at(position, focusable_widgets);
+            hovered_widget_index = widget_index;
+
             if let Mousebind {
                 button: Some(MouseButton::Left),
-                x,
-                y,
                 is_drag: false,
                 ..
             } = mousebind
             {
-                for (index, widget) in focusable_widgets.iter().enumerate() {
-                    if !widget.is_visible {
-                        continue;
-                    }
-
-                    for bounds in widget.all_bounds() {
-                        if bounds.contains_position(VisualPosition::new(x, y)) {
-                            focused_widget_index = Some(index);
-
-                            break;
-                        }
-                    }
-                }
+                focused_widget_index = widget_index;
             }
 
             mousebind_handler.unprocessed(self.window, mousebind);
         }
 
+        let mut mouse_scroll_handler = self.window.get_mouse_scroll_handler();
+
+        while let Some(mouse_scroll) = mouse_scroll_handler.next(self.window) {
+            let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
+            let widget_index = Self::get_widget_index_at(position, focusable_widgets);
+            hovered_widget_index = widget_index;
+
+            mouse_scroll_handler.unprocessed(self.window, mouse_scroll);
+        }
+
         if let Some(focused_widget_index) = focused_widget_index {
             focusable_widgets[focused_widget_index].take_focus(self);
         }
+
+        if let Some(hovered_widget_index) = hovered_widget_index {
+            focusable_widgets[hovered_widget_index].take_hover(self);
+        }
+    }
+
+    fn get_widget_index_at(position: VisualPosition, widgets: &[&mut Widget]) -> Option<usize> {
+        let mut widget_index = None;
+
+        for (index, widget) in widgets.iter().enumerate() {
+            if !widget.is_visible {
+                continue;
+            }
+
+            for bounds in widget.all_bounds() {
+                if bounds.contains_position(position) {
+                    widget_index = Some(index);
+
+                    break;
+                }
+            }
+        }
+
+        widget_index
     }
 }

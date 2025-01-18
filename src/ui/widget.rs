@@ -50,11 +50,15 @@ impl Widget {
     }
 
     pub fn get_mouse_scroll_handler(&self, ui: &UiHandle) -> MouseScrollHandler {
-        if self.is_focused(ui) {
+        if self.is_hovered(ui) {
             ui.window.get_mouse_scroll_handler()
         } else {
             MouseScrollHandler::new(0)
         }
+    }
+
+    pub fn take_hover(&mut self, ui: &mut UiHandle) {
+        ui.inner.hovered_widget_id = self.id;
     }
 
     pub fn take_focus(&mut self, ui: &mut UiHandle) {
@@ -76,6 +80,10 @@ impl Widget {
 
     pub fn is_focused(&self, ui: &UiHandle) -> bool {
         ui.window.is_focused() && self.id == ui.inner.focused_widget_id && self.is_visible
+    }
+
+    pub fn is_hovered(&self, ui: &UiHandle) -> bool {
+        self.id == ui.inner.hovered_widget_id && self.is_visible
     }
 
     pub fn layout(&mut self, bounds: &[Rect]) {
