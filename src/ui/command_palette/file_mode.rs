@@ -18,15 +18,15 @@ use super::{
 
 pub const MODE_OPEN_FILE: &CommandPaletteMode = &CommandPaletteMode {
     title: "Find File",
-    on_open: on_open_file,
-    on_submit: on_submit_open_file,
-    on_complete_result: on_complete_results_file,
-    on_update_results: on_update_results_file,
-    on_backspace: on_backspace_file,
+    on_open,
+    on_submit,
+    on_complete_result,
+    on_update_results,
+    on_backspace,
     ..CommandPaletteMode::default()
 };
 
-fn on_open_file(
+fn on_open(
     CommandPaletteEventArgs {
         command_palette,
         pane,
@@ -71,7 +71,7 @@ fn on_open_file(
     }
 }
 
-fn on_submit_open_file(
+fn on_submit(
     mut args: CommandPaletteEventArgs,
     kind: ResultListSubmitKind,
 ) -> CommandPaletteAction {
@@ -110,7 +110,7 @@ fn on_submit_open_file(
         if string.ends_with(is_char_path_separator) {
             let _ = create_dir_all(path);
 
-            on_update_results_file(args);
+            on_update_results(args);
 
             return CommandPaletteAction::Stay;
         } else {
@@ -132,7 +132,7 @@ fn on_submit_open_file(
     }
 }
 
-fn on_complete_results_file(
+fn on_complete_result(
     CommandPaletteEventArgs {
         command_palette,
         line_pool,
@@ -157,7 +157,7 @@ fn on_complete_results_file(
     }
 }
 
-fn on_update_results_file(
+fn on_update_results(
     CommandPaletteEventArgs {
         command_palette, ..
     }: CommandPaletteEventArgs,
@@ -192,7 +192,7 @@ fn on_update_results_file(
     }
 }
 
-fn on_backspace_file(
+fn on_backspace(
     CommandPaletteEventArgs {
         command_palette,
         line_pool,

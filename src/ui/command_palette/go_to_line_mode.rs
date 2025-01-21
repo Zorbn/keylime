@@ -7,11 +7,11 @@ use super::{
 
 pub const MODE_GO_TO_LINE: &CommandPaletteMode = &CommandPaletteMode {
     title: "Go to Line",
-    on_submit: on_submit_go_to_line,
+    on_submit,
     ..CommandPaletteMode::default()
 };
 
-fn on_submit_go_to_line(
+fn on_submit(
     CommandPaletteEventArgs {
         command_palette,
         pane,
