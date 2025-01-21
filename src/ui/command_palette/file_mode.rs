@@ -16,6 +16,8 @@ use super::{
     CommandPalette, CommandPaletteAction,
 };
 
+const PREFERRED_PATH_SEPARATOR: char = '/';
+
 pub const MODE_OPEN_FILE: &CommandPaletteMode = &CommandPaletteMode {
     title: "Find File",
     on_open,
@@ -66,8 +68,10 @@ fn on_open(
             command_doc.insert(position, [c], line_pool, time);
         }
 
-        let position = command_doc.end();
-        command_doc.insert(position, ['/'], line_pool, time);
+        if !str.ends_with(is_char_path_separator) {
+            let position = command_doc.end();
+            command_doc.insert(position, [PREFERRED_PATH_SEPARATOR], line_pool, time);
+        }
     }
 }
 
@@ -183,7 +187,7 @@ fn on_update_results(
                 .map(|str| str.to_owned())
             {
                 if entry_path.is_dir() {
-                    result.push('/');
+                    result.push(PREFERRED_PATH_SEPARATOR);
                 }
 
                 command_palette.result_list.results.push(result);
