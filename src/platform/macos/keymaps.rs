@@ -94,17 +94,17 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
         ),
         (
             Keybind {
-                key: Key::PageUp,
-                mods: MOD_CMD,
+                key: Key::Left,
+                mods: MOD_CMD | MOD_ALT,
             },
-            ActionName::PreviousPane,
+            ActionName::PreviousTab,
         ),
         (
             Keybind {
-                key: Key::PageDown,
-                mods: MOD_CMD,
+                key: Key::Right,
+                mods: MOD_CMD | MOD_ALT,
             },
-            ActionName::NextPane,
+            ActionName::NextTab,
         ),
         (
             Keybind {
