@@ -199,8 +199,8 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
         ),
         (
             Keybind {
-                key: Key::Y,
-                mods: MOD_CMD,
+                key: Key::Z,
+                mods: MOD_CMD | MOD_SHIFT,
             },
             ActionName::Redo,
         ),
