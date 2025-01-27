@@ -24,7 +24,7 @@ use super::{
     result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     slot_list::SlotList,
     tab::Tab,
-    widget::Widget,
+    widget::{Widget, WidgetHandle},
     Ui, UiHandle,
 };
 
@@ -215,7 +215,8 @@ impl CommandPalette {
         self.result_list.do_allow_delete = self.doc.cursors_len() == 1
             && self.doc.get_cursor(CursorIndex::Main).position == self.doc.end();
 
-        let result_input = self.result_list.update(&self.widget, ui, true, true, dt);
+        let mut widget = WidgetHandle::new(&mut self.widget, ui);
+        let result_input = self.result_list.update(&mut widget, true, true, dt);
 
         match result_input {
             ResultListInput::None => {}
@@ -228,8 +229,10 @@ impl CommandPalette {
             ResultListInput::Close => self.close(ui, &mut buffers.lines),
         }
 
+        let mut widget = WidgetHandle::new(&mut self.widget, ui);
+
         self.tab
-            .update(&self.widget, ui, &mut self.doc, buffers, config, time);
+            .update(&mut widget, &mut self.doc, buffers, config, time);
 
         self.update_results(pane, doc_list, config, &mut buffers.lines, time);
     }

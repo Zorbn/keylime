@@ -13,7 +13,11 @@ use crate::{
     },
 };
 
-use super::{slot_list::SlotList, widget::Widget, Ui, UiHandle};
+use super::{
+    slot_list::SlotList,
+    widget::{Widget, WidgetHandle},
+    Ui, UiHandle,
+};
 
 mod char32;
 mod color_table;
@@ -103,8 +107,10 @@ impl Terminal {
             }
         }
 
+        let mut widget = WidgetHandle::new(&mut self.widget, ui);
+
         self.pane
-            .update(&self.widget, ui, &mut self.term_list, &mut buffers.lines);
+            .update(&mut widget, &mut self.term_list, &mut buffers.lines);
 
         let focused_tab_index = self.pane.focused_tab_index();
 
@@ -112,7 +118,7 @@ impl Terminal {
             .pane
             .get_tab_with_data_mut(focused_tab_index, &mut self.term_list)
         {
-            emulator.update_input(&self.widget, ui, docs, tab, buffers, config, time);
+            emulator.update_input(&mut widget, docs, tab, buffers, config, time);
         }
 
         for tab in &mut self.pane.tabs {
@@ -122,7 +128,7 @@ impl Terminal {
                 continue;
             };
 
-            emulator.update_output(&self.widget, ui, docs, tab, buffers, config, time, dt);
+            emulator.update_output(&mut widget, docs, tab, buffers, config, time, dt);
         }
     }
 

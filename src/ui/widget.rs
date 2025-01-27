@@ -1,6 +1,7 @@
 use crate::{
     geometry::rect::Rect,
     input::input_handlers::{ActionHandler, CharHandler, MouseScrollHandler, MousebindHandler},
+    platform::{gfx::Gfx, window::Window},
 };
 
 use super::{Ui, UiHandle};
@@ -102,5 +103,40 @@ impl Widget {
 
     pub fn all_bounds(&self) -> &[Rect] {
         &self.bounds
+    }
+}
+
+pub struct WidgetHandle<'a, 'b> {
+    inner: &'a mut Widget,
+    ui: &'a mut UiHandle<'b>,
+}
+
+impl<'a, 'b> WidgetHandle<'a, 'b> {
+    pub fn new(widget: &'a mut Widget, ui: &'a mut UiHandle<'b>) -> Self {
+        Self { inner: widget, ui }
+    }
+
+    pub fn get_char_handler(&self) -> CharHandler {
+        self.inner.get_char_handler(self.ui)
+    }
+
+    pub fn get_action_handler(&self) -> ActionHandler {
+        self.inner.get_action_handler(self.ui)
+    }
+
+    pub fn get_mousebind_handler(&self) -> MousebindHandler {
+        self.inner.get_mousebind_handler(self.ui)
+    }
+
+    pub fn get_mouse_scroll_handler(&self) -> MouseScrollHandler {
+        self.inner.get_mouse_scroll_handler(self.ui)
+    }
+
+    pub fn window(&mut self) -> &mut Window {
+        self.ui.window
+    }
+
+    pub fn gfx(&mut self) -> &mut Gfx {
+        self.ui.gfx()
     }
 }

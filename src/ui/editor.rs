@@ -23,7 +23,7 @@ use crate::{
 use super::{
     result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     slot_list::SlotList,
-    widget::Widget,
+    widget::{Widget, WidgetHandle},
     Ui, UiHandle,
 };
 
@@ -220,9 +220,9 @@ impl Editor {
         let are_results_visible = self.is_cursor_visible(ui.gfx());
         let are_results_focused = !self.completion_result_list.results.is_empty();
 
+        let mut widget = WidgetHandle::new(&mut self.widget, ui);
         let result_input = self.completion_result_list.update(
-            &self.widget,
-            ui,
+            &mut widget,
             are_results_visible,
             are_results_focused,
             dt,
@@ -264,16 +264,19 @@ impl Editor {
         }
 
         let handled_position = self.get_cursor_position();
+        let mut widget = WidgetHandle::new(&mut self.widget, ui);
         let pane = &mut self.panes[self.focused_pane_index];
 
-        pane.update(&self.widget, ui, &mut self.doc_list, buffers, config, time);
+        pane.update(&mut widget, &mut self.doc_list, buffers, config, time);
 
         if pane.tabs_len() == 0 {
             self.close_pane(config, &mut buffers.lines, time);
         }
 
+        let mut widget = WidgetHandle::new(&mut self.widget, ui);
+
         for pane in &mut self.panes {
-            pane.update_camera(&self.widget, ui, &mut self.doc_list, dt);
+            pane.update_camera(&mut widget, &mut self.doc_list, dt);
         }
 
         self.update_completions(should_open_completions, handled_position);

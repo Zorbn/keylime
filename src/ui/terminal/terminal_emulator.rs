@@ -14,7 +14,7 @@ use crate::{
     text::{
         cursor::Cursor, doc::Doc, line_pool::LinePool, syntax_highlighter::TerminalHighlightKind,
     },
-    ui::{tab::Tab, widget::Widget, UiHandle},
+    ui::{tab::Tab, widget::WidgetHandle},
 };
 
 use super::{char32::*, TerminalDocs};
@@ -91,8 +91,7 @@ impl TerminalEmulator {
 
     pub fn update_input(
         &mut self,
-        widget: &Widget,
-        ui: &mut UiHandle,
+        widget: &mut WidgetHandle,
         docs: &mut TerminalDocs,
         tab: &mut Tab,
         buffers: &mut EditorBuffers,
@@ -105,9 +104,9 @@ impl TerminalEmulator {
 
         let doc = self.get_doc_mut(docs);
 
-        let mut action_handler = widget.get_action_handler(ui);
+        let mut action_handler = widget.get_action_handler();
 
-        while let Some(action) = action_handler.next(ui.window) {
+        while let Some(action) = action_handler.next(widget.window()) {
             match action {
                 action_keybind!(key: Enter) => {
                     pty.input().push('\r' as u32);
@@ -158,10 +157,10 @@ impl TerminalEmulator {
                 action_name!(names: Some(ActionName::Copy | ActionName::Cut))
                     if doc.has_selection() =>
                 {
-                    handle_copy(ui.window, doc, &mut buffers.text);
+                    handle_copy(widget.window(), doc, &mut buffers.text);
                 }
                 action_name!(Paste) => {
-                    let text = ui.window.get_clipboard().unwrap_or(&[]);
+                    let text = widget.window().get_clipboard().unwrap_or(&[]);
 
                     for c in text {
                         pty.input().push(*c as u32);
@@ -181,9 +180,9 @@ impl TerminalEmulator {
             }
         }
 
-        let mut char_handler = widget.get_char_handler(ui);
+        let mut char_handler = widget.get_char_handler();
 
-        while let Some(c) = char_handler.next(ui.window) {
+        while let Some(c) = char_handler.next(widget.window()) {
             pty.input().push(c as u32);
         }
 
@@ -191,13 +190,12 @@ impl TerminalEmulator {
 
         self.pty = Some(pty);
 
-        tab.update(widget, ui, doc, buffers, config, time);
+        tab.update(widget, doc, buffers, config, time);
     }
 
     pub fn update_output(
         &mut self,
-        widget: &Widget,
-        ui: &mut UiHandle,
+        widget: &mut WidgetHandle,
         docs: &mut TerminalDocs,
         tab: &mut Tab,
         buffers: &mut EditorBuffers,
@@ -205,7 +203,7 @@ impl TerminalEmulator {
         time: f32,
         dt: f32,
     ) {
-        self.resize_grid(ui, tab);
+        self.resize_grid(widget, tab);
 
         let Some(mut pty) = self.pty.take() else {
             return;
@@ -236,7 +234,7 @@ impl TerminalEmulator {
         }
 
         let doc = self.get_doc_mut(docs);
-        self.trim_excess_lines(ui, tab, doc, &mut buffers.lines, time);
+        self.trim_excess_lines(widget, tab, doc, &mut buffers.lines, time);
 
         if self.maintain_cursor_positions {
             self.restore_doc_cursor_positions(doc, cursor_buffer);
@@ -251,12 +249,12 @@ impl TerminalEmulator {
             let doc = self.get_doc(docs);
 
             tab.camera.horizontal.reset_velocity();
-            tab.update_camera(widget, ui, doc, dt);
+            tab.update_camera(widget, doc, dt);
         }
     }
 
-    fn resize_grid(&mut self, ui: &mut UiHandle, tab: &Tab) {
-        let (grid_width, grid_height) = Self::get_grid_size(ui, tab);
+    fn resize_grid(&mut self, widget: &mut WidgetHandle, tab: &Tab) {
+        let (grid_width, grid_height) = Self::get_grid_size(widget, tab);
 
         if grid_width != self.grid_width || grid_height != self.grid_height {
             if let Some(pty) = self.pty.as_mut() {
@@ -275,17 +273,17 @@ impl TerminalEmulator {
         }
     }
 
-    fn get_grid_size(ui: &mut UiHandle, tab: &Tab) -> (isize, isize) {
+    fn get_grid_size(widget: &mut WidgetHandle, tab: &Tab) -> (isize, isize) {
         let Rect {
             width: doc_width,
             height: doc_height,
             ..
         } = tab.doc_bounds();
 
-        let grid_width = (doc_width / ui.gfx().glyph_width()).floor() as isize;
+        let grid_width = (doc_width / widget.gfx().glyph_width()).floor() as isize;
         let grid_width = grid_width.max(MIN_GRID_WIDTH);
 
-        let grid_height = (doc_height / ui.gfx().line_height()).floor() as isize;
+        let grid_height = (doc_height / widget.gfx().line_height()).floor() as isize;
         let grid_height = grid_height.max(MIN_GRID_HEIGHT);
 
         (grid_width, grid_height)
@@ -327,7 +325,7 @@ impl TerminalEmulator {
 
     pub fn trim_excess_lines(
         &mut self,
-        ui: &mut UiHandle,
+        widget: &mut WidgetHandle,
         tab: &mut Tab,
         doc: &mut Doc,
         line_pool: &mut LinePool,
@@ -339,7 +337,7 @@ impl TerminalEmulator {
             return;
         }
 
-        let gfx = ui.gfx();
+        let gfx = widget.gfx();
 
         let camera_offset_y =
             tab.camera.vertical.position - doc.lines().len() as f32 * gfx.line_height();

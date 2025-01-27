@@ -6,7 +6,7 @@ use crate::{
     text::doc::Doc,
 };
 
-use super::{color::Color, slot_list::SlotList, tab::Tab, widget::Widget, UiHandle};
+use super::{color::Color, slot_list::SlotList, tab::Tab, widget::WidgetHandle};
 
 pub struct Pane<T> {
     pub tabs: Vec<Tab>,
@@ -64,10 +64,10 @@ impl<T> Pane<T> {
         }
     }
 
-    pub fn update(&mut self, widget: &Widget, ui: &mut UiHandle) {
-        let mut mousebind_handler = widget.get_mousebind_handler(ui);
+    pub fn update(&mut self, widget: &mut WidgetHandle) {
+        let mut mousebind_handler = widget.get_mousebind_handler();
 
-        while let Some(mousebind) = mousebind_handler.next(ui.window) {
+        while let Some(mousebind) = mousebind_handler.next(widget.window()) {
             let visual_position =
                 VisualPosition::new(mousebind.x - self.bounds.x, mousebind.y - self.bounds.y);
 
@@ -90,16 +90,16 @@ impl<T> Pane<T> {
                         .nth(0)
                     {
                         Some((i, _)) => self.focused_tab_index = i,
-                        _ => mousebind_handler.unprocessed(ui.window, mousebind),
+                        _ => mousebind_handler.unprocessed(widget.window(), mousebind),
                     }
                 }
-                _ => mousebind_handler.unprocessed(ui.window, mousebind),
+                _ => mousebind_handler.unprocessed(widget.window(), mousebind),
             }
         }
 
-        let mut action_handler = widget.get_action_handler(ui);
+        let mut action_handler = widget.get_action_handler();
 
-        while let Some(action) = action_handler.next(ui.window) {
+        while let Some(action) = action_handler.next(widget.window()) {
             match action {
                 action_name!(PreviousTab) => {
                     if self.focused_tab_index > 0 {
@@ -111,22 +111,21 @@ impl<T> Pane<T> {
                         self.focused_tab_index += 1;
                     }
                 }
-                _ => action_handler.unprocessed(ui.window, action),
+                _ => action_handler.unprocessed(widget.window(), action),
             }
         }
     }
 
     pub fn update_camera(
         &mut self,
-        widget: &Widget,
-        ui: &mut UiHandle,
+        widget: &mut WidgetHandle,
         data_list: &mut SlotList<T>,
         dt: f32,
     ) {
         let get_doc = self.get_doc;
 
         if let Some((tab, data)) = self.get_tab_with_data_mut(self.focused_tab_index, data_list) {
-            tab.update_camera(widget, ui, get_doc(data), dt);
+            tab.update_camera(widget, get_doc(data), dt);
         }
     }
 

@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::{
     text::line_pool::LinePool,
-    ui::{pane::Pane, slot_list::SlotList, widget::Widget, UiHandle},
+    ui::{pane::Pane, slot_list::SlotList, widget::WidgetHandle},
 };
 
 use super::{action_name, terminal_emulator::TerminalEmulator, Term, TerminalDocs};
@@ -27,14 +27,13 @@ impl TerminalPane {
 
     pub fn update(
         &mut self,
-        widget: &Widget,
-        ui: &mut UiHandle,
+        widget: &mut WidgetHandle,
         term_list: &mut SlotList<Term>,
         line_pool: &mut LinePool,
     ) {
-        let mut action_handler = widget.get_action_handler(ui);
+        let mut action_handler = widget.get_action_handler();
 
-        while let Some(action) = action_handler.next(ui.window) {
+        while let Some(action) = action_handler.next(widget.window()) {
             match action {
                 action_name!(NewTab) => {
                     let term = Self::new_term(line_pool);
@@ -53,11 +52,11 @@ impl TerminalPane {
                         }
                     }
                 }
-                _ => action_handler.unprocessed(ui.window, action),
+                _ => action_handler.unprocessed(widget.window(), action),
             }
         }
 
-        self.inner.update(widget, ui);
+        self.inner.update(widget);
     }
 
     fn new_term(line_pool: &mut LinePool) -> Term {

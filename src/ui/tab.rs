@@ -22,8 +22,7 @@ use crate::{
 use super::{
     camera::{Camera, RECENTER_DISTANCE},
     color::Color,
-    widget::Widget,
-    UiHandle,
+    widget::WidgetHandle,
 };
 
 const GUTTER_PADDING_WIDTH: f32 = 1.0;
@@ -93,8 +92,7 @@ impl Tab {
 
     pub fn update(
         &mut self,
-        widget: &Widget,
-        ui: &mut UiHandle,
+        widget: &mut WidgetHandle,
         doc: &mut Doc,
         buffers: &mut EditorBuffers,
         config: &Config,
@@ -104,35 +102,35 @@ impl Tab {
 
         self.handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
 
-        let mut char_handler = widget.get_char_handler(ui);
+        let mut char_handler = widget.get_char_handler();
 
-        while let Some(c) = char_handler.next(ui.window) {
+        while let Some(c) = char_handler.next(widget.window()) {
             handle_char(c, doc, &mut buffers.lines, time);
         }
 
-        let mut mousebind_handler = widget.get_mousebind_handler(ui);
+        let mut mousebind_handler = widget.get_mousebind_handler();
 
-        while let Some(mousebind) = mousebind_handler.next(ui.window) {
+        while let Some(mousebind) = mousebind_handler.next(widget.window()) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
 
             if !self
                 .doc_bounds
                 .contains_position(VisualPosition::new(mousebind.x, mousebind.y))
             {
-                mousebind_handler.unprocessed(ui.window, mousebind);
+                mousebind_handler.unprocessed(widget.window(), mousebind);
                 continue;
             }
 
             // The mouse position is shifted over by half
             // a glyph to make the cursor line up with the mouse.
             let visual_position = VisualPosition::new(
-                visual_position.x + ui.gfx().glyph_width() / 2.0,
+                visual_position.x + widget.gfx().glyph_width() / 2.0,
                 visual_position.y,
             )
             .unoffset_by(self.doc_bounds);
 
             let position =
-                doc.visual_to_position(visual_position, self.camera.position(), ui.gfx());
+                doc.visual_to_position(visual_position, self.camera.position(), widget.gfx());
 
             match mousebind {
                 Mousebind {
@@ -153,17 +151,17 @@ impl Tab {
                 } => {
                     doc.add_cursor(position);
                 }
-                _ => mousebind_handler.unprocessed(ui.window, mousebind),
+                _ => mousebind_handler.unprocessed(widget.window(), mousebind),
             }
         }
 
-        let mut action_handler = widget.get_action_handler(ui);
+        let mut action_handler = widget.get_action_handler();
 
-        while let Some(action) = action_handler.next(ui.window) {
-            let was_handled = handle_action(action, ui.window, doc, language, buffers, time);
+        while let Some(action) = action_handler.next(widget.window()) {
+            let was_handled = handle_action(action, widget.window(), doc, language, buffers, time);
 
             if !was_handled {
-                action_handler.unprocessed(ui.window, action);
+                action_handler.unprocessed(widget.window(), action);
             }
         }
 
@@ -171,18 +169,18 @@ impl Tab {
         doc.update_tokens();
     }
 
-    pub fn update_camera(&mut self, widget: &Widget, ui: &mut UiHandle, doc: &Doc, dt: f32) {
-        let mut mouse_scroll_handler = widget.get_mouse_scroll_handler(ui);
+    pub fn update_camera(&mut self, widget: &mut WidgetHandle, doc: &Doc, dt: f32) {
+        let mut mouse_scroll_handler = widget.get_mouse_scroll_handler();
 
-        while let Some(mouse_scroll) = mouse_scroll_handler.next(ui.window) {
+        while let Some(mouse_scroll) = mouse_scroll_handler.next(widget.window()) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
 
             if !self.doc_bounds.contains_position(position) {
-                mouse_scroll_handler.unprocessed(ui.window, mouse_scroll);
+                mouse_scroll_handler.unprocessed(widget.window(), mouse_scroll);
                 continue;
             }
 
-            let delta = mouse_scroll.delta * ui.gfx().line_height();
+            let delta = mouse_scroll.delta * widget.gfx().line_height();
 
             if mouse_scroll.is_horizontal {
                 self.camera.vertical.reset_velocity();
@@ -195,7 +193,7 @@ impl Tab {
             }
         }
 
-        let gfx = ui.gfx();
+        let gfx = widget.gfx();
 
         self.update_camera_vertical(doc, gfx, dt);
         self.update_camera_horizontal(doc, gfx, dt);

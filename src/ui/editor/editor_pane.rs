@@ -13,7 +13,7 @@ use crate::{
         doc::{Doc, DocKind},
         line_pool::LinePool,
     },
-    ui::{pane::Pane, slot_list::SlotList, widget::Widget, UiHandle},
+    ui::{pane::Pane, slot_list::SlotList, widget::WidgetHandle},
 };
 
 use super::{
@@ -37,16 +37,15 @@ impl EditorPane {
 
     pub fn update(
         &mut self,
-        widget: &Widget,
-        ui: &mut UiHandle,
+        widget: &mut WidgetHandle,
         doc_list: &mut SlotList<Doc>,
         buffers: &mut EditorBuffers,
         config: &Config,
         time: f32,
     ) {
-        let mut action_handler = widget.get_action_handler(ui);
+        let mut action_handler = widget.get_action_handler();
 
-        while let Some(action) = action_handler.next(ui.window) {
+        while let Some(action) = action_handler.next(widget.window()) {
             match action {
                 action_name!(OpenFile) => {
                     if let Ok(path) = find_file(FindFileKind::OpenFile) {
@@ -94,16 +93,16 @@ impl EditorPane {
                         }
                     }
                 }
-                _ => action_handler.unprocessed(ui.window, action),
+                _ => action_handler.unprocessed(widget.window(), action),
             }
         }
 
-        self.inner.update(widget, ui);
+        self.inner.update(widget);
 
         let focused_tab_index = self.focused_tab_index();
 
         if let Some((tab, doc)) = self.get_tab_with_data_mut(focused_tab_index, doc_list) {
-            tab.update(widget, ui, doc, buffers, config, time);
+            tab.update(widget, doc, buffers, config, time);
         }
     }
 
