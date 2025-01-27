@@ -2,17 +2,16 @@ use std::path::Path;
 
 use crate::{
     config::{Config, ConfigError},
+    editor_buffers::EditorBuffers,
     geometry::rect::Rect,
     platform::{pty::Pty, window::Window},
     temp_buffer::TempBuffer,
-    text::{cursor::Cursor, line_pool::LinePool},
+    text::line_pool::LinePool,
     ui::{command_palette::CommandPalette, editor::Editor, terminal::Terminal, Ui},
 };
 
 pub struct App {
-    line_pool: LinePool,
-    text_buffer: TempBuffer<char>,
-    cursor_buffer: TempBuffer<Cursor>,
+    buffers: EditorBuffers,
 
     ui: Ui,
     editor: Editor,
@@ -25,9 +24,11 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let mut line_pool = LinePool::new();
-        let text_buffer = TempBuffer::new();
-        let cursor_buffer = TempBuffer::new();
+        let mut buffers = EditorBuffers {
+            lines: LinePool::new(),
+            cursors: TempBuffer::new(),
+            text: TempBuffer::new(),
+        };
 
         let (config, config_error) = match Config::load() {
             Ok(config) => (config, None),
@@ -35,14 +36,12 @@ impl App {
         };
 
         let mut ui = Ui::new();
-        let editor = Editor::new(&mut ui, &mut line_pool);
-        let terminal = Terminal::new(&mut ui, &mut line_pool);
-        let command_palette = CommandPalette::new(&mut ui, &mut line_pool);
+        let editor = Editor::new(&mut ui, &mut buffers.lines);
+        let terminal = Terminal::new(&mut ui, &mut buffers.lines);
+        let command_palette = CommandPalette::new(&mut ui, &mut buffers.lines);
 
         Self {
-            line_pool,
-            text_buffer,
-            cursor_buffer,
+            buffers,
 
             ui,
             editor,
@@ -74,32 +73,17 @@ impl App {
         self.command_palette.update(
             &mut ui,
             &mut self.editor,
-            &mut self.line_pool,
-            &mut self.text_buffer,
+            &mut self.buffers,
             &self.config,
             time,
             dt,
         );
 
-        self.terminal.update(
-            &mut ui,
-            &mut self.line_pool,
-            &mut self.text_buffer,
-            &mut self.cursor_buffer,
-            &self.config,
-            time,
-            dt,
-        );
+        self.terminal
+            .update(&mut ui, &mut self.buffers, &self.config, time, dt);
 
-        self.editor.update(
-            &mut ui,
-            &mut self.line_pool,
-            &mut self.text_buffer,
-            &mut self.cursor_buffer,
-            &self.config,
-            time,
-            dt,
-        );
+        self.editor
+            .update(&mut ui, &mut self.buffers, &self.config, time, dt);
     }
 
     pub fn draw(&mut self, window: &mut Window) {
@@ -126,7 +110,7 @@ impl App {
 
     pub fn close(&mut self, time: f32) {
         self.editor
-            .on_close(&self.config, &mut self.line_pool, time);
+            .on_close(&self.config, &mut self.buffers.lines, time);
     }
 
     pub fn config(&self) -> &Config {

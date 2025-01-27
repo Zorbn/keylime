@@ -7,10 +7,9 @@ use std::{
 
 use crate::{
     config::Config,
+    editor_buffers::EditorBuffers,
     platform::dialog::{find_file, message, FindFileKind, MessageKind},
-    temp_buffer::TempBuffer,
     text::{
-        cursor::Cursor,
         doc::{Doc, DocKind},
         line_pool::LinePool,
     },
@@ -41,9 +40,7 @@ impl EditorPane {
         widget: &Widget,
         ui: &mut UiHandle,
         doc_list: &mut SlotList<Doc>,
-        line_pool: &mut LinePool,
-        text_buffer: &mut TempBuffer<char>,
-        cursor_buffer: &mut TempBuffer<Cursor>,
+        buffers: &mut EditorBuffers,
         config: &Config,
         time: f32,
     ) {
@@ -53,9 +50,13 @@ impl EditorPane {
             match action {
                 action_name!(OpenFile) => {
                     if let Ok(path) = find_file(FindFileKind::OpenFile) {
-                        if let Err(err) =
-                            self.open_file(path.as_path(), doc_list, config, line_pool, time)
-                        {
+                        if let Err(err) = self.open_file(
+                            path.as_path(),
+                            doc_list,
+                            config,
+                            &mut buffers.lines,
+                            time,
+                        ) {
                             message("Error Opening File", &err.to_string(), MessageKind::Ok);
                         }
                     }
@@ -72,22 +73,23 @@ impl EditorPane {
                         .inner
                         .get_tab_with_data_mut(self.focused_tab_index(), doc_list)
                     {
-                        try_save(doc, config, line_pool, time);
+                        try_save(doc, config, &mut buffers.lines, time);
                     }
                 }
                 action_name!(NewTab) => {
-                    let doc_index = doc_list.add(Doc::new(line_pool, None, DocKind::MultiLine));
-                    self.add_tab(doc_index, doc_list, config, line_pool, time);
+                    let doc_index =
+                        doc_list.add(Doc::new(&mut buffers.lines, None, DocKind::MultiLine));
+                    self.add_tab(doc_index, doc_list, config, &mut buffers.lines, time);
                 }
                 action_name!(CloseTab) => {
-                    self.remove_tab(doc_list, config, line_pool, time);
+                    self.remove_tab(doc_list, config, &mut buffers.lines, time);
                 }
                 action_name!(ReloadFile) => {
                     if let Some((_, doc)) = self
                         .inner
                         .get_tab_with_data_mut(self.focused_tab_index(), doc_list)
                     {
-                        if let Err(err) = doc.reload(line_pool, cursor_buffer, time) {
+                        if let Err(err) = doc.reload(buffers, time) {
                             message("Failed to Reload File", &err.to_string(), MessageKind::Ok);
                         }
                     }
@@ -101,7 +103,7 @@ impl EditorPane {
         let focused_tab_index = self.focused_tab_index();
 
         if let Some((tab, doc)) = self.get_tab_with_data_mut(focused_tab_index, doc_list) {
-            tab.update(widget, ui, doc, line_pool, text_buffer, config, time);
+            tab.update(widget, ui, doc, buffers, config, time);
         }
     }
 

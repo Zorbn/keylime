@@ -2,6 +2,7 @@ use std::{iter, mem::swap, ops::RangeInclusive};
 
 use crate::{
     config::Config,
+    editor_buffers::EditorBuffers,
     geometry::{position::Position, rect::Rect},
     input::{
         action::{action_keybind, action_name, ActionName},
@@ -10,7 +11,6 @@ use crate::{
         keybind::{MOD_ALT, MOD_CTRL, MOD_SHIFT},
     },
     platform::{gfx::Gfx, pty::Pty},
-    temp_buffer::TempBuffer,
     text::{
         cursor::Cursor, doc::Doc, line_pool::LinePool, syntax_highlighter::TerminalHighlightKind,
     },
@@ -95,8 +95,7 @@ impl TerminalEmulator {
         ui: &mut UiHandle,
         docs: &mut TerminalDocs,
         tab: &mut Tab,
-        line_pool: &mut LinePool,
-        text_buffer: &mut TempBuffer<char>,
+        buffers: &mut EditorBuffers,
         config: &Config,
         time: f32,
     ) {
@@ -159,7 +158,7 @@ impl TerminalEmulator {
                 action_name!(names: Some(ActionName::Copy | ActionName::Cut))
                     if doc.has_selection() =>
                 {
-                    handle_copy(ui.window, doc, text_buffer);
+                    handle_copy(ui.window, doc, &mut buffers.text);
                 }
                 action_name!(Paste) => {
                     let text = ui.window.get_clipboard().unwrap_or(&[]);
@@ -192,7 +191,7 @@ impl TerminalEmulator {
 
         self.pty = Some(pty);
 
-        tab.update(widget, ui, doc, line_pool, text_buffer, config, time);
+        tab.update(widget, ui, doc, buffers, config, time);
     }
 
     pub fn update_output(
@@ -201,8 +200,7 @@ impl TerminalEmulator {
         ui: &mut UiHandle,
         docs: &mut TerminalDocs,
         tab: &mut Tab,
-        line_pool: &mut LinePool,
-        cursor_buffer: &mut TempBuffer<Cursor>,
+        buffers: &mut EditorBuffers,
         config: &Config,
         time: f32,
         dt: f32,
@@ -213,25 +211,32 @@ impl TerminalEmulator {
             return;
         };
 
-        let cursor_buffer = cursor_buffer.get_mut();
+        let cursor_buffer = buffers.cursors.get_mut();
 
         self.maintain_cursor_positions = true;
 
         let doc = self.get_doc_mut(docs);
         self.backup_doc_cursor_positions(doc, cursor_buffer);
 
-        self.expand_docs_to_grid_size(docs, line_pool, time);
+        self.expand_docs_to_grid_size(docs, &mut buffers.lines, time);
 
         let (input, output) = pty.input_output();
 
         if let Ok(mut output) = output.try_lock() {
-            self.handle_escape_sequences(docs, input, &output, line_pool, &config.theme, time);
+            self.handle_escape_sequences(
+                docs,
+                input,
+                &output,
+                &mut buffers.lines,
+                &config.theme,
+                time,
+            );
 
             output.clear();
         }
 
         let doc = self.get_doc_mut(docs);
-        self.trim_excess_lines(ui, tab, doc, line_pool, time);
+        self.trim_excess_lines(ui, tab, doc, &mut buffers.lines, time);
 
         if self.maintain_cursor_positions {
             self.restore_doc_cursor_positions(doc, cursor_buffer);

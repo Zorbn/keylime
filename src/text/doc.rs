@@ -9,9 +9,9 @@ use std::{
 
 use crate::{
     config::language::IndentWidth,
+    editor_buffers::EditorBuffers,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     platform::gfx::Gfx,
-    temp_buffer::TempBuffer,
 };
 
 use super::{
@@ -1398,28 +1398,28 @@ impl Doc {
         Ok(())
     }
 
-    pub fn reload(
-        &mut self,
-        line_pool: &mut LinePool,
-        cursor_buffer: &mut TempBuffer<Cursor>,
-        time: f32,
-    ) -> io::Result<()> {
+    pub fn reload(&mut self, buffers: &mut EditorBuffers, time: f32) -> io::Result<()> {
         let Some(path) = self.path.as_ref() else {
             return Ok(());
         };
 
         let string = read_to_string(path)?;
 
-        let cursor_buffer = cursor_buffer.get_mut();
+        let cursor_buffer = buffers.cursors.get_mut();
 
         self.backup_cursors(cursor_buffer);
 
-        self.delete(Position::zero(), self.end(), line_pool, time);
+        self.delete(Position::zero(), self.end(), &mut buffers.lines, time);
 
         let (line_ending, len) = self.get_line_ending_and_len(&string);
 
         self.line_ending = line_ending;
-        self.insert(Position::zero(), string.chars().take(len), line_pool, time);
+        self.insert(
+            Position::zero(),
+            string.chars().take(len),
+            &mut buffers.lines,
+            time,
+        );
 
         self.is_saved = true;
 

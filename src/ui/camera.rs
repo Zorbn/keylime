@@ -1,3 +1,5 @@
+use std::ops::RangeInclusive;
+
 use crate::geometry::visual_position::VisualPosition;
 
 #[derive(PartialEq, Eq)]
@@ -36,11 +38,13 @@ impl CameraAxis {
         target_position: f32,
         max_position: f32,
         view_size: f32,
-        min_scroll_border: f32,
-        max_scroll_border: f32,
+        scroll_border: RangeInclusive<f32>,
         can_recenter: bool,
         dt: f32,
     ) {
+        let min_scroll_border = *scroll_border.start();
+        let max_scroll_border = *scroll_border.end();
+
         if can_recenter || self.recenter_kind == CameraRecenterKind::OnScrollBorder {
             let is_target_outside_border =
                 target_position < min_scroll_border || target_position > max_scroll_border;

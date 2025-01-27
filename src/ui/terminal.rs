@@ -3,12 +3,11 @@ use terminal_pane::TerminalPane;
 
 use crate::{
     config::Config,
+    editor_buffers::EditorBuffers,
     geometry::rect::Rect,
     input::action::action_name,
     platform::{gfx::Gfx, pty::Pty},
-    temp_buffer::TempBuffer,
     text::{
-        cursor::Cursor,
         doc::{Doc, DocKind},
         line_pool::LinePool,
     },
@@ -84,9 +83,7 @@ impl Terminal {
     pub fn update(
         &mut self,
         ui: &mut UiHandle,
-        line_pool: &mut LinePool,
-        text_buffer: &mut TempBuffer<char>,
-        cursor_buffer: &mut TempBuffer<Cursor>,
+        buffers: &mut EditorBuffers,
         config: &Config,
         time: f32,
         dt: f32,
@@ -107,7 +104,7 @@ impl Terminal {
         }
 
         self.pane
-            .update(&self.widget, ui, &mut self.term_list, line_pool);
+            .update(&self.widget, ui, &mut self.term_list, &mut buffers.lines);
 
         let focused_tab_index = self.pane.focused_tab_index();
 
@@ -115,16 +112,7 @@ impl Terminal {
             .pane
             .get_tab_with_data_mut(focused_tab_index, &mut self.term_list)
         {
-            emulator.update_input(
-                &self.widget,
-                ui,
-                docs,
-                tab,
-                line_pool,
-                text_buffer,
-                config,
-                time,
-            );
+            emulator.update_input(&self.widget, ui, docs, tab, buffers, config, time);
         }
 
         for tab in &mut self.pane.tabs {
@@ -134,17 +122,7 @@ impl Terminal {
                 continue;
             };
 
-            emulator.update_output(
-                &self.widget,
-                ui,
-                docs,
-                tab,
-                line_pool,
-                cursor_buffer,
-                config,
-                time,
-                dt,
-            );
+            emulator.update_output(&self.widget, ui, docs, tab, buffers, config, time, dt);
         }
     }
 

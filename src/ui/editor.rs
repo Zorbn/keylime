@@ -5,6 +5,7 @@ use editor_pane::EditorPane;
 
 use crate::{
     config::Config,
+    editor_buffers::EditorBuffers,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
         action::{action_keybind, action_name},
@@ -12,9 +13,7 @@ use crate::{
         mousebind::Mousebind,
     },
     platform::gfx::Gfx,
-    temp_buffer::TempBuffer,
     text::{
-        cursor::Cursor,
         cursor_index::CursorIndex,
         doc::Doc,
         line_pool::{Line, LinePool},
@@ -132,19 +131,12 @@ impl Editor {
     pub fn update(
         &mut self,
         ui: &mut UiHandle,
-        line_pool: &mut LinePool,
-        text_buffer: &mut TempBuffer<char>,
-        cursor_buffer: &mut TempBuffer<Cursor>,
+        buffers: &mut EditorBuffers,
         config: &Config,
         time: f32,
         dt: f32,
     ) {
-        self.reload_changed_files(
-            ui.window.file_watcher().get_changed_files(),
-            line_pool,
-            cursor_buffer,
-            time,
-        );
+        self.reload_changed_files(ui.window.file_watcher().get_changed_files(), buffers, time);
 
         let mut char_handler = self.widget.get_char_handler(ui);
 
@@ -192,10 +184,10 @@ impl Editor {
                     action_handler.unprocessed(ui.window, action);
                 }
                 action_name!(NewPane) => {
-                    self.add_pane(line_pool);
+                    self.add_pane(&mut buffers.lines);
                 }
                 action_name!(ClosePane) => {
-                    self.close_pane(config, line_pool, time);
+                    self.close_pane(config, &mut buffers.lines, time);
                 }
                 action_name!(PreviousPane) => {
                     self.previous_pane();
@@ -251,7 +243,7 @@ impl Editor {
                     {
                         doc.insert_at_cursors(
                             &result[self.completion_prefix.len()..],
-                            line_pool,
+                            &mut buffers.lines,
                             time,
                         );
                     }
@@ -274,19 +266,10 @@ impl Editor {
         let handled_position = self.get_cursor_position();
         let pane = &mut self.panes[self.focused_pane_index];
 
-        pane.update(
-            &self.widget,
-            ui,
-            &mut self.doc_list,
-            line_pool,
-            text_buffer,
-            cursor_buffer,
-            config,
-            time,
-        );
+        pane.update(&self.widget, ui, &mut self.doc_list, buffers, config, time);
 
         if pane.tabs_len() == 0 {
-            self.close_pane(config, line_pool, time);
+            self.close_pane(config, &mut buffers.lines, time);
         }
 
         for pane in &mut self.panes {
@@ -299,8 +282,7 @@ impl Editor {
     fn reload_changed_files(
         &mut self,
         changed_files: &[PathBuf],
-        line_pool: &mut LinePool,
-        cursor_buffer: &mut TempBuffer<Cursor>,
+        buffers: &mut EditorBuffers,
         time: f32,
     ) {
         for path in changed_files {
@@ -310,7 +292,7 @@ impl Editor {
                 }
 
                 if doc.is_change_unexpected() {
-                    doc.reload(line_pool, cursor_buffer, time).unwrap();
+                    doc.reload(buffers, time).unwrap();
                 }
 
                 break;

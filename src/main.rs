@@ -1,8 +1,9 @@
-#![allow(clippy::needless_range_loop, clippy::too_many_arguments)]
+#![allow(clippy::needless_range_loop)]
 
 mod app;
 mod config;
 mod digits;
+mod editor_buffers;
 mod geometry;
 mod input;
 mod platform;

@@ -1,9 +1,10 @@
 use core::f32;
-use std::ops::Range;
+use std::{iter::Enumerate, ops::Range};
 
 use crate::{
     config::{language::Language, theme::Theme, Config},
     digits::get_digits,
+    editor_buffers::EditorBuffers,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
         editing_actions::{handle_action, handle_char, handle_left_click},
@@ -12,11 +13,9 @@ use crate::{
         mousebind::Mousebind,
     },
     platform::gfx::Gfx,
-    temp_buffer::TempBuffer,
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
-        line_pool::LinePool,
     },
 };
 
@@ -29,6 +28,19 @@ use super::{
 
 const GUTTER_PADDING_WIDTH: f32 = 1.0;
 const GUTTER_BORDER_WIDTH: f32 = 0.5;
+
+#[derive(Debug, Clone, Copy)]
+struct VisibleLines {
+    offset: f32,
+    min_y: usize,
+    max_y: usize,
+}
+
+impl VisibleLines {
+    pub fn enumerate(&self) -> Enumerate<Range<usize>> {
+        (self.min_y..self.max_y).enumerate()
+    }
+}
 
 pub struct Tab {
     data_index: usize,
@@ -84,8 +96,7 @@ impl Tab {
         widget: &Widget,
         ui: &mut UiHandle,
         doc: &mut Doc,
-        line_pool: &mut LinePool,
-        text_buffer: &mut TempBuffer<char>,
+        buffers: &mut EditorBuffers,
         config: &Config,
         time: f32,
     ) {
@@ -96,7 +107,7 @@ impl Tab {
         let mut char_handler = widget.get_char_handler(ui);
 
         while let Some(c) = char_handler.next(ui.window) {
-            handle_char(c, doc, line_pool, time);
+            handle_char(c, doc, &mut buffers.lines, time);
         }
 
         let mut mousebind_handler = widget.get_mousebind_handler(ui);
@@ -149,15 +160,7 @@ impl Tab {
         let mut action_handler = widget.get_action_handler(ui);
 
         while let Some(action) = action_handler.next(ui.window) {
-            let was_handled = handle_action(
-                action,
-                ui.window,
-                doc,
-                language,
-                line_pool,
-                text_buffer,
-                time,
-            );
+            let was_handled = handle_action(action, ui.window, doc, language, buffers, time);
 
             if !was_handled {
                 action_handler.unprocessed(ui.window, action);
@@ -215,8 +218,7 @@ impl Tab {
             target_y,
             max_y,
             self.doc_bounds.height,
-            scroll_border_top,
-            scroll_border_bottom,
+            scroll_border_top..=scroll_border_bottom,
             can_recenter,
             dt,
         );
@@ -239,8 +241,7 @@ impl Tab {
             target_x,
             max_x,
             self.doc_bounds.height,
-            scroll_border_left,
-            scroll_border_right,
+            scroll_border_left..=scroll_border_right,
             can_recenter,
             dt,
         );
@@ -284,17 +285,16 @@ impl Tab {
         let max_y = ((camera_position.y + self.doc_bounds.height) / gfx.line_height()) as usize + 1;
         let max_y = max_y.min(doc.lines().len());
 
+        let visible_lines = VisibleLines {
+            offset: sub_line_offset_y,
+            min_y,
+            max_y,
+        };
+
         if doc.kind() == DocKind::MultiLine {
             gfx.begin(Some(self.gutter_bounds));
 
-            self.draw_gutter(
-                doc,
-                &config.theme,
-                gfx,
-                sub_line_offset_y,
-                min_y..max_y,
-                is_focused,
-            );
+            self.draw_gutter(doc, &config.theme, gfx, visible_lines, is_focused);
 
             gfx.end();
         }
@@ -314,8 +314,7 @@ impl Tab {
             &config.theme,
             gfx,
             camera_position,
-            sub_line_offset_y,
-            min_y..max_y,
+            visible_lines,
         );
         self.draw_lines(
             default_background,
@@ -323,8 +322,7 @@ impl Tab {
             &config.theme,
             gfx,
             camera_position,
-            sub_line_offset_y,
-            min_y..max_y,
+            visible_lines,
         );
         self.draw_cursors(
             doc,
@@ -332,7 +330,7 @@ impl Tab {
             gfx,
             is_focused,
             camera_position,
-            min_y..max_y,
+            visible_lines,
         );
 
         gfx.end();
@@ -343,17 +341,16 @@ impl Tab {
         doc: &Doc,
         theme: &Theme,
         gfx: &mut Gfx,
-        sub_line_offset_y: f32,
-        visible_ys: Range<usize>,
+        visible_lines: VisibleLines,
         is_focused: bool,
     ) {
         let cursor_y = doc.get_cursor(CursorIndex::Main).position.y;
 
         let mut digits = [' '; 20];
 
-        for (i, y) in visible_ys.enumerate() {
+        for (i, y) in visible_lines.enumerate() {
             let digits = get_digits(y + 1, &mut digits);
-            let visual_y = Self::get_line_foreground_visual_y(i, sub_line_offset_y, gfx);
+            let visual_y = Self::get_line_foreground_visual_y(i, visible_lines.offset, gfx);
 
             let width = digits.len() as f32 * gfx.glyph_width();
             let visual_x = self.gutter_bounds.width
@@ -384,8 +381,7 @@ impl Tab {
         theme: &Theme,
         gfx: &mut Gfx,
         camera_position: VisualPosition,
-        sub_line_offset_y: f32,
-        visible_ys: Range<usize>,
+        visible_lines: VisibleLines,
     ) {
         let indent_width =
             language.map(|language| Gfx::measure_text(language.indent_width.chars()));
@@ -396,8 +392,9 @@ impl Tab {
 
         let mut indent_guide_x = 0;
 
-        for (i, y) in visible_ys.enumerate() {
-            let background_visual_y = Self::get_line_background_visual_y(i, sub_line_offset_y, gfx);
+        for (i, y) in visible_lines.enumerate() {
+            let background_visual_y =
+                Self::get_line_background_visual_y(i, visible_lines.offset, gfx);
 
             if !doc.is_line_whitespace(y as isize) {
                 indent_guide_x = doc.get_line_start(y as isize)
@@ -426,16 +423,17 @@ impl Tab {
         theme: &Theme,
         gfx: &mut Gfx,
         camera_position: VisualPosition,
-        sub_line_offset_y: f32,
-        visible_ys: Range<usize>,
+        visible_lines: VisibleLines,
     ) {
         let lines = doc.lines();
         let highlighted_lines = doc.highlighted_lines();
 
-        for (i, y) in visible_ys.enumerate() {
+        for (i, y) in visible_lines.enumerate() {
             let line = &lines[y];
-            let foreground_visual_y = Self::get_line_foreground_visual_y(i, sub_line_offset_y, gfx);
-            let background_visual_y = Self::get_line_background_visual_y(i, sub_line_offset_y, gfx);
+            let foreground_visual_y =
+                Self::get_line_foreground_visual_y(i, visible_lines.offset, gfx);
+            let background_visual_y =
+                Self::get_line_background_visual_y(i, visible_lines.offset, gfx);
 
             if y >= highlighted_lines.len() {
                 let visual_x = -camera_position.x;
@@ -507,7 +505,7 @@ impl Tab {
         gfx: &mut Gfx,
         is_focused: bool,
         camera_position: VisualPosition,
-        visible_ys: Range<usize>,
+        visible_lines: VisibleLines,
     ) {
         for index in doc.cursor_indices() {
             let Some(selection) = doc.get_cursor(index).get_selection() else {
@@ -516,8 +514,10 @@ impl Tab {
 
             let start = selection
                 .start
-                .max(Position::new(0, visible_ys.start as isize));
-            let end = selection.end.min(Position::new(0, visible_ys.end as isize));
+                .max(Position::new(0, visible_lines.min_y as isize));
+            let end = selection
+                .end
+                .min(Position::new(0, visible_lines.max_y as isize));
             let mut position = start;
 
             while position < end {

@@ -5,13 +5,13 @@ pub mod search_mode;
 
 use crate::{
     config::Config,
+    editor_buffers::EditorBuffers,
     geometry::{
         rect::Rect,
         side::{SIDE_ALL, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     },
     input::action::{action_keybind, action_name},
     platform::gfx::Gfx,
-    temp_buffer::TempBuffer,
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
@@ -125,14 +125,13 @@ impl CommandPalette {
         &mut self,
         ui: &mut UiHandle,
         editor: &mut Editor,
-        line_pool: &mut LinePool,
-        text_buffer: &mut TempBuffer<char>,
+        buffers: &mut EditorBuffers,
         config: &Config,
         time: f32,
         dt: f32,
     ) {
         if self.widget.is_visible && !self.widget.is_focused(ui) {
-            self.close(ui, line_pool);
+            self.close(ui, &mut buffers.lines);
         }
 
         let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
@@ -142,10 +141,26 @@ impl CommandPalette {
         while let Some(action) = global_action_handler.next(ui.window) {
             match action {
                 action_name!(OpenCommandPalette) => {
-                    self.open(ui, MODE_OPEN_FILE, pane, doc_list, config, line_pool, time);
+                    self.open(
+                        ui,
+                        MODE_OPEN_FILE,
+                        pane,
+                        doc_list,
+                        config,
+                        &mut buffers.lines,
+                        time,
+                    );
                 }
                 action_name!(OpenSearch) => {
-                    self.open(ui, MODE_SEARCH, pane, doc_list, config, line_pool, time);
+                    self.open(
+                        ui,
+                        MODE_SEARCH,
+                        pane,
+                        doc_list,
+                        config,
+                        &mut buffers.lines,
+                        time,
+                    );
                 }
                 action_name!(OpenSearchAndReplace) => {
                     self.open(
@@ -154,12 +169,20 @@ impl CommandPalette {
                         pane,
                         doc_list,
                         config,
-                        line_pool,
+                        &mut buffers.lines,
                         time,
                     );
                 }
                 action_name!(OpenGoToLine) => {
-                    self.open(ui, MODE_GO_TO_LINE, pane, doc_list, config, line_pool, time);
+                    self.open(
+                        ui,
+                        MODE_GO_TO_LINE,
+                        pane,
+                        doc_list,
+                        config,
+                        &mut buffers.lines,
+                        time,
+                    );
                 }
                 _ => global_action_handler.unprocessed(ui.window, action),
             }
@@ -177,7 +200,7 @@ impl CommandPalette {
                         pane,
                         doc_list,
                         config,
-                        line_pool,
+                        line_pool: &mut buffers.lines,
                         time,
                     };
 
@@ -197,25 +220,18 @@ impl CommandPalette {
         match result_input {
             ResultListInput::None => {}
             ResultListInput::Complete => {
-                self.complete_result(pane, doc_list, config, line_pool, time)
+                self.complete_result(pane, doc_list, config, &mut buffers.lines, time)
             }
             ResultListInput::Submit { kind } => {
-                self.submit(ui, kind, pane, doc_list, config, line_pool, time);
+                self.submit(ui, kind, pane, doc_list, config, &mut buffers.lines, time);
             }
-            ResultListInput::Close => self.close(ui, line_pool),
+            ResultListInput::Close => self.close(ui, &mut buffers.lines),
         }
 
-        self.tab.update(
-            &self.widget,
-            ui,
-            &mut self.doc,
-            line_pool,
-            text_buffer,
-            config,
-            time,
-        );
+        self.tab
+            .update(&self.widget, ui, &mut self.doc, buffers, config, time);
 
-        self.update_results(pane, doc_list, config, line_pool, time);
+        self.update_results(pane, doc_list, config, &mut buffers.lines, time);
     }
 
     fn submit(

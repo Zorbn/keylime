@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 
 use crate::{
     config::language::Language,
+    editor_buffers::EditorBuffers,
     geometry::position::Position,
     platform::window::Window,
     temp_buffer::TempBuffer,
@@ -57,8 +58,7 @@ pub fn handle_action(
     window: &mut Window,
     doc: &mut Doc,
     language: Option<&Language>,
-    line_pool: &mut LinePool,
-    text_buffer: &mut TempBuffer<char>,
+    buffers: &mut EditorBuffers,
     time: f32,
 ) -> bool {
     match action {
@@ -84,32 +84,32 @@ pub fn handle_action(
         action_name!(MoveDownParagraph, mods) => {
             doc.move_cursors_to_next_paragraph(1, mods & MOD_SHIFT != 0)
         }
-        action_name!(ShiftLinesUp) => handle_shift_lines(-1, doc, line_pool, text_buffer, time),
-        action_name!(ShiftLinesDown) => handle_shift_lines(1, doc, line_pool, text_buffer, time),
+        action_name!(ShiftLinesUp) => handle_shift_lines(-1, doc, buffers, time),
+        action_name!(ShiftLinesDown) => handle_shift_lines(1, doc, buffers, time),
         action_name!(UndoCursorPosition) => doc.undo_cursor_position(),
         action_name!(RedoCursorPosition) => doc.redo_cursor_position(),
         action_name!(AddCursorUp) => handle_add_cursor(Position::new(0, -1), doc),
         action_name!(AddCursorDown) => handle_add_cursor(Position::new(0, 1), doc),
         action_name!(DeleteBackward) => {
-            handle_delete_backward(DeleteKind::Char, doc, language, line_pool, time)
+            handle_delete_backward(DeleteKind::Char, doc, language, &mut buffers.lines, time)
         }
         action_name!(DeleteBackwardWord) => {
-            handle_delete_backward(DeleteKind::Word, doc, language, line_pool, time)
+            handle_delete_backward(DeleteKind::Word, doc, language, &mut buffers.lines, time)
         }
         action_name!(DeleteBackwardLine) => {
-            handle_delete_backward(DeleteKind::Line, doc, language, line_pool, time)
+            handle_delete_backward(DeleteKind::Line, doc, language, &mut buffers.lines, time)
         }
         action_name!(DeleteForward) => {
-            handle_delete_forward(DeleteKind::Char, doc, line_pool, time)
+            handle_delete_forward(DeleteKind::Char, doc, &mut buffers.lines, time)
         }
         action_name!(DeleteForwardWord) => {
-            handle_delete_forward(DeleteKind::Word, doc, line_pool, time)
+            handle_delete_forward(DeleteKind::Word, doc, &mut buffers.lines, time)
         }
         action_keybind!(key: Enter, mods: 0) => {
-            handle_enter(doc, language, line_pool, text_buffer, time);
+            handle_enter(doc, language, buffers, time);
         }
         action_keybind!(key: Tab, mods) => {
-            handle_tab(mods, doc, language, line_pool, time);
+            handle_tab(mods, doc, language, &mut buffers.lines, time);
         }
         action_name!(PageUp, mods) => {
             let height_lines = window.gfx().height_lines();
@@ -152,26 +152,26 @@ pub fn handle_action(
             }
         }
         action_name!(Undo) => {
-            doc.undo(line_pool, ActionKind::Done);
+            doc.undo(&mut buffers.lines, ActionKind::Done);
         }
         action_name!(Redo) => {
-            doc.undo(line_pool, ActionKind::Undone);
+            doc.undo(&mut buffers.lines, ActionKind::Undone);
         }
         action_name!(Copy) => {
-            handle_copy(window, doc, text_buffer);
+            handle_copy(window, doc, &mut buffers.text);
         }
         action_name!(Cut) => {
-            handle_cut(window, doc, line_pool, text_buffer, time);
+            handle_cut(window, doc, buffers, time);
         }
         action_name!(Paste) => {
-            handle_paste(window, doc, line_pool, time);
+            handle_paste(window, doc, &mut buffers.lines, time);
         }
         action_name!(AddCursorAtNextOccurance) => {
             doc.add_cursor_at_next_occurance();
         }
         action_name!(ToggleComments) => {
             if let Some(language) = language {
-                doc.toggle_comments_at_cursors(&language.comment, line_pool, time);
+                doc.toggle_comments_at_cursors(&language.comment, &mut buffers.lines, time);
             }
         }
         action_name!(Indent) => {
@@ -179,14 +179,14 @@ pub fn handle_action(
                 .map(|language| language.indent_width)
                 .unwrap_or_default();
 
-            doc.indent_lines_at_cursors(indent_width, false, line_pool, time);
+            doc.indent_lines_at_cursors(indent_width, false, &mut buffers.lines, time);
         }
         action_name!(Unindent) => {
             let indent_width = language
                 .map(|language| language.indent_width)
                 .unwrap_or_default();
 
-            doc.indent_lines_at_cursors(indent_width, true, line_pool, time);
+            doc.indent_lines_at_cursors(indent_width, true, &mut buffers.lines, time);
         }
         _ => return false,
     }
@@ -359,11 +359,10 @@ fn handle_delete_forward(kind: DeleteKind, doc: &mut Doc, line_pool: &mut LinePo
 fn handle_enter(
     doc: &mut Doc,
     language: Option<&Language>,
-    line_pool: &mut LinePool,
-    text_buffer: &mut TempBuffer<char>,
+    buffers: &mut EditorBuffers,
     time: f32,
 ) {
-    let text_buffer = text_buffer.get_mut();
+    let text_buffer = buffers.text.get_mut();
 
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
@@ -385,20 +384,20 @@ fn handle_enter(
         let do_start_block =
             doc.get_char(previous_position) == '{' && doc.get_char(cursor.position) == '}';
 
-        doc.insert_at_cursor(index, &['\n'], line_pool, time);
-        doc.insert_at_cursor(index, text_buffer, line_pool, time);
+        doc.insert_at_cursor(index, &['\n'], &mut buffers.lines, time);
+        doc.insert_at_cursor(index, text_buffer, &mut buffers.lines, time);
 
         if do_start_block {
             let indent_width = language
                 .map(|language| language.indent_width)
                 .unwrap_or_default();
 
-            doc.indent_at_cursor(index, indent_width, line_pool, time);
+            doc.indent_at_cursor(index, indent_width, &mut buffers.lines, time);
 
             let cursor_position = doc.get_cursor(index).position;
 
-            doc.insert_at_cursor(index, &['\n'], line_pool, time);
-            doc.insert_at_cursor(index, text_buffer, line_pool, time);
+            doc.insert_at_cursor(index, &['\n'], &mut buffers.lines, time);
+            doc.insert_at_cursor(index, text_buffer, &mut buffers.lines, time);
 
             doc.jump_cursor(index, cursor_position, false);
         }
@@ -454,14 +453,8 @@ fn handle_end(should_select: bool, doc: &mut Doc) {
     }
 }
 
-fn handle_cut(
-    window: &mut Window,
-    doc: &mut Doc,
-    line_pool: &mut LinePool,
-    text_buffer: &mut TempBuffer<char>,
-    time: f32,
-) {
-    let text_buffer = text_buffer.get_mut();
+fn handle_cut(window: &mut Window, doc: &mut Doc, buffers: &mut EditorBuffers, time: f32) {
+    let text_buffer = buffers.text.get_mut();
     let was_copy_implicit = doc.copy_at_cursors(text_buffer);
 
     let _ = window.set_clipboard(text_buffer, was_copy_implicit);
@@ -473,7 +466,7 @@ fn handle_cut(
             .get_selection()
             .unwrap_or(doc.select_current_line_at_position(cursor.position));
 
-        doc.delete(selection.start, selection.end, line_pool, time);
+        doc.delete(selection.start, selection.end, &mut buffers.lines, time);
         doc.end_cursor_selection(index);
     }
 }
@@ -492,13 +485,7 @@ fn handle_paste(window: &mut Window, doc: &mut Doc, line_pool: &mut LinePool, ti
     doc.paste_at_cursors(text, was_copy_implicit, line_pool, time);
 }
 
-fn handle_shift_lines(
-    direction: isize,
-    doc: &mut Doc,
-    line_pool: &mut LinePool,
-    text_buffer: &mut TempBuffer<char>,
-    time: f32,
-) {
+fn handle_shift_lines(direction: isize, doc: &mut Doc, buffers: &mut EditorBuffers, time: f32) {
     let direction = direction.signum();
 
     for index in doc.cursor_indices() {
@@ -528,7 +515,7 @@ fn handle_shift_lines(
 
         let selection = cursor_selection.trim_lines_without_selected_chars();
 
-        let text_buffer = text_buffer.get_mut();
+        let text_buffer = buffers.text.get_mut();
 
         let mut start = Position::new(0, selection.start.y);
         let mut end = Position::new(doc.get_line_len(selection.end.y), selection.end.y);
@@ -549,7 +536,7 @@ fn handle_shift_lines(
             end = doc.move_position(end, Position::new(1, 0));
         }
 
-        doc.delete(start, end, line_pool, time);
+        doc.delete(start, end, &mut buffers.lines, time);
 
         let insert_start = if direction < 0 {
             Position::new(0, selection.start.y - 1)
@@ -557,7 +544,7 @@ fn handle_shift_lines(
             Position::new(doc.get_line_len(selection.start.y), selection.start.y)
         };
 
-        doc.insert(insert_start, text_buffer.iter(), line_pool, time);
+        doc.insert(insert_start, text_buffer.iter(), &mut buffers.lines, time);
 
         // Reset the selection to prevent it being expanded by the latest insert.
         if had_selection {

@@ -221,8 +221,7 @@ impl<T> ResultList<T> {
             target_y,
             max_y,
             self.results_bounds.height,
-            scroll_border_top,
-            scroll_border_bottom,
+            scroll_border_top..=scroll_border_bottom,
             can_recenter,
             dt,
         );
