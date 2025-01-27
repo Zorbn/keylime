@@ -89,8 +89,7 @@ impl Terminal {
         ui: &mut UiHandle,
         buffers: &mut EditorBuffers,
         config: &Config,
-        time: f32,
-        dt: f32,
+        timestamp @ (time, _): (f32, f32),
     ) {
         let mut global_action_handler = ui.window.get_action_handler();
 
@@ -128,7 +127,7 @@ impl Terminal {
                 continue;
             };
 
-            emulator.update_output(&mut widget, docs, tab, buffers, config, time, dt);
+            emulator.update_output(&mut widget, docs, tab, buffers, config, timestamp);
         }
     }
 

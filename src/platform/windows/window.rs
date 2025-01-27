@@ -131,8 +131,8 @@ impl WindowRunner {
             let (files, ptys) = app.files_and_ptys();
             window.inner.update(is_animating, files, ptys);
 
-            let (time, dt) = window.inner.get_time(is_animating);
-            app.update(window, time, dt);
+            let timestamp = window.inner.get_time(is_animating);
+            app.update(window, timestamp);
 
             app.draw(window);
         }

@@ -29,8 +29,8 @@ pub const MODE_OPEN_FILE: &CommandPaletteMode = &CommandPaletteMode {
 };
 
 fn on_open(
+    command_palette: &mut CommandPalette,
     CommandPaletteEventArgs {
-        command_palette,
         pane,
         doc_list,
         line_pool,
@@ -76,6 +76,7 @@ fn on_open(
 }
 
 fn on_submit(
+    command_palette: &mut CommandPalette,
     mut args: CommandPaletteEventArgs,
     kind: ResultListSubmitKind,
 ) -> CommandPaletteAction {
@@ -87,7 +88,6 @@ fn on_submit(
     }
 
     let CommandPaletteEventArgs {
-        command_palette,
         pane,
         doc_list,
         config,
@@ -114,7 +114,7 @@ fn on_submit(
         if string.ends_with(is_char_path_separator) {
             let _ = create_dir_all(path);
 
-            on_update_results(args);
+            on_update_results(command_palette, args);
 
             return CommandPaletteAction::Stay;
         } else {
@@ -137,11 +137,9 @@ fn on_submit(
 }
 
 fn on_complete_result(
+    command_palette: &mut CommandPalette,
     CommandPaletteEventArgs {
-        command_palette,
-        line_pool,
-        time,
-        ..
+        line_pool, time, ..
     }: CommandPaletteEventArgs,
 ) {
     let Some(result) = command_palette.result_list.get_selected_result() else {
@@ -161,11 +159,7 @@ fn on_complete_result(
     }
 }
 
-fn on_update_results(
-    CommandPaletteEventArgs {
-        command_palette, ..
-    }: CommandPaletteEventArgs,
-) {
+fn on_update_results(command_palette: &mut CommandPalette, _: CommandPaletteEventArgs) {
     let mut path = PathBuf::new();
     let dir = get_command_palette_dir(command_palette, &mut path);
 
@@ -197,11 +191,9 @@ fn on_update_results(
 }
 
 fn on_backspace(
+    command_palette: &mut CommandPalette,
     CommandPaletteEventArgs {
-        command_palette,
-        line_pool,
-        time,
-        ..
+        line_pool, time, ..
     }: CommandPaletteEventArgs,
 ) -> bool {
     let cursor = command_palette.doc.get_cursor(CursorIndex::Main);

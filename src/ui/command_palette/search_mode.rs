@@ -6,7 +6,7 @@ use crate::{
 
 use super::{
     mode::{CommandPaletteEventArgs, CommandPaletteMode},
-    CommandPaletteAction,
+    CommandPalette, CommandPaletteAction,
 };
 
 pub const MODE_SEARCH: &CommandPaletteMode = &CommandPaletteMode {
@@ -29,12 +29,8 @@ pub const MODE_SEARCH_AND_REPLACE_END: &CommandPaletteMode = &CommandPaletteMode
 };
 
 fn on_submit_search(
-    CommandPaletteEventArgs {
-        command_palette,
-        pane,
-        doc_list,
-        ..
-    }: CommandPaletteEventArgs,
+    command_palette: &mut CommandPalette,
+    CommandPaletteEventArgs { pane, doc_list, .. }: CommandPaletteEventArgs,
     kind: ResultListSubmitKind,
 ) -> CommandPaletteAction {
     if !matches!(
@@ -65,6 +61,7 @@ fn on_submit_search(
 }
 
 fn on_submit_search_and_replace_start(
+    _: &mut CommandPalette,
     _: CommandPaletteEventArgs,
     kind: ResultListSubmitKind,
 ) -> CommandPaletteAction {
@@ -76,8 +73,8 @@ fn on_submit_search_and_replace_start(
 }
 
 fn on_submit_search_and_replace_end(
+    command_palette: &mut CommandPalette,
     CommandPaletteEventArgs {
-        command_palette,
         pane,
         doc_list,
         line_pool,

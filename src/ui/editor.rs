@@ -133,8 +133,7 @@ impl Editor {
         ui: &mut UiHandle,
         buffers: &mut EditorBuffers,
         config: &Config,
-        time: f32,
-        dt: f32,
+        (time, dt): (f32, f32),
     ) {
         self.reload_changed_files(ui.window.file_watcher().get_changed_files(), buffers, time);
 

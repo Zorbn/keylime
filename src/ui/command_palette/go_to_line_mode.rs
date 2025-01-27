@@ -2,7 +2,7 @@ use crate::{geometry::position::Position, ui::result_list::ResultListSubmitKind}
 
 use super::{
     mode::{CommandPaletteEventArgs, CommandPaletteMode},
-    CommandPaletteAction,
+    CommandPalette, CommandPaletteAction,
 };
 
 pub const MODE_GO_TO_LINE: &CommandPaletteMode = &CommandPaletteMode {
@@ -12,12 +12,8 @@ pub const MODE_GO_TO_LINE: &CommandPaletteMode = &CommandPaletteMode {
 };
 
 fn on_submit(
-    CommandPaletteEventArgs {
-        command_palette,
-        pane,
-        doc_list,
-        ..
-    }: CommandPaletteEventArgs,
+    command_palette: &mut CommandPalette,
+    CommandPaletteEventArgs { pane, doc_list, .. }: CommandPaletteEventArgs,
     kind: ResultListSubmitKind,
 ) -> CommandPaletteAction {
     if kind != ResultListSubmitKind::Normal {

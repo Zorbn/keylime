@@ -274,8 +274,8 @@ impl View {
 
         let window = &mut *window;
 
-        let (time, dt) = window.inner.get_time(app.is_animating());
-        app.update(window, time, dt);
+        let timestamp = window.inner.get_time(app.is_animating());
+        app.update(window, timestamp);
 
         let (files, ptys) = app.files_and_ptys();
         window.inner.update(files, ptys);

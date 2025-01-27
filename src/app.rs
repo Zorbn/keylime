@@ -53,7 +53,7 @@ impl App {
         }
     }
 
-    pub fn update(&mut self, window: &mut Window, time: f32, dt: f32) {
+    pub fn update(&mut self, window: &mut Window, timestamp: (f32, f32)) {
         if let Some(err) = window
             .was_shown()
             .then(|| self.config_error.take())
@@ -75,15 +75,14 @@ impl App {
             &mut self.editor,
             &mut self.buffers,
             &self.config,
-            time,
-            dt,
+            timestamp,
         );
 
         self.terminal
-            .update(&mut ui, &mut self.buffers, &self.config, time, dt);
+            .update(&mut ui, &mut self.buffers, &self.config, timestamp);
 
         self.editor
-            .update(&mut ui, &mut self.buffers, &self.config, time, dt);
+            .update(&mut ui, &mut self.buffers, &self.config, timestamp);
     }
 
     pub fn draw(&mut self, window: &mut Window) {

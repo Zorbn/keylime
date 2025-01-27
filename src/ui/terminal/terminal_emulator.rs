@@ -200,8 +200,7 @@ impl TerminalEmulator {
         tab: &mut Tab,
         buffers: &mut EditorBuffers,
         config: &Config,
-        time: f32,
-        dt: f32,
+        (time, dt): (f32, f32),
     ) {
         self.resize_grid(widget, tab);
 

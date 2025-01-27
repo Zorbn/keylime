@@ -20,9 +20,8 @@ use crate::{
 };
 
 use super::{
-    editor::{editor_pane::EditorPane, Editor},
+    editor::Editor,
     result_list::{ResultList, ResultListInput, ResultListSubmitKind},
-    slot_list::SlotList,
     tab::Tab,
     widget::{Widget, WidgetHandle},
     Ui, UiHandle,
@@ -32,6 +31,18 @@ use file_mode::MODE_OPEN_FILE;
 use go_to_line_mode::MODE_GO_TO_LINE;
 use mode::{CommandPaletteEventArgs, CommandPaletteMode};
 use search_mode::{MODE_SEARCH, MODE_SEARCH_AND_REPLACE_START};
+
+macro_rules! temp_args {
+    ($args:ident) => {
+        CommandPaletteEventArgs {
+            pane: $args.pane,
+            doc_list: $args.doc_list,
+            config: $args.config,
+            line_pool: $args.line_pool,
+            time: $args.time,
+        }
+    };
+}
 
 #[derive(Clone, Copy)]
 pub enum CommandPaletteAction {
@@ -127,62 +138,31 @@ impl CommandPalette {
         editor: &mut Editor,
         buffers: &mut EditorBuffers,
         config: &Config,
-        time: f32,
-        dt: f32,
+        (time, dt): (f32, f32),
     ) {
         if self.widget.is_visible && !self.widget.is_focused(ui) {
             self.close(ui, &mut buffers.lines);
         }
 
-        let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
+        let args = CommandPaletteEventArgs::new(editor, buffers, config, time);
 
         let mut global_action_handler = ui.window.get_action_handler();
 
         while let Some(action) = global_action_handler.next(ui.window) {
+            let args = temp_args!(args);
+
             match action {
                 action_name!(OpenCommandPalette) => {
-                    self.open(
-                        ui,
-                        MODE_OPEN_FILE,
-                        pane,
-                        doc_list,
-                        config,
-                        &mut buffers.lines,
-                        time,
-                    );
+                    self.open(ui, MODE_OPEN_FILE, args);
                 }
                 action_name!(OpenSearch) => {
-                    self.open(
-                        ui,
-                        MODE_SEARCH,
-                        pane,
-                        doc_list,
-                        config,
-                        &mut buffers.lines,
-                        time,
-                    );
+                    self.open(ui, MODE_SEARCH, args);
                 }
                 action_name!(OpenSearchAndReplace) => {
-                    self.open(
-                        ui,
-                        MODE_SEARCH_AND_REPLACE_START,
-                        pane,
-                        doc_list,
-                        config,
-                        &mut buffers.lines,
-                        time,
-                    );
+                    self.open(ui, MODE_SEARCH_AND_REPLACE_START, args);
                 }
                 action_name!(OpenGoToLine) => {
-                    self.open(
-                        ui,
-                        MODE_GO_TO_LINE,
-                        pane,
-                        doc_list,
-                        config,
-                        &mut buffers.lines,
-                        time,
-                    );
+                    self.open(ui, MODE_GO_TO_LINE, args);
                 }
                 _ => global_action_handler.unprocessed(ui.window, action),
             }
@@ -195,16 +175,7 @@ impl CommandPalette {
                 action_keybind!(key: Backspace) => {
                     let on_backspace = self.mode.on_backspace;
 
-                    let args = CommandPaletteEventArgs {
-                        command_palette: self,
-                        pane,
-                        doc_list,
-                        config,
-                        line_pool: &mut buffers.lines,
-                        time,
-                    };
-
-                    if !(on_backspace)(args) {
+                    if !(on_backspace)(self, temp_args!(args)) {
                         action_handler.unprocessed(ui.window, action);
                     }
                 }
@@ -220,13 +191,11 @@ impl CommandPalette {
 
         match result_input {
             ResultListInput::None => {}
-            ResultListInput::Complete => {
-                self.complete_result(pane, doc_list, config, &mut buffers.lines, time)
-            }
+            ResultListInput::Complete => self.complete_result(args),
             ResultListInput::Submit { kind } => {
-                self.submit(ui, kind, pane, doc_list, config, &mut buffers.lines, time);
+                self.submit(ui, kind, args);
             }
-            ResultListInput::Close => self.close(ui, &mut buffers.lines),
+            ResultListInput::Close => self.close(ui, args.line_pool),
         }
 
         let mut widget = WidgetHandle::new(&mut self.widget, ui);
@@ -234,86 +203,49 @@ impl CommandPalette {
         self.tab
             .update(&mut widget, &mut self.doc, buffers, config, time);
 
-        self.update_results(pane, doc_list, config, &mut buffers.lines, time);
+        let args = CommandPaletteEventArgs::new(editor, buffers, config, time);
+        self.update_results(args);
     }
 
     fn submit(
         &mut self,
         ui: &mut UiHandle,
         kind: ResultListSubmitKind,
-        pane: &mut EditorPane,
-        doc_list: &mut SlotList<Doc>,
-        config: &Config,
-        line_pool: &mut LinePool,
-        time: f32,
+        args: CommandPaletteEventArgs,
     ) {
-        self.complete_result(pane, doc_list, config, line_pool, time);
+        self.complete_result(temp_args!(args));
 
         let on_submit = self.mode.on_submit;
-
-        let args = CommandPaletteEventArgs {
-            command_palette: self,
-            pane,
-            doc_list,
-            config,
-            line_pool,
-            time,
-        };
-
-        let action = (on_submit)(args, kind);
+        let action = (on_submit)(self, temp_args!(args), kind);
 
         match action {
             CommandPaletteAction::Stay => {}
             CommandPaletteAction::Close | CommandPaletteAction::Open(_) => {
                 if self.mode.do_passthrough_result {
-                    for line in self.doc.drain(line_pool) {
+                    for line in self.doc.drain(args.line_pool) {
                         self.previous_results.push(line);
                     }
                 } else {
                     self.previous_results.clear();
                 }
 
-                self.close(ui, line_pool);
+                self.close(ui, args.line_pool);
             }
         }
 
         if let CommandPaletteAction::Open(mode) = action {
-            self.open(ui, mode, pane, doc_list, config, line_pool, time);
+            self.open(ui, mode, args);
         }
     }
 
-    fn complete_result(
-        &mut self,
-        pane: &mut EditorPane,
-        doc_list: &mut SlotList<Doc>,
-        config: &Config,
-        line_pool: &mut LinePool,
-        time: f32,
-    ) {
+    fn complete_result(&mut self, args: CommandPaletteEventArgs) {
         let on_complete_result = self.mode.on_complete_result;
-
-        let args = CommandPaletteEventArgs {
-            command_palette: self,
-            pane,
-            doc_list,
-            config,
-            line_pool,
-            time,
-        };
-
-        (on_complete_result)(args);
+        (on_complete_result)(self, args);
 
         self.result_list.drain();
     }
 
-    fn update_results(
-        &mut self,
-        pane: &mut EditorPane,
-        doc_list: &mut SlotList<Doc>,
-        config: &Config,
-        line_pool: &mut LinePool,
-        time: f32,
-    ) {
+    fn update_results(&mut self, args: CommandPaletteEventArgs) {
         if Some(self.doc.version()) == self.last_updated_version {
             return;
         }
@@ -323,17 +255,7 @@ impl CommandPalette {
         self.result_list.drain();
 
         let on_update_results = self.mode.on_update_results;
-
-        let args = CommandPaletteEventArgs {
-            command_palette: self,
-            pane,
-            doc_list,
-            config,
-            line_pool,
-            time,
-        };
-
-        (on_update_results)(args);
+        (on_update_results)(self, args);
     }
 
     pub fn draw(&mut self, ui: &mut UiHandle, config: &Config) {
@@ -394,11 +316,7 @@ impl CommandPalette {
         &mut self,
         ui: &mut UiHandle,
         mode: &'static CommandPaletteMode,
-        pane: &mut EditorPane,
-        doc_list: &mut SlotList<Doc>,
-        config: &Config,
-        line_pool: &mut LinePool,
-        time: f32,
+        args: CommandPaletteEventArgs,
     ) {
         self.last_updated_version = None;
         self.mode = mode;
@@ -406,19 +324,9 @@ impl CommandPalette {
         self.widget.is_visible = true;
 
         let on_open = self.mode.on_open;
+        (on_open)(self, temp_args!(args));
 
-        let args = CommandPaletteEventArgs {
-            command_palette: self,
-            pane,
-            doc_list,
-            config,
-            line_pool,
-            time,
-        };
-
-        (on_open)(args);
-
-        self.update_results(pane, doc_list, config, line_pool, time);
+        self.update_results(temp_args!(args));
     }
 
     fn close(&mut self, ui: &mut UiHandle, line_pool: &mut LinePool) {
