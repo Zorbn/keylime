@@ -134,7 +134,17 @@ impl Terminal {
                 continue;
             };
 
-            emulator.update_output(ui, docs, tab, line_pool, cursor_buffer, config, time, dt);
+            emulator.update_output(
+                &self.widget,
+                ui,
+                docs,
+                tab,
+                line_pool,
+                cursor_buffer,
+                config,
+                time,
+                dt,
+            );
         }
     }
 

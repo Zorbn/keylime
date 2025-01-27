@@ -290,7 +290,7 @@ impl Editor {
         }
 
         for pane in &mut self.panes {
-            pane.update_camera(ui, &mut self.doc_list, dt);
+            pane.update_camera(&self.widget, ui, &mut self.doc_list, dt);
         }
 
         self.update_completions(should_open_completions, handled_position);

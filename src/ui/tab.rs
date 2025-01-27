@@ -146,26 +146,6 @@ impl Tab {
             }
         }
 
-        let mut mouse_scroll_handler = widget.get_mouse_scroll_handler(ui);
-
-        while let Some(mouse_scroll) = mouse_scroll_handler.next(ui.window) {
-            let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
-
-            if self.doc_bounds.contains_position(position) {
-                let delta = mouse_scroll.delta * ui.gfx().line_height();
-
-                if mouse_scroll.is_horizontal {
-                    self.camera.vertical.reset_velocity();
-                    self.camera
-                        .horizontal
-                        .scroll(-delta, mouse_scroll.is_precise);
-                } else {
-                    self.camera.horizontal.reset_velocity();
-                    self.camera.vertical.scroll(delta, mouse_scroll.is_precise);
-                }
-            }
-        }
-
         let mut action_handler = widget.get_action_handler(ui);
 
         while let Some(action) = action_handler.next(ui.window) {
@@ -188,7 +168,30 @@ impl Tab {
         doc.update_tokens();
     }
 
-    pub fn update_camera(&mut self, ui: &mut UiHandle, doc: &Doc, dt: f32) {
+    pub fn update_camera(&mut self, widget: &Widget, ui: &mut UiHandle, doc: &Doc, dt: f32) {
+        let mut mouse_scroll_handler = widget.get_mouse_scroll_handler(ui);
+
+        while let Some(mouse_scroll) = mouse_scroll_handler.next(ui.window) {
+            let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
+
+            if !self.doc_bounds.contains_position(position) {
+                mouse_scroll_handler.unprocessed(ui.window, mouse_scroll);
+                continue;
+            }
+
+            let delta = mouse_scroll.delta * ui.gfx().line_height();
+
+            if mouse_scroll.is_horizontal {
+                self.camera.vertical.reset_velocity();
+                self.camera
+                    .horizontal
+                    .scroll(-delta, mouse_scroll.is_precise);
+            } else {
+                self.camera.horizontal.reset_velocity();
+                self.camera.vertical.scroll(delta, mouse_scroll.is_precise);
+            }
+        }
+
         let gfx = ui.gfx();
 
         self.update_camera_vertical(doc, gfx, dt);

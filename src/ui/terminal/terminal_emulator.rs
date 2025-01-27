@@ -197,6 +197,7 @@ impl TerminalEmulator {
 
     pub fn update_output(
         &mut self,
+        widget: &Widget,
         ui: &mut UiHandle,
         docs: &mut TerminalDocs,
         tab: &mut Tab,
@@ -245,7 +246,7 @@ impl TerminalEmulator {
             let doc = self.get_doc(docs);
 
             tab.camera.horizontal.reset_velocity();
-            tab.update_camera(ui, doc, dt);
+            tab.update_camera(widget, ui, doc, dt);
         }
     }
 

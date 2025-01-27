@@ -116,11 +116,17 @@ impl<T> Pane<T> {
         }
     }
 
-    pub fn update_camera(&mut self, ui: &mut UiHandle, data_list: &mut SlotList<T>, dt: f32) {
+    pub fn update_camera(
+        &mut self,
+        widget: &Widget,
+        ui: &mut UiHandle,
+        data_list: &mut SlotList<T>,
+        dt: f32,
+    ) {
         let get_doc = self.get_doc;
 
         if let Some((tab, data)) = self.get_tab_with_data_mut(self.focused_tab_index, data_list) {
-            tab.update_camera(ui, get_doc(data), dt);
+            tab.update_camera(widget, ui, get_doc(data), dt);
         }
     }
 
