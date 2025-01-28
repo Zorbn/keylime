@@ -12,6 +12,7 @@ use crate::{
         input_handlers::{ActionHandler, CharHandler, MouseScrollHandler, MousebindHandler},
         key::Key,
         keybind::Keybind,
+        mods::Mods,
         mouse_button::MouseButton,
         mouse_scroll::MouseScroll,
         mousebind::{MouseClickKind, Mousebind},
@@ -257,15 +258,14 @@ impl Window {
         let key_code = unsafe { event.keyCode() };
 
         if let Some(key) = Self::key_from_keycode(key_code) {
-            let has_shift = modifier_flags.contains(NSShiftKeyMask);
-            let has_ctrl = modifier_flags.contains(NSControlKeyMask);
-            let has_alt = modifier_flags.contains(NSAlternateKeyMask);
-            let has_cmd = modifier_flags.contains(NSCommandKeyMask);
+            let mods = Mods {
+                has_shift: modifier_flags.contains(NSShiftKeyMask),
+                has_ctrl: modifier_flags.contains(NSControlKeyMask),
+                has_alt: modifier_flags.contains(NSAlternateKeyMask),
+                has_cmd: modifier_flags.contains(NSCommandKeyMask),
+            };
 
-            let action = Action::from_keybind(
-                Keybind::new(key, has_shift, has_ctrl, has_alt, has_cmd),
-                &self.keymaps,
-            );
+            let action = Action::from_keybind(Keybind::new(key, mods), &self.keymaps);
 
             self.actions_typed.push(action);
         }
@@ -275,9 +275,12 @@ impl Window {
         let (x, y) = self.event_location_to_xy(event);
 
         let modifier_flags = unsafe { event.modifierFlags() };
-        let has_shift = modifier_flags.contains(NSShiftKeyMask);
-        let has_ctrl = modifier_flags.contains(NSCommandKeyMask);
-        let has_alt = modifier_flags.contains(NSAlternateKeyMask);
+        let mods = Mods {
+            has_shift: modifier_flags.contains(NSShiftKeyMask),
+            has_ctrl: false,
+            has_alt: modifier_flags.contains(NSAlternateKeyMask),
+            has_cmd: modifier_flags.contains(NSCommandKeyMask),
+        };
 
         let (button, kind) = if is_drag {
             self.current_pressed_button
@@ -302,9 +305,8 @@ impl Window {
             (button, kind)
         };
 
-        self.mousebinds_pressed.push(Mousebind::new(
-            button, x, y, has_shift, has_ctrl, has_alt, kind, is_drag,
-        ));
+        self.mousebinds_pressed
+            .push(Mousebind::new(button, x, y, mods, kind, is_drag));
     }
 
     pub fn handle_mouse_up(&mut self, event: &NSEvent) {

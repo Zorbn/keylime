@@ -1,7 +1,4 @@
-use super::{
-    keybind::{MOD_ALT, MOD_CTRL, MOD_SHIFT},
-    mouse_button::MouseButton,
-};
+use super::{mods::Mods, mouse_button::MouseButton};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MouseClickKind {
@@ -25,25 +22,11 @@ impl Mousebind {
         button: Option<MouseButton>,
         x: f32,
         y: f32,
-        has_shift: bool,
-        has_ctrl: bool,
-        has_alt: bool,
+        mods: Mods,
         kind: MouseClickKind,
         is_drag: bool,
     ) -> Self {
-        let mut mods = 0u8;
-
-        if has_shift {
-            mods |= MOD_SHIFT;
-        }
-
-        if has_ctrl {
-            mods |= MOD_CTRL;
-        }
-
-        if has_alt {
-            mods |= MOD_ALT;
-        }
+        let mods = mods.to_bits();
 
         Self {
             button,

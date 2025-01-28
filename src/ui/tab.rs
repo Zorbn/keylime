@@ -8,7 +8,7 @@ use crate::{
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
         editing_actions::{handle_action, handle_char, handle_left_click},
-        keybind::{MOD_CTRL, MOD_SHIFT},
+        keybind::{MOD_CMD, MOD_CTRL, MOD_SHIFT},
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
@@ -145,7 +145,7 @@ impl Tab {
                 }
                 Mousebind {
                     button: Some(MouseButton::Left),
-                    mods: MOD_CTRL,
+                    mods: MOD_CTRL | MOD_CMD,
                     is_drag: false,
                     ..
                 } => {

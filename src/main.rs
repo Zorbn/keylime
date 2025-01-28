@@ -1,5 +1,3 @@
-#![allow(clippy::needless_range_loop)]
-
 mod app;
 mod config;
 mod digits;

@@ -1,4 +1,4 @@
-use super::key::Key;
+use super::{key::Key, mods::Mods};
 
 pub const MOD_SHIFT: u8 = 1 << 0;
 pub const MOD_CTRL: u8 = 1 << 1;
@@ -12,24 +12,8 @@ pub struct Keybind {
 }
 
 impl Keybind {
-    pub fn new(key: Key, has_shift: bool, has_ctrl: bool, has_alt: bool, has_cmd: bool) -> Self {
-        let mut mods = 0u8;
-
-        if has_shift {
-            mods |= MOD_SHIFT;
-        }
-
-        if has_ctrl {
-            mods |= MOD_CTRL;
-        }
-
-        if has_alt {
-            mods |= MOD_ALT;
-        }
-
-        if has_cmd {
-            mods |= MOD_CMD;
-        }
+    pub fn new(key: Key, mods: Mods) -> Self {
+        let mods = mods.to_bits();
 
         Self { mods, key }
     }

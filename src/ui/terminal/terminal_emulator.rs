@@ -549,17 +549,15 @@ impl TerminalEmulator {
         cursor_buffer: &mut [Cursor],
         convert_fn: fn(&Self, Position, &Doc) -> Position,
     ) {
-        for i in 0..cursor_buffer.len() {
-            let cursor = &cursor_buffer[i];
-
+        for cursor in cursor_buffer {
             let position = convert_fn(self, cursor.position, doc);
 
             let selection_anchor = cursor
                 .selection_anchor
                 .map(|selection_anchor| convert_fn(self, selection_anchor, doc));
 
-            cursor_buffer[i].position = position;
-            cursor_buffer[i].selection_anchor = selection_anchor;
+            cursor.position = position;
+            cursor.selection_anchor = selection_anchor;
         }
     }
 

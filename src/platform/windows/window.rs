@@ -46,6 +46,7 @@ use crate::{
         input_handlers::{ActionHandler, CharHandler, MouseScrollHandler, MousebindHandler},
         key::Key,
         keybind::Keybind,
+        mods::Mods,
         mouse_button::MouseButton,
         mouse_scroll::MouseScroll,
         mousebind::{MouseClickKind, Mousebind},
@@ -654,14 +655,14 @@ impl Window {
                     const LALT: i32 = VK_LMENU.0 as i32;
                     const RALT: i32 = VK_RMENU.0 as i32;
 
-                    let has_shift = GetKeyState(LSHIFT) < 0 || GetKeyState(RSHIFT) < 0;
-                    let has_ctrl = GetKeyState(LCTRL) < 0 || GetKeyState(RCTRL) < 0;
-                    let has_alt = GetKeyState(LALT) < 0 || GetKeyState(RALT) < 0;
+                    let mods = Mods {
+                        has_shift: GetKeyState(LSHIFT) < 0 || GetKeyState(RSHIFT) < 0,
+                        has_ctrl: GetKeyState(LCTRL) < 0 || GetKeyState(RCTRL) < 0,
+                        has_alt: GetKeyState(LALT) < 0 || GetKeyState(RALT) < 0,
+                        has_cmd: false,
+                    };
 
-                    let action = Action::from_keybind(
-                        Keybind::new(key, has_shift, has_ctrl, has_alt, false),
-                        &self.keymaps,
-                    );
+                    let action = Action::from_keybind(Keybind::new(key, mods), &self.keymaps);
 
                     self.actions_typed.push(action);
                 }
@@ -708,8 +709,12 @@ impl Window {
                     None
                 };
 
-                let has_shift = wparam.0 & MK_SHIFT != 0;
-                let has_ctrl = wparam.0 & MK_CONTROL != 0;
+                let mods = Mods {
+                    has_shift: wparam.0 & MK_SHIFT != 0,
+                    has_ctrl: wparam.0 & MK_CONTROL != 0,
+                    has_alt: false,
+                    has_cmd: false,
+                };
 
                 let x = transmute::<u32, i32>((lparam.0 & 0xFFFF) as u32) as f32;
                 let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xFFFF) as u32) as f32;
@@ -774,9 +779,8 @@ impl Window {
                 };
 
                 if !do_ignore {
-                    self.mousebinds_pressed.push(Mousebind::new(
-                        button, x, y, has_shift, has_ctrl, false, kind, is_drag,
-                    ));
+                    self.mousebinds_pressed
+                        .push(Mousebind::new(button, x, y, mods, kind, is_drag));
                 }
             }
             WM_MOUSEWHEEL | WM_MOUSEHWHEEL => {

@@ -192,9 +192,7 @@ impl SyntaxHighlighter {
                 .resize(lines.len(), HighlightedLine::new());
         }
 
-        for y in start_y..=end_y {
-            let line = &lines[y];
-
+        for (y, line) in lines.iter().enumerate().take(end_y + 1).skip(start_y) {
             self.highlighted_lines[y].clear();
 
             let mut x = 0;
