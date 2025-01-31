@@ -530,6 +530,7 @@ impl Window {
             0x17 => Some(Key::Five),
             0x19 => Some(Key::Nine),
             0x1A => Some(Key::Seven),
+            0x1B => Some(Key::Minus),
             0x1C => Some(Key::Eight),
             0x1D => Some(Key::Zero),
             0x1E => Some(Key::RBracket),

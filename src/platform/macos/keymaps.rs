@@ -311,6 +311,20 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
         ),
         (
             Keybind {
+                key: Key::Minus,
+                mods: MOD_CTRL,
+            },
+            ActionName::UndoCursorPosition,
+        ),
+        (
+            Keybind {
+                key: Key::Minus,
+                mods: MOD_CTRL | MOD_SHIFT,
+            },
+            ActionName::RedoCursorPosition,
+        ),
+        (
+            Keybind {
                 key: Key::Up,
                 mods: MOD_CMD | MOD_ALT,
             },

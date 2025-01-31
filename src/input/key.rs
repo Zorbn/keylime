@@ -96,4 +96,5 @@ pub enum Key {
     Grave,
     LBracket,
     RBracket,
+    Minus,
 }

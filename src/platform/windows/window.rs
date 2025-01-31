@@ -907,6 +907,7 @@ impl Window {
             0xA4 => Some(Key::LAlt),
             0xA5 => Some(Key::RAlt),
             0xBF => Some(Key::ForwardSlash),
+            0xBD => Some(Key::Minus),
             0xC0 => Some(Key::Grave),
             0xDB => Some(Key::LBracket),
             0xDD => Some(Key::RBracket),
