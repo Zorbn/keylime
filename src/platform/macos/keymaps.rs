@@ -108,6 +108,20 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
         ),
         (
             Keybind {
+                key: Key::Left,
+                mods: MOD_CMD | MOD_SHIFT | MOD_ALT,
+            },
+            ActionName::PreviousPane,
+        ),
+        (
+            Keybind {
+                key: Key::Right,
+                mods: MOD_CMD | MOD_SHIFT | MOD_ALT,
+            },
+            ActionName::NextPane,
+        ),
+        (
+            Keybind {
                 key: Key::R,
                 mods: MOD_CMD,
             },
