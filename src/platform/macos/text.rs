@@ -1,6 +1,5 @@
 use core::f64;
 use std::{
-    ffi::c_void,
     ops::{Deref, RangeInclusive},
     ptr::{null_mut, NonNull},
 };
@@ -8,14 +7,14 @@ use std::{
 use crate::platform::text::{Atlas, AtlasDimensions};
 
 use super::result::Result;
-use objc2::{rc::Retained, runtime::AnyObject};
+use objc2::rc::Retained;
 use objc2_core_foundation::*;
 use objc2_core_graphics::*;
 use objc2_core_text::*;
 use objc2_foundation::{NSMutableAttributedString, NSRange, NSRect, NSString};
 
 pub struct Text {
-    font: *mut AnyObject,
+    font: CFRetained<CTFont>,
 
     glyph_width: usize,
     glyph_step_x: usize,
@@ -24,25 +23,23 @@ pub struct Text {
 
 impl Text {
     pub unsafe fn new(font_name: &str, font_size: f32, scale: f32) -> Result<Self> {
-        let font_name = NSString::from_str(font_name);
+        let font_name = CFString::from_str(font_name);
         let font_size = (font_size * scale).floor() as f64;
 
-        let font_name_cfstr = &*font_name as *const _ as CFStringRef;
-
         let font = CTFontCreateWithNameAndOptions(
-            font_name_cfstr,
+            &font_name,
             font_size,
             null_mut(),
-            CTFontOptions::kCTFontOptionsDefault,
-        ) as *mut AnyObject;
+            CTFontOptions::Default,
+        );
 
-        let loaded_font_name = CTFontCopyFamilyName(font as _);
+        let loaded_font_name = CTFontCopyFamilyName(&font);
 
         let did_load_requested_font = CFStringCompare(
-            font_name_cfstr,
-            loaded_font_name,
+            &font_name,
+            Some(&loaded_font_name),
             CFStringCompareFlags::empty(),
-        ) == CFComparisonResult::kCFCompareEqualTo;
+        ) == CFComparisonResult::CompareEqualTo;
 
         if !did_load_requested_font {
             return Err("Font not found");
@@ -52,37 +49,46 @@ impl Text {
         let mut advances = [CGSize::ZERO; 1];
 
         CTFontGetAdvancesForGlyphs(
-            font as *mut c_void,
-            CTFontOrientation::kCTFontOrientationHorizontal,
+            &font,
+            CTFontOrientation::Horizontal,
             NonNull::from(&advance_glyphs[0]),
             &mut advances[0],
             1,
         );
 
         let line_height =
-            CTFontGetAscent(font as _) + CTFontGetDescent(font as _) + CTFontGetLeading(font as _);
+            CTFontGetAscent(&font) + CTFontGetDescent(&font) + CTFontGetLeading(&font);
         let line_height = line_height.ceil() as usize;
 
         let glyph_width = advances[0].width.floor() as usize;
         let glyph_step_x = advances[0].width.ceil() as usize + 1;
 
-        let attributes = CFDictionaryCreateMutable(kCFAllocatorDefault, 2, null_mut(), null_mut());
+        let attributes =
+            CFDictionaryCreateMutable(kCFAllocatorDefault, 2, null_mut(), null_mut()).unwrap();
 
-        CFDictionaryAddValue(attributes, kCTFontNameAttribute, font_name_cfstr);
+        CFDictionaryAddValue(
+            Some(&attributes),
+            kCTFontNameAttribute as *const _ as _,
+            &*font_name as *const _ as _,
+        );
 
         let mut advance = glyph_step_x as f64;
         let advance = CFNumberCreate(
             kCFAllocatorDefault,
-            CFNumberType::kCFNumberFloat64Type,
+            CFNumberType::Float64Type,
             &mut advance as *mut _ as _,
+        )
+        .unwrap();
+
+        CFDictionaryAddValue(
+            Some(&attributes),
+            kCTFontFixedAdvanceAttribute as *const _ as _,
+            &*advance as *const _ as _,
         );
 
-        CFDictionaryAddValue(attributes, kCTFontFixedAdvanceAttribute, advance);
+        let descriptor = CTFontDescriptorCreateWithAttributes(&attributes);
 
-        let descriptor = CTFontDescriptorCreateWithAttributes(attributes);
-
-        let font =
-            CTFontCreateWithFontDescriptor(descriptor, font_size, null_mut()) as *mut AnyObject;
+        let font = CTFontCreateWithFontDescriptor(&descriptor, font_size, null_mut());
 
         Ok(Self {
             font,
@@ -105,12 +111,14 @@ impl Text {
 
         attributed_string.beginEditing();
 
-        let font_attribute_name = kCTFontAttributeName as *const NSString;
+        let font_attribute_name = (kCTFontAttributeName as *const _ as *const NSString)
+            .as_ref()
+            .unwrap();
 
         let attributed_string_len = attributed_string.length();
         attributed_string.addAttribute_value_range(
-            &*font_attribute_name,
-            &*self.font,
+            font_attribute_name,
+            self.font.as_ref(),
             NSRange::new(0, attributed_string_len),
         );
 
@@ -136,16 +144,19 @@ impl Text {
     unsafe fn frameset(
         attributed_string: &Retained<NSMutableAttributedString>,
     ) -> (Vec<u8>, NSRect) {
-        let framesetter =
-            CTFramesetterCreateWithAttributedString(attributed_string.deref() as *const _ as _);
+        let framesetter = CTFramesetterCreateWithAttributedString(
+            (attributed_string.deref() as *const _ as *const CFAttributedString)
+                .as_ref()
+                .unwrap(),
+        );
 
         let size = CTFramesetterSuggestFrameSizeWithConstraints(
-            framesetter,
+            &framesetter,
             CFRange {
                 location: 0,
-                length: attributed_string.length() as i64,
+                length: attributed_string.length() as isize,
             },
-            CFDictionaryRef::from(null_mut()),
+            None,
             CGSize::new(f64::MAX, f64::MAX),
             null_mut(),
         );
@@ -156,24 +167,22 @@ impl Text {
         );
 
         let path = CGPathCreateMutable();
-        CGPathAddRect(path, null_mut(), rect);
+        CGPathAddRect(Some(&path), null_mut(), rect);
 
         let frame = CTFramesetterCreateFrame(
-            framesetter,
+            &framesetter,
             CFRange {
                 location: 0,
                 length: 0,
             },
-            path,
-            null_mut(),
+            &path,
+            None,
         );
 
         let mut raw_data = vec![0u8; rect.size.width as usize * rect.size.height as usize * 4];
 
-        let bitmap_info = CGBitmapInfo(
-            CGBitmapInfo::kCGBitmapByteOrder32Big.0
-                | CGImageAlphaInfo::kCGImageAlphaPremultipliedLast.0,
-        );
+        let bitmap_info =
+            CGBitmapInfo(CGBitmapInfo::ByteOrder32Big.0 | CGImageAlphaInfo::PremultipliedLast.0);
 
         let rgb_color_space = CGColorSpaceCreateDeviceRGB();
 
@@ -183,45 +192,49 @@ impl Text {
             rect.size.height as usize,
             8,
             (rect.size.width * 4.0) as usize,
-            rgb_color_space,
+            rgb_color_space.as_deref(),
             bitmap_info.0,
             CGBitmapContextReleaseDataCallback::None,
             null_mut(),
-        );
+        )
+        .unwrap();
 
-        CTFrameDraw(frame, context);
+        CTFrameDraw(&frame, &context);
 
         (raw_data, rect)
     }
 
     unsafe fn has_color_glyphs(attributed_string: &Retained<NSMutableAttributedString>) -> bool {
-        let typesetter =
-            CTTypesetterCreateWithAttributedString(attributed_string.deref() as *const _ as _);
+        let typesetter = CTTypesetterCreateWithAttributedString(
+            (attributed_string.deref() as *const _ as *const CFAttributedString)
+                .as_ref()
+                .unwrap(),
+        );
         let line = CTTypesetterCreateLine(
-            typesetter,
+            &typesetter,
             CFRange {
                 location: 0,
-                length: attributed_string.length() as i64,
+                length: attributed_string.length() as isize,
             },
         );
 
-        let runs = CTLineGetGlyphRuns(line);
-
-        if runs.is_null() {
-            return false;
-        }
-
-        let count = CFArrayGetCount(runs);
+        let runs = CTLineGetGlyphRuns(&line);
+        let count = CFArrayGetCount(&runs);
 
         for i in 0..count {
-            let run = CFArrayGetValueAtIndex(runs, i);
+            let run = (CFArrayGetValueAtIndex(&runs, i) as *const CTRun)
+                .as_ref()
+                .unwrap();
 
             let attributes = CTRunGetAttributes(run);
-            let font = CFDictionaryGetValue(attributes, kCTFontAttributeName);
+            let font = (CFDictionaryGetValue(&attributes, kCTFontAttributeName as *const _ as _)
+                as *const CTFont)
+                .as_ref()
+                .unwrap();
 
             let traits = CTFontGetSymbolicTraits(font);
 
-            if traits.contains(CTFontSymbolicTraits::kCTFontTraitColorGlyphs) {
+            if traits.contains(CTFontSymbolicTraits::ColorGlyphsTrait) {
                 return true;
             }
         }

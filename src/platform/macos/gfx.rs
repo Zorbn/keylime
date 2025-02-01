@@ -134,10 +134,7 @@ impl Gfx {
     ) -> Result<Self> {
         let scale = window.borrow().inner.scale();
 
-        let device = {
-            let ptr = unsafe { MTLCreateSystemDefaultDevice() };
-            unsafe { Retained::retain(ptr) }.expect("Failed to get default system device.")
-        };
+        let device = MTLCreateSystemDefaultDevice().expect("Failed to get default system device.");
 
         let command_queue = device
             .newCommandQueue()
@@ -486,8 +483,8 @@ impl Gfx {
         {
             buffer = device.newBufferWithLength_options(
                 size_of_val(vec),
-                MTLResourceOptions::MTLResourceCPUCacheModeWriteCombined
-                    | MTLResourceOptions::MTLResourceStorageModeShared,
+                MTLResourceOptions::CPUCacheModeWriteCombined
+                    | MTLResourceOptions::StorageModeShared,
             );
         }
 

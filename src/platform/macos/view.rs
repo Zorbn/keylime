@@ -6,7 +6,7 @@ use std::{
 };
 
 use objc2::{
-    define_class, msg_send, msg_send_id, rc::Retained, runtime::ProtocolObject, sel, DefinedClass,
+    define_class, msg_send, rc::Retained, runtime::ProtocolObject, sel, DefinedClass,
     MainThreadMarker, MainThreadOnly,
 };
 use objc2_app_kit::{
@@ -47,8 +47,8 @@ define_class!(
     #[ivars = ViewIvars]
     pub struct View;
 
-    unsafe impl View {
-        #[method_id(makeBackingLayer)]
+    impl View {
+        #[unsafe(method_id(makeBackingLayer))]
         unsafe fn make_backing_layer(&self) -> Retained<CALayer> {
             let metal_layer = unsafe { CAMetalLayer::new() };
 
@@ -62,8 +62,8 @@ define_class!(
                 metal_layer.setAllowsNextDrawableTimeout(false);
 
                 metal_layer.setAutoresizingMask(
-                    CAAutoresizingMask::kCALayerWidthSizable
-                        | CAAutoresizingMask::kCALayerHeightSizable,
+                    CAAutoresizingMask::LayerWidthSizable
+                        | CAAutoresizingMask::LayerHeightSizable,
                 );
 
                 metal_layer.setNeedsDisplayOnBoundsChange(true);
@@ -74,7 +74,7 @@ define_class!(
             Retained::<CALayer>::from(&metal_layer)
         }
 
-        #[method(setFrameSize:)]
+        #[unsafe(method(setFrameSize:))]
         unsafe fn set_frame_size(&self, new_size: NSSize) {
             unsafe {
                 let _: () = msg_send![super(self), setFrameSize: new_size];
@@ -97,7 +97,7 @@ define_class!(
             window.inner.resize(new_size.width, new_size.height, app);
         }
 
-        #[method(viewWillStartLiveResize)]
+        #[unsafe(method(viewWillStartLiveResize))]
         unsafe fn view_will_start_live_resize(&self) {
             let metal_layer = self.ivars().metal_layer.get().unwrap();
 
@@ -106,7 +106,7 @@ define_class!(
             }
         }
 
-        #[method(viewDidEndLiveResize)]
+        #[unsafe(method(viewDidEndLiveResize))]
         unsafe fn view_did_end_live_resize(&self) {
             let metal_layer = self.ivars().metal_layer.get().unwrap();
 
@@ -115,7 +115,7 @@ define_class!(
             }
         }
 
-        #[method(viewDidChangeBackingProperties)]
+        #[unsafe(method(viewDidChangeBackingProperties))]
         unsafe fn view_did_change_backing_properties(&self) {
             let metal_layer = self.ivars().metal_layer.get().unwrap();
 
@@ -135,62 +135,62 @@ define_class!(
             }
         }
 
-        #[method(acceptsFirstResponder)]
+        #[unsafe(method(acceptsFirstResponder))]
         unsafe fn accepts_first_responder(&self) -> bool {
             true
         }
 
-        #[method(keyDown:)]
+        #[unsafe(method(keyDown:))]
         unsafe fn key_down(&self, event: &NSEvent) {
             handle_event!(handle_key_down, self, event);
         }
 
-        #[method(mouseDown:)]
+        #[unsafe(method(mouseDown:))]
         unsafe fn mouse_down(&self, event: &NSEvent) {
             handle_event!(handle_mouse_down, self, event, false);
         }
 
-        #[method(rightMouseDown:)]
+        #[unsafe(method(rightMouseDown:))]
         unsafe fn right_mouse_down(&self, event: &NSEvent) {
             handle_event!(handle_mouse_down, self, event, false);
         }
 
-        #[method(otherMouseDown:)]
+        #[unsafe(method(otherMouseDown:))]
         unsafe fn other_mouse_down(&self, event: &NSEvent) {
             handle_event!(handle_mouse_down, self, event, false);
         }
 
-        #[method(mouseUp:)]
+        #[unsafe(method(mouseUp:))]
         unsafe fn mouse_up(&self, event: &NSEvent) {
             handle_event!(handle_mouse_up, self, event);
         }
 
-        #[method(rightMouseUp:)]
+        #[unsafe(method(rightMouseUp:))]
         unsafe fn right_mouse_up(&self, event: &NSEvent) {
             handle_event!(handle_mouse_up, self, event);
         }
 
-        #[method(otherMouseUp:)]
+        #[unsafe(method(otherMouseUp:))]
         unsafe fn other_mouse_up(&self, event: &NSEvent) {
             handle_event!(handle_mouse_up, self, event);
         }
 
-        #[method(mouseDragged:)]
+        #[unsafe(method(mouseDragged:))]
         unsafe fn mouse_dragged(&self, event: &NSEvent) {
             handle_event!(handle_mouse_down, self, event, true);
         }
 
-        #[method(mouseMoved:)]
+        #[unsafe(method(mouseMoved:))]
         unsafe fn mouse_moved(&self, event: &NSEvent) {
             handle_event!(handle_mouse_down, self, event, true);
         }
 
-        #[method(scrollWheel:)]
+        #[unsafe(method(scrollWheel:))]
         unsafe fn scroll_wheel(&self, event: &NSEvent) {
             handle_event!(handle_scroll_wheel, self, event);
         }
 
-        #[method(update)]
+        #[unsafe(method(update))]
         fn update_objc(&self) {
             self.update();
         }
@@ -199,7 +199,7 @@ define_class!(
     unsafe impl NSObjectProtocol for View {}
 
     unsafe impl CALayerDelegate for View {
-        #[method(displayLayer:)]
+        #[unsafe(method(displayLayer:))]
         unsafe fn display_layer(&self, _layer: &CALayer) {
             let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
                 return;
@@ -244,7 +244,7 @@ impl View {
         });
 
         let view: Retained<View> = unsafe {
-            msg_send_id![
+            msg_send![
                 super(this),
                 initWithFrame: frame_rect
             ]
@@ -253,9 +253,7 @@ impl View {
         view.setWantsLayer(true);
 
         unsafe {
-            view.setLayerContentsRedrawPolicy(
-                NSViewLayerContentsRedrawPolicy::NSViewLayerContentsRedrawDuringViewResize,
-            );
+            view.setLayerContentsRedrawPolicy(NSViewLayerContentsRedrawPolicy::DuringViewResize);
 
             view.setLayerContentsPlacement(NSViewLayerContentsPlacement::ScaleAxesIndependently);
         }

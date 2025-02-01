@@ -131,7 +131,7 @@ impl Window {
                     mtm.alloc(),
                     content_rect,
                     style,
-                    NSBackingStoreType::NSBackingStoreBuffered,
+                    NSBackingStoreType::Buffered,
                     false,
                 )
             }
@@ -243,10 +243,10 @@ impl Window {
 
         if modifier_flags
             .intersection(
-                NSEventModifierFlags::NSEventModifierFlagCommand
-                    | NSEventModifierFlags::NSEventModifierFlagControl
-                    | NSEventModifierFlags::NSEventModifierFlagFunction
-                    | NSEventModifierFlags::NSEventModifierFlagOption,
+                NSEventModifierFlags::Command
+                    | NSEventModifierFlags::Control
+                    | NSEventModifierFlags::Function
+                    | NSEventModifierFlags::Option,
             )
             .is_empty()
         {

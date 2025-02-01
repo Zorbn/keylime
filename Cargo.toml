@@ -46,8 +46,8 @@ windows = { version = "0.58", features = [
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2"
-objc2 = { git = "https://github.com/madsmtm/objc2", rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9" }
-objc2-app-kit = { git = "https://github.com/madsmtm/objc2", rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9", features = [
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = [
     "NSApplication",
     "NSRunningApplication",
     "NSResponder",
@@ -71,14 +71,14 @@ objc2-app-kit = { git = "https://github.com/madsmtm/objc2", rev = "cd4944122aae8
     "objc2-quartz-core",
     "objc2-core-foundation",
 ] }
-objc2-foundation = { git = "https://github.com/madsmtm/objc2", rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9", features = [
+objc2-foundation = { version = "0.3", features = [
     "NSDate",
     "NSThread",
     "NSRunLoop",
     "NSTimer",
     "objc2-core-foundation",
 ] }
-objc2-metal = { git = "https://github.com/madsmtm/objc2", rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9", features = [
+objc2-metal = { version = "0.3", features = [
     "MTLAccelerationStructureTypes",
     "MTLCommandQueue",
     "MTLCommandBuffer",
@@ -96,12 +96,12 @@ objc2-metal = { git = "https://github.com/madsmtm/objc2", rev = "cd4944122aae85b
     "MTLTexture",
     "MTLTypes",
 ] }
-objc2-quartz-core = { git = "https://github.com/madsmtm/objc2", rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9", features = [
+objc2-quartz-core = { version = "0.3", features = [
     "CAMetalLayer",
     "CATransaction",
     "objc2-metal",
 ] }
-objc2-core-text = { git = "https://github.com/madsmtm/objc2", rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9", features = [
+objc2-core-text = { version = "0.3", features = [
     "CTFont",
     "CTFontTraits",
     "CTFontDescriptor",
@@ -112,14 +112,13 @@ objc2-core-text = { git = "https://github.com/madsmtm/objc2", rev = "cd4944122aa
     "CTRun",
     "CTRunDelegate",
     "CTStringAttributes",
-    "objc2-core-foundation",
     "objc2-core-graphics",
 ] }
-objc2-core-graphics = { git = "https://github.com/madsmtm/objc2", rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9", features = [
+objc2-core-graphics = { version = "0.3", features = [
     "CGAffineTransform",
     "CGPath",
     "CGColorSpace",
     "CGContext",
     "CGBitmapContext",
 ] }
-objc2-core-foundation = { git = "https://github.com/madsmtm/objc2", rev = "cd4944122aae85bf6556b1c6f88d782d24fd92b9" }
+objc2-core-foundation = "0.3"

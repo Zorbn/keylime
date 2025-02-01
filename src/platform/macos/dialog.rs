@@ -46,7 +46,7 @@ unsafe fn find_file_open(
         mtm.alloc(),
         content_rect,
         style,
-        NSBackingStoreType::NSBackingStoreBuffered,
+        NSBackingStoreType::Buffered,
         true,
     );
 
@@ -69,7 +69,7 @@ unsafe fn find_file_save(
         mtm.alloc(),
         content_rect,
         style,
-        NSBackingStoreType::NSBackingStoreBuffered,
+        NSBackingStoreType::Buffered,
         true,
     );
 

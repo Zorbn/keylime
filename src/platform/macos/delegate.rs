@@ -3,8 +3,8 @@
 use std::{cell::RefCell, rc::Rc};
 
 use objc2::{
-    define_class, msg_send, msg_send_id, rc::Retained, runtime::ProtocolObject, DefinedClass,
-    MainThreadMarker, MainThreadOnly,
+    define_class, msg_send, rc::Retained, runtime::ProtocolObject, DefinedClass, MainThreadMarker,
+    MainThreadOnly,
 };
 use objc2_app_kit::{NSApplication, NSApplicationDelegate, NSColor, NSWindow, NSWindowDelegate};
 use objc2_foundation::{ns_string, NSNotification, NSObject, NSObjectProtocol, NSThread};
@@ -31,7 +31,7 @@ define_class!(
     unsafe impl NSObjectProtocol for Delegate {}
 
     unsafe impl NSApplicationDelegate for Delegate {
-        #[method(applicationDidFinishLaunching:)]
+        #[unsafe(method(applicationDidFinishLaunching:))]
         unsafe fn application_did_finish_launching(&self, notification: &NSNotification) {
             let window = self.ivars().window.clone();
             let app = self.ivars().app.clone();
@@ -90,7 +90,7 @@ define_class!(
             }
         }
 
-        #[method(applicationShouldTerminateAfterLastWindowClosed:)]
+        #[unsafe(method(applicationShouldTerminateAfterLastWindowClosed:))]
         unsafe fn application_should_terminate_after_last_window_closed(
             &self,
             _sender: &NSApplication,
@@ -98,7 +98,7 @@ define_class!(
             true
         }
 
-        #[method(applicationShouldTerminate:)]
+        #[unsafe(method(applicationShouldTerminate:))]
         unsafe fn application_should_terminate(&self, _sender: &NSApplication) -> bool {
             self.on_close();
 
@@ -107,29 +107,29 @@ define_class!(
     }
 
     unsafe impl NSWindowDelegate for Delegate {
-        #[method(windowShouldClose:)]
+        #[unsafe(method(windowShouldClose:))]
         unsafe fn window_should_close(&self, _sender: &NSWindow) -> bool {
             self.on_close();
 
             true
         }
 
-        #[method(windowDidBecomeKey:)]
+        #[unsafe(method(windowDidBecomeKey:))]
         unsafe fn window_did_become_key(&self, _notification: &NSNotification) {
             self.on_focused_changed(true);
         }
 
-        #[method(windowDidResignKey:)]
+        #[unsafe(method(windowDidResignKey:))]
         unsafe fn window_did_resign_key(&self, _notification: &NSNotification) {
             self.on_focused_changed(false);
         }
 
-        #[method(windowWillEnterFullScreen:)]
+        #[unsafe(method(windowWillEnterFullScreen:))]
         unsafe fn window_will_enter_fullscreen(&self, _notification: &NSNotification) {
             self.on_fullscreen_changed(true);
         }
 
-        #[method(windowWillExitFullScreen:)]
+        #[unsafe(method(windowWillExitFullScreen:))]
         unsafe fn window_will_exit_fullscreen(&self, _notification: &NSNotification) {
             self.on_fullscreen_changed(false);
         }
@@ -148,7 +148,7 @@ impl Delegate {
             app,
         });
 
-        unsafe { msg_send_id![super(this), init] }
+        unsafe { msg_send![super(this), init] }
     }
 
     fn on_focused_changed(&self, is_focused: bool) {
