@@ -1,7 +1,7 @@
 use std::{
     env::current_dir,
     fs::{create_dir_all, read_dir, File},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 use crate::{
@@ -216,11 +216,18 @@ fn get_command_palette_dir<'a>(
     path: &'a mut PathBuf,
 ) -> &'a Path {
     let string = command_palette.doc.to_string();
-    let can_path_be_dir = string.is_empty() || string.ends_with(is_char_path_separator);
 
     path.clear();
     path.push(".");
     path.push(&string);
+
+    let ends_with_dir = matches!(
+        path.components().last(),
+        Some(Component::CurDir | Component::ParentDir)
+    );
+
+    let can_path_be_dir =
+        ends_with_dir || string.is_empty() || string.ends_with(is_char_path_separator);
 
     if can_path_be_dir && path.is_dir() {
         path.as_path()

@@ -87,7 +87,7 @@ impl CommandPalette {
     }
 
     pub fn is_animating(&self) -> bool {
-        self.result_list.is_animating()
+        self.result_list.is_animating() || self.tab.is_animating()
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
@@ -202,6 +202,8 @@ impl CommandPalette {
 
         self.tab
             .update(&mut widget, &mut self.doc, buffers, config, time);
+
+        self.tab.update_camera(&mut widget, &self.doc, dt);
 
         let args = CommandPaletteEventArgs::new(editor, buffers, config, time);
         self.update_results(args);
