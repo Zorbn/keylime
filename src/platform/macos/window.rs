@@ -26,6 +26,30 @@ use super::{delegate::Delegate, file_watcher::FileWatcher, keymaps::new_keymaps,
 const DEFAULT_WIDTH: f64 = 768.0;
 const DEFAULT_HEIGHT: f64 = 768.0;
 
+pub const ENTER_FULL_SCREEN_TITLE: &str = "Enter Full Screen";
+pub const EXIT_FULL_SCREEN_TITLE: &str = "Exit Full Screen";
+
+macro_rules! add_menu_item {
+    ($title:expr, $action:expr, $mods:expr, $c:expr, $menu:expr, $mtm:expr) => {{
+        let menu_item = unsafe {
+            NSMenuItem::initWithTitle_action_keyEquivalent(
+                $mtm.alloc(),
+                ns_string!($title),
+                $action,
+                ns_string!($c),
+            )
+        };
+
+        if let Some(mods) = $mods {
+            menu_item.setKeyEquivalentModifierMask(mods);
+        }
+
+        $menu.addItem(&menu_item);
+
+        menu_item
+    }};
+}
+
 pub struct WindowRunner {
     app: Rc<RefCell<App>>,
 }
@@ -55,23 +79,50 @@ impl WindowRunner {
         app.setAppearance(appearance.as_deref());
 
         let menubar = NSMenu::new(mtm);
+
         let app_menu_item = NSMenuItem::new(mtm);
         menubar.addItem(&app_menu_item);
+
+        let window_menu_item = add_menu_item!("Window", None, None, "", menubar, mtm);
+
         app.setMainMenu(Some(&menubar));
 
         let app_menu = NSMenu::new(mtm);
-        let quit_item = unsafe {
-            NSMenuItem::initWithTitle_action_keyEquivalent(
-                mtm.alloc(),
-                ns_string!("Quit Keylime"),
-                Some(sel!(terminate:)),
-                ns_string!("q"),
-            )
-        };
-        app_menu.addItem(&quit_item);
+
+        add_menu_item!(
+            "Quit Keylime",
+            Some(sel!(terminate:)),
+            None,
+            "q",
+            app_menu,
+            mtm
+        );
+
         app_menu_item.setSubmenu(Some(&app_menu));
 
-        let delegate = Delegate::new(self.app.clone(), mtm);
+        let window_menu = NSMenu::new(mtm);
+
+        add_menu_item!(
+            "Minimize",
+            Some(sel!(performMiniaturize:)),
+            None,
+            "m",
+            window_menu,
+            mtm
+        );
+
+        let fullscreen_item = add_menu_item!(
+            ENTER_FULL_SCREEN_TITLE,
+            Some(sel!(toggleFullScreen:)),
+            Some(NSEventModifierFlags::Command | NSEventModifierFlags::Control),
+            "f",
+            window_menu,
+            mtm
+        );
+
+        window_menu_item.setSubmenu(Some(&window_menu));
+
+        let delegate = Delegate::new(self.app.clone(), fullscreen_item, mtm);
         let object = ProtocolObject::from_ref(&*delegate);
         app.setDelegate(Some(object));
         app.run();

@@ -6,12 +6,17 @@ use objc2::{
     define_class, msg_send, rc::Retained, runtime::ProtocolObject, DefinedClass, MainThreadMarker,
     MainThreadOnly,
 };
-use objc2_app_kit::{NSApplication, NSApplicationDelegate, NSColor, NSWindow, NSWindowDelegate};
+use objc2_app_kit::{
+    NSApplication, NSApplicationDelegate, NSColor, NSMenuItem, NSWindow, NSWindowDelegate,
+};
 use objc2_foundation::{ns_string, NSNotification, NSObject, NSObjectProtocol, NSThread};
 
 use crate::{
     app::App,
-    platform::aliases::{AnyGfx, AnyWindow},
+    platform::{
+        aliases::{AnyGfx, AnyWindow},
+        platform_impl::window::{ENTER_FULL_SCREEN_TITLE, EXIT_FULL_SCREEN_TITLE},
+    },
 };
 
 use super::{gfx::Gfx, window::Window};
@@ -19,6 +24,7 @@ use super::{gfx::Gfx, window::Window};
 pub struct DelegateIvars {
     app: Rc<RefCell<App>>,
     window: Rc<RefCell<AnyWindow>>,
+    fullscreen_item: Retained<NSMenuItem>,
 }
 
 define_class!(
@@ -126,18 +132,34 @@ define_class!(
 
         #[unsafe(method(windowWillEnterFullScreen:))]
         unsafe fn window_will_enter_fullscreen(&self, _notification: &NSNotification) {
+            let fullscreen_item = &self.ivars().fullscreen_item;
+
+            unsafe {
+                fullscreen_item.setTitle(ns_string!(EXIT_FULL_SCREEN_TITLE));
+            }
+
             self.on_fullscreen_changed(true);
         }
 
         #[unsafe(method(windowWillExitFullScreen:))]
         unsafe fn window_will_exit_fullscreen(&self, _notification: &NSNotification) {
+            let fullscreen_item = &self.ivars().fullscreen_item;
+
+            unsafe {
+                fullscreen_item.setTitle(ns_string!(ENTER_FULL_SCREEN_TITLE));
+            }
+
             self.on_fullscreen_changed(false);
         }
     }
 );
 
 impl Delegate {
-    pub fn new(app: Rc<RefCell<App>>, mtm: MainThreadMarker) -> Retained<Self> {
+    pub fn new(
+        app: Rc<RefCell<App>>,
+        fullscreen_item: Retained<NSMenuItem>,
+        mtm: MainThreadMarker,
+    ) -> Retained<Self> {
         let window = AnyWindow {
             inner: Window::new(mtm),
         };
@@ -146,6 +168,7 @@ impl Delegate {
         let this = this.set_ivars(DelegateIvars {
             window: Rc::new(RefCell::new(window)),
             app,
+            fullscreen_item,
         });
 
         unsafe { msg_send![super(this), init] }
