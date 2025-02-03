@@ -5,7 +5,7 @@ use std::{
     ptr::{null_mut, NonNull},
 };
 
-use crate::platform::text::{Atlas, AtlasDimensions, Glyphs};
+use crate::platform::text::{Atlas, AtlasDimensions, Glyph, Glyphs};
 
 use super::result::Result;
 use objc2_core_foundation::*;
@@ -96,12 +96,8 @@ impl Text {
         })
     }
 
-    pub unsafe fn generate_atlas(
-        &mut self,
-        glyph_index: u16,
-        glyph_has_color: bool,
-    ) -> Result<Atlas> {
-        let mut glyphs = [glyph_index];
+    pub unsafe fn generate_atlas(&mut self, glyph: Glyph) -> Result<Atlas> {
+        let mut glyphs = [glyph.index];
         let glyphs = NonNull::new(glyphs.as_mut_ptr()).unwrap();
 
         let rect = CTFontGetBoundingRectsForGlyphs(
@@ -112,7 +108,7 @@ impl Text {
             1,
         );
 
-        println!("rect: {:?}, glyph_index: {:?}", rect, glyph_index);
+        println!("rect: {:?}, glyph_index: {:?}", rect, glyph.index);
 
         let origin = rect.origin;
         // TODO: This is slightly too small and some glyphs get cropped a bit (fira code ===, menlo @).
@@ -124,7 +120,7 @@ impl Text {
             ),
         );
 
-        println!("rect: {:?}, glyph_index: {:?}", rect, glyph_index);
+        println!("rect: {:?}, glyph_index: {:?}", rect, glyph.index);
 
         let mut raw_data = vec![0u8; rect.size.width as usize * rect.size.height as usize * 4];
 
@@ -132,7 +128,7 @@ impl Text {
             return Ok(Atlas {
                 data: raw_data,
                 dimensions: AtlasDimensions::default(),
-                has_color_glyphs: glyph_has_color,
+                has_color_glyphs: glyph.has_color,
             });
         }
 
@@ -170,7 +166,7 @@ impl Text {
                 glyph_height: rect.size.height as usize,
                 line_height: self.line_height,
             },
-            has_color_glyphs: glyph_has_color,
+            has_color_glyphs: glyph.has_color,
         })
     }
 

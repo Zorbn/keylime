@@ -18,7 +18,7 @@ use crate::{
     platform::{
         aliases::{AnyText, AnyWindow},
         gfx::SpriteKind,
-        text::{AtlasDimensions, GlyphCacheResult, GlyphSpan, Glyphs},
+        text::{AtlasDimensions, Glyph, GlyphCacheResult, GlyphSpan, Glyphs},
     },
     ui::color::Color,
 };
@@ -257,8 +257,8 @@ impl Gfx {
         self.text.get_glyphs(text)
     }
 
-    pub fn get_glyph_span(&mut self, glyph_index: u16, glyph_has_color: bool) -> GlyphSpan {
-        let (span, result) = self.text.get_glyph_span(glyph_index, glyph_has_color);
+    pub fn get_glyph_span(&mut self, glyph: Glyph) -> GlyphSpan {
+        let (span, result) = self.text.get_glyph_span(glyph);
         self.glyph_cache_result = self.glyph_cache_result.worse(result);
 
         span

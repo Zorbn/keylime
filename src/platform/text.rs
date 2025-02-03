@@ -38,11 +38,36 @@ impl Atlas {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct Glyph {
+    pub index: u16,
+    pub has_color: bool,
+}
+
 // TODO: Cache these from the previous frame to be used in the next frame (inspired by Zed).
 pub struct Glyphs {
     pub indices: Vec<u16>,
     // TODO: Bit vector to save space?
     pub has_color: Vec<bool>,
+}
+
+impl Glyphs {
+    pub fn iter(&self) -> impl Iterator<Item = Glyph> + '_ {
+        self.indices
+            .iter()
+            .zip(&self.has_color)
+            .map(|(index, has_color)| Glyph {
+                index: *index,
+                has_color: *has_color,
+            })
+    }
+
+    pub fn get(&self, index: usize) -> Glyph {
+        Glyph {
+            index: self.indices[index],
+            has_color: self.has_color[index],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -109,7 +134,7 @@ impl Text {
         };
 
         let m_glyphs = text.get_glyphs("M".chars());
-        text.atlas = text.generate_atlas(m_glyphs.indices[0], m_glyphs.has_color[0])?;
+        text.atlas = text.generate_atlas(m_glyphs.get(0))?;
 
         Ok(text)
     }
@@ -118,11 +143,7 @@ impl Text {
         unsafe { self.inner.get_glyphs(text) }
     }
 
-    pub fn get_glyph_span(
-        &mut self,
-        glyph_index: u16,
-        glyph_has_color: bool,
-    ) -> (GlyphSpan, GlyphCacheResult) {
+    pub fn get_glyph_span(&mut self, glyph: Glyph) -> (GlyphSpan, GlyphCacheResult) {
         let mut result = if self.needs_first_resize {
             GlyphCacheResult::Resize
         } else {
@@ -131,12 +152,12 @@ impl Text {
 
         self.needs_first_resize = false;
 
-        if let Some(span) = self.cache.get(&glyph_index) {
+        if let Some(span) = self.cache.get(&glyph.index) {
             return (*span, result);
         }
 
         let x = self.atlas_used_width;
-        let sub_atlas = self.generate_atlas(glyph_index, glyph_has_color).unwrap();
+        let sub_atlas = self.generate_atlas(glyph).unwrap();
         let glyph_right = x + sub_atlas.dimensions.width;
 
         if glyph_right == 0
@@ -184,13 +205,13 @@ impl Text {
             has_color_glyphs: sub_atlas.has_color_glyphs,
         };
 
-        self.cache.insert(glyph_index, span);
+        self.cache.insert(glyph.index, span);
         self.atlas_used_width += span.width;
 
         (span, result)
     }
 
-    fn generate_atlas(&mut self, glyph_index: u16, glyph_has_color: bool) -> Result<Atlas> {
-        unsafe { self.inner.generate_atlas(glyph_index, glyph_has_color) }
+    fn generate_atlas(&mut self, glyph: Glyph) -> Result<Atlas> {
+        unsafe { self.inner.generate_atlas(glyph) }
     }
 }

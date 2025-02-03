@@ -220,7 +220,7 @@ impl<T> ResultList<T> {
         );
     }
 
-    pub fn draw<'a, C: Iterator<Item = impl Borrow<char>>>(
+    pub fn draw<'a, C: Iterator<Item = impl Borrow<char>> + Clone>(
         &'a mut self,
         config: &Config,
         gfx: &mut Gfx,

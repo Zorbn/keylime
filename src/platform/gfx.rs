@@ -12,7 +12,7 @@ use crate::{
 
 use super::{
     platform_impl,
-    text::{AtlasDimensions, GlyphSpan, Glyphs},
+    text::{AtlasDimensions, Glyph, GlyphSpan, Glyphs},
 };
 
 pub(super) enum SpriteKind {
@@ -88,18 +88,18 @@ impl Gfx {
         self.inner.get_glyphs(text)
     }
 
-    pub fn get_glyph_span(&mut self, glyph_index: u16, glyph_has_color: bool) -> GlyphSpan {
-        self.inner.get_glyph_span(glyph_index, glyph_has_color)
+    pub fn get_glyph_span(&mut self, glyph: Glyph) -> GlyphSpan {
+        self.inner.get_glyph_span(glyph)
     }
 
     pub fn add_text(
         &mut self,
-        text: impl IntoIterator<Item = impl Borrow<char>>,
+        text: impl IntoIterator<Item = impl Borrow<char>> + Clone,
         x: f32,
         y: f32,
         color: Color,
     ) -> isize {
-        let glyphs = self.get_glyphs(text);
+        let glyphs = self.get_glyphs(text.clone());
 
         let AtlasDimensions {
             glyph_width,
@@ -109,15 +109,15 @@ impl Gfx {
 
         let mut i = 0;
 
-        // for c in text.into_iter() {
-        //     let c = *c.borrow();
+        for (c, glyph) in text.into_iter().zip(glyphs.iter()) {
+            let c = *c.borrow();
 
-        //     if c.is_whitespace() || c.is_control() {
-        //         i += Self::get_char_width(c);
-        //         continue;
-        //     }
-        for (glyph_index, glyph_has_color) in glyphs.indices.iter().zip(glyphs.has_color) {
-            let span = self.get_glyph_span(*glyph_index, glyph_has_color);
+            if c.is_whitespace() || c.is_control() {
+                i += Self::get_char_width(c);
+                continue;
+            }
+
+            let span = self.get_glyph_span(glyph);
 
             let kind = if span.has_color_glyphs {
                 SpriteKind::ColorGlyph
@@ -147,8 +147,7 @@ impl Gfx {
                 kind,
             );
 
-            // i += Self::get_char_width(c);
-            i += 1;
+            i += Self::get_char_width(c);
         }
 
         i
