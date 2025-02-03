@@ -216,20 +216,19 @@ impl<T> Pane<T> {
     }
 
     fn draw_tab(tab: &Tab, doc: &Doc, bounds: Rect, theme: &Theme, gfx: &mut Gfx) {
-        let tab_padding_y = gfx.tab_padding_y();
         let tab_bounds = tab.tab_bounds().unoffset_by(bounds);
 
         gfx.add_rect(tab_bounds.left_border(gfx.border_width()), theme.border);
 
         let text_x = (tab_bounds.x + gfx.glyph_width() * 2.0).floor();
-
-        let text_width = gfx.add_text(doc.file_name().chars(), text_x, tab_padding_y, theme.normal);
+        let text_y = gfx.border_width() * 2.0 + gfx.tab_padding_y();
+        let text_width = gfx.add_text(doc.file_name().chars(), text_x, text_y, theme.normal);
 
         if !doc.is_saved() {
             gfx.add_text(
                 "*".chars(),
                 text_x + text_width as f32 * gfx.glyph_width(),
-                tab_padding_y,
+                text_y,
                 theme.symbol,
             );
         }

@@ -95,9 +95,9 @@ impl Text {
             1,
         );
 
-        println!("rect: {:?}, glyph_index: {:?}", rect, glyph.index);
-
         let origin = rect.origin;
+        let glyph_height = rect.size.height as usize;
+
         let rect = CGRect::new(
             CGPoint::ZERO,
             CGSize::new(
@@ -105,8 +105,6 @@ impl Text {
                 (rect.size.height + origin.y.abs()).ceil(),
             ),
         );
-
-        println!("rect: {:?}, glyph_index: {:?}", rect, glyph.index);
 
         let mut raw_data = vec![0u8; rect.size.width as usize * rect.size.height as usize * 4];
 
@@ -149,7 +147,7 @@ impl Text {
                 width: rect.size.width as usize,
                 height: rect.size.height as usize,
                 glyph_width: self.glyph_width,
-                glyph_height: rect.size.height as usize,
+                glyph_height,
                 line_height: self.line_height,
             },
             has_color_glyphs: glyph.has_color,
