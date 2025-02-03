@@ -1,12 +1,13 @@
-use std::{collections::HashMap, ops::RangeInclusive};
+use std::{borrow::Borrow, collections::HashMap};
 
 use super::{platform_impl, result::Result};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct AtlasDimensions {
+    pub origin_x: f32,
+    pub origin_y: f32,
     pub width: usize,
     pub height: usize,
-    pub glyph_step_x: usize,
     pub glyph_width: usize,
     pub glyph_height: usize,
     pub line_height: usize,
@@ -37,25 +38,21 @@ impl Atlas {
     }
 }
 
+// TODO: Cache these from the previous frame to be used in the next frame (inspired by Zed).
+pub struct Glyphs {
+    pub indices: Vec<u16>,
+    // TODO: Bit vector to save space?
+    pub has_color: Vec<bool>,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct GlyphSpan {
+    pub origin_x: f32,
+    pub origin_y: f32,
     pub x: usize,
     pub width: usize,
     pub height: usize,
     pub has_color_glyphs: bool,
-}
-
-impl GlyphSpan {
-    pub fn default_for(atlas: &Atlas, c: char) -> GlyphSpan {
-        let index = c as usize - *DEFAULT_GLYPHS.start() as usize;
-
-        GlyphSpan {
-            x: index * atlas.dimensions.glyph_step_x,
-            width: atlas.dimensions.glyph_step_x,
-            height: atlas.dimensions.glyph_height,
-            has_color_glyphs: false,
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -83,7 +80,7 @@ impl GlyphCacheResult {
 
 pub struct Text {
     inner: platform_impl::text::Text,
-    cache: HashMap<char, GlyphSpan>,
+    cache: HashMap<u16, GlyphSpan>,
     needs_first_resize: bool,
     atlas_used_width: usize,
     pub atlas: Atlas,
@@ -94,8 +91,6 @@ const BACKUP_FONT_NAME: &str = "Consolas";
 
 #[cfg(target_os = "macos")]
 const BACKUP_FONT_NAME: &str = "Menlo";
-
-const DEFAULT_GLYPHS: RangeInclusive<char> = '!'..='~';
 
 impl Text {
     pub fn new(font_name: &str, font_size: f32, scale: f32) -> Result<Self> {
@@ -113,17 +108,21 @@ impl Text {
             atlas: Atlas::default(),
         };
 
-        text.atlas = text.generate_atlas(DEFAULT_GLYPHS)?;
-        text.atlas_used_width = text.atlas.dimensions.width;
-
-        for c in DEFAULT_GLYPHS {
-            text.cache.insert(c, GlyphSpan::default_for(&text.atlas, c));
-        }
+        let m_glyphs = text.get_glyphs("M".chars());
+        text.atlas = text.generate_atlas(m_glyphs.indices[0], m_glyphs.has_color[0])?;
 
         Ok(text)
     }
 
-    pub fn get_glyph_span(&mut self, c: char) -> (GlyphSpan, GlyphCacheResult) {
+    pub fn get_glyphs(&mut self, text: impl IntoIterator<Item = impl Borrow<char>>) -> Glyphs {
+        unsafe { self.inner.get_glyphs(text) }
+    }
+
+    pub fn get_glyph_span(
+        &mut self,
+        glyph_index: u16,
+        glyph_has_color: bool,
+    ) -> (GlyphSpan, GlyphCacheResult) {
         let mut result = if self.needs_first_resize {
             GlyphCacheResult::Resize
         } else {
@@ -132,16 +131,12 @@ impl Text {
 
         self.needs_first_resize = false;
 
-        if DEFAULT_GLYPHS.contains(&c) {
-            return (GlyphSpan::default_for(&self.atlas, c), result);
-        }
-
-        if let Some(span) = self.cache.get(&c) {
+        if let Some(span) = self.cache.get(&glyph_index) {
             return (*span, result);
         }
 
         let x = self.atlas_used_width;
-        let sub_atlas = self.generate_atlas(c..=c).unwrap();
+        let sub_atlas = self.generate_atlas(glyph_index, glyph_has_color).unwrap();
         let glyph_right = x + sub_atlas.dimensions.width;
 
         if glyph_right == 0
@@ -181,19 +176,21 @@ impl Text {
         sub_atlas.copy_to(&mut self.atlas, x);
 
         let span = GlyphSpan {
+            origin_x: sub_atlas.dimensions.origin_x,
+            origin_y: sub_atlas.dimensions.origin_y,
             x,
             width: sub_atlas.dimensions.width,
             height: sub_atlas.dimensions.height,
             has_color_glyphs: sub_atlas.has_color_glyphs,
         };
 
-        self.cache.insert(c, span);
+        self.cache.insert(glyph_index, span);
         self.atlas_used_width += span.width;
 
         (span, result)
     }
 
-    fn generate_atlas(&mut self, characters: RangeInclusive<char>) -> Result<Atlas> {
-        unsafe { self.inner.generate_atlas(characters) }
+    fn generate_atlas(&mut self, glyph_index: u16, glyph_has_color: bool) -> Result<Atlas> {
+        unsafe { self.inner.generate_atlas(glyph_index, glyph_has_color) }
     }
 }

@@ -18,7 +18,7 @@ use crate::{
     platform::{
         aliases::{AnyText, AnyWindow},
         gfx::SpriteKind,
-        text::{AtlasDimensions, GlyphCacheResult, GlyphSpan},
+        text::{AtlasDimensions, GlyphCacheResult, GlyphSpan, Glyphs},
     },
     ui::color::Color,
 };
@@ -249,8 +249,16 @@ impl Gfx {
         self.text = AnyText::new(font_name, font_size, scale).unwrap();
     }
 
-    pub fn get_glyph_span(&mut self, c: char) -> GlyphSpan {
-        let (span, result) = self.text.get_glyph_span(c);
+    pub fn get_glyphs(
+        &mut self,
+        // TODO: Look more into name conflict when importing std::borrow::Borrow
+        text: impl IntoIterator<Item = impl std::borrow::Borrow<char>>,
+    ) -> Glyphs {
+        self.text.get_glyphs(text)
+    }
+
+    pub fn get_glyph_span(&mut self, glyph_index: u16, glyph_has_color: bool) -> GlyphSpan {
+        let (span, result) = self.text.get_glyph_span(glyph_index, glyph_has_color);
         self.glyph_cache_result = self.glyph_cache_result.worse(result);
 
         span

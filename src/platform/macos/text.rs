@@ -1,23 +1,22 @@
 use core::f64;
 use std::{
-    ops::{Deref, RangeInclusive},
+    borrow::Borrow,
+    ops::Deref,
     ptr::{null_mut, NonNull},
 };
 
-use crate::platform::text::{Atlas, AtlasDimensions};
+use crate::platform::text::{Atlas, AtlasDimensions, Glyphs};
 
 use super::result::Result;
-use objc2::rc::Retained;
 use objc2_core_foundation::*;
 use objc2_core_graphics::*;
 use objc2_core_text::*;
-use objc2_foundation::{NSMutableAttributedString, NSRange, NSRect, NSString};
+use objc2_foundation::{NSMutableAttributedString, NSRange, NSString};
 
 pub struct Text {
     font: CFRetained<CTFont>,
 
     glyph_width: usize,
-    glyph_step_x: usize,
     line_height: usize,
 }
 
@@ -93,93 +92,49 @@ impl Text {
         Ok(Self {
             font,
             glyph_width,
-            glyph_step_x,
             line_height,
         })
     }
 
-    pub unsafe fn generate_atlas(&mut self, characters: RangeInclusive<char>) -> Result<Atlas> {
-        let atlas_size = *characters.end() as usize - *characters.start() as usize + 1;
-        let mut atlas_text = String::with_capacity(atlas_size);
+    pub unsafe fn generate_atlas(
+        &mut self,
+        glyph_index: u16,
+        glyph_has_color: bool,
+    ) -> Result<Atlas> {
+        let mut glyphs = [glyph_index];
+        let glyphs = NonNull::new(glyphs.as_mut_ptr()).unwrap();
 
-        for c in characters {
-            atlas_text.push(c);
-        }
-
-        let attributed_string =
-            NSMutableAttributedString::from_nsstring(&NSString::from_str(&atlas_text));
-
-        attributed_string.beginEditing();
-
-        let font_attribute_name = (kCTFontAttributeName as *const _ as *const NSString)
-            .as_ref()
-            .unwrap();
-
-        let attributed_string_len = attributed_string.length();
-        attributed_string.addAttribute_value_range(
-            font_attribute_name,
-            self.font.as_ref(),
-            NSRange::new(0, attributed_string_len),
-        );
-
-        attributed_string.endEditing();
-
-        let (raw_data, rect) = Self::frameset(&attributed_string);
-        let has_color_glyphs = Self::has_color_glyphs(&attributed_string);
-
-        Ok(Atlas {
-            data: raw_data,
-            dimensions: AtlasDimensions {
-                width: rect.size.width as usize,
-                height: rect.size.height as usize,
-                glyph_step_x: self.glyph_step_x,
-                glyph_width: self.glyph_width,
-                glyph_height: rect.size.height as usize,
-                line_height: self.line_height,
-            },
-            has_color_glyphs,
-        })
-    }
-
-    unsafe fn frameset(
-        attributed_string: &Retained<NSMutableAttributedString>,
-    ) -> (Vec<u8>, NSRect) {
-        let framesetter = CTFramesetterCreateWithAttributedString(
-            (attributed_string.deref() as *const _ as *const CFAttributedString)
-                .as_ref()
-                .unwrap(),
-        );
-
-        let size = CTFramesetterSuggestFrameSizeWithConstraints(
-            &framesetter,
-            CFRange {
-                location: 0,
-                length: attributed_string.length() as isize,
-            },
-            None,
-            CGSize::new(f64::MAX, f64::MAX),
+        let rect = CTFontGetBoundingRectsForGlyphs(
+            &self.font,
+            CTFontOrientation::Horizontal,
+            glyphs,
             null_mut(),
+            1,
         );
 
+        println!("rect: {:?}, glyph_index: {:?}", rect, glyph_index);
+
+        let origin = rect.origin;
+        // TODO: This is slightly too small and some glyphs get cropped a bit (fira code ===, menlo @).
         let rect = CGRect::new(
             CGPoint::ZERO,
-            CGSize::new(size.width.ceil(), size.height.ceil()),
+            CGSize::new(
+                (rect.size.width + origin.x.abs()).ceil(),
+                (rect.size.height + origin.y.abs()).ceil(),
+            ),
         );
 
-        let path = CGPathCreateMutable();
-        CGPathAddRect(Some(&path), null_mut(), rect);
-
-        let frame = CTFramesetterCreateFrame(
-            &framesetter,
-            CFRange {
-                location: 0,
-                length: 0,
-            },
-            &path,
-            None,
-        );
+        println!("rect: {:?}, glyph_index: {:?}", rect, glyph_index);
 
         let mut raw_data = vec![0u8; rect.size.width as usize * rect.size.height as usize * 4];
+
+        if rect.size.width == 0.0 || rect.size.height == 0.0 {
+            return Ok(Atlas {
+                data: raw_data,
+                dimensions: AtlasDimensions::default(),
+                has_color_glyphs: glyph_has_color,
+            });
+        }
 
         let bitmap_info =
             CGBitmapInfo(CGBitmapInfo::ByteOrder32Big.0 | CGImageAlphaInfo::PremultipliedLast.0);
@@ -199,24 +154,61 @@ impl Text {
         )
         .unwrap();
 
-        CTFrameDraw(&frame, &context);
+        let mut positions = [CGPoint::new(-origin.x, -origin.y)];
+        let positions = NonNull::new(positions.as_mut_ptr()).unwrap();
 
-        (raw_data, rect)
+        CTFontDrawGlyphs(&self.font, glyphs, positions, 1, &context);
+
+        Ok(Atlas {
+            data: raw_data,
+            dimensions: AtlasDimensions {
+                origin_x: origin.x.ceil() as f32,
+                origin_y: -origin.y.ceil() as f32,
+                width: rect.size.width as usize,
+                height: rect.size.height as usize,
+                glyph_width: self.glyph_width,
+                glyph_height: rect.size.height as usize,
+                line_height: self.line_height,
+            },
+            has_color_glyphs: glyph_has_color,
+        })
     }
 
-    unsafe fn has_color_glyphs(attributed_string: &Retained<NSMutableAttributedString>) -> bool {
-        let typesetter = CTTypesetterCreateWithAttributedString(
+    pub unsafe fn get_glyphs(&self, text: impl IntoIterator<Item = impl Borrow<char>>) -> Glyphs {
+        let mut string = String::new();
+
+        for c in text {
+            let c = c.borrow();
+            string.push(*c);
+        }
+
+        // TODO: Add the right attribute to enable ligatures.
+        let attributed_string =
+            NSMutableAttributedString::from_nsstring(&NSString::from_str(&string));
+
+        attributed_string.beginEditing();
+
+        let font_attribute_name = (kCTFontAttributeName as *const _ as *const NSString)
+            .as_ref()
+            .unwrap();
+
+        let attributed_string_len = attributed_string.length();
+        attributed_string.addAttribute_value_range(
+            font_attribute_name,
+            self.font.as_ref(),
+            NSRange::new(0, attributed_string_len),
+        );
+
+        attributed_string.endEditing();
+
+        let line = CTLineCreateWithAttributedString(
             (attributed_string.deref() as *const _ as *const CFAttributedString)
                 .as_ref()
                 .unwrap(),
         );
-        let line = CTTypesetterCreateLine(
-            &typesetter,
-            CFRange {
-                location: 0,
-                length: attributed_string.length() as isize,
-            },
-        );
+
+        let mut has_color = Vec::new();
+        let mut indices = Vec::new();
 
         let runs = CTLineGetGlyphRuns(&line);
         let count = CFArrayGetCount(&runs);
@@ -234,11 +226,22 @@ impl Text {
 
             let traits = CTFontGetSymbolicTraits(font);
 
-            if traits.contains(CTFontSymbolicTraits::ColorGlyphsTrait) {
-                return true;
-            }
+            let run_has_color = traits.contains(CTFontSymbolicTraits::ColorGlyphsTrait);
+
+            let glyph_count = CTRunGetGlyphCount(run);
+            indices.resize(indices.len() + glyph_count as usize, 0);
+            has_color.resize(has_color.len() + glyph_count as usize, run_has_color);
+
+            CTRunGetGlyphs(
+                run,
+                CFRange {
+                    location: 0,
+                    length: 0,
+                },
+                NonNull::new(indices.as_mut_ptr()).unwrap(),
+            );
         }
 
-        false
+        Glyphs { indices, has_color }
     }
 }

@@ -12,7 +12,7 @@ use crate::{
 
 use super::{
     platform_impl,
-    text::{AtlasDimensions, GlyphSpan},
+    text::{AtlasDimensions, GlyphSpan, Glyphs},
 };
 
 pub(super) enum SpriteKind {
@@ -80,8 +80,16 @@ impl Gfx {
         }
     }
 
-    fn get_glyph_span(&mut self, c: char) -> GlyphSpan {
-        self.inner.get_glyph_span(c)
+    pub fn get_glyphs(
+        &mut self,
+        // TODO: Look more into name conflict when importing std::borrow::Borrow
+        text: impl IntoIterator<Item = impl std::borrow::Borrow<char>>,
+    ) -> Glyphs {
+        self.inner.get_glyphs(text)
+    }
+
+    pub fn get_glyph_span(&mut self, glyph_index: u16, glyph_has_color: bool) -> GlyphSpan {
+        self.inner.get_glyph_span(glyph_index, glyph_has_color)
     }
 
     pub fn add_text(
@@ -91,6 +99,8 @@ impl Gfx {
         y: f32,
         color: Color,
     ) -> isize {
+        let glyphs = self.get_glyphs(text);
+
         let AtlasDimensions {
             glyph_width,
             glyph_height,
@@ -99,15 +109,15 @@ impl Gfx {
 
         let mut i = 0;
 
-        for c in text.into_iter() {
-            let c = *c.borrow();
+        // for c in text.into_iter() {
+        //     let c = *c.borrow();
 
-            if c.is_whitespace() || c.is_control() {
-                i += Self::get_char_width(c);
-                continue;
-            }
-
-            let span = self.get_glyph_span(c);
+        //     if c.is_whitespace() || c.is_control() {
+        //         i += Self::get_char_width(c);
+        //         continue;
+        //     }
+        for (glyph_index, glyph_has_color) in glyphs.indices.iter().zip(glyphs.has_color) {
+            let span = self.get_glyph_span(*glyph_index, glyph_has_color);
 
             let kind = if span.has_color_glyphs {
                 SpriteKind::ColorGlyph
@@ -120,8 +130,8 @@ impl Gfx {
             let source_width = span.width as f32;
             let source_height = span.height as f32;
 
-            let destination_x = x + i as f32 * glyph_width as f32;
-            let destination_y = y + (glyph_height as f32 - span.height as f32) / 2.0;
+            let destination_x = x + i as f32 * glyph_width as f32 + span.origin_x;
+            let destination_y = y + glyph_height as f32 - span.height as f32 + span.origin_y;
             let destination_width = span.width as f32;
             let destination_height = span.height as f32;
 
@@ -137,7 +147,8 @@ impl Gfx {
                 kind,
             );
 
-            i += Self::get_char_width(c);
+            // i += Self::get_char_width(c);
+            i += 1;
         }
 
         i
