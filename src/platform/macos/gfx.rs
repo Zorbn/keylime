@@ -20,6 +20,7 @@ use crate::{
         gfx::SpriteKind,
         text::{AtlasDimensions, Glyph, GlyphCacheResult, GlyphSpan, Glyphs},
     },
+    text::text_trait,
     ui::color::Color,
 };
 
@@ -249,11 +250,7 @@ impl Gfx {
         self.text = AnyText::new(font_name, font_size, scale).unwrap();
     }
 
-    pub fn get_glyphs(
-        &mut self,
-        // TODO: Look more into name conflict when importing std::borrow::Borrow
-        text: impl IntoIterator<Item = impl std::borrow::Borrow<char>>,
-    ) -> Glyphs {
+    pub fn get_glyphs(&mut self, text: text_trait!()) -> Glyphs {
         self.text.get_glyphs(text)
     }
 

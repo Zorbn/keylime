@@ -1,5 +1,3 @@
-use std::borrow::Borrow;
-
 use unicode_width::UnicodeWidthChar;
 
 use crate::{
@@ -7,6 +5,7 @@ use crate::{
         rect::Rect,
         side::{SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     },
+    text::text_trait,
     ui::color::Color,
 };
 
@@ -44,16 +43,13 @@ impl Gfx {
         self.inner.end();
     }
 
-    pub fn measure_text(text: impl IntoIterator<Item = impl Borrow<char>>) -> isize {
+    pub fn measure_text(text: text_trait!(move)) -> isize {
         text.into_iter()
             .map(|c| Self::get_char_width(*c.borrow()))
             .sum()
     }
 
-    pub fn find_x_for_visual_x(
-        text: impl IntoIterator<Item = impl Borrow<char>>,
-        visual_x: isize,
-    ) -> isize {
+    pub fn find_x_for_visual_x(text: text_trait!(), visual_x: isize) -> isize {
         let mut current_visual_x = 0isize;
         let mut x = 0isize;
 
@@ -80,11 +76,7 @@ impl Gfx {
         }
     }
 
-    pub fn get_glyphs(
-        &mut self,
-        // TODO: Look more into name conflict when importing std::borrow::Borrow
-        text: impl IntoIterator<Item = impl std::borrow::Borrow<char>>,
-    ) -> Glyphs {
+    pub fn get_glyphs(&mut self, text: text_trait!()) -> Glyphs {
         self.inner.get_glyphs(text)
     }
 
@@ -92,13 +84,7 @@ impl Gfx {
         self.inner.get_glyph_span(glyph)
     }
 
-    pub fn add_text(
-        &mut self,
-        text: impl IntoIterator<Item = impl Borrow<char>> + Clone,
-        x: f32,
-        y: f32,
-        color: Color,
-    ) -> isize {
+    pub fn add_text(&mut self, text: text_trait!(), x: f32, y: f32, color: Color) -> isize {
         let glyphs = self.get_glyphs(text.clone());
 
         let AtlasDimensions {

@@ -1,5 +1,4 @@
 use std::{
-    borrow::Borrow,
     fmt::{Display, Write as _},
     fs::{read_to_string, File},
     io::{self, Write},
@@ -23,6 +22,7 @@ use super::{
     selection::Selection,
     syntax::Syntax,
     syntax_highlighter::{HighlightedLine, SyntaxHighlighter, TerminalHighlightKind},
+    text_trait,
     tokenizer::Tokenizer,
     trie::Trie,
 };
@@ -1017,7 +1017,7 @@ impl Doc {
     pub fn insert(
         &mut self,
         start: Position,
-        text: impl IntoIterator<Item = impl Borrow<char>>,
+        text: text_trait!(),
         line_pool: &mut LinePool,
         time: f32,
     ) {
@@ -1027,7 +1027,7 @@ impl Doc {
     pub fn insert_as_action_kind(
         &mut self,
         start: Position,
-        text: impl IntoIterator<Item = impl Borrow<char>>,
+        text: text_trait!(),
         line_pool: &mut LinePool,
         action_kind: ActionKind,
         time: f32,

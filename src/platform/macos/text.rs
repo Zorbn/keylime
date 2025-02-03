@@ -1,11 +1,13 @@
 use core::f64;
 use std::{
-    borrow::Borrow,
     ops::Deref,
     ptr::{null_mut, NonNull},
 };
 
-use crate::platform::text::{Atlas, AtlasDimensions, Glyph, Glyphs};
+use crate::{
+    platform::text::{Atlas, AtlasDimensions, Glyph, Glyphs},
+    text::text_trait,
+};
 
 use super::result::Result;
 use objc2_core_foundation::*;
@@ -170,7 +172,7 @@ impl Text {
         })
     }
 
-    pub unsafe fn get_glyphs(&self, text: impl IntoIterator<Item = impl Borrow<char>>) -> Glyphs {
+    pub unsafe fn get_glyphs(&self, text: text_trait!()) -> Glyphs {
         let mut string = String::new();
 
         for c in text {

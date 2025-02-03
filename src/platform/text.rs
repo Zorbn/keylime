@@ -1,4 +1,6 @@
-use std::{borrow::Borrow, collections::HashMap};
+use std::collections::HashMap;
+
+use crate::text::text_trait;
 
 use super::{platform_impl, result::Result};
 
@@ -139,7 +141,7 @@ impl Text {
         Ok(text)
     }
 
-    pub fn get_glyphs(&mut self, text: impl IntoIterator<Item = impl Borrow<char>>) -> Glyphs {
+    pub fn get_glyphs(&mut self, text: text_trait!()) -> Glyphs {
         unsafe { self.inner.get_glyphs(text) }
     }
 
