@@ -62,7 +62,6 @@ impl Text {
         let line_height = line_height.ceil() as usize;
 
         let glyph_width = advances[0].width.floor() as usize;
-        let glyph_step_x = advances[0].width.ceil() as usize + 1;
 
         let attributes =
             CFDictionaryCreateMutable(kCFAllocatorDefault, 2, null_mut(), null_mut()).unwrap();
@@ -71,20 +70,6 @@ impl Text {
             Some(&attributes),
             kCTFontNameAttribute as *const _ as _,
             &*font_name as *const _ as _,
-        );
-
-        let mut advance = glyph_step_x as f64;
-        let advance = CFNumberCreate(
-            kCFAllocatorDefault,
-            CFNumberType::Float64Type,
-            &mut advance as *mut _ as _,
-        )
-        .unwrap();
-
-        CFDictionaryAddValue(
-            Some(&attributes),
-            kCTFontFixedAdvanceAttribute as *const _ as _,
-            &*advance as *const _ as _,
         );
 
         let descriptor = CTFontDescriptorCreateWithAttributes(&attributes);
@@ -113,7 +98,6 @@ impl Text {
         println!("rect: {:?}, glyph_index: {:?}", rect, glyph.index);
 
         let origin = rect.origin;
-        // TODO: This is slightly too small and some glyphs get cropped a bit (fira code ===, menlo @).
         let rect = CGRect::new(
             CGPoint::ZERO,
             CGSize::new(
@@ -152,7 +136,7 @@ impl Text {
         )
         .unwrap();
 
-        let mut positions = [CGPoint::new(-origin.x, -origin.y)];
+        let mut positions = [CGPoint::new(-origin.x + 1.0, -origin.y + 1.0)];
         let positions = NonNull::new(positions.as_mut_ptr()).unwrap();
 
         CTFontDrawGlyphs(&self.font, glyphs, positions, 1, &context);
@@ -182,11 +166,10 @@ impl Text {
         let mut string = String::new();
 
         for c in text {
-            let c = c.borrow();
-            string.push(*c);
+            let c = *c.borrow();
+            string.push(c);
         }
 
-        // TODO: Add the right attribute to enable ligatures.
         let attributed_string =
             NSMutableAttributedString::from_nsstring(&NSString::from_str(&string));
 

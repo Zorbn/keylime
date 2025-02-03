@@ -52,8 +52,6 @@ pub struct Glyph {
     pub has_color: bool,
 }
 
-// TODO: Cache these from the previous frame to be used in the next frame (inspired by Zed).
-// TODO: Can these vectors be combined into one?
 #[derive(Debug, Clone, Copy)]
 pub struct Glyphs {
     pub indices_start: usize,

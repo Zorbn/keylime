@@ -106,7 +106,7 @@ impl App {
         self.editor.draw(&mut ui, &self.config);
         self.command_palette.draw(&mut ui, &self.config);
 
-        println!("{}", start.elapsed().as_secs_f32() * 1000.0);
+        // println!("{}", start.elapsed().as_secs_f32() * 1000.0);
 
         ui.gfx().end_frame();
     }
