@@ -261,6 +261,10 @@ impl Gfx {
         span
     }
 
+    pub fn get_glyph(&mut self, glyphs: &Glyphs, index: usize) -> Glyph {
+        self.text.get_glyph(glyphs, index)
+    }
+
     fn handle_glyph_cache_result(&mut self) {
         let atlas = &mut self.text.atlas;
 
@@ -376,6 +380,8 @@ impl Gfx {
         self.drawable = None;
 
         self.next_buffer_index = 0;
+
+        self.text.swap_caches();
     }
 
     pub fn begin(&mut self, bounds: Option<Rect>) {

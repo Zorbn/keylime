@@ -84,6 +84,10 @@ impl Gfx {
         self.inner.get_glyph_span(glyph)
     }
 
+    fn get_glyph(&mut self, glyphs: &Glyphs, index: usize) -> Glyph {
+        self.inner.get_glyph(glyphs, index)
+    }
+
     pub fn add_text(&mut self, text: text_trait!(), x: f32, y: f32, color: Color) -> isize {
         let glyphs = self.get_glyphs(text.clone());
 
@@ -93,16 +97,17 @@ impl Gfx {
             ..
         } = *self.inner.atlas_dimensions();
 
-        let mut i = 0;
+        let mut offset = 0;
 
-        for (c, glyph) in text.into_iter().zip(glyphs.iter()) {
+        for (i, c) in text.into_iter().enumerate() {
             let c = *c.borrow();
 
             if c.is_whitespace() || c.is_control() {
-                i += Self::get_char_width(c);
+                offset += Self::get_char_width(c);
                 continue;
             }
 
+            let glyph = self.get_glyph(&glyphs, i);
             let span = self.get_glyph_span(glyph);
 
             let kind = if span.has_color_glyphs {
@@ -116,7 +121,7 @@ impl Gfx {
             let source_width = span.width as f32;
             let source_height = span.height as f32;
 
-            let destination_x = x + i as f32 * glyph_width as f32 + span.origin_x;
+            let destination_x = x + offset as f32 * glyph_width as f32 + span.origin_x;
             let destination_y = y + glyph_height as f32 - span.height as f32 + span.origin_y;
             let destination_width = span.width as f32;
             let destination_height = span.height as f32;
@@ -133,10 +138,10 @@ impl Gfx {
                 kind,
             );
 
-            i += Self::get_char_width(c);
+            offset += Self::get_char_width(c);
         }
 
-        i
+        offset
     }
 
     pub fn add_bordered_rect(&mut self, rect: Rect, sides: u8, color: Color, border_color: Color) {

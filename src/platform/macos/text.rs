@@ -172,7 +172,13 @@ impl Text {
         })
     }
 
-    pub unsafe fn get_glyphs(&self, text: text_trait!()) -> Glyphs {
+    pub unsafe fn get_glyphs(
+        &self,
+        text: text_trait!(),
+        glyph_indices: &mut Vec<u16>,
+        glyph_has_colors: &mut Vec<bool>,
+    ) -> Glyphs {
+        // TODO: Reuse string.
         let mut string = String::new();
 
         for c in text {
@@ -205,8 +211,8 @@ impl Text {
                 .unwrap(),
         );
 
-        let mut has_color = Vec::new();
-        let mut indices = Vec::new();
+        let has_color_start = glyph_has_colors.len();
+        let indices_start = glyph_indices.len();
 
         let runs = CTLineGetGlyphRuns(&line);
         let count = CFArrayGetCount(&runs);
@@ -226,9 +232,11 @@ impl Text {
 
             let run_has_color = traits.contains(CTFontSymbolicTraits::ColorGlyphsTrait);
 
-            let glyph_count = CTRunGetGlyphCount(run);
-            indices.resize(indices.len() + glyph_count as usize, 0);
-            has_color.resize(has_color.len() + glyph_count as usize, run_has_color);
+            let glyph_count = CTRunGetGlyphCount(run) as usize;
+            let glyph_indices_start = glyph_indices.len();
+
+            glyph_indices.resize(glyph_indices_start + glyph_count, 0);
+            glyph_has_colors.resize(glyph_has_colors.len() + glyph_count, run_has_color);
 
             CTRunGetGlyphs(
                 run,
@@ -236,10 +244,18 @@ impl Text {
                     location: 0,
                     length: 0,
                 },
-                NonNull::new(indices.as_mut_ptr()).unwrap(),
+                NonNull::new(glyph_indices[glyph_indices_start..].as_mut_ptr()).unwrap(),
             );
         }
 
-        Glyphs { indices, has_color }
+        let has_color_end = glyph_has_colors.len();
+        let indices_end = glyph_indices.len();
+
+        Glyphs {
+            has_color_start,
+            has_color_end,
+            indices_start,
+            indices_end,
+        }
     }
 }
