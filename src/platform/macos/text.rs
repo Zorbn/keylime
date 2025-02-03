@@ -101,8 +101,8 @@ impl Text {
         let rect = CGRect::new(
             CGPoint::ZERO,
             CGSize::new(
-                (rect.size.width + origin.x.abs()).ceil(),
-                (rect.size.height + origin.y.abs()).ceil(),
+                (rect.size.width + origin.x.abs()).ceil() + 1.0,
+                (rect.size.height + origin.y.abs()).ceil() + 1.0,
             ),
         );
 
