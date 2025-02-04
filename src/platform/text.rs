@@ -133,8 +133,9 @@ pub struct Text {
     glyph_has_colors: Vec<bool>,
 
     last_text_cache_data: Rc<RefCell<Vec<char>>>,
-    text_cache_data: Rc<RefCell<Vec<char>>>,
     last_text_cache: HashMap<CachedText, Glyphs>,
+
+    text_cache_data: Rc<RefCell<Vec<char>>>,
     text_cache: HashMap<CachedText, Glyphs>,
 
     needs_first_resize: bool,
@@ -168,8 +169,9 @@ impl Text {
             glyph_has_colors: Vec::new(),
 
             last_text_cache_data: Rc::new(RefCell::new(Vec::new())),
-            text_cache_data: Rc::new(RefCell::new(Vec::new())),
             last_text_cache: HashMap::new(),
+
+            text_cache_data: Rc::new(RefCell::new(Vec::new())),
             text_cache: HashMap::new(),
 
             needs_first_resize: true,

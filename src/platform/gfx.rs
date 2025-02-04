@@ -226,7 +226,7 @@ impl Gfx {
     }
 
     pub fn tab_padding_y(&self) -> f32 {
-        ((self.tab_height() - self.line_height()) * 0.75).ceil()
+        (self.tab_height() - self.line_height()).ceil()
     }
 
     pub fn height_lines(&self) -> isize {

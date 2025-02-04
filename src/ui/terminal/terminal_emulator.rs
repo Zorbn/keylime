@@ -50,6 +50,7 @@ pub struct TerminalEmulator {
 
     // Data for either the normal buffer or the alternate buffer,
     // depending on which one isn't currently being used.
+    pub saved_grid_cursor: Position,
     pub saved_grid_line_colors: GridLineColors,
     saved_maintain_cursor_positions: bool,
 
@@ -75,6 +76,7 @@ impl TerminalEmulator {
 
             maintain_cursor_positions: false,
 
+            saved_grid_cursor: Position::zero(),
             saved_grid_line_colors: Vec::new(),
             saved_maintain_cursor_positions: false,
 
@@ -464,6 +466,7 @@ impl TerminalEmulator {
     }
 
     pub fn switch_buffer(&mut self) {
+        swap(&mut self.grid_cursor, &mut self.saved_grid_cursor);
         swap(&mut self.grid_line_colors, &mut self.saved_grid_line_colors);
         swap(
             &mut self.maintain_cursor_positions,
