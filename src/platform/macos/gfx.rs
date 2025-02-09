@@ -18,7 +18,7 @@ use crate::{
     platform::{
         aliases::{AnyText, AnyWindow},
         gfx::SpriteKind,
-        text::{AtlasDimensions, GlyphCacheResult, GlyphSpan, GlyphSpans},
+        text_cache::{AtlasDimensions, GlyphCacheResult, GlyphSpan, GlyphSpans},
     },
     text::text_trait,
     ui::color::Color,

@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    platform::text::{Atlas, AtlasDimensions},
+    platform::text_cache::{Atlas, AtlasDimensions},
     text::text_trait,
 };
 
@@ -26,6 +26,7 @@ pub struct Text {
     font: CFRetained<CTFont>,
 
     glyph_indices: Vec<u16>,
+    glyph_string: String,
 
     glyph_width: usize,
     line_height: usize,
@@ -89,6 +90,7 @@ impl Text {
             font,
 
             glyph_indices: Vec::new(),
+            glyph_string: String::new(),
 
             glyph_width,
             line_height,
@@ -171,16 +173,15 @@ impl Text {
         text: text_trait!(),
         mut glyph_fn: impl FnMut(&mut Self, Glyph),
     ) {
-        // TODO: Reuse string.
-        let mut string = String::new();
+        self.glyph_string.clear();
 
         for c in text {
             let c = *c.borrow();
-            string.push(c);
+            self.glyph_string.push(c);
         }
 
         let attributed_string =
-            NSMutableAttributedString::from_nsstring(&NSString::from_str(&string));
+            NSMutableAttributedString::from_nsstring(&NSString::from_str(&self.glyph_string));
 
         attributed_string.beginEditing();
 
@@ -218,7 +219,7 @@ impl Text {
                 .unwrap();
 
             let traits = CTFontGetSymbolicTraits(font);
-            let run_has_color = traits.contains(CTFontSymbolicTraits::ColorGlyphsTrait);
+            let has_color = traits.contains(CTFontSymbolicTraits::ColorGlyphsTrait);
 
             let glyph_count = CTRunGetGlyphCount(run) as usize;
 
@@ -233,18 +234,14 @@ impl Text {
                 NonNull::new(self.glyph_indices.as_mut_ptr()).unwrap(),
             );
 
-            println!("Start:");
-
             for i in 0..self.glyph_indices.len() {
                 let index = self.glyph_indices[i];
-
-                println!("{:?}", index);
 
                 glyph_fn(
                     self,
                     Glyph {
                         index,
-                        has_color: run_has_color,
+                        has_color,
                         font,
                     },
                 )

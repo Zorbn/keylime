@@ -14,4 +14,5 @@ pub mod pty;
 pub mod recycle;
 pub mod result;
 mod text;
+mod text_cache;
 pub mod window;

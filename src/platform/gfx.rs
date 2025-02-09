@@ -11,7 +11,7 @@ use crate::{
 
 use super::{
     platform_impl,
-    text::{AtlasDimensions, GlyphSpan, GlyphSpans},
+    text_cache::{AtlasDimensions, GlyphSpan, GlyphSpans},
 };
 
 pub(super) enum SpriteKind {
