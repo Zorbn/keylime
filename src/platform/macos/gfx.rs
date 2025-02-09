@@ -18,7 +18,7 @@ use crate::{
     platform::{
         aliases::{AnyText, AnyWindow},
         gfx::SpriteKind,
-        text::{AtlasDimensions, Glyph, GlyphCacheResult, GlyphSpan, Glyphs},
+        text::{AtlasDimensions, GlyphCacheResult, GlyphSpan, GlyphSpans},
     },
     text::text_trait,
     ui::color::Color,
@@ -250,23 +250,19 @@ impl Gfx {
         self.text = AnyText::new(font_name, font_size, scale).unwrap();
     }
 
-    pub fn get_glyphs(&mut self, text: text_trait!()) -> Glyphs {
-        self.text.get_glyphs(text)
-    }
-
-    pub fn get_glyph_span(&mut self, glyph: Glyph) -> GlyphSpan {
-        let (span, result) = self.text.get_glyph_span(glyph);
+    pub fn get_glyph_spans(&mut self, text: text_trait!()) -> GlyphSpans {
+        let (spans, result) = self.text.get_glyph_spans(text);
         self.glyph_cache_result = self.glyph_cache_result.worse(result);
 
-        span
+        spans
     }
 
-    pub fn get_glyph(&mut self, glyphs: &Glyphs, index: usize) -> Glyph {
-        self.text.get_glyph(glyphs, index)
+    pub fn get_glyph_span(&mut self, glyph_spans: &GlyphSpans, index: usize) -> GlyphSpan {
+        self.text.get_glyph_span(glyph_spans, index)
     }
 
     fn handle_glyph_cache_result(&mut self) {
-        let atlas = &mut self.text.atlas;
+        let atlas = &mut self.text.cache.atlas;
 
         let (x, width) = match self.glyph_cache_result {
             GlyphCacheResult::Hit => return,
@@ -573,7 +569,7 @@ impl Gfx {
     }
 
     pub fn atlas_dimensions(&self) -> &AtlasDimensions {
-        &self.text.atlas.dimensions
+        &self.text.cache.atlas.dimensions
     }
 
     pub fn scale(&self) -> f32 {

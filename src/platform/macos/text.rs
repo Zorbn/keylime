@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    platform::text::{Atlas, AtlasDimensions, Glyph, Glyphs},
+    platform::text::{Atlas, AtlasDimensions},
     text::text_trait,
 };
 
@@ -15,8 +15,17 @@ use objc2_core_graphics::*;
 use objc2_core_text::*;
 use objc2_foundation::{NSMutableAttributedString, NSRange, NSString};
 
+#[derive(Debug, Clone, Copy)]
+pub struct Glyph<'a> {
+    pub index: u16,
+    has_color: bool,
+    font: &'a CTFont,
+}
+
 pub struct Text {
     font: CFRetained<CTFont>,
+
+    glyph_indices: Vec<u16>,
 
     glyph_width: usize,
     line_height: usize,
@@ -78,6 +87,9 @@ impl Text {
 
         Ok(Self {
             font,
+
+            glyph_indices: Vec::new(),
+
             glyph_width,
             line_height,
         })
@@ -88,7 +100,7 @@ impl Text {
         let glyphs = NonNull::new(glyphs.as_mut_ptr()).unwrap();
 
         let rect = CTFontGetBoundingRectsForGlyphs(
-            &self.font,
+            glyph.font,
             CTFontOrientation::Horizontal,
             glyphs,
             null_mut(),
@@ -137,7 +149,7 @@ impl Text {
         let mut positions = [CGPoint::new(-origin.x + 1.0, -origin.y + 1.0)];
         let positions = NonNull::new(positions.as_mut_ptr()).unwrap();
 
-        CTFontDrawGlyphs(&self.font, glyphs, positions, 1, &context);
+        CTFontDrawGlyphs(glyph.font, glyphs, positions, 1, &context);
 
         Ok(Atlas {
             data: raw_data,
@@ -155,11 +167,10 @@ impl Text {
     }
 
     pub unsafe fn get_glyphs(
-        &self,
+        &mut self,
         text: text_trait!(),
-        glyph_indices: &mut Vec<u16>,
-        glyph_has_colors: &mut Vec<bool>,
-    ) -> Glyphs {
+        mut glyph_fn: impl FnMut(&mut Self, Glyph),
+    ) {
         // TODO: Reuse string.
         let mut string = String::new();
 
@@ -192,9 +203,6 @@ impl Text {
                 .unwrap(),
         );
 
-        let has_color_start = glyph_has_colors.len();
-        let indices_start = glyph_indices.len();
-
         let runs = CTLineGetGlyphRuns(&line);
         let count = CFArrayGetCount(&runs);
 
@@ -210,14 +218,11 @@ impl Text {
                 .unwrap();
 
             let traits = CTFontGetSymbolicTraits(font);
-
             let run_has_color = traits.contains(CTFontSymbolicTraits::ColorGlyphsTrait);
 
             let glyph_count = CTRunGetGlyphCount(run) as usize;
-            let glyph_indices_start = glyph_indices.len();
 
-            glyph_indices.resize(glyph_indices_start + glyph_count, 0);
-            glyph_has_colors.resize(glyph_has_colors.len() + glyph_count, run_has_color);
+            self.glyph_indices.resize(glyph_count, 0);
 
             CTRunGetGlyphs(
                 run,
@@ -225,18 +230,25 @@ impl Text {
                     location: 0,
                     length: 0,
                 },
-                NonNull::new(glyph_indices[glyph_indices_start..].as_mut_ptr()).unwrap(),
+                NonNull::new(self.glyph_indices.as_mut_ptr()).unwrap(),
             );
-        }
 
-        let has_color_end = glyph_has_colors.len();
-        let indices_end = glyph_indices.len();
+            println!("Start:");
 
-        Glyphs {
-            has_color_start,
-            has_color_end,
-            indices_start,
-            indices_end,
+            for i in 0..self.glyph_indices.len() {
+                let index = self.glyph_indices[i];
+
+                println!("{:?}", index);
+
+                glyph_fn(
+                    self,
+                    Glyph {
+                        index,
+                        has_color: run_has_color,
+                        font,
+                    },
+                )
+            }
         }
     }
 }

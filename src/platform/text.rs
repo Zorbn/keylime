@@ -8,7 +8,10 @@ use std::{
 
 use crate::text::text_trait;
 
-use super::{platform_impl, result::Result};
+use super::{
+    platform_impl::{self, text::Glyph},
+    result::Result,
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct AtlasDimensions {
@@ -47,18 +50,9 @@ impl Atlas {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct Glyph {
-    pub index: u16,
-    pub has_color: bool,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Glyphs {
-    pub indices_start: usize,
-    pub indices_end: usize,
-    // TODO: Bit vector to save space?
-    pub has_color_start: usize,
-    pub has_color_end: usize,
+pub struct GlyphSpans {
+    pub spans_start: usize,
+    pub spans_end: usize,
 }
 
 struct CachedText {
@@ -121,131 +115,32 @@ impl GlyphCacheResult {
     }
 }
 
-pub struct Text {
-    inner: platform_impl::text::Text,
-
+pub struct TextCache {
     glyph_cache: HashMap<u16, GlyphSpan>,
 
-    last_glyph_indices: Vec<u16>,
-    last_glyph_has_colors: Vec<bool>,
+    last_glyph_spans: Vec<GlyphSpan>,
 
-    glyph_indices: Vec<u16>,
-    glyph_has_colors: Vec<bool>,
-
+    // TODO: Rename these fields to layout_cache or something.
     last_text_cache_data: Rc<RefCell<Vec<char>>>,
-    last_text_cache: HashMap<CachedText, Glyphs>,
+    last_text_cache: HashMap<CachedText, GlyphSpans>,
+
+    glyph_spans: Vec<GlyphSpan>,
 
     text_cache_data: Rc<RefCell<Vec<char>>>,
-    text_cache: HashMap<CachedText, Glyphs>,
+    text_cache: HashMap<CachedText, GlyphSpans>,
 
     needs_first_resize: bool,
     atlas_used_width: usize,
+
     pub atlas: Atlas,
 }
 
-#[cfg(target_os = "windows")]
-const BACKUP_FONT_NAME: &str = "Consolas";
-
-#[cfg(target_os = "macos")]
-const BACKUP_FONT_NAME: &str = "Menlo";
-
-impl Text {
-    pub fn new(font_name: &str, font_size: f32, scale: f32) -> Result<Self> {
-        let inner = unsafe {
-            platform_impl::text::Text::new(font_name, font_size, scale).or(
-                platform_impl::text::Text::new(BACKUP_FONT_NAME, font_size, scale),
-            )?
-        };
-
-        let mut text = Self {
-            inner,
-
-            glyph_cache: HashMap::new(),
-
-            last_glyph_indices: Vec::new(),
-            last_glyph_has_colors: Vec::new(),
-
-            glyph_indices: Vec::new(),
-            glyph_has_colors: Vec::new(),
-
-            last_text_cache_data: Rc::new(RefCell::new(Vec::new())),
-            last_text_cache: HashMap::new(),
-
-            text_cache_data: Rc::new(RefCell::new(Vec::new())),
-            text_cache: HashMap::new(),
-
-            needs_first_resize: true,
-            atlas_used_width: 0,
-            atlas: Atlas::default(),
-        };
-
-        let m_glyphs = text.get_glyphs("M".chars());
-        let m_glyph = text.get_glyph(&m_glyphs, 0);
-        text.atlas = text.generate_atlas(m_glyph)?;
-
-        Ok(text)
-    }
-
-    pub fn get_glyphs(&mut self, text: text_trait!()) -> Glyphs {
-        let mut text_cache_data = self.text_cache_data.borrow_mut();
-
-        let data_start = text_cache_data.len();
-
-        for c in text.clone() {
-            let c = *c.borrow();
-            text_cache_data.push(c);
-        }
-
-        let data_end = text_cache_data.len();
-
-        let cached_text = CachedText {
-            data: self.text_cache_data.clone(),
-            start: data_start,
-            end: data_end,
-        };
-
-        drop(text_cache_data);
-
-        if let Some(glyphs) = self.text_cache.get(&cached_text) {
-            let mut text_cache_data = self.text_cache_data.borrow_mut();
-            text_cache_data.truncate(data_start);
-
-            return *glyphs;
-        }
-
-        let glyphs = if let Some(glyphs) = self.last_text_cache.get(&cached_text) {
-            let indices_start = self.glyph_indices.len();
-            let has_color_start = self.glyph_has_colors.len();
-
-            self.glyph_indices.extend_from_slice(
-                &self.last_glyph_indices[glyphs.indices_start..glyphs.indices_end],
-            );
-            self.glyph_has_colors.extend_from_slice(
-                &self.last_glyph_has_colors[glyphs.has_color_start..glyphs.has_color_end],
-            );
-
-            let indices_end = self.glyph_indices.len();
-            let has_color_end = self.glyph_has_colors.len();
-
-            Glyphs {
-                indices_start,
-                indices_end,
-                has_color_start,
-                has_color_end,
-            }
-        } else {
-            unsafe {
-                self.inner
-                    .get_glyphs(text, &mut self.glyph_indices, &mut self.glyph_has_colors)
-            }
-        };
-
-        self.text_cache.insert(cached_text, glyphs);
-
-        glyphs
-    }
-
-    pub fn get_glyph_span(&mut self, glyph: Glyph) -> (GlyphSpan, GlyphCacheResult) {
+impl TextCache {
+    pub fn get_glyph_span(
+        &mut self,
+        text: &mut platform_impl::text::Text,
+        glyph: Glyph,
+    ) -> (GlyphSpan, GlyphCacheResult) {
         let mut result = if self.needs_first_resize {
             GlyphCacheResult::Resize
         } else {
@@ -259,7 +154,7 @@ impl Text {
         }
 
         let x = self.atlas_used_width;
-        let sub_atlas = self.generate_atlas(glyph).unwrap();
+        let sub_atlas = unsafe { text.generate_atlas(glyph) }.unwrap();
         let glyph_right = x + sub_atlas.dimensions.width;
 
         if glyph_right == 0
@@ -313,28 +208,138 @@ impl Text {
         (span, result)
     }
 
-    pub fn get_glyph(&mut self, glyphs: &Glyphs, index: usize) -> Glyph {
-        Glyph {
-            index: self.glyph_indices[glyphs.indices_start + index],
-            has_color: self.glyph_has_colors[glyphs.has_color_start + index],
-        }
-    }
-
     pub fn swap_caches(&mut self) {
-        swap(&mut self.last_glyph_indices, &mut self.glyph_indices);
-        swap(&mut self.last_glyph_has_colors, &mut self.glyph_has_colors);
+        swap(&mut self.last_glyph_spans, &mut self.glyph_spans);
 
         swap(&mut self.last_text_cache_data, &mut self.text_cache_data);
         swap(&mut self.last_text_cache, &mut self.text_cache);
 
-        self.glyph_indices.clear();
-        self.glyph_has_colors.clear();
+        self.glyph_spans.clear();
 
         self.text_cache_data.borrow_mut().clear();
         self.text_cache.clear();
     }
+}
 
-    fn generate_atlas(&mut self, glyph: Glyph) -> Result<Atlas> {
-        unsafe { self.inner.generate_atlas(glyph) }
+pub struct Text {
+    inner: platform_impl::text::Text,
+    pub cache: TextCache,
+}
+
+#[cfg(target_os = "windows")]
+const BACKUP_FONT_NAME: &str = "Consolas";
+
+#[cfg(target_os = "macos")]
+const BACKUP_FONT_NAME: &str = "Menlo";
+
+impl Text {
+    pub fn new(font_name: &str, font_size: f32, scale: f32) -> Result<Self> {
+        let inner = unsafe {
+            platform_impl::text::Text::new(font_name, font_size, scale).or(
+                platform_impl::text::Text::new(BACKUP_FONT_NAME, font_size, scale),
+            )?
+        };
+
+        let mut text = Self {
+            inner,
+
+            cache: TextCache {
+                glyph_cache: HashMap::new(),
+
+                last_glyph_spans: Vec::new(),
+
+                last_text_cache_data: Rc::new(RefCell::new(Vec::new())),
+                last_text_cache: HashMap::new(),
+
+                glyph_spans: Vec::new(),
+
+                text_cache_data: Rc::new(RefCell::new(Vec::new())),
+                text_cache: HashMap::new(),
+
+                needs_first_resize: true,
+                atlas_used_width: 0,
+                atlas: Atlas::default(),
+            },
+        };
+
+        unsafe {
+            let Text {
+                ref mut inner,
+                ref mut cache,
+            } = text;
+
+            inner.get_glyphs("M".chars(), |inner, glyph| {
+                cache.atlas = inner.generate_atlas(glyph).unwrap();
+            })
+        }
+
+        Ok(text)
+    }
+
+    pub fn get_glyph_spans(&mut self, text: text_trait!()) -> (GlyphSpans, GlyphCacheResult) {
+        let mut text_cache_data = self.cache.text_cache_data.borrow_mut();
+
+        let data_start = text_cache_data.len();
+
+        for c in text.clone() {
+            let c = *c.borrow();
+            text_cache_data.push(c);
+        }
+
+        let data_end = text_cache_data.len();
+
+        let cached_text = CachedText {
+            data: self.cache.text_cache_data.clone(),
+            start: data_start,
+            end: data_end,
+        };
+
+        drop(text_cache_data);
+
+        if let Some(glyph_spans) = self.cache.text_cache.get(&cached_text) {
+            let mut text_cache_data = self.cache.text_cache_data.borrow_mut();
+            text_cache_data.truncate(data_start);
+
+            return (*glyph_spans, GlyphCacheResult::Hit);
+        }
+
+        let mut result = GlyphCacheResult::Hit;
+        let spans_start = self.cache.glyph_spans.len();
+
+        if let Some(glyph_spans) = self.cache.last_text_cache.get(&cached_text) {
+            self.cache.glyph_spans.extend_from_slice(
+                &self.cache.last_glyph_spans[glyph_spans.spans_start..glyph_spans.spans_end],
+            );
+        } else {
+            let Text { inner, cache } = self;
+
+            unsafe {
+                inner.get_glyphs(text, |inner, glyph| {
+                    let (glyph_span, glyph_cache_result) = cache.get_glyph_span(inner, glyph);
+
+                    result = result.worse(glyph_cache_result);
+                    cache.glyph_spans.push(glyph_span);
+                })
+            }
+        };
+
+        let spans_end = self.cache.glyph_spans.len();
+
+        let glyph_spans = GlyphSpans {
+            spans_start,
+            spans_end,
+        };
+
+        self.cache.text_cache.insert(cached_text, glyph_spans);
+
+        (glyph_spans, result)
+    }
+
+    pub fn get_glyph_span(&mut self, glyph_spans: &GlyphSpans, index: usize) -> GlyphSpan {
+        self.cache.glyph_spans[glyph_spans.spans_start + index]
+    }
+
+    pub fn swap_caches(&mut self) {
+        self.cache.swap_caches();
     }
 }

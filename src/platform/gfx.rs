@@ -11,7 +11,7 @@ use crate::{
 
 use super::{
     platform_impl,
-    text::{AtlasDimensions, Glyph, GlyphSpan, Glyphs},
+    text::{AtlasDimensions, GlyphSpan, GlyphSpans},
 };
 
 pub(super) enum SpriteKind {
@@ -76,20 +76,16 @@ impl Gfx {
         }
     }
 
-    pub fn get_glyphs(&mut self, text: text_trait!()) -> Glyphs {
-        self.inner.get_glyphs(text)
+    fn get_glyph_spans(&mut self, text: text_trait!()) -> GlyphSpans {
+        self.inner.get_glyph_spans(text)
     }
 
-    pub fn get_glyph_span(&mut self, glyph: Glyph) -> GlyphSpan {
-        self.inner.get_glyph_span(glyph)
-    }
-
-    fn get_glyph(&mut self, glyphs: &Glyphs, index: usize) -> Glyph {
-        self.inner.get_glyph(glyphs, index)
+    fn get_glyph_span(&mut self, glyph_spans: &GlyphSpans, index: usize) -> GlyphSpan {
+        self.inner.get_glyph_span(glyph_spans, index)
     }
 
     pub fn add_text(&mut self, text: text_trait!(), x: f32, y: f32, color: Color) -> isize {
-        let glyphs = self.get_glyphs(text.clone());
+        let glyph_spans = self.get_glyph_spans(text.clone());
 
         let AtlasDimensions {
             glyph_width,
@@ -107,8 +103,7 @@ impl Gfx {
                 continue;
             }
 
-            let glyph = self.get_glyph(&glyphs, i);
-            let span = self.get_glyph_span(glyph);
+            let span = self.get_glyph_span(&glyph_spans, i);
 
             let kind = if span.has_color_glyphs {
                 SpriteKind::ColorGlyph
