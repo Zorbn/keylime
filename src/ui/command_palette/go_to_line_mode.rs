@@ -32,7 +32,7 @@ fn on_submit(
         return CommandPaletteAction::Close;
     };
 
-    doc.jump_cursors(Position::new(0, line), false);
+    doc.jump_cursors(Position::new(0, line - 1), false);
     tab.camera.recenter();
 
     CommandPaletteAction::Close

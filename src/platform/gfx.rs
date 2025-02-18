@@ -80,7 +80,7 @@ impl Gfx {
         self.inner.get_glyph_spans(text)
     }
 
-    fn get_glyph_span(&mut self, glyph_spans: &GlyphSpans, index: usize) -> GlyphSpan {
+    fn get_glyph_span(&mut self, glyph_spans: &GlyphSpans, index: usize) -> Option<GlyphSpan> {
         self.inner.get_glyph_span(glyph_spans, index)
     }
 
@@ -103,7 +103,9 @@ impl Gfx {
                 continue;
             }
 
-            let span = self.get_glyph_span(&glyph_spans, i);
+            let Some(span) = self.get_glyph_span(&glyph_spans, i) else {
+                break;
+            };
 
             let kind = if span.has_color_glyphs {
                 SpriteKind::ColorGlyph
