@@ -108,16 +108,7 @@ impl TerminalEmulator {
                 }
                 // Newline:
                 0xA => {
-                    if self.grid_cursor.y == self.scroll_bottom {
-                        self.scroll_grid_region_up(
-                            self.scroll_top..=self.scroll_bottom,
-                            doc,
-                            line_pool,
-                            time,
-                        );
-                    } else {
-                        self.move_cursor(Position::new(0, 1), doc);
-                    }
+                    self.newline_cursor(doc, line_pool, time);
 
                     output = &output[1..];
                     continue;
@@ -212,7 +203,7 @@ impl TerminalEmulator {
                     }
                     Some(&LOWERCASE_C) => {
                         // Query device attributes.
-                        // According to invsible-island.net/xterm 41 corresponds to a VT420 which is the default.
+                        // According to invisible-island.net/xterm 41 corresponds to a VT420 which is the default.
                         let response = "\u{1B}[>41;0;0c";
                         input.extend(response.chars().map(|c| c as u32));
 
@@ -523,6 +514,9 @@ impl TerminalEmulator {
                 // Delete characters after the cursor, shifting the rest of the line over.
                 let start = self.grid_cursor;
                 let end = self.move_position(start, Position::new(1, 0));
+
+                let start = self.grid_position_to_doc_position(start, doc);
+                let end = self.grid_position_to_doc_position(end, doc);
 
                 if start.y != end.y {
                     return Some(&output[1..]);

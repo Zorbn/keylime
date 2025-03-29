@@ -589,6 +589,14 @@ impl TerminalEmulator {
         self.jump_doc_cursors_to_grid_cursor(doc);
     }
 
+    pub fn newline_cursor(&mut self, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
+        if self.grid_cursor.y == self.scroll_bottom {
+            self.scroll_grid_region_up(self.scroll_top..=self.scroll_bottom, doc, line_pool, time);
+        } else {
+            self.move_cursor(Position::new(0, 1), doc);
+        }
+    }
+
     pub fn insert_at_cursor(
         &mut self,
         text: &[char],
@@ -598,7 +606,8 @@ impl TerminalEmulator {
     ) {
         for c in text {
             if self.grid_cursor.x >= self.grid_width {
-                self.jump_cursor(Position::new(0, self.grid_cursor.y + 1), doc);
+                self.jump_cursor(Position::new(0, self.grid_cursor.y), doc);
+                self.newline_cursor(doc, line_pool, time);
             }
 
             self.insert(self.grid_cursor, &[*c], doc, line_pool, time);
