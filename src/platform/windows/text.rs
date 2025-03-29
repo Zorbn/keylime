@@ -140,12 +140,12 @@ impl Text {
         let mut m_glyph_metrics = DWRITE_GLYPH_METRICS::default();
         font_face.GetDesignGlyphMetrics(&m_glyph_index, 1, &mut m_glyph_metrics, FALSE)?;
 
-        let glyph_width = ((m_glyph_metrics.advanceWidth as f32) * glyph_metrics_scale).floor();
+        let glyph_width = ((m_glyph_metrics.advanceWidth as f32) * glyph_metrics_scale).ceil();
         let line_height = ((font_metrics.ascent as f32
             + font_metrics.descent as f32
             + font_metrics.lineGap as f32)
             * glyph_metrics_scale)
-            .floor();
+            .ceil();
 
         let imaging_factory: IWICImagingFactory =
             CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;
@@ -223,17 +223,23 @@ impl Text {
         let mut glyph_metrics = DWRITE_GLYPH_METRICS::default();
         font_face.GetDesignGlyphMetrics(&glyph.index, 1, &mut glyph_metrics, FALSE)?;
 
-        let width = (glyph_metrics.advanceWidth as f32 * self.glyph_metrics_scale).ceil() as u32;
-        let height = ((font_metrics.ascent + font_metrics.descent) as f32
-            * self.glyph_metrics_scale)
-            .ceil() as u32;
+        let left = glyph_metrics.leftSideBearing as f32 * self.glyph_metrics_scale;
+        let top = (glyph_metrics.topSideBearing - glyph_metrics.verticalOriginY) as f32
+            * self.glyph_metrics_scale;
+        let right = (glyph_metrics.advanceWidth as f32 - glyph_metrics.rightSideBearing as f32)
+            * self.glyph_metrics_scale;
+        let bottom = (glyph_metrics.advanceHeight as f32
+            - glyph_metrics.bottomSideBearing as f32
+            - glyph_metrics.verticalOriginY as f32)
+            * self.glyph_metrics_scale;
+
+        let width = (right.ceil() - left.ceil()) as u32 + 2;
+        let height = (bottom.ceil() - top.ceil()) as u32 + 2;
 
         println!(
             "{} {} {} {}",
             width, height, glyph_metrics.leftSideBearing, glyph_metrics.rightSideBearing
         );
-
-        let origin_y = font_metrics.ascent as f32 * self.glyph_metrics_scale;
 
         let (format, alpha_mode) = if has_color_glyphs {
             (GUID_WICPixelFormat32bppPBGRA, D2D1_ALPHA_MODE_PREMULTIPLIED)
@@ -285,10 +291,8 @@ impl Text {
         // (if we handle color glyph runs translation in this function we could also get rid of the has_color_glyphs fn).
         render_target.DrawGlyphRun(
             D2D_POINT_2F {
-                // x: glyph.baseline_origin_x,
-                // y: glyph.baseline_origin_y,
-                x: 0.0,
-                y: origin_y.floor(),
+                x: -left.ceil() + 2.0,
+                y: -top.ceil() + 2.0,
             },
             glyph.run,
             &brush,
@@ -321,8 +325,8 @@ impl Text {
         Ok(Atlas {
             data: raw_data,
             dimensions: AtlasDimensions {
-                origin_x: 0.0,
-                origin_y: 0.0,
+                origin_x: left.ceil(),
+                origin_y: bottom.ceil(),
                 width: width as usize,
                 height: height as usize,
                 glyph_width: self.glyph_width as usize,
