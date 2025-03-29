@@ -36,9 +36,15 @@ impl Text {
                 ref mut cache,
             } = text;
 
-            inner.get_glyphs("M".chars(), |inner, glyph| {
-                cache.atlas = inner.generate_atlas(glyph).unwrap();
-            })
+            inner.get_glyphs(
+                cache,
+                GlyphCacheResult::Miss,
+                "M".chars(),
+                |inner, cache, glyph, result| {
+                    cache.atlas = inner.generate_atlas(glyph).unwrap();
+                    result
+                },
+            );
         }
 
         Ok(text)
@@ -82,12 +88,12 @@ impl Text {
             let Text { inner, cache } = self;
 
             unsafe {
-                inner.get_glyphs(text, |inner, glyph| {
+                result = inner.get_glyphs(cache, result, text, |inner, cache, glyph, result| {
                     let (glyph_span, glyph_cache_result) = cache.get_glyph_span(inner, glyph);
 
-                    result = result.worse(glyph_cache_result);
                     cache.glyph_spans.push(glyph_span);
-                })
+                    result.worse(glyph_cache_result)
+                });
             }
         };
 

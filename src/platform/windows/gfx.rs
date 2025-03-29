@@ -21,8 +21,9 @@ use crate::{
     platform::{
         aliases::AnyText,
         gfx::SpriteKind,
-        text::{AtlasDimensions, GlyphCacheResult, GlyphSpan},
+        text_cache::{AtlasDimensions, GlyphCacheResult, GlyphSpan, GlyphSpans},
     },
+    text::text_trait,
     ui::color::Color,
 };
 
@@ -544,15 +545,19 @@ impl Gfx {
         self.text = AnyText::new(font_name, font_size, scale).unwrap();
     }
 
-    pub fn get_glyph_span(&mut self, c: char) -> GlyphSpan {
-        let (span, result) = self.text.get_glyph_span(c);
+    pub fn get_glyph_spans(&mut self, text: text_trait!()) -> GlyphSpans {
+        let (spans, result) = self.text.get_glyph_spans(text);
         self.glyph_cache_result = self.glyph_cache_result.worse(result);
 
-        span
+        spans
+    }
+
+    pub fn get_glyph_span(&mut self, glyph_spans: &GlyphSpans, index: usize) -> GlyphSpan {
+        self.text.get_glyph_span(glyph_spans, index)
     }
 
     fn handle_glyph_cache_result(&mut self) {
-        let atlas = &self.text.atlas;
+        let atlas = &self.text.cache.atlas;
 
         match self.glyph_cache_result {
             GlyphCacheResult::Hit => {}
@@ -563,10 +568,9 @@ impl Gfx {
                     &texture_data.texture,
                     0,
                     None,
-                    self.text.atlas.data.as_ptr() as _,
-                    self.text.atlas.dimensions.width as u32 * 4,
-                    (self.text.atlas.dimensions.width * self.text.atlas.dimensions.height) as u32
-                        * 4,
+                    atlas.data.as_ptr() as _,
+                    atlas.dimensions.width as u32 * 4,
+                    (atlas.dimensions.width * atlas.dimensions.height) as u32 * 4,
                 );
             },
             GlyphCacheResult::Resize => unsafe {
@@ -601,6 +605,8 @@ impl Gfx {
         unsafe {
             self.swap_chain.Present(1, DXGI_PRESENT::default()).unwrap();
         }
+
+        self.text.swap_caches();
     }
 
     pub fn begin(&mut self, bounds: Option<Rect>) {
@@ -619,11 +625,13 @@ impl Gfx {
     pub fn end(&mut self) {
         self.handle_glyph_cache_result();
 
+        let atlas_dimensions = self.atlas_dimensions();
+
         let uniform = Uniform {
             projection_matrix: ortho(0.0, self.width as f32, 0.0, self.height as f32, -1.0, 1.0),
             texture_size: [
-                self.text.atlas.dimensions.width as f32,
-                self.text.atlas.dimensions.height as f32,
+                atlas_dimensions.width as f32,
+                atlas_dimensions.height as f32,
             ],
         };
 
@@ -836,7 +844,7 @@ impl Gfx {
     }
 
     pub fn atlas_dimensions(&self) -> &AtlasDimensions {
-        &self.text.atlas.dimensions
+        &self.text.cache.atlas.dimensions
     }
 
     pub fn scale(&self) -> f32 {

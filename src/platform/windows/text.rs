@@ -1,9 +1,13 @@
-use std::{mem::ManuallyDrop, ops::RangeInclusive, ptr::null};
+use std::{
+    ffi::c_void, marker::PhantomData, mem::ManuallyDrop, ops::RangeInclusive, ptr::null,
+    slice::from_raw_parts, sync::LazyLock,
+};
 
 use windows::{
     core::{implement, w, Error, Interface, Result, HSTRING, PCWSTR},
+    Foundation::Numerics::Matrix3x2,
     Win32::{
-        Foundation::{DWRITE_E_NOCOLOR, E_FAIL, FALSE},
+        Foundation::{BOOL, DWRITE_E_NOCOLOR, E_FAIL, FALSE},
         Graphics::{
             Direct2D::{
                 Common::{D2D1_COLOR_F, D2D1_PIXEL_FORMAT, D2D_POINT_2F},
@@ -19,29 +23,56 @@ use windows::{
         System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
     },
 };
+use windows_core::IUnknown;
 use Common::{D2D1_ALPHA_MODE_IGNORE, D2D1_ALPHA_MODE_PREMULTIPLIED};
 
-use crate::platform::text::{Atlas, AtlasDimensions};
+use crate::{
+    platform::{
+        aliases::AnyText,
+        text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
+    },
+    temp_buffer::TempBuffer,
+    text::text_trait,
+};
 
 const LOCALE: PCWSTR = w!("en-us");
 const ATLAS_PADDING: f32 = 2.0;
+
+type GlyphFn = fn(&mut Text, &mut TextCache, Glyph, GlyphCacheResult) -> GlyphCacheResult;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Glyph<'a> {
+    pub index: u16,
+    run: &'a DWRITE_GLYPH_RUN,
+    baseline_origin_x: f32,
+    baseline_origin_y: f32,
+    measuring_mode: DWRITE_MEASURING_MODE,
+}
+
+struct DrawingContext<'a> {
+    text: &'a mut Text,
+    text_cache: &'a mut TextCache,
+    glyph_cache_result: GlyphCacheResult,
+    glyph_fn: GlyphFn,
+}
 
 pub struct Text {
     dwrite_factory: IDWriteFactory4,
     d2d_factory: ID2D1Factory,
     imaging_factory: IWICImagingFactory,
-
-    font: IDWriteFont,
-    font_face: IDWriteFontFace,
-    font_size: f32,
+    text_renderer: Option<IDWriteTextRenderer>,
 
     text_format: IDWriteTextFormat,
     text_rendering_params: IDWriteRenderingParams3,
     typography: IDWriteTypography,
 
-    system_font_fallback: IDWriteFontFallback,
+    font_fallback: IDWriteFontFallback,
     system_font_collection: IDWriteFontCollection1,
 
+    glyph_indices: Vec<u16>,
+    wide_characters: TempBuffer<u16>,
+
+    glyph_metrics_scale: f32,
     glyph_width: f32,
     line_height: f32,
 }
@@ -88,11 +119,13 @@ impl Text {
 
         let font_family = font_collection.GetFontFamily(font_index)?;
 
-        let font = font_family.GetFirstMatchingFont(
-            DWRITE_FONT_WEIGHT_REGULAR,
-            DWRITE_FONT_STRETCH_NORMAL,
-            DWRITE_FONT_STYLE_NORMAL,
-        )?;
+        let font = font_family
+            .GetFirstMatchingFont(
+                DWRITE_FONT_WEIGHT_REGULAR,
+                DWRITE_FONT_STRETCH_NORMAL,
+                DWRITE_FONT_STYLE_NORMAL,
+            )?
+            .cast::<IDWriteFont1>()?;
 
         let font_face = font.CreateFontFace()?;
 
@@ -107,11 +140,12 @@ impl Text {
         let mut m_glyph_metrics = DWRITE_GLYPH_METRICS::default();
         font_face.GetDesignGlyphMetrics(&m_glyph_index, 1, &mut m_glyph_metrics, FALSE)?;
 
-        let glyph_width = (m_glyph_metrics.advanceWidth as f32) * glyph_metrics_scale;
-        let line_height = (font_metrics.ascent as f32
+        let glyph_width = ((m_glyph_metrics.advanceWidth as f32) * glyph_metrics_scale).floor();
+        let line_height = ((font_metrics.ascent as f32
             + font_metrics.descent as f32
             + font_metrics.lineGap as f32)
-            * glyph_metrics_scale;
+            * glyph_metrics_scale)
+            .floor();
 
         let imaging_factory: IWICImagingFactory =
             CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;
@@ -129,6 +163,27 @@ impl Text {
         let typography = dwrite_factory.CreateTypography()?;
 
         let system_font_fallback = dwrite_factory.GetSystemFontFallback()?;
+
+        let mut font_unicode_ranges = [DWRITE_UNICODE_RANGE::default(); 256];
+        let mut font_unicode_ranges_len = 0;
+
+        font.GetUnicodeRanges(Some(&mut font_unicode_ranges), &mut font_unicode_ranges_len)?;
+        let font_unicode_ranges = &font_unicode_ranges[..font_unicode_ranges_len as usize];
+
+        let font_fallback_builder = dwrite_factory.CreateFontFallbackBuilder()?;
+
+        font_fallback_builder.AddMapping(
+            font_unicode_ranges,
+            &[font_name.as_ptr()],
+            None,
+            None,
+            None,
+            1.0,
+        )?;
+        font_fallback_builder.AddMappings(&system_font_fallback)?;
+
+        let font_fallback = font_fallback_builder.CreateFontFallback()?;
+
         let mut system_font_collection = None;
         dwrite_factory.GetSystemFontCollection(FALSE, &mut system_font_collection, FALSE)?;
         let system_font_collection = system_font_collection.unwrap();
@@ -137,63 +192,48 @@ impl Text {
             dwrite_factory,
             d2d_factory,
             imaging_factory,
-
-            font,
-            font_face,
-            font_size,
+            text_renderer: Some(TextRenderer {}.into()),
 
             text_format,
             text_rendering_params,
             typography,
-            system_font_fallback,
+            font_fallback,
             system_font_collection,
 
+            glyph_indices: Vec::new(),
+            wide_characters: TempBuffer::new(),
+
+            glyph_metrics_scale,
             glyph_width,
             line_height,
         })
     }
 
-    pub unsafe fn generate_atlas(&mut self, characters: RangeInclusive<char>) -> Result<Atlas> {
-        let atlas_size = *characters.end() as usize - *characters.start() as usize + 1;
+    pub unsafe fn generate_atlas(&mut self, glyph: Glyph) -> Result<Atlas> {
+        // let has_color_glyphs = self
+        //     .has_color_glyphs(first_character, &wide_characters)
+        //     .unwrap_or(false);
+        let has_color_glyphs = false; // self.has_color_glyphs(glyph.run);
 
-        let first_character = *characters.start();
-        let mut wide_characters = Vec::new();
+        let font_face = glyph.run.fontFace.as_ref().unwrap();
 
-        for c in characters {
-            let mut dst = [0u16; 2];
+        let mut font_metrics = DWRITE_FONT_METRICS::default();
+        font_face.GetMetrics(&mut font_metrics);
 
-            for wide_c in c.encode_utf16(&mut dst) {
-                wide_characters.push(*wide_c);
-            }
-        }
+        let mut glyph_metrics = DWRITE_GLYPH_METRICS::default();
+        font_face.GetDesignGlyphMetrics(&glyph.index, 1, &mut glyph_metrics, FALSE)?;
 
-        let glyph_step_x = self.glyph_width.ceil() + ATLAS_PADDING;
+        let width = (glyph_metrics.advanceWidth as f32 * self.glyph_metrics_scale).ceil() as u32;
+        let height = ((font_metrics.ascent + font_metrics.descent) as f32
+            * self.glyph_metrics_scale)
+            .ceil() as u32;
 
-        let text_layout = self.dwrite_factory.CreateTextLayout(
-            &wide_characters,
-            &self.text_format,
-            f32::MAX,
-            f32::MAX,
-        )?;
+        println!(
+            "{} {} {} {}",
+            width, height, glyph_metrics.leftSideBearing, glyph_metrics.rightSideBearing
+        );
 
-        let has_color_glyphs = self
-            .has_color_glyphs(first_character, &wide_characters)
-            .unwrap_or(false);
-
-        let range = DWRITE_TEXT_RANGE {
-            startPosition: 0,
-            length: atlas_size as u32,
-        };
-
-        let text_layout = text_layout.cast::<IDWriteTextLayout1>()?;
-        text_layout.SetTypography(&self.typography, range)?;
-        text_layout.SetCharacterSpacing(0.0, glyph_step_x - self.glyph_width, 0.0, range)?;
-
-        let mut text_metrics = DWRITE_TEXT_METRICS::default();
-        text_layout.GetMetrics(&mut text_metrics)?;
-
-        let width = text_metrics.width.ceil() as u32;
-        let height = text_metrics.height.ceil() as u32;
+        let origin_y = font_metrics.ascent as f32 * self.glyph_metrics_scale;
 
         let (format, alpha_mode) = if has_color_glyphs {
             (GUID_WICPixelFormat32bppPBGRA, D2D1_ALPHA_MODE_PREMULTIPLIED)
@@ -241,11 +281,18 @@ impl Text {
             a: 0.0,
         }));
 
-        render_target.DrawTextLayout(
-            D2D_POINT_2F { x: 0.0, y: 0.0 },
-            &text_layout,
+        // TODO: We might need to call TranslateColorGlyphRun here and then call different methods depending on output to get color
+        // (if we handle color glyph runs translation in this function we could also get rid of the has_color_glyphs fn).
+        render_target.DrawGlyphRun(
+            D2D_POINT_2F {
+                // x: glyph.baseline_origin_x,
+                // y: glyph.baseline_origin_y,
+                x: 0.0,
+                y: origin_y.floor(),
+            },
+            glyph.run,
             &brush,
-            D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT,
+            glyph.measuring_mode,
         );
 
         render_target.EndDraw(None, None)?;
@@ -274,67 +321,70 @@ impl Text {
         Ok(Atlas {
             data: raw_data,
             dimensions: AtlasDimensions {
+                origin_x: 0.0,
+                origin_y: 0.0,
                 width: width as usize,
                 height: height as usize,
-                glyph_step_x: glyph_step_x as usize,
-                glyph_width: self.glyph_width.floor() as usize,
+                glyph_width: self.glyph_width as usize,
                 glyph_height: height as usize,
-                line_height: self.line_height.floor() as usize,
+                line_height: self.line_height as usize,
             },
             has_color_glyphs,
         })
     }
 
-    unsafe fn has_color_glyphs(&mut self, c: char, wide_characters: &[u16]) -> Result<bool> {
-        let analysis_source = AnalysisSource {
-            string: wide_characters,
+    pub unsafe fn get_glyphs(
+        &mut self,
+        text_cache: &mut TextCache,
+        glyph_cache_result: GlyphCacheResult,
+        text: text_trait!(),
+        glyph_fn: GlyphFn,
+    ) -> GlyphCacheResult {
+        let wide_characters = self.wide_characters.get_mut();
+
+        for c in text {
+            let c = *c.borrow();
+            let mut dst = [0u16; 2];
+
+            for wide_c in c.encode_utf16(&mut dst) {
+                wide_characters.push(*wide_c);
+            }
+        }
+
+        let text_layout = self
+            .dwrite_factory
+            .CreateTextLayout(wide_characters, &self.text_format, f32::MAX, f32::MAX)
+            .unwrap();
+
+        let text_renderer = self.text_renderer.take().unwrap();
+
+        let drawing_context = DrawingContext {
+            text: self,
+            text_cache,
+            glyph_cache_result,
+            glyph_fn,
         };
 
-        let analysis_source: IDWriteTextAnalysisSource = analysis_source.into();
+        text_layout
+            .Draw(
+                Some(&drawing_context as *const _ as _),
+                &text_renderer,
+                0.0,
+                0.0,
+            )
+            .unwrap();
 
-        let mapped_font_face = if self.font.HasCharacter(c as u32)?.as_bool() {
-            &self.font_face
-        } else {
-            let mut mapped_length = 0;
-            let mut mapped_font = None;
-            let mut scale = 0.0;
+        let glyph_cache_result = drawing_context.glyph_cache_result;
 
-            self.system_font_fallback.MapCharacters(
-                &analysis_source,
-                0,
-                wide_characters.len() as u32,
-                &self.system_font_collection,
-                None,
-                DWRITE_FONT_WEIGHT_REGULAR,
-                DWRITE_FONT_STYLE_NORMAL,
-                DWRITE_FONT_STRETCH_NORMAL,
-                &mut mapped_length,
-                &mut mapped_font,
-                &mut scale,
-            )?;
+        self.text_renderer = Some(text_renderer);
 
-            let mapped_font = mapped_font.ok_or(Error::new(E_FAIL, "Mapped font not found"))?;
-            &mapped_font.CreateFontFace()?
-        };
+        glyph_cache_result
+    }
 
-        let mut glyph_indices = [0u16];
-
-        mapped_font_face.GetGlyphIndices([c as u32].as_ptr(), 1, glyph_indices.as_mut_ptr())?;
-
-        let glyph_run = DWRITE_GLYPH_RUN {
-            fontFace: ManuallyDrop::new(Some(mapped_font_face.clone())),
-            fontEmSize: self.font_size,
-            glyphCount: 1,
-            glyphIndices: glyph_indices.as_ptr(),
-            glyphAdvances: [0.0].as_ptr(),
-            glyphOffsets: [DWRITE_GLYPH_OFFSET::default()].as_ptr(),
-            isSideways: FALSE,
-            bidiLevel: 0,
-        };
-
+    unsafe fn has_color_glyphs(&self, glyph_run: &DWRITE_GLYPH_RUN) -> bool {
         let result = self.dwrite_factory.TranslateColorGlyphRun(
             D2D_POINT_2F { x: 0.0, y: 0.0 },
-            &glyph_run,
+            glyph_run,
             None,
             DWRITE_GLYPH_IMAGE_FORMATS_PNG
                 | DWRITE_GLYPH_IMAGE_FORMATS_SVG
@@ -345,10 +395,125 @@ impl Text {
         );
 
         if let Err(err) = result {
-            return Ok(err.code() != DWRITE_E_NOCOLOR);
+            return err.code() != DWRITE_E_NOCOLOR;
         }
 
-        Ok(true)
+        true
+    }
+}
+
+#[implement(IDWriteTextRenderer)]
+struct TextRenderer {}
+
+impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
+    fn DrawGlyphRun(
+        &self,
+        clientdrawingcontext: *const c_void,
+        baseline_origin_x: f32,
+        baseline_origin_y: f32,
+        measuring_mode: DWRITE_MEASURING_MODE,
+        glyph_run: *const DWRITE_GLYPH_RUN,
+        glyphrundescription: *const DWRITE_GLYPH_RUN_DESCRIPTION,
+        clientdrawingeffect: Option<&windows_core::IUnknown>,
+    ) -> Result<()> {
+        let context = clientdrawingcontext as *mut DrawingContext;
+        let context = unsafe { context.as_mut().unwrap() };
+
+        let glyph_run = unsafe { glyph_run.as_ref() }.unwrap();
+        let glyph_indices =
+            unsafe { from_raw_parts(glyph_run.glyphIndices, glyph_run.glyphCount as usize) };
+
+        for glyph_index in glyph_indices {
+            let glyph_run = DWRITE_GLYPH_RUN {
+                fontFace: glyph_run.fontFace.clone(),
+                fontEmSize: glyph_run.fontEmSize,
+                glyphCount: 1,
+                glyphIndices: [*glyph_index].as_ptr(),
+                glyphAdvances: [0.0].as_ptr(),
+                glyphOffsets: [DWRITE_GLYPH_OFFSET::default()].as_ptr(),
+                isSideways: FALSE,
+                bidiLevel: 0,
+            };
+
+            let glyph = Glyph {
+                index: *glyph_index,
+                run: &glyph_run,
+                baseline_origin_x,
+                baseline_origin_y,
+                measuring_mode,
+            };
+
+            context.glyph_cache_result = (context.glyph_fn)(
+                context.text,
+                context.text_cache,
+                glyph,
+                context.glyph_cache_result,
+            );
+        }
+
+        // TODO: Loop over glyph run and call the fn once for each glyph passing a custom glyph run that contains only one glyph at a time for drawing.
+        // TODO: Translate color glyph runs should be called on the single-glyph glyph run within generate_atlas because that is when we actually need that info (saves resources when the glyph is cached).
+
+        Ok(())
+    }
+
+    fn DrawUnderline(
+        &self,
+        clientdrawingcontext: *const c_void,
+        baselineoriginx: f32,
+        baselineoriginy: f32,
+        underline: *const DWRITE_UNDERLINE,
+        clientdrawingeffect: Option<&windows_core::IUnknown>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn DrawStrikethrough(
+        &self,
+        clientdrawingcontext: *const c_void,
+        baselineoriginx: f32,
+        baselineoriginy: f32,
+        strikethrough: *const DWRITE_STRIKETHROUGH,
+        clientdrawingeffect: Option<&windows_core::IUnknown>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn DrawInlineObject(
+        &self,
+        clientdrawingcontext: *const c_void,
+        originx: f32,
+        originy: f32,
+        inlineobject: Option<&IDWriteInlineObject>,
+        issideways: BOOL,
+        isrighttoleft: BOOL,
+        clientdrawingeffect: Option<&windows_core::IUnknown>,
+    ) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl IDWritePixelSnapping_Impl for TextRenderer_Impl {
+    fn IsPixelSnappingDisabled(&self, clientdrawingcontext: *const c_void) -> Result<BOOL> {
+        Ok(FALSE)
+    }
+
+    fn GetCurrentTransform(
+        &self,
+        clientdrawingcontext: *const c_void,
+        transform: *mut DWRITE_MATRIX,
+    ) -> Result<()> {
+        let transform = transform as *mut Matrix3x2;
+
+        unsafe {
+            *transform = Matrix3x2::identity();
+        }
+
+        Ok(())
+    }
+
+    fn GetPixelsPerDip(&self, clientdrawingcontext: *const c_void) -> Result<f32> {
+        Ok(1.0)
     }
 }
 
