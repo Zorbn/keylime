@@ -5,7 +5,10 @@ use std::{
 };
 
 use crate::{
-    platform::text_cache::{Atlas, AtlasDimensions},
+    platform::{
+        text::GlyphFn,
+        text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
+    },
     text::text_trait,
 };
 
@@ -170,9 +173,11 @@ impl Text {
 
     pub unsafe fn get_glyphs(
         &mut self,
+        text_cache: &mut TextCache,
+        mut glyph_cache_result: GlyphCacheResult,
         text: text_trait!(),
-        mut glyph_fn: impl FnMut(&mut Self, Glyph),
-    ) {
+        glyph_fn: GlyphFn,
+    ) -> GlyphCacheResult {
         self.glyph_string.clear();
 
         for c in text {
@@ -237,15 +242,19 @@ impl Text {
             for i in 0..self.glyph_indices.len() {
                 let index = self.glyph_indices[i];
 
-                glyph_fn(
+                glyph_cache_result = glyph_fn(
                     self,
+                    text_cache,
                     Glyph {
                         index,
                         has_color,
                         font,
                     },
-                )
+                    glyph_cache_result,
+                );
             }
         }
+
+        glyph_cache_result
     }
 }

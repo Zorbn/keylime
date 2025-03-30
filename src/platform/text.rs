@@ -1,13 +1,17 @@
 use crate::text::text_trait;
 
 use super::{
-    platform_impl,
+    aliases::PlatformText,
+    platform_impl::text::Glyph,
     result::Result,
     text_cache::{CachedLayout, GlyphCacheResult, GlyphSpan, GlyphSpans, TextCache},
 };
 
+pub type GlyphFn =
+    fn(&mut PlatformText, &mut TextCache, Glyph, GlyphCacheResult) -> GlyphCacheResult;
+
 pub struct Text {
-    inner: platform_impl::text::Text,
+    inner: PlatformText,
     pub cache: TextCache,
 }
 
@@ -20,9 +24,11 @@ const BACKUP_FONT_NAME: &str = "Menlo";
 impl Text {
     pub fn new(font_name: &str, font_size: f32, scale: f32) -> Result<Self> {
         let inner = unsafe {
-            platform_impl::text::Text::new(font_name, font_size, scale).or(
-                platform_impl::text::Text::new(BACKUP_FONT_NAME, font_size, scale),
-            )?
+            PlatformText::new(font_name, font_size, scale).or(PlatformText::new(
+                BACKUP_FONT_NAME,
+                font_size,
+                scale,
+            ))?
         };
 
         let mut text = Self {

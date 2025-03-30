@@ -32,8 +32,6 @@ use crate::{
 const LOCALE: PCWSTR = w!("en-us");
 const ATLAS_PADDING: f32 = 2.0;
 
-type GlyphFn = fn(&mut Text, &mut TextCache, Glyph, GlyphCacheResult) -> GlyphCacheResult;
-
 #[derive(Debug, Clone, Copy)]
 pub struct Glyph<'a> {
     pub index: u16,
