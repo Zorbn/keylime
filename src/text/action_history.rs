@@ -43,14 +43,14 @@ pub struct TimedAction {
 
 pub struct ActionHistory {
     actions: Vec<TimedAction>,
-    pub deleted_chars: Vec<char>,
+    pub deleted_chars: String,
 }
 
 impl ActionHistory {
     pub fn new() -> Self {
         Self {
             actions: Vec::new(),
-            deleted_chars: Vec::new(),
+            deleted_chars: String::new(),
         }
     }
 

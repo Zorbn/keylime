@@ -526,7 +526,7 @@ impl TerminalEmulator {
                     doc.delete(start, end, line_pool, time);
                     doc.insert(
                         Position::new(self.grid_width - 1, start.y),
-                        [' '],
+                        " ",
                         line_pool,
                         time,
                     );

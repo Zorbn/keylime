@@ -1,8 +1,10 @@
+use unicode_segmentation::GraphemeCursor;
+
 use crate::{
     app::App,
     input::{
         action::Action,
-        input_handlers::{ActionHandler, CharHandler, MouseScrollHandler, MousebindHandler},
+        input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
         mouse_scroll::MouseScroll,
         mousebind::Mousebind,
     },
@@ -51,8 +53,8 @@ impl Window {
         self.inner.file_watcher()
     }
 
-    pub fn get_char_handler(&self) -> CharHandler {
-        self.inner.get_char_handler()
+    pub fn get_grapheme_handler(&self) -> GraphemeHandler {
+        self.inner.get_grapheme_handler()
     }
 
     pub fn get_action_handler(&self) -> ActionHandler {
@@ -67,8 +69,8 @@ impl Window {
         self.inner.get_mouse_scroll_handler()
     }
 
-    pub fn chars_typed(&mut self) -> &mut Vec<char> {
-        &mut self.inner.chars_typed
+    pub fn graphemes_typed(&mut self) -> (&str, &mut GraphemeCursor) {
+        (&self.inner.graphemes_typed, &mut self.inner.grapheme_cursor)
     }
 
     pub fn actions_typed(&mut self) -> &mut Vec<Action> {
@@ -83,11 +85,11 @@ impl Window {
         &mut self.inner.mouse_scrolls
     }
 
-    pub fn set_clipboard(&mut self, text: &[char], was_copy_implicit: bool) -> Result<()> {
+    pub fn set_clipboard(&mut self, text: &str, was_copy_implicit: bool) -> Result<()> {
         self.inner.set_clipboard(text, was_copy_implicit)
     }
 
-    pub fn get_clipboard(&mut self) -> Result<&[char]> {
+    pub fn get_clipboard(&mut self) -> Result<&str> {
         self.inner.get_clipboard()
     }
 
@@ -96,6 +98,6 @@ impl Window {
     }
 
     pub(super) fn is_char_copy_pastable(c: char) -> bool {
-        c == '\n' || Gfx::get_char_width(c) > 0
+        c != '\r' && c != '\0'
     }
 }

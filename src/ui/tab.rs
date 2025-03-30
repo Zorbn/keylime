@@ -7,7 +7,7 @@ use crate::{
     editor_buffers::EditorBuffers,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
-        editing_actions::{handle_action, handle_char, handle_left_click},
+        editing_actions::{handle_action, handle_grapheme, handle_left_click},
         keybind::{MOD_CMD, MOD_CTRL, MOD_SHIFT},
         mouse_button::MouseButton,
         mousebind::Mousebind,
@@ -102,10 +102,10 @@ impl Tab {
 
         self.handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
 
-        let mut char_handler = widget.get_char_handler();
+        let mut grapheme_handler = widget.get_grapheme_handler();
 
-        while let Some(c) = char_handler.next(widget.window()) {
-            handle_char(c, doc, &mut buffers.lines, time);
+        while let Some(grapheme) = grapheme_handler.next(widget.window()) {
+            handle_grapheme(grapheme, doc, &mut buffers.lines, time);
         }
 
         let mut mousebind_handler = widget.get_mousebind_handler();
@@ -382,7 +382,7 @@ impl Tab {
         visible_lines: VisibleLines,
     ) {
         let indent_width =
-            language.map(|language| Gfx::measure_text(language.indent_width.chars()));
+            language.map(|language| language.indent_width.chars().map(Gfx::get_char_width).sum());
 
         let Some(indent_width) = indent_width else {
             return;
@@ -436,7 +436,12 @@ impl Tab {
             if y >= highlighted_lines.len() {
                 let visual_x = -camera_position.x;
 
-                gfx.add_text(line, visual_x, foreground_visual_y, theme.normal);
+                gfx.add_text(
+                    line[..].chars(),
+                    visual_x,
+                    foreground_visual_y,
+                    theme.normal,
+                );
 
                 continue;
             }
@@ -462,7 +467,7 @@ impl Tab {
                 }
 
                 x += gfx.add_text(
-                    &line[highlight.start..highlight.end],
+                    line[highlight.start..highlight.end].chars(),
                     visual_x,
                     foreground_visual_y,
                     foreground,
@@ -472,7 +477,7 @@ impl Tab {
     }
 
     fn draw_background(
-        len: usize,
+        len: isize,
         gfx: &mut Gfx,
         x: f32,
         y: f32,
@@ -521,8 +526,8 @@ impl Tab {
             while position < end {
                 let highlight_position = doc.position_to_visual(position, camera_position, gfx);
 
-                let char = doc.get_char(position);
-                let char_width = Gfx::get_char_width(char);
+                let char = doc.get_grapheme(position);
+                let char_width = Gfx::measure_text(char);
 
                 gfx.add_rect(
                     Rect::new(

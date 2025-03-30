@@ -1,4 +1,4 @@
-use super::line_pool::{Line, LinePool};
+use super::{line::Line, line_pool::LinePool};
 
 struct TrieNode {
     start: usize,
@@ -24,7 +24,7 @@ impl Trie {
         self.insert_at_node(0, chars);
     }
 
-    pub fn traverse(&self, prefix: &[char], results: &mut Vec<Line>, result_pool: &mut LinePool) {
+    pub fn traverse(&self, prefix: &[char], results: &mut Vec<String>, result_pool: &mut LinePool) {
         self.traverse_with_prefix_at_node(0, prefix, prefix, results, result_pool);
     }
 
@@ -54,35 +54,35 @@ impl Trie {
         index: usize,
         prefix: &[char],
         remaining: &[char],
-        results: &mut Vec<Line>,
+        results: &mut Vec<String>,
         result_pool: &mut LinePool,
     ) {
-        let node = &self.nodes[index];
+        // let node = &self.nodes[index];
 
-        if remaining.is_empty() {
-            for i in 0..node.len {
-                let child = &self.data[node.start + i];
+        // if remaining.is_empty() {
+        //     for i in 0..node.len {
+        //         let child = &self.data[node.start + i];
 
-                let mut new_prefix = result_pool.pop();
-                new_prefix.extend_from_slice(prefix);
-                new_prefix.push(child.0);
+        //         let mut new_prefix = result_pool.pop();
+        //         new_prefix.extend_from_slice(prefix);
+        //         new_prefix.push(child.0);
 
-                self.traverse_at_node(child.1, new_prefix, results, result_pool);
-            }
+        //         self.traverse_at_node(child.1, new_prefix, results, result_pool);
+        //     }
 
-            return;
-        }
+        //     return;
+        // }
 
-        let c = remaining[0];
-        let remaining = &remaining[1..];
+        // let c = remaining[0];
+        // let remaining = &remaining[1..];
 
-        for i in 0..node.len {
-            let child = &self.data[node.start + i];
+        // for i in 0..node.len {
+        //     let child = &self.data[node.start + i];
 
-            if child.0 == c {
-                self.traverse_with_prefix_at_node(child.1, prefix, remaining, results, result_pool);
-            }
-        }
+        //     if child.0 == c {
+        //         self.traverse_with_prefix_at_node(child.1, prefix, remaining, results, result_pool);
+        //     }
+        // }
     }
 
     // Traverses all nodes.
@@ -93,28 +93,28 @@ impl Trie {
         results: &mut Vec<Line>,
         result_pool: &mut LinePool,
     ) {
-        let node = &self.nodes[index];
+        // let node = &self.nodes[index];
 
-        let prefix = if node.is_terminal {
-            let mut new_prefix = result_pool.pop();
-            new_prefix.extend_from_slice(&prefix);
+        // let prefix = if node.is_terminal {
+        //     let mut new_prefix = result_pool.pop();
+        //     new_prefix.extend_from_slice(&prefix);
 
-            results.push(prefix);
+        //     results.push(prefix);
 
-            new_prefix
-        } else {
-            prefix
-        };
+        //     new_prefix
+        // } else {
+        //     prefix
+        // };
 
-        for child in &self.data[node.start..node.start + node.len] {
-            let mut new_prefix = result_pool.pop();
-            new_prefix.extend_from_slice(&prefix);
-            new_prefix.push(child.0);
+        // for child in &self.data[node.start..node.start + node.len] {
+        //     let mut new_prefix = result_pool.pop();
+        //     new_prefix.extend_from_slice(&prefix);
+        //     new_prefix.push(child.0);
 
-            self.traverse_at_node(child.1, new_prefix, results, result_pool);
-        }
+        //     self.traverse_at_node(child.1, new_prefix, results, result_pool);
+        // }
 
-        result_pool.push(prefix);
+        // result_pool.push(prefix);
     }
 
     fn new_node(&mut self) -> TrieNode {

@@ -13,11 +13,7 @@ use crate::{
         mousebind::Mousebind,
     },
     platform::gfx::Gfx,
-    text::{
-        cursor_index::CursorIndex,
-        doc::Doc,
-        line_pool::{Line, LinePool},
-    },
+    text::{cursor_index::CursorIndex, doc::Doc, line::Line, line_pool::LinePool},
 };
 
 use super::{
@@ -38,7 +34,7 @@ pub struct Editor {
     panes: Vec<EditorPane>,
     focused_pane_index: usize,
 
-    completion_result_list: ResultList<Line>,
+    completion_result_list: ResultList<String>,
     completion_result_pool: LinePool,
     completion_prefix: Vec<char>,
 
@@ -137,12 +133,15 @@ impl Editor {
     ) {
         self.reload_changed_files(ui.window.file_watcher().get_changed_files(), buffers, time);
 
-        let mut char_handler = self.widget.get_char_handler(ui);
+        let mut grapheme_handler = self.widget.get_grapheme_handler(ui);
 
-        let mut should_open_completions = char_handler
-            .next(ui.window)
-            .map(|c| char_handler.unprocessed(ui.window, c))
-            .is_some();
+        let mut should_open_completions = if grapheme_handler.next(ui.window).is_some() {
+            grapheme_handler.unprocessed(ui.window);
+
+            true
+        } else {
+            false
+        };
 
         let mut mousebind_handler = self.widget.get_mousebind_handler(ui);
 
@@ -240,11 +239,11 @@ impl Editor {
                     if let Some((_, doc)) =
                         pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
                     {
-                        doc.insert_at_cursors(
-                            &result[self.completion_prefix.len()..],
-                            &mut buffers.lines,
-                            time,
-                        );
+                        // doc.insert_at_cursors(
+                        //     &result[self.completion_prefix.len()..],
+                        //     &mut buffers.lines,
+                        //     time,
+                        // );
                     }
                 }
 
@@ -314,41 +313,42 @@ impl Editor {
 
         if self.is_cursor_visible(gfx) {
             self.completion_result_list
-                .draw(config, gfx, |result| result.iter());
+                .draw(config, gfx, |result| result.chars());
         }
     }
 
     fn get_completion_prefix(doc: &Doc) -> Option<&[char]> {
-        let prefix_end = doc.get_cursor(CursorIndex::Main).position;
+        None
+        // let prefix_end = doc.get_cursor(CursorIndex::Main).position;
 
-        if prefix_end.x == 0 {
-            return Some(&[]);
-        }
+        // if prefix_end.x == 0 {
+        //     return Some(&[]);
+        // }
 
-        let mut prefix_start = prefix_end;
+        // let mut prefix_start = prefix_end;
 
-        while prefix_start.x > 0 {
-            let next_start = doc.move_position(prefix_start, Position::new(-1, 0));
+        // while prefix_start.x > 0 {
+        //     let next_start = doc.move_position(prefix_start, Position::new(-1, 0));
 
-            let c = doc.get_char(next_start);
+        //     let c = doc.get_grapheme(next_start);
 
-            if !c.is_alphanumeric() && c != '_' {
-                break;
-            }
+        //     if !c.is_alphanumeric() && c != '_' {
+        //         break;
+        //     }
 
-            prefix_start = next_start;
-        }
+        //     prefix_start = next_start;
+        // }
 
-        doc.get_line(prefix_end.y)
-            .map(|line| &line[prefix_start.x as usize..prefix_end.x as usize])
+        // doc.get_line(prefix_end.y)
+        //     .map(|line| &line[prefix_start.x as usize..prefix_end.x as usize])
     }
 
     fn clear_completions(
-        completion_result_list: &mut ResultList<Line>,
+        completion_result_list: &mut ResultList<String>,
         completion_result_pool: &mut LinePool,
     ) {
         for result in completion_result_list.drain() {
-            completion_result_pool.push(result);
+            // completion_result_pool.push(result);
         }
     }
 

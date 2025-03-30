@@ -16,7 +16,13 @@ use super::{
     CommandPalette, CommandPaletteAction,
 };
 
-const PREFERRED_PATH_SEPARATOR: char = '/';
+#[cfg(target_os = "windows")]
+const PATH_SEPARATORS: &[&str] = &["/", "\\"];
+
+#[cfg(target_os = "macos")]
+const PATH_SEPARATORS: &[&str] = &["/"];
+
+const PREFERRED_PATH_SEPARATOR: &str = "/";
 
 pub const MODE_OPEN_FILE: &CommandPaletteMode = &CommandPaletteMode {
     title: "Find File",
@@ -59,18 +65,14 @@ fn on_open(
     let command_doc = &mut command_palette.doc;
 
     for component in path.components() {
-        let Some(str) = component.as_os_str().to_str() else {
+        let Some(string) = component.as_os_str().to_str() else {
             continue;
         };
 
-        for c in str.chars() {
-            let position = command_doc.end();
-            command_doc.insert(position, [c], line_pool, time);
-        }
+        command_doc.insert(command_doc.end(), string, line_pool, time);
 
-        if !str.ends_with(is_char_path_separator) {
-            let position = command_doc.end();
-            command_doc.insert(position, [PREFERRED_PATH_SEPARATOR], line_pool, time);
+        if !ends_with_path_separator(string) {
+            command_doc.insert(command_doc.end(), PREFERRED_PATH_SEPARATOR, line_pool, time);
         }
     }
 }
@@ -111,7 +113,7 @@ fn on_submit(
     }
 
     if !path.exists() {
-        if string.ends_with(is_char_path_separator) {
+        if ends_with_path_separator(string) {
             let _ = create_dir_all(path);
 
             on_update_results(command_palette, args);
@@ -149,14 +151,8 @@ fn on_complete_result(
     delete_last_path_component(false, &mut command_palette.doc, line_pool, time);
 
     let line_len = command_palette.doc.get_line_len(0);
-    let mut start = Position::new(line_len, 0);
-
-    for c in result.chars() {
-        command_palette.doc.insert(start, [c], line_pool, time);
-        start = command_palette
-            .doc
-            .move_position(start, Position::new(1, 0));
-    }
+    let start = Position::new(line_len, 0);
+    command_palette.doc.insert(start, &result, line_pool, time);
 }
 
 fn on_update_results(command_palette: &mut CommandPalette, _: CommandPaletteEventArgs) {
@@ -181,7 +177,7 @@ fn on_update_results(command_palette: &mut CommandPalette, _: CommandPaletteEven
                 .map(|str| str.to_owned())
             {
                 if entry_path.is_dir() {
-                    result.push(PREFERRED_PATH_SEPARATOR);
+                    result.push_str(PREFERRED_PATH_SEPARATOR);
                 }
 
                 command_palette.result_list.results.push(result);
@@ -196,19 +192,20 @@ fn on_backspace(
         line_pool, time, ..
     }: CommandPaletteEventArgs,
 ) -> bool {
-    let cursor = command_palette.doc.get_cursor(CursorIndex::Main);
-    let end = cursor.position;
-    let mut start = command_palette.doc.move_position(end, Position::new(-1, 0));
+    // let cursor = command_palette.doc.get_cursor(CursorIndex::Main);
+    // let end = cursor.position;
+    // let mut start = command_palette.doc.move_position(end, Position::new(-1, 0));
 
-    if is_char_path_separator(command_palette.doc.get_char(start)) {
-        start = find_path_component_start(&command_palette.doc, start);
+    // if is_char_path_separator(command_palette.doc.get_grapheme(start)) {
+    //     start = find_path_component_start(&command_palette.doc, start);
 
-        command_palette.doc.delete(start, end, line_pool, time);
+    //     command_palette.doc.delete(start, end, line_pool, time);
 
-        true
-    } else {
-        false
-    }
+    //     true
+    // } else {
+    //     false
+    // }
+    false
 }
 
 fn get_command_palette_dir<'a>(
@@ -226,8 +223,7 @@ fn get_command_palette_dir<'a>(
         Some(Component::CurDir | Component::ParentDir)
     );
 
-    let can_path_be_dir =
-        ends_with_dir || string.is_empty() || string.ends_with(is_char_path_separator);
+    let can_path_be_dir = ends_with_dir || string.is_empty() || ends_with_path_separator(&string);
 
     if can_path_be_dir && path.is_dir() {
         path.as_path()
@@ -256,12 +252,16 @@ fn delete_last_path_component(
     doc.delete(start, end, line_pool, time);
 }
 
-fn is_char_path_separator(c: char) -> bool {
-    if cfg!(target_os = "windows") {
-        matches!(c, '/' | '\\')
-    } else {
-        matches!(c, '/')
-    }
+fn is_grapheme_path_separator(grapheme: &str) -> bool {
+    PATH_SEPARATORS
+        .iter()
+        .any(|separator| *separator == grapheme)
+}
+
+fn ends_with_path_separator(text: &str) -> bool {
+    PATH_SEPARATORS
+        .iter()
+        .any(|separator| text.ends_with(separator))
 }
 
 fn find_path_component_start(doc: &Doc, position: Position) -> Position {
@@ -270,7 +270,7 @@ fn find_path_component_start(doc: &Doc, position: Position) -> Position {
     while start > Position::zero() {
         let next_start = doc.move_position(start, Position::new(-1, 0));
 
-        if is_char_path_separator(doc.get_char(next_start)) {
+        if is_grapheme_path_separator(doc.get_grapheme(next_start)) {
             break;
         }
 

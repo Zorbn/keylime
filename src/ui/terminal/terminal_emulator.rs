@@ -162,10 +162,10 @@ impl TerminalEmulator {
                     handle_copy(widget.window(), doc, &mut buffers.text);
                 }
                 action_name!(Paste) => {
-                    let text = widget.window().get_clipboard().unwrap_or(&[]);
+                    let text = widget.window().get_clipboard().unwrap_or("");
 
-                    for c in text {
-                        pty.input().push(*c as u32);
+                    for c in text.chars() {
+                        pty.input().push(c as u32);
                     }
                 }
                 action_keybind!(key, mods: MOD_CTRL) => {
@@ -182,10 +182,11 @@ impl TerminalEmulator {
             }
         }
 
-        let mut char_handler = widget.get_char_handler();
+        let mut grapheme_handler = widget.get_grapheme_handler();
 
-        while let Some(c) = char_handler.next(widget.window()) {
-            pty.input().push(c as u32);
+        while let Some(grapheme) = grapheme_handler.next(widget.window()) {
+            // TODO: Re-evaluate how input is handled for the pty, can it just be a string and we do push_str here?
+            pty.input().extend(grapheme.chars().map(|c| c as u32));
         }
 
         pty.flush();
@@ -380,7 +381,7 @@ impl TerminalEmulator {
             .take(self.grid_width as usize)
             .chain("\n".chars());
 
-        doc.insert(insert_start, new_line_chars, line_pool, time);
+        // doc.insert(insert_start, new_line_chars, line_pool, time);
 
         let bottom_grid_line = self.grid_line_colors.remove(scroll_bottom as usize);
         self.grid_line_colors
@@ -432,7 +433,7 @@ impl TerminalEmulator {
             .chars()
             .chain(iter::repeat(' ').take(self.grid_width as usize));
 
-        doc.insert(insert_start, new_line_chars, line_pool, time);
+        // doc.insert(insert_start, new_line_chars, line_pool, time);
 
         let top_grid_line = self.grid_line_colors.remove(scroll_top as usize);
         self.grid_line_colors
@@ -489,7 +490,7 @@ impl TerminalEmulator {
     fn expand_doc_to_grid_size(&mut self, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
         while (doc.lines().len() as isize) < self.grid_height {
             let start = doc.end();
-            doc.insert(start, ['\n'], line_pool, time);
+            doc.insert(start, "\n", line_pool, time);
         }
 
         for y in 0..self.grid_height {
@@ -501,7 +502,7 @@ impl TerminalEmulator {
 
             while doc.get_line_len(doc_y) < self.grid_width {
                 let start = Position::new(doc.get_line_len(doc_y), doc_y);
-                doc.insert(start, [' '], line_pool, time);
+                doc.insert(start, " ", line_pool, time);
             }
 
             doc.highlight_line_from_terminal_colors(
@@ -610,7 +611,7 @@ impl TerminalEmulator {
                 self.newline_cursor(doc, line_pool, time);
             }
 
-            self.insert(self.grid_cursor, &[*c], doc, line_pool, time);
+            // self.insert(self.grid_cursor, &[*c], doc, line_pool, time);
 
             self.grid_cursor.x += Gfx::get_char_width(*c);
             self.jump_doc_cursors_to_grid_cursor(doc);
@@ -645,7 +646,7 @@ impl TerminalEmulator {
     pub fn insert(
         &mut self,
         start: Position,
-        text: &[char],
+        text: &str,
         doc: &mut Doc,
         line_pool: &mut LinePool,
         time: f32,
@@ -664,8 +665,8 @@ impl TerminalEmulator {
             colors
         };
 
-        for mut c in text {
-            for _ in 0..Gfx::get_char_width(*c) {
+        for mut c in text.chars() {
+            for _ in 0..Gfx::get_char_width(c) {
                 let next_position = self.move_position(position, Position::new(1, 0));
 
                 {
@@ -673,13 +674,13 @@ impl TerminalEmulator {
                     let next_position = self.grid_position_to_doc_position(next_position, doc);
 
                     doc.delete(position, next_position, line_pool, time);
-                    doc.insert(position, [*c], line_pool, time);
+                    // doc.insert(position, [*c], line_pool, time);
                 }
 
                 self.grid_line_colors[position.y as usize][position.x as usize] = colors;
                 position = next_position;
 
-                c = &'\0';
+                c = '\0';
             }
         }
 
@@ -706,7 +707,7 @@ impl TerminalEmulator {
             let end_x = if y == end.y { end.x } else { self.grid_width };
 
             for x in start_x..end_x {
-                self.insert(Position::new(x, y), &[' '], doc, line_pool, time);
+                self.insert(Position::new(x, y), " ", doc, line_pool, time);
             }
         }
     }

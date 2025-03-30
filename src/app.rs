@@ -5,7 +5,7 @@ use crate::{
     editor_buffers::EditorBuffers,
     geometry::rect::Rect,
     platform::{pty::Pty, window::Window},
-    temp_buffer::TempBuffer,
+    temp_buffer::{TempBuffer, TempString},
     text::line_pool::LinePool,
     ui::{command_palette::CommandPalette, editor::Editor, terminal::Terminal, Ui},
 };
@@ -27,7 +27,7 @@ impl App {
         let mut buffers = EditorBuffers {
             lines: LinePool::new(),
             cursors: TempBuffer::new(),
-            text: TempBuffer::new(),
+            text: TempString::new(),
         };
 
         let (config, config_error) = match Config::load() {

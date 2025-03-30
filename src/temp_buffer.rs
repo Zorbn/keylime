@@ -13,3 +13,21 @@ impl<T> TempBuffer<T> {
         &mut self.data
     }
 }
+
+pub struct TempString {
+    data: String,
+}
+
+impl TempString {
+    pub fn new() -> Self {
+        Self {
+            data: String::new(),
+        }
+    }
+
+    pub fn get_mut(&mut self) -> &mut String {
+        self.data.clear();
+
+        &mut self.data
+    }
+}
