@@ -552,7 +552,7 @@ impl Gfx {
         spans
     }
 
-    pub fn get_glyph_span(&mut self, glyph_spans: &GlyphSpans, index: usize) -> GlyphSpan {
+    pub fn get_glyph_span(&mut self, glyph_spans: &GlyphSpans, index: usize) -> Option<GlyphSpan> {
         self.text.get_glyph_span(glyph_spans, index)
     }
 

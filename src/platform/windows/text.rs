@@ -1,13 +1,10 @@
-use std::{
-    ffi::c_void, marker::PhantomData, mem::ManuallyDrop, ops::RangeInclusive, ptr::null,
-    slice::from_raw_parts, sync::LazyLock,
-};
+use std::{ffi::c_void, ptr::null, slice::from_raw_parts};
 
 use windows::{
     core::{implement, w, Error, Interface, Result, HSTRING, PCWSTR},
     Foundation::Numerics::Matrix3x2,
     Win32::{
-        Foundation::{BOOL, DWRITE_E_NOCOLOR, E_FAIL, FALSE},
+        Foundation::{BOOL, DWRITE_E_NOCOLOR, E_FAIL, FALSE, TRUE},
         Graphics::{
             Direct2D::{
                 Common::{D2D1_COLOR_F, D2D1_PIXEL_FORMAT, D2D_POINT_2F},
@@ -23,14 +20,10 @@ use windows::{
         System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
     },
 };
-use windows_core::IUnknown;
 use Common::{D2D1_ALPHA_MODE_IGNORE, D2D1_ALPHA_MODE_PREMULTIPLIED};
 
 use crate::{
-    platform::{
-        aliases::AnyText,
-        text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
-    },
+    platform::text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
     temp_buffer::TempBuffer,
     text::text_trait,
 };
@@ -44,8 +37,6 @@ type GlyphFn = fn(&mut Text, &mut TextCache, Glyph, GlyphCacheResult) -> GlyphCa
 pub struct Glyph<'a> {
     pub index: u16,
     run: &'a DWRITE_GLYPH_RUN,
-    baseline_origin_x: f32,
-    baseline_origin_y: f32,
     measuring_mode: DWRITE_MEASURING_MODE,
 }
 
@@ -58,18 +49,13 @@ struct DrawingContext<'a> {
 
 pub struct Text {
     dwrite_factory: IDWriteFactory4,
-    d2d_factory: ID2D1Factory,
+    d2d_factory: ID2D1Factory4,
     imaging_factory: IWICImagingFactory,
     text_renderer: Option<IDWriteTextRenderer>,
 
     text_format: IDWriteTextFormat,
     text_rendering_params: IDWriteRenderingParams3,
-    typography: IDWriteTypography,
 
-    font_fallback: IDWriteFontFallback,
-    system_font_collection: IDWriteFontCollection1,
-
-    glyph_indices: Vec<u16>,
     wide_characters: TempBuffer<u16>,
 
     glyph_metrics_scale: f32,
@@ -88,7 +74,7 @@ impl Text {
             D2D1_DEBUG_LEVEL_NONE
         };
 
-        let d2d_factory: ID2D1Factory = D2D1CreateFactory(
+        let d2d_factory: ID2D1Factory4 = D2D1CreateFactory(
             D2D1_FACTORY_TYPE_SINGLE_THREADED,
             Some(&D2D1_FACTORY_OPTIONS {
                 debugLevel: debug_level,
@@ -160,8 +146,6 @@ impl Text {
             DWRITE_GRID_FIT_MODE_DEFAULT,
         )?;
 
-        let typography = dwrite_factory.CreateTypography()?;
-
         let system_font_fallback = dwrite_factory.GetSystemFontFallback()?;
 
         let mut font_unicode_ranges = [DWRITE_UNICODE_RANGE::default(); 256];
@@ -182,11 +166,8 @@ impl Text {
         )?;
         font_fallback_builder.AddMappings(&system_font_fallback)?;
 
-        let font_fallback = font_fallback_builder.CreateFontFallback()?;
-
         let mut system_font_collection = None;
         dwrite_factory.GetSystemFontCollection(FALSE, &mut system_font_collection, FALSE)?;
-        let system_font_collection = system_font_collection.unwrap();
 
         Ok(Self {
             dwrite_factory,
@@ -196,11 +177,7 @@ impl Text {
 
             text_format,
             text_rendering_params,
-            typography,
-            font_fallback,
-            system_font_collection,
 
-            glyph_indices: Vec::new(),
             wide_characters: TempBuffer::new(),
 
             glyph_metrics_scale,
@@ -210,11 +187,6 @@ impl Text {
     }
 
     pub unsafe fn generate_atlas(&mut self, glyph: Glyph) -> Result<Atlas> {
-        // let has_color_glyphs = self
-        //     .has_color_glyphs(first_character, &wide_characters)
-        //     .unwrap_or(false);
-        let has_color_glyphs = false; // self.has_color_glyphs(glyph.run);
-
         let font_face = glyph.run.fontFace.as_ref().unwrap();
 
         let mut font_metrics = DWRITE_FONT_METRICS::default();
@@ -233,13 +205,32 @@ impl Text {
             - glyph_metrics.verticalOriginY as f32)
             * self.glyph_metrics_scale;
 
-        let width = (right.ceil() - left.ceil()) as u32 + 2;
-        let height = (bottom.ceil() - top.ceil()) as u32 + 2;
+        let width = (right.ceil() - left.ceil() + ATLAS_PADDING) as u32;
+        let height = (bottom.ceil() - top.ceil() + ATLAS_PADDING) as u32;
 
         println!(
             "{} {} {} {}",
             width, height, glyph_metrics.leftSideBearing, glyph_metrics.rightSideBearing
         );
+
+        let origin = D2D_POINT_2F {
+            x: -left.ceil() + ATLAS_PADDING,
+            y: -top.ceil() + ATLAS_PADDING,
+        };
+
+        let translated_runs = self.dwrite_factory.TranslateColorGlyphRun(
+            origin,
+            glyph.run,
+            None,
+            DWRITE_GLYPH_IMAGE_FORMATS_PNG
+                | DWRITE_GLYPH_IMAGE_FORMATS_SVG
+                | DWRITE_GLYPH_IMAGE_FORMATS_COLR,
+            DWRITE_MEASURING_MODE_NATURAL,
+            None,
+            0,
+        );
+
+        let has_color_glyphs = translated_runs.is_ok();
 
         let (format, alpha_mode) = if has_color_glyphs {
             (GUID_WICPixelFormat32bppPBGRA, D2D1_ALPHA_MODE_PREMULTIPLIED)
@@ -251,7 +242,7 @@ impl Text {
             self.imaging_factory
                 .CreateBitmap(width, height, &format, WICBitmapCacheOnDemand)?;
 
-        let render_target = self.d2d_factory.CreateWicBitmapRenderTarget(
+        let render_target: ID2D1RenderTarget = self.d2d_factory.CreateWicBitmapRenderTarget(
             &bitmap,
             &D2D1_RENDER_TARGET_PROPERTIES {
                 r#type: D2D1_RENDER_TARGET_TYPE_DEFAULT,
@@ -266,9 +257,11 @@ impl Text {
             },
         )?;
 
-        render_target.SetTextRenderingParams(&self.text_rendering_params);
+        let context: ID2D1DeviceContext4 = render_target.cast()?;
 
-        let brush = render_target.CreateSolidColorBrush(
+        context.SetTextRenderingParams(&self.text_rendering_params);
+
+        let brush = context.CreateSolidColorBrush(
             &D2D1_COLOR_F {
                 r: 1.0,
                 g: 1.0,
@@ -278,28 +271,79 @@ impl Text {
             None,
         )?;
 
-        render_target.BeginDraw();
+        context.BeginDraw();
 
-        render_target.Clear(Some(&D2D1_COLOR_F {
+        context.Clear(Some(&D2D1_COLOR_F {
             r: 0.0,
             g: 0.0,
             b: 0.0,
             a: 0.0,
         }));
 
-        // TODO: We might need to call TranslateColorGlyphRun here and then call different methods depending on output to get color
-        // (if we handle color glyph runs translation in this function we could also get rid of the has_color_glyphs fn).
-        render_target.DrawGlyphRun(
-            D2D_POINT_2F {
-                x: -left.ceil() + 2.0,
-                y: -top.ceil() + 2.0,
-            },
-            glyph.run,
-            &brush,
-            glyph.measuring_mode,
-        );
+        match translated_runs {
+            Ok(runs) => loop {
+                let Ok(TRUE) = runs.MoveNext() else {
+                    break;
+                };
 
-        render_target.EndDraw(None, None)?;
+                let run = unsafe { runs.GetCurrentRun()?.as_mut() }.unwrap();
+
+                match run.glyphImageFormat {
+                    DWRITE_GLYPH_IMAGE_FORMATS_PNG => {
+                        context.DrawColorBitmapGlyphRun(
+                            run.glyphImageFormat,
+                            origin,
+                            &run.Base.glyphRun,
+                            glyph.measuring_mode,
+                            D2D1_COLOR_BITMAP_GLYPH_SNAP_OPTION_DEFAULT,
+                        );
+                    }
+                    DWRITE_GLYPH_IMAGE_FORMATS_SVG => {
+                        context.DrawSvgGlyphRun(
+                            origin,
+                            &run.Base.glyphRun,
+                            &brush,
+                            None,
+                            0,
+                            glyph.measuring_mode,
+                        );
+                    }
+                    DWRITE_GLYPH_IMAGE_FORMATS_COLR => {
+                        if run.Base.paletteIndex != 0xFFFF {
+                            brush.SetColor(&D2D1_COLOR_F {
+                                r: run.Base.runColor.r,
+                                g: run.Base.runColor.g,
+                                b: run.Base.runColor.b,
+                                a: run.Base.runColor.a,
+                            });
+                        } else {
+                            brush.SetColor(&D2D1_COLOR_F {
+                                r: 1.0,
+                                g: 1.0,
+                                b: 1.0,
+                                a: 1.0,
+                            });
+                        }
+
+                        context.DrawGlyphRun(
+                            origin,
+                            &run.Base.glyphRun,
+                            Some(run.Base.glyphRunDescription),
+                            &brush,
+                            glyph.measuring_mode,
+                        );
+                    }
+                    _ => unreachable!(),
+                }
+            },
+            Err(err) => {
+                assert!(err.code() == DWRITE_E_NOCOLOR);
+
+                context.DrawGlyphRun(origin, glyph.run, None, &brush, glyph.measuring_mode);
+            }
+        }
+
+        context.EndDraw(None, None)?;
 
         let mut raw_data = vec![0u8; (width * height * 4) as usize];
         bitmap.CopyPixels(null(), width * 4, &mut raw_data)?;
@@ -384,26 +428,6 @@ impl Text {
 
         glyph_cache_result
     }
-
-    unsafe fn has_color_glyphs(&self, glyph_run: &DWRITE_GLYPH_RUN) -> bool {
-        let result = self.dwrite_factory.TranslateColorGlyphRun(
-            D2D_POINT_2F { x: 0.0, y: 0.0 },
-            glyph_run,
-            None,
-            DWRITE_GLYPH_IMAGE_FORMATS_PNG
-                | DWRITE_GLYPH_IMAGE_FORMATS_SVG
-                | DWRITE_GLYPH_IMAGE_FORMATS_COLR,
-            DWRITE_MEASURING_MODE_NATURAL,
-            None,
-            0,
-        );
-
-        if let Err(err) = result {
-            return err.code() != DWRITE_E_NOCOLOR;
-        }
-
-        true
-    }
 }
 
 #[implement(IDWriteTextRenderer)]
@@ -412,15 +436,15 @@ struct TextRenderer {}
 impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
     fn DrawGlyphRun(
         &self,
-        clientdrawingcontext: *const c_void,
-        baseline_origin_x: f32,
-        baseline_origin_y: f32,
+        client_drawing_context: *const c_void,
+        _baseline_origin_x: f32,
+        _baseline_origin_y: f32,
         measuring_mode: DWRITE_MEASURING_MODE,
         glyph_run: *const DWRITE_GLYPH_RUN,
-        glyphrundescription: *const DWRITE_GLYPH_RUN_DESCRIPTION,
-        clientdrawingeffect: Option<&windows_core::IUnknown>,
+        _glyph_run_description: *const DWRITE_GLYPH_RUN_DESCRIPTION,
+        _client_drawing_effect: Option<&windows_core::IUnknown>,
     ) -> Result<()> {
-        let context = clientdrawingcontext as *mut DrawingContext;
+        let context = client_drawing_context as *mut DrawingContext;
         let context = unsafe { context.as_mut().unwrap() };
 
         let glyph_run = unsafe { glyph_run.as_ref() }.unwrap();
@@ -442,8 +466,6 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
             let glyph = Glyph {
                 index: *glyph_index,
                 run: &glyph_run,
-                baseline_origin_x,
-                baseline_origin_y,
                 measuring_mode,
             };
 
@@ -455,56 +477,53 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
             );
         }
 
-        // TODO: Loop over glyph run and call the fn once for each glyph passing a custom glyph run that contains only one glyph at a time for drawing.
-        // TODO: Translate color glyph runs should be called on the single-glyph glyph run within generate_atlas because that is when we actually need that info (saves resources when the glyph is cached).
-
         Ok(())
     }
 
     fn DrawUnderline(
         &self,
-        clientdrawingcontext: *const c_void,
-        baselineoriginx: f32,
-        baselineoriginy: f32,
-        underline: *const DWRITE_UNDERLINE,
-        clientdrawingeffect: Option<&windows_core::IUnknown>,
+        _client_drawing_context: *const c_void,
+        _baseline_origin_x: f32,
+        _baseline_origin_y: f32,
+        _underline: *const DWRITE_UNDERLINE,
+        _client_drawing_effect: Option<&windows_core::IUnknown>,
     ) -> Result<()> {
         Ok(())
     }
 
     fn DrawStrikethrough(
         &self,
-        clientdrawingcontext: *const c_void,
-        baselineoriginx: f32,
-        baselineoriginy: f32,
-        strikethrough: *const DWRITE_STRIKETHROUGH,
-        clientdrawingeffect: Option<&windows_core::IUnknown>,
+        _client_drawing_context: *const c_void,
+        _baseline_origin_x: f32,
+        _baseline_origin_y: f32,
+        _strikethrough: *const DWRITE_STRIKETHROUGH,
+        _client_drawing_effect: Option<&windows_core::IUnknown>,
     ) -> Result<()> {
         Ok(())
     }
 
     fn DrawInlineObject(
         &self,
-        clientdrawingcontext: *const c_void,
-        originx: f32,
-        originy: f32,
-        inlineobject: Option<&IDWriteInlineObject>,
-        issideways: BOOL,
-        isrighttoleft: BOOL,
-        clientdrawingeffect: Option<&windows_core::IUnknown>,
+        _client_drawing_context: *const c_void,
+        _origin_x: f32,
+        _origin_y: f32,
+        _inline_object: Option<&IDWriteInlineObject>,
+        _is_sideways: BOOL,
+        _is_right_to_left: BOOL,
+        _client_drawing_effect: Option<&windows_core::IUnknown>,
     ) -> Result<()> {
         Ok(())
     }
 }
 
 impl IDWritePixelSnapping_Impl for TextRenderer_Impl {
-    fn IsPixelSnappingDisabled(&self, clientdrawingcontext: *const c_void) -> Result<BOOL> {
+    fn IsPixelSnappingDisabled(&self, _client_drawing_context: *const c_void) -> Result<BOOL> {
         Ok(FALSE)
     }
 
     fn GetCurrentTransform(
         &self,
-        clientdrawingcontext: *const c_void,
+        _client_drawing_context: *const c_void,
         transform: *mut DWRITE_MATRIX,
     ) -> Result<()> {
         let transform = transform as *mut Matrix3x2;
@@ -516,64 +535,7 @@ impl IDWritePixelSnapping_Impl for TextRenderer_Impl {
         Ok(())
     }
 
-    fn GetPixelsPerDip(&self, clientdrawingcontext: *const c_void) -> Result<f32> {
+    fn GetPixelsPerDip(&self, _client_drawing_context: *const c_void) -> Result<f32> {
         Ok(1.0)
-    }
-}
-
-#[implement(IDWriteTextAnalysisSource)]
-struct AnalysisSource<'a> {
-    string: &'a [u16],
-}
-
-impl IDWriteTextAnalysisSource_Impl for AnalysisSource_Impl<'_> {
-    fn GetTextAtPosition(
-        &self,
-        _textposition: u32,
-        textstring: *mut *mut u16,
-        textlength: *mut u32,
-    ) -> Result<()> {
-        unsafe {
-            *textstring = self.string.as_ptr() as *mut _;
-            *textlength = self.string.len() as u32;
-        }
-
-        Ok(())
-    }
-
-    fn GetTextBeforePosition(
-        &self,
-        _textposition: u32,
-        _textstring: *mut *mut u16,
-        _textlength: *mut u32,
-    ) -> Result<()> {
-        Ok(())
-    }
-
-    fn GetParagraphReadingDirection(&self) -> DWRITE_READING_DIRECTION {
-        DWRITE_READING_DIRECTION_LEFT_TO_RIGHT
-    }
-
-    fn GetLocaleName(
-        &self,
-        _textposition: u32,
-        textlength: *mut u32,
-        localename: *mut *mut u16,
-    ) -> Result<()> {
-        unsafe {
-            *textlength = self.string.len() as u32;
-            *localename = LOCALE.as_ptr() as *mut _;
-        }
-
-        Ok(())
-    }
-
-    fn GetNumberSubstitution(
-        &self,
-        _textposition: u32,
-        _textlength: *mut u32,
-        _numbersubstitution: *mut Option<IDWriteNumberSubstitution>,
-    ) -> Result<()> {
-        Ok(())
     }
 }
