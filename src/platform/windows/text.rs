@@ -24,7 +24,10 @@ use windows_numerics::{Matrix3x2, Vector2};
 use Common::{D2D1_ALPHA_MODE_IGNORE, D2D1_ALPHA_MODE_PREMULTIPLIED};
 
 use crate::{
-    platform::text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
+    platform::{
+        text::GlyphFn,
+        text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
+    },
     temp_buffer::TempBuffer,
     text::text_trait,
 };
@@ -145,29 +148,6 @@ impl Text {
             DWRITE_GRID_FIT_MODE_DEFAULT,
         )?;
 
-        let system_font_fallback = dwrite_factory.GetSystemFontFallback()?;
-
-        let mut font_unicode_ranges = [DWRITE_UNICODE_RANGE::default(); 256];
-        let mut font_unicode_ranges_len = 0;
-
-        font.GetUnicodeRanges(Some(&mut font_unicode_ranges), &mut font_unicode_ranges_len)?;
-        let font_unicode_ranges = &font_unicode_ranges[..font_unicode_ranges_len as usize];
-
-        let font_fallback_builder = dwrite_factory.CreateFontFallbackBuilder()?;
-
-        font_fallback_builder.AddMapping(
-            font_unicode_ranges,
-            &[font_name.as_ptr()],
-            None,
-            None,
-            None,
-            1.0,
-        )?;
-        font_fallback_builder.AddMappings(&system_font_fallback)?;
-
-        let mut system_font_collection = None;
-        dwrite_factory.GetSystemFontCollection(false, &mut system_font_collection, false)?;
-
         Ok(Self {
             dwrite_factory,
             d2d_factory,
@@ -206,11 +186,6 @@ impl Text {
 
         let width = (right.ceil() - left.ceil() + ATLAS_PADDING) as u32;
         let height = (bottom.ceil() - top.ceil() + ATLAS_PADDING) as u32;
-
-        println!(
-            "{} {} {} {}",
-            width, height, glyph_metrics.leftSideBearing, glyph_metrics.rightSideBearing
-        );
 
         let origin = Vector2 {
             X: -left.ceil() + ATLAS_PADDING,
