@@ -1,4 +1,4 @@
-pub type Line = Vec<char>;
+use super::line::Line;
 
 pub struct LinePool {
     available: Vec<Line>,

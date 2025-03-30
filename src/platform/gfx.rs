@@ -1,11 +1,15 @@
-use unicode_width::UnicodeWidthChar;
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     geometry::{
         rect::Rect,
         side::{SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     },
-    text::text_trait,
+    text::{
+        grapheme::{grapheme_is_control, grapheme_is_whitespace},
+        text_trait,
+    },
     ui::color::Color,
 };
 
@@ -43,20 +47,24 @@ impl Gfx {
         self.inner.end();
     }
 
-    pub fn measure_text(text: text_trait!(move)) -> isize {
-        text.into_iter()
-            .map(|c| Self::get_char_width(*c.borrow()))
-            .sum()
+    pub fn measure_text(text: &str) -> isize {
+        let added_tab_width: isize = text
+            .chars()
+            .map(|c| match c {
+                '\t' => TAB_WIDTH as isize - 1,
+                _ => 0,
+            })
+            .sum();
+
+        added_tab_width + UnicodeWidthStr::width(text) as isize
     }
 
-    pub fn find_x_for_visual_x(text: text_trait!(), visual_x: isize) -> isize {
+    pub fn find_x_for_visual_x(text: &str, visual_x: isize) -> isize {
         let mut current_visual_x = 0isize;
         let mut x = 0isize;
 
-        for c in text.into_iter() {
-            let c = *c.borrow();
-
-            current_visual_x += Gfx::get_char_width(c);
+        for grapheme in UnicodeSegmentation::graphemes(text, true) {
+            current_visual_x += Gfx::measure_text(grapheme);
 
             if current_visual_x > visual_x {
                 return x;
@@ -68,11 +76,11 @@ impl Gfx {
         x
     }
 
+    // TODO: Should we still be using this?
     pub fn get_char_width(c: char) -> isize {
         match c {
             '\t' => TAB_WIDTH as isize,
-            '\0' => 0,
-            _ => UnicodeWidthChar::width(c).unwrap_or(1) as isize,
+            _ => UnicodeWidthChar::width(c).unwrap_or(0) as isize,
         }
     }
 
@@ -87,6 +95,13 @@ impl Gfx {
     pub fn add_text(&mut self, text: text_trait!(), x: f32, y: f32, color: Color) -> isize {
         let glyph_spans = self.get_glyph_spans(text.clone());
 
+        // TODO: Don't allocate every time, add_text should just accept a &str.
+        let mut text_str = String::new();
+        for c in text {
+            let c = *c.borrow();
+            text_str.push(c);
+        }
+
         let AtlasDimensions {
             glyph_width,
             glyph_height,
@@ -95,11 +110,9 @@ impl Gfx {
 
         let mut offset = 0;
 
-        for (i, c) in text.into_iter().enumerate() {
-            let c = *c.borrow();
-
-            if c.is_whitespace() || c.is_control() {
-                offset += Self::get_char_width(c);
+        for (i, grapheme) in UnicodeSegmentation::graphemes(text_str.as_str(), true).enumerate() {
+            if grapheme_is_whitespace(grapheme) || grapheme_is_control(grapheme) {
+                offset += Self::measure_text(grapheme);
                 continue;
             }
 
@@ -135,7 +148,7 @@ impl Gfx {
                 kind,
             );
 
-            offset += Self::get_char_width(c);
+            offset += Self::measure_text(grapheme);
         }
 
         offset

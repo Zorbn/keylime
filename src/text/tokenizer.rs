@@ -1,5 +1,5 @@
 use super::{
-    line_pool::Line,
+    line::Line,
     syntax_highlighter::{HighlightResult, SyntaxHighlighter},
     trie::Trie,
 };
@@ -16,26 +16,26 @@ impl Tokenizer {
     }
 
     pub fn tokenize(&mut self, lines: &[Line]) {
-        self.tokens.clear();
+        // self.tokens.clear();
 
-        for line in lines {
-            let mut x = 0;
+        // for line in lines {
+        //     let mut x = 0;
 
-            while x < line.len() {
-                let HighlightResult::Token { start, end } =
-                    SyntaxHighlighter::match_identifier(line, x)
-                else {
-                    x += 1;
-                    continue;
-                };
+        //     while x < line.len() {
+        //         let HighlightResult::Token { start, end } =
+        //             SyntaxHighlighter::match_identifier(line, x)
+        //         else {
+        //             x += 1;
+        //             continue;
+        //         };
 
-                x = end;
+        //         x = end;
 
-                let token_chars = &line[start..end];
+        //         let token_chars = &line[start..end];
 
-                self.tokens.insert(token_chars);
-            }
-        }
+        //         self.tokens.insert(token_chars);
+        //     }
+        // }
     }
 
     pub fn tokens(&self) -> &Trie {

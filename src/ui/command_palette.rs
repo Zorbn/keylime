@@ -15,7 +15,8 @@ use crate::{
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
-        line_pool::{Line, LinePool},
+        line::Line,
+        line_pool::LinePool,
     },
 };
 
@@ -94,7 +95,7 @@ impl CommandPalette {
         let title = self.mode.title;
         let title_padding_x = gfx.glyph_width();
         let title_width =
-            Gfx::measure_text(title.chars()) as f32 * gfx.glyph_width() + title_padding_x * 2.0;
+            Gfx::measure_text(title) as f32 * gfx.glyph_width() + title_padding_x * 2.0;
 
         self.title_bounds = Rect::new(0.0, 0.0, title_width, gfx.tab_height()).floor();
 

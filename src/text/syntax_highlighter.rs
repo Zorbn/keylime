@@ -3,7 +3,7 @@ use serde::Deserialize;
 use crate::ui::color::Color;
 
 use super::{
-    line_pool::Line,
+    line::Line,
     syntax::{Syntax, SyntaxRange, SyntaxToken},
 };
 
@@ -45,20 +45,20 @@ pub enum HighlightKind {
 
 #[derive(Clone, Copy)]
 pub struct Highlight {
-    pub start: usize,
-    pub end: usize,
+    pub start: isize,
+    pub end: isize,
     pub foreground: HighlightKind,
     pub background: Option<HighlightKind>,
 }
 
 pub enum HighlightResult {
     Token {
-        start: usize,
-        end: usize,
+        start: isize,
+        end: isize,
     },
     Range {
-        start: usize,
-        end: usize,
+        start: isize,
+        end: isize,
         is_finished: bool,
     },
     None,
@@ -115,75 +115,78 @@ impl SyntaxHighlighter {
         }
     }
 
-    pub fn match_identifier(line: &[char], start: usize) -> HighlightResult {
-        let mut i = start;
+    pub fn match_identifier(line: &Line, start: isize) -> HighlightResult {
+        HighlightResult::None
+        // let mut i = start;
 
-        if line[i] != '_' && !line[i].is_alphabetic() {
-            return HighlightResult::None;
-        }
+        // if line[i] != '_' && !line[i].is_alphabetic() {
+        //     return HighlightResult::None;
+        // }
 
-        i += 1;
+        // i += 1;
 
-        while i < line.len() {
-            let c = line[i];
+        // while i < line.len() {
+        //     let c = line[i];
 
-            if c != '_' && !c.is_alphanumeric() {
-                break;
-            }
+        //     if c != '_' && !c.is_alphanumeric() {
+        //         break;
+        //     }
 
-            i += 1;
-        }
+        //     i += 1;
+        // }
 
-        HighlightResult::Token { start, end: i }
+        // HighlightResult::Token { start, end: i }
     }
 
-    fn match_token(line: &[char], start: usize, token: &SyntaxToken) -> HighlightResult {
-        match token.pattern.match_text(line, start) {
-            Some(pattern_match) => HighlightResult::Token {
-                start: pattern_match.start,
-                end: pattern_match.end,
-            },
-            None => HighlightResult::None,
-        }
+    fn match_token(line: &Line, start: isize, token: &SyntaxToken) -> HighlightResult {
+        HighlightResult::None
+        // match token.pattern.match_text(line, start) {
+        //     Some(pattern_match) => HighlightResult::Token {
+        //         start: pattern_match.start,
+        //         end: pattern_match.end,
+        //     },
+        //     None => HighlightResult::None,
+        // }
     }
 
     fn match_range(
-        line: &[char],
-        start: usize,
+        line: &Line,
+        start: isize,
         range: &SyntaxRange,
         is_in_progress: bool,
     ) -> HighlightResult {
-        let mut i = start;
+        HighlightResult::None
+        // let mut i = start;
 
-        if !is_in_progress {
-            match range.start.match_text(line, start) {
-                Some(pattern_match) => i = pattern_match.end,
-                None => return HighlightResult::None,
-            }
-        }
+        // if !is_in_progress {
+        //     match range.start.match_text(line, start) {
+        //         Some(pattern_match) => i = pattern_match.end,
+        //         None => return HighlightResult::None,
+        //     }
+        // }
 
-        while i < line.len() {
-            if Some(line[i]) == range.escape {
-                i += 2;
-                continue;
-            }
+        // while i < line.len() {
+        //     if Some(line[i]) == range.escape {
+        //         i += 2;
+        //         continue;
+        //     }
 
-            if let Some(pattern_match) = range.end.match_text(line, i) {
-                return HighlightResult::Range {
-                    start,
-                    end: pattern_match.end,
-                    is_finished: true,
-                };
-            }
+        //     if let Some(pattern_match) = range.end.match_text(line, i) {
+        //         return HighlightResult::Range {
+        //             start,
+        //             end: pattern_match.end,
+        //             is_finished: true,
+        //         };
+        //     }
 
-            i += 1;
-        }
+        //     i += 1;
+        // }
 
-        HighlightResult::Range {
-            start,
-            end: i.min(line.len()),
-            is_finished: false,
-        }
+        // HighlightResult::Range {
+        //     start,
+        //     end: i.min(line.len()),
+        //     is_finished: false,
+        // }
     }
 
     pub fn update(&mut self, lines: &[Line], syntax: &Syntax, start_y: usize, end_y: usize) {
@@ -229,88 +232,88 @@ impl SyntaxHighlighter {
         }
     }
 
-    fn highlight_line(&mut self, line: &[char], syntax: &Syntax, mut x: usize, y: usize) {
-        'tokenize: while x < line.len() {
-            let mut default_end = x + 1;
+    fn highlight_line(&mut self, line: &Line, syntax: &Syntax, mut x: isize, y: usize) {
+        // 'tokenize: while x < line.len() {
+        //     let mut default_end = x + 1;
 
-            if !line[x].is_whitespace() {
-                if let HighlightResult::Token { start, end } = Self::match_identifier(line, x) {
-                    let identifier = &line[start..end];
+        //     if !line[x].is_whitespace() {
+        //         if let HighlightResult::Token { start, end } = Self::match_identifier(line, x) {
+        //             let identifier = &line[start..end];
 
-                    if syntax.keywords.contains(identifier) {
-                        self.highlighted_lines[y].push(Highlight {
-                            start,
-                            end,
-                            foreground: HighlightKind::Keyword,
-                            background: None,
-                        });
-                        x = end;
+        //             if syntax.keywords.contains(identifier) {
+        //                 self.highlighted_lines[y].push(Highlight {
+        //                     start,
+        //                     end,
+        //                     foreground: HighlightKind::Keyword,
+        //                     background: None,
+        //                 });
+        //                 x = end;
 
-                        continue;
-                    }
+        //                 continue;
+        //             }
 
-                    default_end = end;
-                }
+        //             default_end = end;
+        //         }
 
-                for (i, range) in syntax.ranges.iter().enumerate() {
-                    let HighlightResult::Range {
-                        start,
-                        end,
-                        is_finished,
-                    } = Self::match_range(line, x, range, false)
-                    else {
-                        continue;
-                    };
+        //         for (i, range) in syntax.ranges.iter().enumerate() {
+        //             let HighlightResult::Range {
+        //                 start,
+        //                 end,
+        //                 is_finished,
+        //             } = Self::match_range(line, x, range, false)
+        //             else {
+        //                 continue;
+        //             };
 
-                    if start > x {
-                        self.highlight_line(&line[..start], syntax, x, y);
-                    }
+        //             if start > x {
+        //                 self.highlight_line(&line[..start], syntax, x, y);
+        //             }
 
-                    self.highlighted_lines[y].push(Highlight {
-                        start,
-                        end,
-                        foreground: range.kind,
-                        background: None,
-                    });
-                    x = end;
+        //             self.highlighted_lines[y].push(Highlight {
+        //                 start,
+        //                 end,
+        //                 foreground: range.kind,
+        //                 background: None,
+        //             });
+        //             x = end;
 
-                    if !is_finished {
-                        self.highlighted_lines[y].unfinished_range_index = Some(i);
-                    }
+        //             if !is_finished {
+        //                 self.highlighted_lines[y].unfinished_range_index = Some(i);
+        //             }
 
-                    continue 'tokenize;
-                }
+        //             continue 'tokenize;
+        //         }
 
-                for token in &syntax.tokens {
-                    let HighlightResult::Token { start, end } = Self::match_token(line, x, token)
-                    else {
-                        continue;
-                    };
+        //         for token in &syntax.tokens {
+        //             let HighlightResult::Token { start, end } = Self::match_token(line, x, token)
+        //             else {
+        //                 continue;
+        //             };
 
-                    if start > x {
-                        self.highlight_line(&line[..start], syntax, x, y);
-                    }
+        //             if start > x {
+        //                 self.highlight_line(&line[..start], syntax, x, y);
+        //             }
 
-                    self.highlighted_lines[y].push(Highlight {
-                        start,
-                        end,
-                        foreground: token.kind,
-                        background: None,
-                    });
-                    x = end;
+        //             self.highlighted_lines[y].push(Highlight {
+        //                 start,
+        //                 end,
+        //                 foreground: token.kind,
+        //                 background: None,
+        //             });
+        //             x = end;
 
-                    continue 'tokenize;
-                }
-            }
+        //             continue 'tokenize;
+        //         }
+        //     }
 
-            self.highlighted_lines[y].push(Highlight {
-                start: x,
-                end: default_end,
-                foreground: HighlightKind::Normal,
-                background: None,
-            });
-            x = default_end;
-        }
+        //     self.highlighted_lines[y].push(Highlight {
+        //         start: x,
+        //         end: default_end,
+        //         foreground: HighlightKind::Normal,
+        //         background: None,
+        //     });
+        //     x = default_end;
+        // }
     }
 
     pub fn highlight_line_from_terminal_colors(
@@ -318,22 +321,22 @@ impl SyntaxHighlighter {
         colors: &[(TerminalHighlightKind, TerminalHighlightKind)],
         y: usize,
     ) {
-        if self.highlighted_lines.len() <= y {
-            self.highlighted_lines.resize(y + 1, HighlightedLine::new());
-        }
+        // if self.highlighted_lines.len() <= y {
+        //     self.highlighted_lines.resize(y + 1, HighlightedLine::new());
+        // }
 
-        let highlighted_line = &mut self.highlighted_lines[y];
+        // let highlighted_line = &mut self.highlighted_lines[y];
 
-        highlighted_line.clear();
+        // highlighted_line.clear();
 
-        for (x, (foreground, background)) in colors.iter().enumerate() {
-            highlighted_line.push(Highlight {
-                start: x,
-                end: x + 1,
-                foreground: HighlightKind::Terminal(*foreground),
-                background: Some(HighlightKind::Terminal(*background)),
-            });
-        }
+        // for (x, (foreground, background)) in colors.iter().enumerate() {
+        //     highlighted_line.push(Highlight {
+        //         start: x,
+        //         end: x + 1,
+        //         foreground: HighlightKind::Terminal(*foreground),
+        //         background: Some(HighlightKind::Terminal(*background)),
+        //     });
+        // }
     }
 
     pub fn recycle_highlighted_lines_up_to_y(&mut self, y: usize) {

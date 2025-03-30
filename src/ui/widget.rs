@@ -1,6 +1,8 @@
+use unicode_segmentation::GraphemeCursor;
+
 use crate::{
     geometry::rect::Rect,
-    input::input_handlers::{ActionHandler, CharHandler, MouseScrollHandler, MousebindHandler},
+    input::input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
     platform::{gfx::Gfx, window::Window},
 };
 
@@ -26,11 +28,11 @@ impl Widget {
         widget
     }
 
-    pub fn get_char_handler(&self, ui: &UiHandle) -> CharHandler {
+    pub fn get_grapheme_handler(&self, ui: &UiHandle) -> GraphemeHandler {
         if self.is_focused(ui) {
-            ui.window.get_char_handler()
+            ui.window.get_grapheme_handler()
         } else {
-            CharHandler::new(0)
+            GraphemeHandler::new(GraphemeCursor::new(0, 0, true))
         }
     }
 
@@ -116,8 +118,8 @@ impl<'a, 'b> WidgetHandle<'a, 'b> {
         Self { inner: widget, ui }
     }
 
-    pub fn get_char_handler(&self) -> CharHandler {
-        self.inner.get_char_handler(self.ui)
+    pub fn get_grapheme_handler(&self) -> GraphemeHandler {
+        self.inner.get_grapheme_handler(self.ui)
     }
 
     pub fn get_action_handler(&self) -> ActionHandler {

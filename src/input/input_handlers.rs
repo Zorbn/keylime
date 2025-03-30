@@ -1,3 +1,5 @@
+use unicode_segmentation::GraphemeCursor;
+
 use crate::platform::window::Window;
 
 use super::{action::Action, mouse_scroll::MouseScroll, mousebind::Mousebind};
@@ -37,7 +39,39 @@ macro_rules! define_handler {
     };
 }
 
-define_handler!(CharHandler, chars_typed, char);
 define_handler!(ActionHandler, actions_typed, Action);
 define_handler!(MousebindHandler, mousebinds_pressed, Mousebind);
 define_handler!(MouseScrollHandler, mouse_scrolls, MouseScroll);
+
+pub struct GraphemeHandler {
+    grapheme_cursor: GraphemeCursor,
+}
+
+impl GraphemeHandler {
+    pub fn new(grapheme_cursor: GraphemeCursor) -> Self {
+        Self { grapheme_cursor }
+    }
+
+    pub fn next<'a>(&mut self, window: &'a mut Window) -> Option<&'a str> {
+        let (graphemes_typed, grapheme_cursor) = window.graphemes_typed();
+
+        let start = self.grapheme_cursor.cur_cursor();
+
+        if start == graphemes_typed.len() {
+            return None;
+        }
+
+        let Ok(Some(end)) = self.grapheme_cursor.next_boundary(graphemes_typed, 0) else {
+            return None;
+        };
+
+        let _ = grapheme_cursor.next_boundary(graphemes_typed, 0);
+
+        Some(&graphemes_typed[start..end])
+    }
+
+    pub fn unprocessed(&mut self, window: &mut Window) {
+        let (graphemes_typed, grapheme_cursor) = window.graphemes_typed();
+        let _ = grapheme_cursor.prev_boundary(graphemes_typed, 0);
+    }
+}

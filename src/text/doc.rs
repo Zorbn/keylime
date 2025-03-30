@@ -6,6 +6,8 @@ use std::{
     vec::Drain,
 };
 
+use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
+
 use crate::{
     config::language::IndentWidth,
     editor_buffers::EditorBuffers,
@@ -15,10 +17,11 @@ use crate::{
 
 use super::{
     action_history::{Action, ActionHistory, ActionKind},
-    char_category::CharCategory,
+    char_category::GraphemeCategory,
     cursor::Cursor,
     cursor_index::{CursorIndex, CursorIndices},
-    line_pool::{Line, LinePool},
+    line::Line,
+    line_pool::LinePool,
     selection::Selection,
     syntax::Syntax,
     syntax_highlighter::{HighlightedLine, SyntaxHighlighter, TerminalHighlightKind},
@@ -79,7 +82,8 @@ pub struct Doc {
 
     undo_history: ActionHistory,
     redo_history: ActionHistory,
-    undo_char_buffer: Option<Vec<char>>,
+    // TODO: Can this be a TempString?
+    undo_char_buffer: Option<String>,
 
     cursor_position_undo_history: Vec<Position>,
     cursor_position_redo_history: Vec<Position>,
@@ -114,7 +118,7 @@ impl Doc {
 
             undo_history: ActionHistory::new(),
             redo_history: ActionHistory::new(),
-            undo_char_buffer: Some(Vec::new()),
+            undo_char_buffer: Some(String::new()),
 
             cursor_position_undo_history: Vec::new(),
             cursor_position_redo_history: Vec::new(),
@@ -172,7 +176,7 @@ impl Doc {
             }
 
             if let Some(desired_visual_x) = desired_visual_x {
-                new_x = Gfx::find_x_for_visual_x(&self.lines[new_y as usize], desired_visual_x);
+                new_x = Gfx::find_x_for_visual_x(&self.lines[new_y as usize][..], desired_visual_x);
             } else if new_x > self.get_line_len(new_y) {
                 new_x = self.get_line_len(new_y);
             }
@@ -207,7 +211,7 @@ impl Doc {
         &self,
         position: Position,
         delta_x: isize,
-        category: CharCategory,
+        category: GraphemeCategory,
     ) -> Position {
         let mut position = self.clamp_position(position);
         let side_offset = Self::get_side_offset(delta_x);
@@ -215,11 +219,11 @@ impl Doc {
 
         loop {
             let current_category =
-                CharCategory::new(self.get_char(self.move_position(position, side_offset)));
+                GraphemeCategory::new(self.get_grapheme(self.move_position(position, side_offset)));
             let next_position = self.move_position(position, delta);
 
             if current_category != category
-                || current_category == CharCategory::Newline
+                || current_category == GraphemeCategory::Newline
                 || next_position == position
             {
                 break;
@@ -233,11 +237,12 @@ impl Doc {
 
     pub fn move_position_to_next_word(&self, position: Position, delta_x: isize) -> Position {
         let starting_position =
-            self.move_position_skipping_category(position, delta_x, CharCategory::Space);
+            self.move_position_skipping_category(position, delta_x, GraphemeCategory::Space);
 
         let side_offset = Self::get_side_offset(delta_x);
-        let starting_category =
-            CharCategory::new(self.get_char(self.move_position(starting_position, side_offset)));
+        let starting_category = GraphemeCategory::new(
+            self.get_grapheme(self.move_position(starting_position, side_offset)),
+        );
 
         let ending_position =
             self.move_position_skipping_category(starting_position, delta_x, starting_category);
@@ -318,17 +323,7 @@ impl Doc {
             return 0;
         };
 
-        let mut start = 0;
-
-        for c in line {
-            if !c.is_whitespace() {
-                break;
-            }
-
-            start += 1;
-        }
-
-        start
+        line.get_start()
     }
 
     pub fn is_line_whitespace(&self, y: isize) -> bool {
@@ -338,16 +333,12 @@ impl Doc {
     pub fn comment_line(
         &mut self,
         comment: &str,
-        mut position: Position,
+        position: Position,
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        for c in comment.chars() {
-            self.insert(position, [c], line_pool, time);
-            position = self.move_position(position, Position::new(1, 0));
-        }
-
-        self.insert(position, [' '], line_pool, time);
+        self.insert(position, " ", line_pool, time);
+        self.insert(position, comment, line_pool, time);
     }
 
     pub fn uncomment_line(
@@ -366,7 +357,7 @@ impl Doc {
 
         self.delete(start, end, line_pool, time);
 
-        if self.get_char(start) == ' ' {
+        if self.get_grapheme(start) == " " {
             let end = self.move_position(start, Position::new(1, 0));
 
             self.delete(start, end, line_pool, time);
@@ -376,23 +367,34 @@ impl Doc {
     }
 
     pub fn is_line_commented(&self, comment: &str, y: isize) -> bool {
-        let Some(line) = self.get_line(y) else {
-            return false;
-        };
+        false
+        // TODO:
+        // let Some(line) = self.get_line(y) else {
+        //     return false;
+        // };
 
-        let start = self.get_line_start(y) as usize;
+        // let start = self.get_line_start(y) as usize;
 
-        if start + comment.len() >= line.len() {
-            return false;
-        }
+        // if start + comment.len() >= line.len() {
+        //     return false;
+        // }
 
-        for (i, c) in comment.chars().enumerate() {
-            if line[start + i] != c {
-                return false;
-            }
-        }
+        // let mut grapheme_cursor = GraphemeCursor::new(start, comment.len(), true);
 
-        true
+        // for comment_grapheme in UnicodeSegmentation::graphemes(comment, true) {
+        //     let start = grapheme_cursor.cur_cursor();
+        //     let Ok(Some(end)) = grapheme_cursor.next_boundary(line, 0) else {
+        //         break;
+        //     };
+
+        //     let line_grapheme = &line[start..end];
+
+        //     if comment_grapheme != line_grapheme {
+        //         return false;
+        //     }
+        // }
+
+        // true
     }
 
     pub fn toggle_comments_at_cursors(
@@ -513,10 +515,11 @@ impl Doc {
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        for c in indent_width.chars() {
-            self.insert(start, [c], line_pool, time);
-            start = self.move_position(start, Position::new(1, 0));
-        }
+        // TODO:
+        // for c in indent_width.chars() {
+        //     self.insert(start, [c], line_pool, time);
+        //     start = self.move_position(start, Position::new(1, 0));
+        // }
     }
 
     fn unindent(
@@ -533,16 +536,16 @@ impl Doc {
 
     pub fn get_indent_start(&mut self, end: Position, indent_width: IndentWidth) -> Position {
         let mut start = self.move_position(end, Position::new(-1, 0));
-        let start_char = self.get_char(start);
+        let start_grapheme = self.get_grapheme(start);
 
-        match start_char {
-            ' ' => {
+        match start_grapheme {
+            " " => {
                 let indent_width = (end.x - 1) % indent_width.char_count() as isize + 1;
 
                 for _ in 1..indent_width {
                     let next_start = self.move_position(start, Position::new(-1, 0));
 
-                    if self.get_char(next_start) != ' ' {
+                    if self.get_grapheme(next_start) != " " {
                         break;
                     }
 
@@ -551,7 +554,7 @@ impl Doc {
 
                 start
             }
-            '\t' => start,
+            "\t" => start,
             _ => end,
         }
     }
@@ -716,7 +719,7 @@ impl Doc {
     fn get_cursor_visual_x(&self, index: CursorIndex) -> isize {
         let cursor = self.get_cursor(index);
 
-        let leading_text = &self.lines[cursor.position.y as usize][..cursor.position.x as usize];
+        let leading_text = &self.lines[cursor.position.y as usize][..cursor.position.x];
 
         Gfx::measure_text(leading_text)
     }
@@ -803,23 +806,22 @@ impl Doc {
         &self.lines
     }
 
-    pub fn collect_chars(&self, start: Position, end: Position, buffer: &mut Vec<char>) {
+    pub fn collect_string(&self, start: Position, end: Position, buffer: &mut String) {
         let start = self.clamp_position(start);
         let end = self.clamp_position(end);
 
         if start.y == end.y {
-            buffer
-                .extend_from_slice(&self.lines[start.y as usize][start.x as usize..end.x as usize]);
+            buffer.push_str(&self.lines[start.y as usize][start.x..end.x]);
         } else {
-            buffer.extend_from_slice(&self.lines[start.y as usize][start.x as usize..]);
+            buffer.push_str(&self.lines[start.y as usize][start.x..]);
             buffer.push('\n');
 
             for line in &self.lines[(start.y + 1) as usize..end.y as usize] {
-                buffer.extend_from_slice(line);
+                buffer.push_str(&line[..]);
                 buffer.push('\n');
             }
 
-            buffer.extend_from_slice(&self.lines[end.y as usize][..end.x as usize]);
+            buffer.push_str(&self.lines[end.y as usize][..end.x]);
         }
     }
 
@@ -870,9 +872,8 @@ impl Doc {
 
                     let mut undo_char_buffer = self.undo_char_buffer.take().unwrap();
                     undo_char_buffer.clear();
-                    undo_char_buffer.extend_from_slice(
-                        &action_history!(self, action_kind).deleted_chars[chars_start..],
-                    );
+                    undo_char_buffer
+                        .push_str(&action_history!(self, action_kind).deleted_chars[chars_start..]);
 
                     self.insert_as_action_kind(
                         start,
@@ -949,14 +950,14 @@ impl Doc {
         let mut undo_char_buffer = self.undo_char_buffer.take().unwrap();
         undo_char_buffer.clear();
 
-        self.collect_chars(start, end, &mut undo_char_buffer);
+        self.collect_string(start, end, &mut undo_char_buffer);
 
         if self.kind != DocKind::Output {
             let deleted_chars_start = action_history!(self, action_kind).deleted_chars.len();
 
             action_history!(self, action_kind)
                 .deleted_chars
-                .extend_from_slice(&undo_char_buffer);
+                .push_str(&undo_char_buffer);
 
             action_history!(self, action_kind).push_delete(start, deleted_chars_start, time);
         }
@@ -964,15 +965,15 @@ impl Doc {
         self.undo_char_buffer = Some(undo_char_buffer);
 
         if start.y == end.y {
-            self.lines[start.y as usize].drain(start.x as usize..end.x as usize);
+            self.lines[start.y as usize].remove_graphemes(start.x..end.x);
         } else {
             let (start_lines, end_lines) = self.lines.split_at_mut(end.y as usize);
 
             let start_line = &mut start_lines[start.y as usize];
             let end_line = end_lines.first().unwrap();
 
-            start_line.truncate(start.x as usize);
-            start_line.extend_from_slice(&end_line[end.x as usize..]);
+            start_line.truncate_graphemes(start.x);
+            start_line.extend(&end_line[end.x..]);
             line_pool.push(self.lines.remove(end.y as usize));
 
             for removed_line in self.lines.drain((start.y + 1) as usize..end.y as usize) {
@@ -1014,20 +1015,14 @@ impl Doc {
         }
     }
 
-    pub fn insert(
-        &mut self,
-        start: Position,
-        text: text_trait!(),
-        line_pool: &mut LinePool,
-        time: f32,
-    ) {
+    pub fn insert(&mut self, start: Position, text: &str, line_pool: &mut LinePool, time: f32) {
         self.insert_as_action_kind(start, text, line_pool, ActionKind::Done, time);
     }
 
     pub fn insert_as_action_kind(
         &mut self,
         start: Position,
-        text: text_trait!(),
+        text: &str,
         line_pool: &mut LinePool,
         action_kind: ActionKind,
         time: f32,
@@ -1045,18 +1040,15 @@ impl Doc {
         let start = self.clamp_position(start);
         let mut position = self.clamp_position(start);
 
-        for c in text {
-            let c = *c.borrow();
-
-            match c {
-                '\r' => continue,
-                '\n' => {
+        for grapheme in UnicodeSegmentation::graphemes(text, true) {
+            match grapheme {
+                "\r\n" | "\n" => {
                     if self.kind == DocKind::SingleLine {
                         continue;
                     }
 
                     let new_y = position.y as usize + 1;
-                    let split_x = position.x as usize;
+                    let split_x = position.x;
 
                     position.y += 1;
                     position.x = 0;
@@ -1068,15 +1060,15 @@ impl Doc {
                     let old = old.last_mut().unwrap();
                     let new = new.first_mut().unwrap();
 
-                    new.extend_from_slice(&old[split_x..]);
-                    old.truncate(split_x);
+                    new.extend(&old[split_x..]);
+                    old.truncate_graphemes(split_x);
 
                     continue;
                 }
                 _ => {}
             }
 
-            self.lines[position.y as usize].insert(position.x as usize, c);
+            self.lines[position.y as usize].insert_grapheme(position.x, grapheme);
             position.x += 1;
         }
 
@@ -1112,7 +1104,7 @@ impl Doc {
         }
     }
 
-    pub fn insert_at_cursors(&mut self, text: &[char], line_pool: &mut LinePool, time: f32) {
+    pub fn insert_at_cursors(&mut self, text: &str, line_pool: &mut LinePool, time: f32) {
         for index in self.cursor_indices() {
             self.insert_at_cursor(index, text, line_pool, time);
         }
@@ -1121,7 +1113,7 @@ impl Doc {
     pub fn insert_at_cursor(
         &mut self,
         index: CursorIndex,
-        text: &[char],
+        text: &str,
         line_pool: &mut LinePool,
         time: f32,
     ) {
@@ -1134,59 +1126,58 @@ impl Doc {
         self.insert(start, text, line_pool, time);
     }
 
-    pub fn search(&self, text: &[char], start: Position, is_reverse: bool) -> Option<Position> {
-        let start = self.clamp_position(start);
-        let start = Position::new(start.x.min(self.get_line_len(start.y) - 1).max(0), start.y);
+    pub fn search(&self, text: &str, start: Position, is_reverse: bool) -> Option<Position> {
+        // TODO:
+        // let start = self.clamp_position(start);
+        // let start = Position::new(start.x.min(self.get_line_len(start.y) - 1).max(0), start.y);
 
-        let step = if is_reverse { -1 } else { 1 };
+        // let step = if is_reverse { -1 } else { 1 };
 
-        let text_start_index = if is_reverse {
-            text.len() as isize - 1
-        } else {
-            0
-        };
+        // let text_start_index = if is_reverse {
+        //     text.len() as isize - 1
+        // } else {
+        //     0
+        // };
 
-        let mut position = start;
-        let mut match_index = 0;
+        // let mut position = start;
+        // let mut match_index = 0;
 
-        if is_reverse {
-            position.x += step;
-        }
+        // if is_reverse {
+        //     position.x += step;
+        // }
 
-        loop {
-            let line = &self.lines[position.y as usize];
-            let last_position = position;
-            let status;
-            (position, status) = self.step_wrapped(line, start, position, step);
+        // loop {
+        //     let line = &self.lines[position.y as usize];
+        //     let last_position = position;
+        //     let status;
+        //     (position, status) = self.step_wrapped(line, start, position, step);
 
-            match status {
-                StepStatus::None => {}
-                StepStatus::Wrapped => {
-                    match_index = 0;
-                    continue;
-                }
-                StepStatus::Done => break,
-            }
+        //     match status {
+        //         StepStatus::None => {}
+        //         StepStatus::Wrapped => {
+        //             match_index = 0;
+        //             continue;
+        //         }
+        //         StepStatus::Done => break,
+        //     }
 
-            if text[(match_index as isize * step + text_start_index) as usize]
-                == line[position.x as usize]
-            {
-                match_index += 1;
+        //     if text[(match_index as isize * step + text_start_index) as usize] == line[position.x] {
+        //         match_index += 1;
 
-                if match_index >= text.len() {
-                    return Some(Position::new(
-                        position.x + 1 - text.len() as isize + text_start_index,
-                        position.y,
-                    ));
-                }
-            } else {
-                if match_index > 0 {
-                    position = last_position;
-                }
+        //         if match_index >= text.len() {
+        //             return Some(Position::new(
+        //                 position.x + 1 - text.len() as isize + text_start_index,
+        //                 position.y,
+        //             ));
+        //         }
+        //     } else {
+        //         if match_index > 0 {
+        //             position = last_position;
+        //         }
 
-                match_index = 0;
-            }
-        }
+        //         match_index = 0;
+        //     }
+        // }
 
         None
     }
@@ -1232,14 +1223,14 @@ impl Doc {
         position
     }
 
-    pub fn get_char(&self, position: Position) -> char {
+    pub fn get_grapheme(&self, position: Position) -> &str {
         let position = self.clamp_position(position);
         let line = &self.lines[position.y as usize];
 
         if position.x == line.len() as isize {
-            '\n'
+            "\n"
         } else {
-            line[position.x as usize]
+            &line[position.x]
         }
     }
 
@@ -1262,7 +1253,7 @@ impl Doc {
         gfx: &Gfx,
     ) -> VisualPosition {
         let position = self.clamp_position(position);
-        let leading_text = &self.lines[position.y as usize][..position.x as usize];
+        let leading_text = &self.lines[position.y as usize][..position.x];
 
         let visual_x = Gfx::measure_text(leading_text);
 
@@ -1285,30 +1276,31 @@ impl Doc {
 
         let desired_x = position.x;
         position = self.clamp_position(position);
-        position.x = Gfx::find_x_for_visual_x(&self.lines[position.y as usize], desired_x);
+        position.x = Gfx::find_x_for_visual_x(&self.lines[position.y as usize][..], desired_x);
 
         position
     }
 
     pub fn trim_trailing_whitespace(&mut self, line_pool: &mut LinePool, time: f32) {
-        for y in 0..self.lines.len() {
-            let line = &self.lines[y];
-            let mut whitespace_start = 0;
+        // TODO:
+        // for y in 0..self.lines.len() {
+        //     let line = &self.lines[y];
+        //     let mut whitespace_start = 0;
 
-            for (i, c) in line.iter().enumerate().rev() {
-                if !c.is_whitespace() {
-                    whitespace_start = i + 1;
-                    break;
-                }
-            }
+        //     for (i, c) in line.iter().enumerate().rev() {
+        //         if !c.is_whitespace() {
+        //             whitespace_start = i + 1;
+        //             break;
+        //         }
+        //     }
 
-            if whitespace_start < line.len() {
-                let start = Position::new(whitespace_start as isize, y as isize);
-                let end = Position::new(line.len() as isize, y as isize);
+        //     if whitespace_start < line.len() {
+        //         let start = Position::new(whitespace_start as isize, y as isize);
+        //         let end = Position::new(line.len() as isize, y as isize);
 
-                self.delete(start, end, line_pool, time);
-            }
-        }
+        //         self.delete(start, end, line_pool, time);
+        //     }
+        // }
     }
 
     fn set_path(&mut self, path: PathBuf) -> io::Result<()> {
@@ -1389,7 +1381,7 @@ impl Doc {
 
         let (line_ending, len) = self.get_line_ending_and_len(&string);
 
-        self.insert(Position::zero(), string.chars().take(len), line_pool, time);
+        self.insert(Position::zero(), &string[..len], line_pool, time);
         self.reset_edit_state();
         self.line_ending = line_ending;
 
@@ -1414,12 +1406,7 @@ impl Doc {
         let (line_ending, len) = self.get_line_ending_and_len(&string);
 
         self.line_ending = line_ending;
-        self.insert(
-            Position::zero(),
-            string.chars().take(len),
-            &mut buffers.lines,
-            time,
-        );
+        self.insert(Position::zero(), &string[..len], &mut buffers.lines, time);
 
         self.is_saved = true;
 
@@ -1518,7 +1505,7 @@ impl Doc {
         self.kind
     }
 
-    pub fn copy_at_cursors(&mut self, text: &mut Vec<char>) -> bool {
+    pub fn copy_at_cursors(&mut self, text: &mut String) -> bool {
         let mut was_copy_implicit = true;
 
         for index in self.cursor_indices() {
@@ -1527,7 +1514,7 @@ impl Doc {
             if let Some(selection) = cursor.get_selection() {
                 was_copy_implicit = false;
 
-                self.collect_chars(selection.start, selection.end, text);
+                self.collect_string(selection.start, selection.end, text);
             } else {
                 self.copy_line_at_position(cursor.position, text);
             }
@@ -1540,18 +1527,18 @@ impl Doc {
         was_copy_implicit
     }
 
-    pub fn copy_line_at_position(&mut self, position: Position, text: &mut Vec<char>) {
+    pub fn copy_line_at_position(&mut self, position: Position, text: &mut String) {
         let start = Position::new(0, position.y);
         let end = Position::new(self.get_line_len(start.y), start.y);
 
-        self.collect_chars(start, end, text);
+        self.collect_string(start, end, text);
         text.push('\n');
     }
 
     pub fn paste_at_cursor(
         &mut self,
         index: CursorIndex,
-        text: &[char],
+        text: &str,
         was_copy_implicit: bool,
         line_pool: &mut LinePool,
         time: f32,
@@ -1570,15 +1557,16 @@ impl Doc {
 
     pub fn paste_at_cursors(
         &mut self,
-        text: &[char],
+        text: &str,
         was_copy_implicit: bool,
         line_pool: &mut LinePool,
         time: f32,
     ) {
+        // TODO:
         let mut line_count = 1;
 
-        for c in text {
-            if *c == '\n' {
+        for c in text.chars() {
+            if c == '\n' {
                 line_count += 1;
             }
         }
@@ -1587,33 +1575,33 @@ impl Doc {
             self.cursors_len() > 1 && line_count % self.cursors_len() == 0;
 
         if do_spread_lines_between_cursors {
-            let lines_per_cursor = line_count / self.cursors_len();
-            let mut i = 0;
+            // let lines_per_cursor = line_count / self.cursors_len();
+            // let mut i = 0;
 
-            for index in self.cursor_indices() {
-                for line_i in 0..lines_per_cursor {
-                    while i < text.len() {
-                        let c = text[i];
-                        i += 1;
+            // for index in self.cursor_indices() {
+            //     for line_i in 0..lines_per_cursor {
+            //         while i < text.len() {
+            //             let c = text[i];
+            //             i += 1;
 
-                        if c == '\n' {
-                            if line_i < lines_per_cursor - 1 {
-                                self.paste_at_cursor(
-                                    index,
-                                    &[c],
-                                    was_copy_implicit,
-                                    line_pool,
-                                    time,
-                                );
-                            }
+            //             if c == '\n' {
+            //                 if line_i < lines_per_cursor - 1 {
+            //                     self.paste_at_cursor(
+            //                         index,
+            //                         &[c],
+            //                         was_copy_implicit,
+            //                         line_pool,
+            //                         time,
+            //                     );
+            //                 }
 
-                            break;
-                        }
+            //                 break;
+            //             }
 
-                        self.paste_at_cursor(index, &[c], was_copy_implicit, line_pool, time);
-                    }
-                }
-            }
+            //             self.paste_at_cursor(index, &[c], was_copy_implicit, line_pool, time);
+            //         }
+            //     }
+            // }
         } else {
             for index in self.cursor_indices() {
                 self.paste_at_cursor(index, text, was_copy_implicit, line_pool, time);
@@ -1725,7 +1713,7 @@ impl Doc {
         };
 
         let Some(position) = self.search(
-            &line[selection.start.x as usize..selection.end.x as usize],
+            &line[selection.start.x..selection.end.x],
             cursor.position,
             false,
         ) else {
@@ -1808,20 +1796,16 @@ impl Doc {
 
 impl Display for Doc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let line_ending_chars: &[char] = match self.line_ending {
-            LineEnding::Lf => &['\n'],
-            LineEnding::CrLf => &['\r', '\n'],
+        let line_ending_str = match self.line_ending {
+            LineEnding::Lf => "\n",
+            LineEnding::CrLf => "\r\n",
         };
 
         for (i, line) in self.lines.iter().enumerate() {
-            for c in line {
-                f.write_char(*c)?;
-            }
+            f.write_str(&line[..])?;
 
             if i != self.lines.len() - 1 {
-                for c in line_ending_chars {
-                    f.write_char(*c)?;
-                }
+                f.write_str(line_ending_str)?;
             }
         }
 

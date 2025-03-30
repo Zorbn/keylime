@@ -1,21 +1,21 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum CharCategory {
+pub enum GraphemeCategory {
     Identifier,
     Symbol,
     Space,
     Newline,
 }
 
-impl CharCategory {
-    pub fn new(c: char) -> CharCategory {
-        if c == '\n' {
-            CharCategory::Newline
-        } else if c.is_whitespace() {
-            CharCategory::Space
-        } else if c.is_alphanumeric() || c == '_' {
-            CharCategory::Identifier
+impl GraphemeCategory {
+    pub fn new(grapheme: &str) -> GraphemeCategory {
+        if grapheme == "\n" {
+            GraphemeCategory::Newline
+        } else if grapheme.chars().all(|c| c.is_whitespace()) {
+            GraphemeCategory::Space
+        } else if grapheme.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            GraphemeCategory::Identifier
         } else {
-            CharCategory::Symbol
+            GraphemeCategory::Symbol
         }
     }
 }

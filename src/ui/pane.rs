@@ -53,7 +53,7 @@ impl<T> Pane<T> {
             let doc = (get_doc)(data);
 
             let tab_width = gfx.glyph_width() * 4.0
-                + Gfx::measure_text(doc.file_name().chars()) as f32 * gfx.glyph_width();
+                + Gfx::measure_text(doc.file_name()) as f32 * gfx.glyph_width();
 
             let tab_bounds = Rect::new(tab_x, bounds.y, tab_width, tab_height);
             let doc_bounds = bounds.shrink_top_by(tab_bounds);

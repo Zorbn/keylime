@@ -1,14 +1,12 @@
-use std::cmp::Ordering;
-
 use crate::{
     config::language::Language,
     editor_buffers::EditorBuffers,
     geometry::position::Position,
     platform::window::Window,
-    temp_buffer::TempBuffer,
+    temp_buffer::TempString,
     text::{
-        action_history::ActionKind, cursor_index::CursorIndex, doc::Doc, line_pool::LinePool,
-        selection::Selection,
+        action_history::ActionKind, cursor_index::CursorIndex, doc::Doc,
+        grapheme::grapheme_is_whitespace, line_pool::LinePool,
     },
 };
 
@@ -24,32 +22,33 @@ enum DeleteKind {
     Line,
 }
 
-pub fn handle_char(c: char, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
+pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
 
-        let current_char = doc.get_char(cursor.position);
+        let current_grapheme = doc.get_grapheme(cursor.position);
 
         let previous_position = doc.move_position(cursor.position, Position::new(-1, 0));
-        let previous_char = doc.get_char(previous_position);
+        let previous_grapheme = doc.get_grapheme(previous_position);
 
-        if is_matching_char(c) && c == current_char {
+        if is_matching_grapheme(grapheme) && current_grapheme == grapheme {
             doc.move_cursor(index, Position::new(1, 0), false);
 
             continue;
         }
 
-        if let Some(matching_char) = get_matching_char(c).filter(|c| {
-            (current_char == *c || current_char.is_whitespace())
-                && (*c != '\'' || previous_char.is_whitespace())
+        if let Some(matching_grapheme) = get_matching_grapheme(grapheme).filter(|grapheme| {
+            (current_grapheme == *grapheme || grapheme_is_whitespace(current_grapheme))
+                && (*grapheme != "'" || grapheme_is_whitespace(previous_grapheme))
         }) {
-            doc.insert_at_cursor(index, &[c, matching_char], line_pool, time);
+            doc.insert_at_cursor(index, grapheme, line_pool, time);
+            doc.insert_at_cursor(index, matching_grapheme, line_pool, time);
             doc.move_cursor(index, Position::new(-1, 0), false);
 
             continue;
         }
 
-        doc.insert_at_cursor(index, &[c], line_pool, time);
+        doc.insert_at_cursor(index, grapheme, line_pool, time);
     }
 }
 
@@ -312,9 +311,11 @@ fn handle_delete_backward(
                         doc.get_indent_start(end, indent_width)
                     } else {
                         let start = doc.move_position(end, Position::new(-1, 0));
-                        let start_char = doc.get_char(start);
+                        let start_char = doc.get_grapheme(start);
 
-                        if get_matching_char(start_char) == Some(doc.get_char(cursor.position)) {
+                        if get_matching_grapheme(start_char)
+                            == Some(doc.get_grapheme(cursor.position))
+                        {
                             end = doc.move_position(end, Position::new(1, 0));
                         }
 
@@ -370,10 +371,10 @@ fn handle_enter(
         let mut indent_position = Position::new(0, cursor.position.y);
 
         while indent_position < cursor.position {
-            let c = doc.get_char(indent_position);
+            let grapheme = doc.get_grapheme(indent_position);
 
-            if c.is_whitespace() {
-                text_buffer.push(c);
+            if grapheme_is_whitespace(grapheme) {
+                text_buffer.push_str(grapheme);
                 indent_position = doc.move_position(indent_position, Position::new(1, 0));
             } else {
                 break;
@@ -382,9 +383,9 @@ fn handle_enter(
 
         let previous_position = doc.move_position(cursor.position, Position::new(-1, 0));
         let do_start_block =
-            doc.get_char(previous_position) == '{' && doc.get_char(cursor.position) == '}';
+            doc.get_grapheme(previous_position) == "{" && doc.get_grapheme(cursor.position) == "}";
 
-        doc.insert_at_cursor(index, &['\n'], &mut buffers.lines, time);
+        doc.insert_at_cursor(index, "\n", &mut buffers.lines, time);
         doc.insert_at_cursor(index, text_buffer, &mut buffers.lines, time);
 
         if do_start_block {
@@ -396,7 +397,7 @@ fn handle_enter(
 
             let cursor_position = doc.get_cursor(index).position;
 
-            doc.insert_at_cursor(index, &['\n'], &mut buffers.lines, time);
+            doc.insert_at_cursor(index, "\n", &mut buffers.lines, time);
             doc.insert_at_cursor(index, text_buffer, &mut buffers.lines, time);
 
             doc.jump_cursor(index, cursor_position, false);
@@ -471,7 +472,7 @@ fn handle_cut(window: &mut Window, doc: &mut Doc, buffers: &mut EditorBuffers, t
     }
 }
 
-pub fn handle_copy(window: &mut Window, doc: &mut Doc, text_buffer: &mut TempBuffer<char>) {
+pub fn handle_copy(window: &mut Window, doc: &mut Doc, text_buffer: &mut TempString) {
     let text_buffer = text_buffer.get_mut();
     let was_copy_implicit = doc.copy_at_cursors(text_buffer);
 
@@ -480,107 +481,107 @@ pub fn handle_copy(window: &mut Window, doc: &mut Doc, text_buffer: &mut TempBuf
 
 fn handle_paste(window: &mut Window, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
     let was_copy_implicit = window.was_copy_implicit();
-    let text = window.get_clipboard().unwrap_or(&[]);
+    let text = window.get_clipboard().unwrap_or("");
 
     doc.paste_at_cursors(text, was_copy_implicit, line_pool, time);
 }
 
 fn handle_shift_lines(direction: isize, doc: &mut Doc, buffers: &mut EditorBuffers, time: f32) {
-    let direction = direction.signum();
+    // let direction = direction.signum();
 
-    for index in doc.cursor_indices() {
-        let cursor = doc.get_cursor(index);
-        let cursor_position = cursor.position;
-        let cursor_selection = cursor.get_selection();
+    // for index in doc.cursor_indices() {
+    //     let cursor = doc.get_cursor(index);
+    //     let cursor_position = cursor.position;
+    //     let cursor_selection = cursor.get_selection();
 
-        let had_selection = cursor_selection.is_some();
-        let cursor_selection = cursor_selection.unwrap_or(Selection {
-            start: cursor_position,
-            end: cursor_position,
-        });
+    //     let had_selection = cursor_selection.is_some();
+    //     let cursor_selection = cursor_selection.unwrap_or(Selection {
+    //         start: cursor_position,
+    //         end: cursor_position,
+    //     });
 
-        match direction.cmp(&0) {
-            Ordering::Less => {
-                if cursor_selection.start.y == 0 {
-                    continue;
-                }
-            }
-            Ordering::Greater => {
-                if cursor_selection.end.y == doc.lines().len() as isize - 1 {
-                    continue;
-                }
-            }
-            Ordering::Equal => continue,
-        };
+    //     match direction.cmp(&0) {
+    //         Ordering::Less => {
+    //             if cursor_selection.start.y == 0 {
+    //                 continue;
+    //             }
+    //         }
+    //         Ordering::Greater => {
+    //             if cursor_selection.end.y == doc.lines().len() as isize - 1 {
+    //                 continue;
+    //             }
+    //         }
+    //         Ordering::Equal => continue,
+    //     };
 
-        let selection = cursor_selection.trim_lines_without_selected_chars();
+    //     let selection = cursor_selection.trim_lines_without_selected_chars();
 
-        let text_buffer = buffers.text.get_mut();
+    //     let text_buffer = buffers.text.get_mut();
 
-        let mut start = Position::new(0, selection.start.y);
-        let mut end = Position::new(doc.get_line_len(selection.end.y), selection.end.y);
+    //     let mut start = Position::new(0, selection.start.y);
+    //     let mut end = Position::new(doc.get_line_len(selection.end.y), selection.end.y);
 
-        if direction > 0 {
-            text_buffer.push('\n');
-        }
+    //     if direction > 0 {
+    //         text_buffer.push('\n');
+    //     }
 
-        doc.collect_chars(start, end, text_buffer);
+    //     doc.collect_chars(start, end, text_buffer);
 
-        if direction < 0 {
-            text_buffer.push('\n');
-        }
+    //     if direction < 0 {
+    //         text_buffer.push('\n');
+    //     }
 
-        if end.y as usize == doc.lines().len() - 1 {
-            start = doc.move_position(start, Position::new(-1, 0));
-        } else {
-            end = doc.move_position(end, Position::new(1, 0));
-        }
+    //     if end.y as usize == doc.lines().len() - 1 {
+    //         start = doc.move_position(start, Position::new(-1, 0));
+    //     } else {
+    //         end = doc.move_position(end, Position::new(1, 0));
+    //     }
 
-        doc.delete(start, end, &mut buffers.lines, time);
+    //     doc.delete(start, end, &mut buffers.lines, time);
 
-        let insert_start = if direction < 0 {
-            Position::new(0, selection.start.y - 1)
-        } else {
-            Position::new(doc.get_line_len(selection.start.y), selection.start.y)
-        };
+    //     let insert_start = if direction < 0 {
+    //         Position::new(0, selection.start.y - 1)
+    //     } else {
+    //         Position::new(doc.get_line_len(selection.start.y), selection.start.y)
+    //     };
 
-        doc.insert(insert_start, text_buffer.iter(), &mut buffers.lines, time);
+    //     doc.insert(insert_start, text_buffer.iter(), &mut buffers.lines, time);
 
-        // Reset the selection to prevent it being expanded by the latest insert.
-        if had_selection {
-            let new_selection_start = Position::new(
-                cursor_selection.start.x,
-                cursor_selection.start.y + direction,
-            );
-            let new_selection_end =
-                Position::new(cursor_selection.end.x, cursor_selection.end.y + direction);
+    //     // Reset the selection to prevent it being expanded by the latest insert.
+    //     if had_selection {
+    //         let new_selection_start = Position::new(
+    //             cursor_selection.start.x,
+    //             cursor_selection.start.y + direction,
+    //         );
+    //         let new_selection_end =
+    //             Position::new(cursor_selection.end.x, cursor_selection.end.y + direction);
 
-            if cursor_position == cursor_selection.start {
-                doc.jump_cursor(index, new_selection_end, false);
-                doc.jump_cursor(index, new_selection_start, true);
-            } else {
-                doc.jump_cursor(index, new_selection_start, false);
-                doc.jump_cursor(index, new_selection_end, true);
-            }
-        } else {
-            let new_position = Position::new(cursor_position.x, cursor_position.y + direction);
+    //         if cursor_position == cursor_selection.start {
+    //             doc.jump_cursor(index, new_selection_end, false);
+    //             doc.jump_cursor(index, new_selection_start, true);
+    //         } else {
+    //             doc.jump_cursor(index, new_selection_start, false);
+    //             doc.jump_cursor(index, new_selection_end, true);
+    //         }
+    //     } else {
+    //         let new_position = Position::new(cursor_position.x, cursor_position.y + direction);
 
-            doc.jump_cursor(index, new_position, false);
-        }
-    }
+    //         doc.jump_cursor(index, new_position, false);
+    //     }
+    // }
 }
 
-fn get_matching_char(c: char) -> Option<char> {
-    match c {
-        '"' => Some('"'),
-        '\'' => Some('\''),
-        '(' => Some(')'),
-        '[' => Some(']'),
-        '{' => Some('}'),
+fn get_matching_grapheme(grapheme: &str) -> Option<&str> {
+    match grapheme {
+        "\"" => Some("\""),
+        "'" => Some("'"),
+        "(" => Some(")"),
+        "[" => Some("]"),
+        "{" => Some("}"),
         _ => None,
     }
 }
 
-fn is_matching_char(c: char) -> bool {
-    matches!(c, '"' | '\'' | ')' | ']' | '}')
+fn is_matching_grapheme(grapheme: &str) -> bool {
+    matches!(grapheme, "\"" | "'" | ")" | "]" | "}")
 }
