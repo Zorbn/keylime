@@ -6,7 +6,7 @@ use std::{
 use windows::{
     core::{Result, HSTRING},
     Win32::{
-        Foundation::{CloseHandle, FALSE, HANDLE, TRUE, WAIT_OBJECT_0},
+        Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0},
         Storage::FileSystem::*,
         System::{
             Threading::{CreateEventW, WaitForSingleObject},
@@ -29,7 +29,7 @@ impl DirWatchHandles {
             self.dir_handle,
             self.buffer.as_ptr() as _,
             self.buffer.len() as u32,
-            TRUE,
+            true,
             FILE_NOTIFY_CHANGE_LAST_WRITE,
             None,
             Some(&mut self.overlapped),
@@ -131,7 +131,7 @@ impl FileWatcher {
                 let path = HSTRING::from(dir.as_os_str());
 
                 let overlapped = OVERLAPPED {
-                    hEvent: CreateEventW(None, FALSE, None, None)?,
+                    hEvent: CreateEventW(None, false, false, None)?,
                     ..Default::default()
                 };
 

@@ -2,12 +2,11 @@ use std::{ffi::c_void, ptr::null, slice::from_raw_parts};
 
 use windows::{
     core::{implement, w, Error, Interface, Result, HSTRING, PCWSTR},
-    Foundation::Numerics::Matrix3x2,
     Win32::{
-        Foundation::{BOOL, DWRITE_E_NOCOLOR, E_FAIL, FALSE, TRUE},
+        Foundation::{DWRITE_E_NOCOLOR, E_FAIL, FALSE, TRUE},
         Graphics::{
             Direct2D::{
-                Common::{D2D1_COLOR_F, D2D1_PIXEL_FORMAT, D2D_POINT_2F},
+                Common::{D2D1_COLOR_F, D2D1_PIXEL_FORMAT},
                 *,
             },
             DirectWrite::*,
@@ -20,6 +19,8 @@ use windows::{
         System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER},
     },
 };
+use windows_core::{IUnknown, Ref, BOOL};
+use windows_numerics::{Matrix3x2, Vector2};
 use Common::{D2D1_ALPHA_MODE_IGNORE, D2D1_ALPHA_MODE_PREMULTIPLIED};
 
 use crate::{
@@ -124,7 +125,7 @@ impl Text {
         font_face.GetGlyphIndices(['M' as u32].as_ptr(), 1, &mut m_glyph_index)?;
 
         let mut m_glyph_metrics = DWRITE_GLYPH_METRICS::default();
-        font_face.GetDesignGlyphMetrics(&m_glyph_index, 1, &mut m_glyph_metrics, FALSE)?;
+        font_face.GetDesignGlyphMetrics(&m_glyph_index, 1, &mut m_glyph_metrics, false)?;
 
         let glyph_width = ((m_glyph_metrics.advanceWidth as f32) * glyph_metrics_scale).ceil();
         let line_height = ((font_metrics.ascent as f32
@@ -167,7 +168,7 @@ impl Text {
         font_fallback_builder.AddMappings(&system_font_fallback)?;
 
         let mut system_font_collection = None;
-        dwrite_factory.GetSystemFontCollection(FALSE, &mut system_font_collection, FALSE)?;
+        dwrite_factory.GetSystemFontCollection(false, &mut system_font_collection, false)?;
 
         Ok(Self {
             dwrite_factory,
@@ -193,7 +194,7 @@ impl Text {
         font_face.GetMetrics(&mut font_metrics);
 
         let mut glyph_metrics = DWRITE_GLYPH_METRICS::default();
-        font_face.GetDesignGlyphMetrics(&glyph.index, 1, &mut glyph_metrics, FALSE)?;
+        font_face.GetDesignGlyphMetrics(&glyph.index, 1, &mut glyph_metrics, false)?;
 
         let left = glyph_metrics.leftSideBearing as f32 * self.glyph_metrics_scale;
         let top = (glyph_metrics.topSideBearing - glyph_metrics.verticalOriginY) as f32
@@ -213,9 +214,9 @@ impl Text {
             width, height, glyph_metrics.leftSideBearing, glyph_metrics.rightSideBearing
         );
 
-        let origin = D2D_POINT_2F {
-            x: -left.ceil() + ATLAS_PADDING,
-            y: -top.ceil() + ATLAS_PADDING,
+        let origin = Vector2 {
+            X: -left.ceil() + ATLAS_PADDING,
+            Y: -top.ceil() + ATLAS_PADDING,
         };
 
         let translated_runs = self.dwrite_factory.TranslateColorGlyphRun(
@@ -442,7 +443,7 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
         measuring_mode: DWRITE_MEASURING_MODE,
         glyph_run: *const DWRITE_GLYPH_RUN,
         _glyph_run_description: *const DWRITE_GLYPH_RUN_DESCRIPTION,
-        _client_drawing_effect: Option<&windows_core::IUnknown>,
+        _client_drawing_effect: Ref<IUnknown>,
     ) -> Result<()> {
         let context = client_drawing_context as *mut DrawingContext;
         let context = unsafe { context.as_mut().unwrap() };
@@ -456,7 +457,7 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
                 fontFace: glyph_run.fontFace.clone(),
                 fontEmSize: glyph_run.fontEmSize,
                 glyphCount: 1,
-                glyphIndices: [*glyph_index].as_ptr(),
+                glyphIndices: glyph_index,
                 glyphAdvances: [0.0].as_ptr(),
                 glyphOffsets: [DWRITE_GLYPH_OFFSET::default()].as_ptr(),
                 isSideways: FALSE,
@@ -486,7 +487,7 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
         _baseline_origin_x: f32,
         _baseline_origin_y: f32,
         _underline: *const DWRITE_UNDERLINE,
-        _client_drawing_effect: Option<&windows_core::IUnknown>,
+        _client_drawing_effect: Ref<IUnknown>,
     ) -> Result<()> {
         Ok(())
     }
@@ -497,7 +498,7 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
         _baseline_origin_x: f32,
         _baseline_origin_y: f32,
         _strikethrough: *const DWRITE_STRIKETHROUGH,
-        _client_drawing_effect: Option<&windows_core::IUnknown>,
+        _client_drawing_effect: Ref<IUnknown>,
     ) -> Result<()> {
         Ok(())
     }
@@ -507,10 +508,10 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
         _client_drawing_context: *const c_void,
         _origin_x: f32,
         _origin_y: f32,
-        _inline_object: Option<&IDWriteInlineObject>,
+        _inline_object: Ref<IDWriteInlineObject>,
         _is_sideways: BOOL,
         _is_right_to_left: BOOL,
-        _client_drawing_effect: Option<&windows_core::IUnknown>,
+        _client_drawing_effect: Ref<IUnknown>,
     ) -> Result<()> {
         Ok(())
     }

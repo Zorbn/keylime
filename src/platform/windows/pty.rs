@@ -1,5 +1,5 @@
 use std::{
-    ptr::{copy_nonoverlapping, null_mut},
+    ptr::copy_nonoverlapping,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
@@ -7,7 +7,7 @@ use std::{
 use windows::{
     core::{Result, HSTRING, PWSTR},
     Win32::{
-        Foundation::{CloseHandle, FALSE, HANDLE},
+        Foundation::{CloseHandle, HANDLE},
         Storage::FileSystem::{ReadFile, WriteFile},
         System::{
             Console::{ClosePseudoConsole, CreatePseudoConsole, ResizePseudoConsole, COORD, HPCON},
@@ -67,7 +67,7 @@ impl Pty {
 
             process_info = Self::create_process(hpcon, child_paths)?;
 
-            event = CreateEventW(None, FALSE, FALSE, None)?;
+            event = CreateEventW(None, false, false, None)?;
         }
 
         let output = Arc::new(Mutex::new(Vec::new()));
@@ -99,7 +99,6 @@ impl Pty {
 
         for child_path in child_paths {
             let child_application = HSTRING::from(*child_path);
-            let child_application = child_application.as_wide();
             let child_application_len = child_application.len() + 1;
 
             let command = HeapAlloc(
@@ -116,10 +115,10 @@ impl Pty {
 
             child_result = CreateProcessW(
                 None,
-                PWSTR(command as _),
+                Some(PWSTR(command as _)),
                 None,
                 None,
-                FALSE,
+                false,
                 EXTENDED_STARTUPINFO_PRESENT,
                 None,
                 None,
@@ -149,21 +148,15 @@ impl Pty {
         let process_heap = GetProcessHeap()?;
 
         let mut bytes_required = 0;
-        let _ = InitializeProcThreadAttributeList(
-            LPPROC_THREAD_ATTRIBUTE_LIST(null_mut()),
-            1,
-            0,
-            &mut bytes_required,
-        );
+        let _ = InitializeProcThreadAttributeList(None, 1, None, &mut bytes_required);
 
         let attribute_list =
             LPPROC_THREAD_ATTRIBUTE_LIST(HeapAlloc(process_heap, HEAP_FLAGS(0), bytes_required));
 
-        InitializeProcThreadAttributeList(attribute_list, 1, 0, &mut bytes_required).inspect_err(
-            |_| {
+        InitializeProcThreadAttributeList(Some(attribute_list), 1, None, &mut bytes_required)
+            .inspect_err(|_| {
                 let _ = HeapFree(process_heap, HEAP_FLAGS(0), Some(attribute_list.0));
-            },
-        )?;
+            })?;
 
         UpdateProcThreadAttribute(
             attribute_list,

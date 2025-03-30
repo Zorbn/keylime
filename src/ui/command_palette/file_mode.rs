@@ -295,7 +295,7 @@ fn does_path_match_prefix(prefix: &Path, path: &Path) -> bool {
         }
 
         for (prefix_char, path_char) in prefix_component.chars().zip(path_component.chars()) {
-            if prefix_char.to_ascii_lowercase() != path_char.to_ascii_lowercase() {
+            if !prefix_char.eq_ignore_ascii_case(&path_char) {
                 return false;
             }
         }

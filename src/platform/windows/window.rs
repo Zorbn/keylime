@@ -9,8 +9,7 @@ use windows::{
     core::{w, Result},
     Win32::{
         Foundation::{
-            GlobalFree, BOOL, FALSE, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, RECT, WAIT_OBJECT_0,
-            WPARAM,
+            GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, RECT, WAIT_OBJECT_0, WPARAM,
         },
         Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE},
         System::{
@@ -37,6 +36,7 @@ use windows::{
         },
     },
 };
+use windows_core::BOOL;
 
 use crate::{
     app::App,
@@ -104,7 +104,7 @@ impl WindowRunner {
                 0,
                 None,
                 None,
-                window_class.hInstance,
+                Some(window_class.hInstance),
                 Some(lparam.cast()),
             )?;
 
@@ -375,7 +375,7 @@ impl Window {
 
                 let result = MsgWaitForMultipleObjects(
                     Some(&self.wait_handles),
-                    FALSE,
+                    false,
                     INFINITE,
                     QS_ALLINPUT,
                 );
@@ -392,7 +392,7 @@ impl Window {
 
             self.file_watcher.inner.check_dir_updates().unwrap();
 
-            while PeekMessageW(&mut msg, self.hwnd, 0, 0, PM_REMOVE).as_bool() {
+            while PeekMessageW(&mut msg, Some(self.hwnd), 0, 0, PM_REMOVE).as_bool() {
                 let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
@@ -460,7 +460,7 @@ impl Window {
         wide_text_buffer.push(0);
 
         unsafe {
-            OpenClipboard(self.hwnd)?;
+            OpenClipboard(Some(self.hwnd))?;
 
             defer!({
                 let _ = CloseClipboard();
@@ -469,7 +469,7 @@ impl Window {
             let hglobal = GlobalAlloc(GMEM_MOVEABLE, wide_text_buffer.len() * size_of::<u16>())?;
 
             defer!({
-                let _ = GlobalFree(hglobal);
+                let _ = GlobalFree(Some(hglobal));
             });
 
             let memory = GlobalLock(hglobal) as *mut u16;
@@ -478,7 +478,7 @@ impl Window {
 
             let _ = GlobalUnlock(hglobal);
 
-            SetClipboardData(CF_UNICODETEXT.0 as u32, HANDLE(hglobal.0))?;
+            SetClipboardData(CF_UNICODETEXT.0 as u32, Some(HANDLE(hglobal.0)))?;
         }
 
         Ok(())
@@ -489,7 +489,7 @@ impl Window {
         let wide_text_buffer = self.wide_text_buffer.get_mut();
 
         unsafe {
-            OpenClipboard(self.hwnd)?;
+            OpenClipboard(Some(self.hwnd))?;
 
             defer!({
                 let _ = CloseClipboard();
@@ -498,7 +498,7 @@ impl Window {
             let hglobal = GlobalAlloc(GMEM_MOVEABLE, wide_text_buffer.len() * size_of::<u16>())?;
 
             defer!({
-                let _ = GlobalFree(hglobal);
+                let _ = GlobalFree(Some(hglobal));
             });
 
             let hglobal = HGLOBAL(GetClipboardData(CF_UNICODETEXT.0 as u32)?.0);
@@ -637,7 +637,7 @@ impl Window {
                 self.draggable_buttons.clear();
                 self.current_click = None;
 
-                let _ = PostMessageW(self.hwnd, WM_PAINT, None, None);
+                let _ = PostMessageW(Some(self.hwnd), WM_PAINT, WPARAM(0), LPARAM(0));
             }
             WM_CHAR => {
                 if let Some(c) = char::from_u32(wparam.0 as u32) {

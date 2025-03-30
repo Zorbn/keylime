@@ -1,10 +1,14 @@
 use core::str;
-use std::{mem::offset_of, ptr::copy_nonoverlapping, slice::from_raw_parts};
+use std::{
+    mem::offset_of,
+    ptr::{copy_nonoverlapping, null_mut},
+    slice::from_raw_parts,
+};
 
 use windows::{
     core::{s, Result},
     Win32::{
-        Foundation::{RECT, TRUE},
+        Foundation::{HMODULE, RECT, TRUE},
         Graphics::{
             Direct3D::{
                 Fxc::{D3DCompile, D3DCOMPILE_DEBUG},
@@ -152,7 +156,7 @@ impl Gfx {
             D3D11CreateDevice(
                 None,
                 D3D_DRIVER_TYPE_HARDWARE,
-                None,
+                HMODULE(null_mut()),
                 flags,
                 Some(&[D3D_FEATURE_LEVEL_11_0]),
                 D3D11_SDK_VERSION,

@@ -12,10 +12,9 @@ basic-toml = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows-core = "0.58"
-windows = { version = "0.58", features = [
-    "implement",
-    "Foundation_Numerics",
+windows-core = "0.61"
+windows-numerics = "0.2"
+windows = { version = "0.61", features = [
     "Win32_Graphics_DirectWrite",
     "Win32_Graphics_Direct2D",
     "Win32_Graphics_Direct2D_Common",
