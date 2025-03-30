@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, vec::Drain};
+use std::vec::Drain;
 
 use crate::{
     config::Config,
@@ -220,11 +220,11 @@ impl<T> ResultList<T> {
         );
     }
 
-    pub fn draw<'a, C: Iterator<Item = impl Borrow<char>> + Clone>(
+    pub fn draw<'a>(
         &'a mut self,
         config: &Config,
         gfx: &mut Gfx,
-        result_to_chars: fn(&'a T) -> C,
+        result_to_str: fn(&'a T) -> &'a str,
     ) {
         gfx.begin(Some(self.results_bounds));
 
@@ -253,9 +253,9 @@ impl<T> ResultList<T> {
             };
 
             let result = &self.results[y];
-            let chars = result_to_chars(result);
+            let string = result_to_str(result);
 
-            gfx.add_text(chars, gfx.glyph_width(), visual_y, color);
+            gfx.add_text(string, gfx.glyph_width(), visual_y, color);
         }
 
         gfx.end();

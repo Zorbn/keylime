@@ -20,7 +20,6 @@ use crate::{
         gfx::SpriteKind,
         text_cache::{AtlasDimensions, GlyphCacheResult, GlyphSpan, GlyphSpans},
     },
-    text::text_trait,
     ui::color::Color,
 };
 
@@ -250,7 +249,7 @@ impl Gfx {
         self.text = AnyText::new(font_name, font_size, scale).unwrap();
     }
 
-    pub fn get_glyph_spans(&mut self, text: text_trait!()) -> GlyphSpans {
+    pub fn get_glyph_spans(&mut self, text: &str) -> GlyphSpans {
         let (spans, result) = self.text.get_glyph_spans(text);
         self.glyph_cache_result = self.glyph_cache_result.worse(result);
 

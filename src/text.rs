@@ -13,14 +13,3 @@ pub mod syntax_highlighter;
 pub mod tokenizer;
 mod trie;
 pub mod utf32;
-
-macro_rules! text_trait {
-    () => {
-        impl IntoIterator<Item = impl std::borrow::Borrow<char>> + Clone
-    };
-    (move) => {
-        impl IntoIterator<Item = impl std::borrow::Borrow<char>>
-    };
-}
-
-pub(crate) use text_trait;

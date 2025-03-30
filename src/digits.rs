@@ -1,4 +1,6 @@
-pub fn get_digits(mut x: usize, digits: &mut [char; 20]) -> &[char] {
+use core::str;
+
+pub fn get_digits(mut x: usize, digits: &mut [u8; 20]) -> &str {
     let mut digit_count = 0;
 
     while x > 0 {
@@ -8,7 +10,7 @@ pub fn get_digits(mut x: usize, digits: &mut [char; 20]) -> &[char] {
 
         let digit_index = digits.len() - 1 - digit_count;
 
-        digits[digit_index] = digit;
+        digits[digit_index] = digit as u8;
 
         digit_count += 1;
         x /= 10;
@@ -16,5 +18,5 @@ pub fn get_digits(mut x: usize, digits: &mut [char; 20]) -> &[char] {
 
     let start_index = digits.len() - digit_count;
 
-    &digits[start_index..]
+    str::from_utf8(&digits[start_index..]).unwrap()
 }
