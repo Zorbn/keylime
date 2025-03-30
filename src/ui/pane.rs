@@ -222,11 +222,11 @@ impl<T> Pane<T> {
 
         let text_x = (tab_bounds.x + gfx.glyph_width() * 2.0).floor();
         let text_y = gfx.border_width() + gfx.tab_padding_y();
-        let text_width = gfx.add_text(doc.file_name().chars(), text_x, text_y, theme.normal);
+        let text_width = gfx.add_text(doc.file_name(), text_x, text_y, theme.normal);
 
         if !doc.is_saved() {
             gfx.add_text(
-                "*".chars(),
+                "*",
                 text_x + text_width as f32 * gfx.glyph_width(),
                 text_y,
                 theme.symbol,

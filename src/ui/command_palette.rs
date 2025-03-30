@@ -291,7 +291,7 @@ impl CommandPalette {
         );
 
         gfx.add_text(
-            self.mode.title.chars(),
+            self.mode.title,
             gfx.glyph_width(),
             gfx.border_width() + gfx.tab_padding_y(),
             config.theme.normal,
@@ -312,7 +312,7 @@ impl CommandPalette {
 
         self.tab.draw(None, &mut self.doc, config, gfx, is_focused);
 
-        self.result_list.draw(config, gfx, |result| result.chars());
+        self.result_list.draw(config, gfx, |result| result);
     }
 
     pub fn open(

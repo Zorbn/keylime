@@ -1,5 +1,3 @@
-use crate::text::text_trait;
-
 use super::{
     aliases::PlatformText,
     platform_impl::text::Glyph,
@@ -45,7 +43,7 @@ impl Text {
             inner.get_glyphs(
                 cache,
                 GlyphCacheResult::Miss,
-                "M".chars(),
+                "M",
                 |inner, cache, glyph, result| {
                     cache.atlas = inner.generate_atlas(glyph).unwrap();
                     result
@@ -56,16 +54,11 @@ impl Text {
         Ok(text)
     }
 
-    pub fn get_glyph_spans(&mut self, text: text_trait!()) -> (GlyphSpans, GlyphCacheResult) {
+    pub fn get_glyph_spans(&mut self, text: &str) -> (GlyphSpans, GlyphCacheResult) {
         let mut text_cache_data = self.cache.layout_data.borrow_mut();
 
         let data_start = text_cache_data.len();
-
-        for c in text.clone() {
-            let c = *c.borrow();
-            text_cache_data.push(c);
-        }
-
+        text_cache_data.push_str(text);
         let data_end = text_cache_data.len();
 
         let cached_text = CachedLayout {

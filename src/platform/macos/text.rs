@@ -4,12 +4,9 @@ use std::{
     ptr::{null_mut, NonNull},
 };
 
-use crate::{
-    platform::{
-        text::GlyphFn,
-        text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
-    },
-    text::text_trait,
+use crate::platform::{
+    text::GlyphFn,
+    text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
 };
 
 use super::result::Result;
@@ -29,7 +26,6 @@ pub struct Text {
     font: CFRetained<CTFont>,
 
     glyph_indices: Vec<u16>,
-    glyph_string: String,
 
     glyph_width: usize,
     line_height: usize,
@@ -93,7 +89,6 @@ impl Text {
             font,
 
             glyph_indices: Vec::new(),
-            glyph_string: String::new(),
 
             glyph_width,
             line_height,
@@ -175,18 +170,10 @@ impl Text {
         &mut self,
         text_cache: &mut TextCache,
         mut glyph_cache_result: GlyphCacheResult,
-        text: text_trait!(),
+        text: &str,
         glyph_fn: GlyphFn,
     ) -> GlyphCacheResult {
-        self.glyph_string.clear();
-
-        for c in text {
-            let c = *c.borrow();
-            self.glyph_string.push(c);
-        }
-
-        let attributed_string =
-            NSMutableAttributedString::from_nsstring(&NSString::from_str(&self.glyph_string));
+        let attributed_string = NSMutableAttributedString::from_nsstring(&NSString::from_str(text));
 
         attributed_string.beginEditing();
 

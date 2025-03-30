@@ -313,7 +313,7 @@ impl Editor {
 
         if self.is_cursor_visible(gfx) {
             self.completion_result_list
-                .draw(config, gfx, |result| result.chars());
+                .draw(config, gfx, |result| result);
         }
     }
 

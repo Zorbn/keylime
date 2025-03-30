@@ -6,10 +6,7 @@ use crate::{
         rect::Rect,
         side::{SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     },
-    text::{
-        grapheme::{grapheme_is_control, grapheme_is_whitespace},
-        text_trait,
-    },
+    text::grapheme::{grapheme_is_control, grapheme_is_whitespace},
     ui::color::Color,
 };
 
@@ -84,7 +81,7 @@ impl Gfx {
         }
     }
 
-    fn get_glyph_spans(&mut self, text: text_trait!()) -> GlyphSpans {
+    fn get_glyph_spans(&mut self, text: &str) -> GlyphSpans {
         self.inner.get_glyph_spans(text)
     }
 
@@ -92,15 +89,8 @@ impl Gfx {
         self.inner.get_glyph_span(glyph_spans, index)
     }
 
-    pub fn add_text(&mut self, text: text_trait!(), x: f32, y: f32, color: Color) -> isize {
-        let glyph_spans = self.get_glyph_spans(text.clone());
-
-        // TODO: Don't allocate every time, add_text should just accept a &str.
-        let mut text_str = String::new();
-        for c in text {
-            let c = *c.borrow();
-            text_str.push(c);
-        }
+    pub fn add_text(&mut self, text: &str, x: f32, y: f32, color: Color) -> isize {
+        let glyph_spans = self.get_glyph_spans(text);
 
         let AtlasDimensions {
             glyph_width,
@@ -110,7 +100,7 @@ impl Gfx {
 
         let mut offset = 0;
 
-        for (i, grapheme) in UnicodeSegmentation::graphemes(text_str.as_str(), true).enumerate() {
+        for (i, grapheme) in UnicodeSegmentation::graphemes(text, true).enumerate() {
             if grapheme_is_whitespace(grapheme) || grapheme_is_control(grapheme) {
                 offset += Self::measure_text(grapheme);
                 continue;

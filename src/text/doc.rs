@@ -25,7 +25,6 @@ use super::{
     selection::Selection,
     syntax::Syntax,
     syntax_highlighter::{HighlightedLine, SyntaxHighlighter, TerminalHighlightKind},
-    text_trait,
     tokenizer::Tokenizer,
     trie::Trie,
 };

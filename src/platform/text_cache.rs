@@ -51,7 +51,7 @@ pub struct GlyphSpans {
 }
 
 pub struct CachedLayout {
-    pub data: Rc<RefCell<Vec<char>>>,
+    pub data: Rc<RefCell<String>>,
     pub start: usize,
     pub end: usize,
 }
@@ -60,9 +60,7 @@ impl Hash for CachedLayout {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let data = self.data.borrow();
 
-        for c in &data[self.start..self.end] {
-            c.hash(state);
-        }
+        data[self.start..self.end].hash(state)
     }
 }
 
@@ -114,11 +112,11 @@ pub struct TextCache {
     glyph_cache: HashMap<u16, GlyphSpan>,
 
     pub last_glyph_spans: Vec<GlyphSpan>,
-    last_layout_data: Rc<RefCell<Vec<char>>>,
+    last_layout_data: Rc<RefCell<String>>,
     pub last_layout_cache: HashMap<CachedLayout, GlyphSpans>,
 
     pub glyph_spans: Vec<GlyphSpan>,
-    pub layout_data: Rc<RefCell<Vec<char>>>,
+    pub layout_data: Rc<RefCell<String>>,
     pub layout_cache: HashMap<CachedLayout, GlyphSpans>,
 
     needs_first_resize: bool,
@@ -133,11 +131,11 @@ impl TextCache {
             glyph_cache: HashMap::new(),
 
             last_glyph_spans: Vec::new(),
-            last_layout_data: Rc::new(RefCell::new(Vec::new())),
+            last_layout_data: Rc::new(RefCell::new(String::new())),
             last_layout_cache: HashMap::new(),
 
             glyph_spans: Vec::new(),
-            layout_data: Rc::new(RefCell::new(Vec::new())),
+            layout_data: Rc::new(RefCell::new(String::new())),
             layout_cache: HashMap::new(),
 
             needs_first_resize: true,

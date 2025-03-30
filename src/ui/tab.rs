@@ -344,7 +344,7 @@ impl Tab {
     ) {
         let cursor_y = doc.get_cursor(CursorIndex::Main).position.y;
 
-        let mut digits = [' '; 20];
+        let mut digits = [0; 20];
 
         for (i, y) in visible_lines.enumerate() {
             let digits = get_digits(y + 1, &mut digits);
@@ -436,12 +436,7 @@ impl Tab {
             if y >= highlighted_lines.len() {
                 let visual_x = -camera_position.x;
 
-                gfx.add_text(
-                    line[..].chars(),
-                    visual_x,
-                    foreground_visual_y,
-                    theme.normal,
-                );
+                gfx.add_text(&line[..], visual_x, foreground_visual_y, theme.normal);
 
                 continue;
             }
@@ -467,7 +462,7 @@ impl Tab {
                 }
 
                 x += gfx.add_text(
-                    line[highlight.start..highlight.end].chars(),
+                    &line[highlight.start..highlight.end],
                     visual_x,
                     foreground_visual_y,
                     foreground,
