@@ -16,6 +16,7 @@ use crate::{
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
+        grapheme::GraphemeSelector,
     },
 };
 
@@ -452,7 +453,7 @@ impl Tab {
                     let background = theme.highlight_kind_to_color(highlight_background);
 
                     Self::draw_background(
-                        highlight.end - highlight.start,
+                        highlight.end.index() - highlight.start.index(),
                         gfx,
                         visual_x,
                         background_visual_y,
@@ -462,7 +463,7 @@ impl Tab {
                 }
 
                 x += gfx.add_text(
-                    &line[highlight.start..highlight.end],
+                    GraphemeSelector::grapheme_range(&highlight.start, &highlight.end, &line[..]),
                     visual_x,
                     foreground_visual_y,
                     foreground,

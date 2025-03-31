@@ -40,7 +40,7 @@ impl SyntaxDesc<'_> {
         let mut keywords = HashSet::new();
 
         for keyword in self.keywords {
-            keywords.insert(keyword.chars().collect());
+            keywords.insert(keyword.to_string());
         }
 
         Syntax {
