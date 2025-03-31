@@ -3,6 +3,9 @@ use serde::Deserialize;
 use crate::ui::color::Color;
 
 use super::{
+    grapheme::{
+        grapheme_is_alphabetic, grapheme_is_alphanumeric, grapheme_is_whitespace, GraphemeSelector,
+    },
     line::Line,
     syntax::{Syntax, SyntaxRange, SyntaxToken},
 };
@@ -43,22 +46,22 @@ pub enum HighlightKind {
     Terminal(TerminalHighlightKind),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Highlight {
-    pub start: isize,
-    pub end: isize,
+    pub start: GraphemeSelector,
+    pub end: GraphemeSelector,
     pub foreground: HighlightKind,
     pub background: Option<HighlightKind>,
 }
 
 pub enum HighlightResult {
     Token {
-        start: isize,
-        end: isize,
+        start: GraphemeSelector,
+        end: GraphemeSelector,
     },
     Range {
-        start: isize,
-        end: isize,
+        start: GraphemeSelector,
+        end: GraphemeSelector,
         is_finished: bool,
     },
     None,
@@ -91,7 +94,7 @@ impl HighlightedLine {
 
     fn push(&mut self, highlight: Highlight) {
         if let Some(last_highlight) = self.highlights.last_mut() {
-            if last_highlight.end == highlight.start
+            if last_highlight.end.index() == highlight.start.index()
                 && last_highlight.foreground == highlight.foreground
                 && last_highlight.background == highlight.background
             {
@@ -115,78 +118,92 @@ impl SyntaxHighlighter {
         }
     }
 
-    pub fn match_identifier(line: &Line, start: isize) -> HighlightResult {
-        HighlightResult::None
-        // let mut i = start;
+    pub fn match_identifier(text: &str, start: GraphemeSelector) -> HighlightResult {
+        let mut grapheme_selector = start.clone();
+        let start_grapheme = start.grapheme(text);
 
-        // if line[i] != '_' && !line[i].is_alphabetic() {
-        //     return HighlightResult::None;
-        // }
+        if start_grapheme != "_" && !grapheme_is_alphabetic(start_grapheme) {
+            return HighlightResult::None;
+        }
 
-        // i += 1;
+        grapheme_selector.next_boundary(text);
 
-        // while i < line.len() {
-        //     let c = line[i];
+        while !grapheme_selector.is_at_end(text) {
+            let grapheme = grapheme_selector.grapheme(text);
 
-        //     if c != '_' && !c.is_alphanumeric() {
-        //         break;
-        //     }
+            if grapheme != "_" && !grapheme_is_alphanumeric(grapheme) {
+                break;
+            }
 
-        //     i += 1;
-        // }
+            grapheme_selector.next_boundary(text);
+        }
 
-        // HighlightResult::Token { start, end: i }
+        println!(
+            "matched ident: {:?} {:?}",
+            start.index(),
+            grapheme_selector.index(),
+        );
+
+        HighlightResult::Token {
+            start,
+            end: grapheme_selector,
+        }
     }
 
-    fn match_token(line: &Line, start: isize, token: &SyntaxToken) -> HighlightResult {
-        HighlightResult::None
-        // match token.pattern.match_text(line, start) {
-        //     Some(pattern_match) => HighlightResult::Token {
-        //         start: pattern_match.start,
-        //         end: pattern_match.end,
-        //     },
-        //     None => HighlightResult::None,
-        // }
+    fn match_token(text: &str, start: GraphemeSelector, token: &SyntaxToken) -> HighlightResult {
+        match token.pattern.match_text(text, start) {
+            Some(pattern_match) => {
+                println!(
+                    "matched token: {:?} {:?}",
+                    pattern_match.start.index(),
+                    pattern_match.end.index(),
+                );
+
+                HighlightResult::Token {
+                    start: pattern_match.start,
+                    end: pattern_match.end,
+                }
+            }
+            None => HighlightResult::None,
+        }
     }
 
     fn match_range(
-        line: &Line,
-        start: isize,
+        text: &str,
+        start: GraphemeSelector,
         range: &SyntaxRange,
         is_in_progress: bool,
     ) -> HighlightResult {
-        HighlightResult::None
-        // let mut i = start;
+        let mut grapheme_selector = start.clone();
 
-        // if !is_in_progress {
-        //     match range.start.match_text(line, start) {
-        //         Some(pattern_match) => i = pattern_match.end,
-        //         None => return HighlightResult::None,
-        //     }
-        // }
+        if !is_in_progress {
+            match range.start.match_text(text, start.clone()) {
+                Some(pattern_match) => grapheme_selector = pattern_match.end,
+                None => return HighlightResult::None,
+            }
+        }
 
-        // while i < line.len() {
-        //     if Some(line[i]) == range.escape {
-        //         i += 2;
-        //         continue;
-        //     }
+        while grapheme_selector.next_boundary(text) {
+            // TODO:
+            // if Some(grapheme_selector.grapheme(text)) == range.escape {
+            //     grapheme_selector.next_boundary(text);
+            //     continue;
+            // }
 
-        //     if let Some(pattern_match) = range.end.match_text(line, i) {
-        //         return HighlightResult::Range {
-        //             start,
-        //             end: pattern_match.end,
-        //             is_finished: true,
-        //         };
-        //     }
+            if let Some(pattern_match) = range.end.match_text(text, grapheme_selector.clone()) {
+                return HighlightResult::Range {
+                    start,
+                    end: pattern_match.end,
+                    is_finished: true,
+                };
+            }
+        }
 
-        //     i += 1;
-        // }
-
-        // HighlightResult::Range {
-        //     start,
-        //     end: i.min(line.len()),
-        //     is_finished: false,
-        // }
+        HighlightResult::Range {
+            start,
+            end: grapheme_selector,
+            is_finished: false,
+        }
     }
 
     pub fn update(&mut self, lines: &[Line], syntax: &Syntax, start_y: usize, end_y: usize) {
@@ -198,7 +215,8 @@ impl SyntaxHighlighter {
         for (y, line) in lines.iter().enumerate().take(end_y + 1).skip(start_y) {
             self.highlighted_lines[y].clear();
 
-            let mut x = 0;
+            let text = &line[..];
+            let mut grapheme_selector = GraphemeSelector::new(0, text);
 
             if y > 0 {
                 let last_highlighted_line = &self.highlighted_lines[y - 1];
@@ -210,15 +228,15 @@ impl SyntaxHighlighter {
                         start,
                         end,
                         is_finished,
-                    } = Self::match_range(line, x, range, true)
+                    } = Self::match_range(text, grapheme_selector.clone(), range, true)
                     {
                         self.highlighted_lines[y].push(Highlight {
                             start,
-                            end,
+                            end: end.clone(),
                             foreground: range.kind,
                             background: None,
                         });
-                        x = end;
+                        grapheme_selector = end;
 
                         if !is_finished {
                             self.highlighted_lines[y].unfinished_range_index =
@@ -228,92 +246,102 @@ impl SyntaxHighlighter {
                 }
             }
 
-            self.highlight_line(line, syntax, x, y);
+            self.highlight_line(text, syntax, grapheme_selector, y);
         }
     }
 
-    fn highlight_line(&mut self, line: &Line, syntax: &Syntax, mut x: isize, y: usize) {
-        // 'tokenize: while x < line.len() {
-        //     let mut default_end = x + 1;
+    fn highlight_line(
+        &mut self,
+        text: &str,
+        syntax: &Syntax,
+        mut grapheme_selector: GraphemeSelector,
+        y: usize,
+    ) {
+        'tokenize: while !grapheme_selector.is_at_end(text) {
+            let mut default_end = grapheme_selector.clone();
+            default_end.next_boundary(text);
 
-        //     if !line[x].is_whitespace() {
-        //         if let HighlightResult::Token { start, end } = Self::match_identifier(line, x) {
-        //             let identifier = &line[start..end];
+            if !grapheme_is_whitespace(grapheme_selector.grapheme(text)) {
+                if let HighlightResult::Token { start, end } =
+                    Self::match_identifier(text, grapheme_selector.clone())
+                {
+                    let identifier = GraphemeSelector::grapheme_range(&start, &end, text);
 
-        //             if syntax.keywords.contains(identifier) {
-        //                 self.highlighted_lines[y].push(Highlight {
-        //                     start,
-        //                     end,
-        //                     foreground: HighlightKind::Keyword,
-        //                     background: None,
-        //                 });
-        //                 x = end;
+                    if syntax.keywords.contains(identifier) {
+                        self.highlighted_lines[y].push(Highlight {
+                            start,
+                            end: end.clone(),
+                            foreground: HighlightKind::Keyword,
+                            background: None,
+                        });
+                        grapheme_selector = end;
 
-        //                 continue;
-        //             }
+                        continue;
+                    }
 
-        //             default_end = end;
-        //         }
+                    default_end = end;
+                }
 
-        //         for (i, range) in syntax.ranges.iter().enumerate() {
-        //             let HighlightResult::Range {
-        //                 start,
-        //                 end,
-        //                 is_finished,
-        //             } = Self::match_range(line, x, range, false)
-        //             else {
-        //                 continue;
-        //             };
+                for (i, range) in syntax.ranges.iter().enumerate() {
+                    let HighlightResult::Range {
+                        start,
+                        end,
+                        is_finished,
+                    } = Self::match_range(text, grapheme_selector.clone(), range, false)
+                    else {
+                        continue;
+                    };
 
-        //             if start > x {
-        //                 self.highlight_line(&line[..start], syntax, x, y);
-        //             }
+                    if start.index() > grapheme_selector.index() {
+                        self.highlight_line(start.range_before(text), syntax, grapheme_selector, y);
+                    }
 
-        //             self.highlighted_lines[y].push(Highlight {
-        //                 start,
-        //                 end,
-        //                 foreground: range.kind,
-        //                 background: None,
-        //             });
-        //             x = end;
+                    self.highlighted_lines[y].push(Highlight {
+                        start,
+                        end: end.clone(),
+                        foreground: range.kind,
+                        background: None,
+                    });
+                    grapheme_selector = end;
 
-        //             if !is_finished {
-        //                 self.highlighted_lines[y].unfinished_range_index = Some(i);
-        //             }
+                    if !is_finished {
+                        self.highlighted_lines[y].unfinished_range_index = Some(i);
+                    }
 
-        //             continue 'tokenize;
-        //         }
+                    continue 'tokenize;
+                }
 
-        //         for token in &syntax.tokens {
-        //             let HighlightResult::Token { start, end } = Self::match_token(line, x, token)
-        //             else {
-        //                 continue;
-        //             };
+                for token in &syntax.tokens {
+                    let HighlightResult::Token { start, end } =
+                        Self::match_token(text, grapheme_selector.clone(), token)
+                    else {
+                        continue;
+                    };
 
-        //             if start > x {
-        //                 self.highlight_line(&line[..start], syntax, x, y);
-        //             }
+                    if start.index() > grapheme_selector.index() {
+                        self.highlight_line(start.range_before(text), syntax, grapheme_selector, y);
+                    }
 
-        //             self.highlighted_lines[y].push(Highlight {
-        //                 start,
-        //                 end,
-        //                 foreground: token.kind,
-        //                 background: None,
-        //             });
-        //             x = end;
+                    self.highlighted_lines[y].push(Highlight {
+                        start,
+                        end: end.clone(),
+                        foreground: token.kind,
+                        background: None,
+                    });
+                    grapheme_selector = end;
 
-        //             continue 'tokenize;
-        //         }
-        //     }
+                    continue 'tokenize;
+                }
+            }
 
-        //     self.highlighted_lines[y].push(Highlight {
-        //         start: x,
-        //         end: default_end,
-        //         foreground: HighlightKind::Normal,
-        //         background: None,
-        //     });
-        //     x = default_end;
-        // }
+            self.highlighted_lines[y].push(Highlight {
+                start: grapheme_selector,
+                end: default_end.clone(),
+                foreground: HighlightKind::Normal,
+                background: None,
+            });
+            grapheme_selector = default_end;
+        }
     }
 
     pub fn highlight_line_from_terminal_colors(
@@ -321,6 +349,7 @@ impl SyntaxHighlighter {
         colors: &[(TerminalHighlightKind, TerminalHighlightKind)],
         y: usize,
     ) {
+        // TODO:
         // if self.highlighted_lines.len() <= y {
         //     self.highlighted_lines.resize(y + 1, HighlightedLine::new());
         // }
@@ -330,6 +359,8 @@ impl SyntaxHighlighter {
         // highlighted_line.clear();
 
         // for (x, (foreground, background)) in colors.iter().enumerate() {
+        //     let x = x as isize;
+
         //     highlighted_line.push(Highlight {
         //         start: x,
         //         end: x + 1,

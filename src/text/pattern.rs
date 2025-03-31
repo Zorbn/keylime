@@ -2,29 +2,38 @@ use std::{borrow::Cow, str::Chars};
 
 use serde::{de::Error, Deserialize, Deserializer};
 
-#[derive(Debug, Clone, Copy)]
+use super::grapheme::{
+    grapheme_is_alphabetic, grapheme_is_alphanumeric, grapheme_is_ascii_digit,
+    grapheme_is_ascii_hexdigit, grapheme_is_ascii_punctuation, grapheme_is_char,
+    grapheme_is_lowercase, grapheme_is_uppercase, grapheme_is_whitespace, GraphemeSelector,
+};
+
+#[derive(Debug, Clone)]
 pub struct PatternMatch {
-    pub start: usize,
-    pub end: usize,
+    pub start: GraphemeSelector,
+    pub end: GraphemeSelector,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct PartialPatternMatch {
-    capture_start: Option<usize>,
-    capture_end: Option<usize>,
-    end: usize,
+    // TODO: The grapheme selectors stored here and in the syntax highlighting structs don't need to be full GraphemeSelectors, they could be
+    // something like GraphemeSelections (or just Graphemes?) that store only (index, last_offset, offset) and then selectors can have a method to set to selection.
+    // TODO: When the Grapheme struct is created it should be Copy.
+    capture_start: Option<GraphemeSelector>,
+    capture_end: Option<GraphemeSelector>,
+    end: GraphemeSelector,
 }
 
 impl PartialPatternMatch {
     pub fn combine_with_existing_capture(
         &self,
-        capture_start: Option<usize>,
-        capture_end: Option<usize>,
+        capture_start: Option<GraphemeSelector>,
+        capture_end: Option<GraphemeSelector>,
     ) -> Self {
         Self {
-            capture_start: capture_start.or(self.capture_start),
-            capture_end: capture_end.or(self.capture_end),
-            end: self.end,
+            capture_start: capture_start.or(self.capture_start.clone()),
+            capture_end: capture_end.or(self.capture_end.clone()),
+            end: self.end.clone(),
         }
     }
 }
@@ -193,8 +202,8 @@ impl Pattern {
         }
     }
 
-    pub fn match_text(&self, text: &[char], start: usize) -> Option<PatternMatch> {
-        let partial_pattern_match = Self::match_parts(text, &self.parts, start)?;
+    pub fn match_text(&self, text: &str, start: GraphemeSelector) -> Option<PatternMatch> {
+        let partial_pattern_match = Self::match_parts(text, &self.parts, start.clone())?;
 
         Some(PatternMatch {
             start: partial_pattern_match.capture_start.unwrap_or(start),
@@ -205,12 +214,10 @@ impl Pattern {
     }
 
     fn match_parts(
-        text: &[char],
+        text: &str,
         parts: &[PatternPart],
-        start: usize,
+        mut grapheme_selector: GraphemeSelector,
     ) -> Option<PartialPatternMatch> {
-        let mut i = start;
-
         let mut capture_start = None;
         let mut capture_end = None;
 
@@ -221,23 +228,29 @@ impl Pattern {
 
             match part {
                 PatternPart::CaptureStart => {
-                    capture_start = Some(i);
+                    capture_start = Some(grapheme_selector.clone());
                 }
                 PatternPart::CaptureEnd => {
-                    capture_end = Some(i);
+                    capture_end = Some(grapheme_selector.clone());
                 }
                 PatternPart::Modifier(modifier) => {
                     let next_part = &parts[part_index + 1];
                     let remaining_parts = &parts[part_index + 2..];
 
-                    return Self::match_modifier(text, modifier, next_part, remaining_parts, i)
-                        .map(|pattern_match| {
-                            pattern_match.combine_with_existing_capture(capture_start, capture_end)
-                        });
+                    return Self::match_modifier(
+                        text,
+                        modifier,
+                        next_part,
+                        remaining_parts,
+                        grapheme_selector.clone(),
+                    )
+                    .map(|pattern_match| {
+                        pattern_match.combine_with_existing_capture(capture_start, capture_end)
+                    });
                 }
                 _ => {
-                    if Self::match_literal_or_class(text, i, part) {
-                        i += 1;
+                    if Self::match_literal_or_class(text, grapheme_selector.clone(), part) {
+                        grapheme_selector.next_boundary(text);
                     } else {
                         return None;
                     }
@@ -250,16 +263,16 @@ impl Pattern {
         Some(PartialPatternMatch {
             capture_start,
             capture_end,
-            end: i,
+            end: grapheme_selector.clone(),
         })
     }
 
     fn match_modifier(
-        text: &[char],
+        text: &str,
         modifier: &PatternModifier,
         next_part: &PatternPart,
         remaining_parts: &[PatternPart],
-        start: usize,
+        start: GraphemeSelector,
     ) -> Option<PartialPatternMatch> {
         match modifier {
             PatternModifier::OneOrMore => {
@@ -278,33 +291,39 @@ impl Pattern {
     }
 
     fn match_modifier_one_or_more(
-        text: &[char],
+        text: &str,
         next_part: &PatternPart,
         remaining_parts: &[PatternPart],
-        mut i: usize,
+        mut grapheme_selector: GraphemeSelector,
     ) -> Option<PartialPatternMatch> {
-        if !Self::match_literal_or_class(text, i, next_part) {
+        if !Self::match_literal_or_class(text, grapheme_selector.clone(), next_part) {
             return None;
         }
 
-        i += 1;
+        grapheme_selector.next_boundary(text);
 
-        Self::match_modifier_zero_or_more_greedy(text, next_part, remaining_parts, i)
+        Self::match_modifier_zero_or_more_greedy(
+            text,
+            next_part,
+            remaining_parts,
+            grapheme_selector,
+        )
     }
 
     fn match_modifier_zero_or_more_greedy(
-        text: &[char],
+        text: &str,
         next_part: &PatternPart,
         remaining_parts: &[PatternPart],
-        mut i: usize,
+        mut grapheme_selector: GraphemeSelector,
     ) -> Option<PartialPatternMatch> {
         let mut pattern_match: Option<PartialPatternMatch> = None;
 
         loop {
-            pattern_match = Self::match_parts(text, remaining_parts, i).or(pattern_match);
+            pattern_match = Self::match_parts(text, remaining_parts, grapheme_selector.clone())
+                .or(pattern_match);
 
-            if Self::match_literal_or_class(text, i, next_part) {
-                i += 1;
+            if Self::match_literal_or_class(text, grapheme_selector.clone(), next_part) {
+                grapheme_selector.next_boundary(text);
             } else {
                 break;
             }
@@ -314,18 +333,20 @@ impl Pattern {
     }
 
     fn match_modifier_zero_or_more_frugal(
-        text: &[char],
+        text: &str,
         next_part: &PatternPart,
         remaining_parts: &[PatternPart],
-        mut i: usize,
+        mut grapheme_selector: GraphemeSelector,
     ) -> Option<PartialPatternMatch> {
         loop {
-            if let Some(pattern_match) = Self::match_parts(text, remaining_parts, i) {
+            if let Some(pattern_match) =
+                Self::match_parts(text, remaining_parts, grapheme_selector.clone())
+            {
                 return Some(pattern_match);
             }
 
-            if Self::match_literal_or_class(text, i, next_part) {
-                i += 1;
+            if Self::match_literal_or_class(text, grapheme_selector.clone(), next_part) {
+                grapheme_selector.next_boundary(text);
             } else {
                 return None;
             }
@@ -333,40 +354,45 @@ impl Pattern {
     }
 
     fn match_modifier_zero_or_one(
-        text: &[char],
+        text: &str,
         next_part: &PatternPart,
         remaining_parts: &[PatternPart],
-        mut i: usize,
+        mut grapheme_selector: GraphemeSelector,
     ) -> Option<PartialPatternMatch> {
-        let mut pattern_match = Self::match_parts(text, remaining_parts, i);
+        let mut pattern_match = Self::match_parts(text, remaining_parts, grapheme_selector.clone());
 
-        if Self::match_literal_or_class(text, i, next_part) {
-            i += 1;
+        if Self::match_literal_or_class(text, grapheme_selector.clone(), next_part) {
+            grapheme_selector.next_boundary(text);
 
-            pattern_match = Self::match_parts(text, remaining_parts, i).or(pattern_match);
+            pattern_match =
+                Self::match_parts(text, remaining_parts, grapheme_selector).or(pattern_match);
         }
 
         pattern_match
     }
 
-    fn match_literal_or_class(text: &[char], index: usize, part: &PatternPart) -> bool {
+    fn match_literal_or_class(
+        text: &str,
+        grapheme_selector: GraphemeSelector,
+        part: &PatternPart,
+    ) -> bool {
         match part {
             PatternPart::Literal(literal) => {
-                let Some(c) = text.get(index) else {
+                let Some(grapheme) = grapheme_selector.get_grapheme(text) else {
                     return false;
                 };
 
-                Self::match_literal(*c, literal)
+                Self::match_literal(grapheme, literal)
             }
             PatternPart::Class(literals, is_positive) => {
-                let Some(c) = text.get(index) else {
+                let Some(grapheme) = grapheme_selector.get_grapheme(text) else {
                     return !is_positive;
                 };
 
                 let mut has_match = false;
 
                 for literal in literals {
-                    if Self::match_literal(*c, literal) {
+                    if Self::match_literal(grapheme, literal) {
                         has_match = true;
                         break;
                     }
@@ -378,18 +404,18 @@ impl Pattern {
         }
     }
 
-    fn match_literal(c: char, literal: &PatternLiteral) -> bool {
+    fn match_literal(grapheme: &str, literal: &PatternLiteral) -> bool {
         match literal {
-            PatternLiteral::Char(literal_c) => *literal_c == c,
+            PatternLiteral::Char(literal_c) => grapheme_is_char(grapheme, *literal_c), // TODO: Should ::Char be ::Grapheme instead?
             PatternLiteral::Any => true,
-            PatternLiteral::Letter => c.is_alphabetic(),
-            PatternLiteral::Digit => c.is_ascii_digit(),
-            PatternLiteral::LowerCaseLetter => c.is_lowercase(),
-            PatternLiteral::Punctuation => c.is_ascii_punctuation(),
-            PatternLiteral::Whitespace => c.is_whitespace(),
-            PatternLiteral::UpperCaseLetter => c.is_uppercase(),
-            PatternLiteral::Alphanumeric => c.is_alphanumeric(),
-            PatternLiteral::HexadecimalDigit => c.is_ascii_hexdigit(),
+            PatternLiteral::Letter => grapheme_is_alphabetic(grapheme),
+            PatternLiteral::Digit => grapheme_is_ascii_digit(grapheme),
+            PatternLiteral::LowerCaseLetter => grapheme_is_lowercase(grapheme),
+            PatternLiteral::Punctuation => grapheme_is_ascii_punctuation(grapheme),
+            PatternLiteral::Whitespace => grapheme_is_whitespace(grapheme),
+            PatternLiteral::UpperCaseLetter => grapheme_is_uppercase(grapheme),
+            PatternLiteral::Alphanumeric => grapheme_is_alphanumeric(grapheme),
+            PatternLiteral::HexadecimalDigit => grapheme_is_ascii_hexdigit(grapheme),
         }
     }
 }

@@ -5,6 +5,8 @@ use std::{
 
 use unicode_segmentation::{GraphemeCursor, Graphemes, UnicodeSegmentation};
 
+use super::grapheme::GraphemeSelector;
+
 #[derive(Debug, Default)]
 pub struct Line {
     text: String,
@@ -77,6 +79,14 @@ impl Line {
         }
 
         start
+    }
+}
+
+impl Index<GraphemeSelector> for Line {
+    type Output = str;
+
+    fn index(&self, grapheme_selector: GraphemeSelector) -> &Self::Output {
+        grapheme_selector.grapheme(&self.text)
     }
 }
 
