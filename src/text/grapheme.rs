@@ -73,7 +73,7 @@ impl GraphemeSelector {
 
     pub fn next_boundary(&mut self, text: &str) -> bool {
         if self.is_at_end(text) {
-            return true;
+            return false;
         }
 
         let last_offset = self.grapheme_cursor.cur_cursor();
