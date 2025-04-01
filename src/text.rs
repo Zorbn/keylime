@@ -12,4 +12,3 @@ pub mod syntax;
 pub mod syntax_highlighter;
 pub mod tokenizer;
 mod trie;
-pub mod utf32;

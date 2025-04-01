@@ -1,12 +1,12 @@
 use std::{
-    fmt::{Display, Write as _},
+    fmt::Display,
     fs::{read_to_string, File},
     io::{self, Write},
     path::{absolute, Path, PathBuf},
     vec::Drain,
 };
 
-use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     config::language::IndentWidth,
@@ -1039,7 +1039,7 @@ impl Doc {
         let start = self.clamp_position(start);
         let mut position = self.clamp_position(start);
 
-        for grapheme in UnicodeSegmentation::graphemes(text, true) {
+        for grapheme in text.graphemes(true) {
             match grapheme {
                 "\r\n" | "\n" => {
                     if self.kind == DocKind::SingleLine {
@@ -1239,7 +1239,7 @@ impl Doc {
         let max_y = self.lines.len() as isize - 1;
         let clamped_y = position.y.clamp(0, max_y);
 
-        let max_x = self.lines[clamped_y as usize].len() as isize;
+        let max_x = self.lines[clamped_y as usize].len();
         let clamped_x = position.x.clamp(0, max_x);
 
         Position::new(clamped_x, clamped_y)
@@ -1437,7 +1437,7 @@ impl Doc {
     fn get_line_ending_and_len(&self, string: &str) -> (LineEnding, usize) {
         let mut len = 0;
 
-        for grapheme in UnicodeSegmentation::graphemes(string, true) {
+        for grapheme in string.graphemes(true) {
             match grapheme {
                 "\r\n" | "\n" => {
                     let line_ending = if grapheme == "\r\n" {
