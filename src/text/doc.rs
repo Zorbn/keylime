@@ -1650,7 +1650,7 @@ impl Doc {
         y: usize,
     ) {
         self.syntax_highlighter
-            .highlight_line_from_terminal_colors(colors, y);
+            .highlight_line_from_terminal_colors(&self.lines, colors, y);
     }
 
     pub fn highlighted_lines(&self) -> &[HighlightedLine] {

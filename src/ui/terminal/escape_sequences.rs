@@ -9,14 +9,14 @@ use crate::{
     ui::{color::Color, terminal::color_table::COLOR_TABLE},
 };
 
-use super::{char32::*, terminal_emulator::TerminalEmulator, TerminalDocs};
+use super::{terminal_emulator::TerminalEmulator, TerminalDocs};
 
 impl TerminalEmulator {
     pub fn handle_escape_sequences(
         &mut self,
         docs: &mut TerminalDocs,
-        input: &mut Vec<u32>,
-        mut output: &[u32],
+        input: &mut Vec<u8>,
+        mut output: &[u8],
         line_pool: &mut LinePool,
         theme: &Theme,
         time: f32,
@@ -27,30 +27,28 @@ impl TerminalEmulator {
             match output[0] {
                 0x1B => {
                     let remaining = match output.get(1) {
-                        Some(&LEFT_BRACKET) => self.handle_escape_sequences_csi(
+                        Some(&b'[') => self.handle_escape_sequences_csi(
                             doc,
                             input,
                             &output[2..],
                             line_pool,
                             time,
                         ),
-                        Some(&RIGHT_BRACKET) => {
-                            self.handle_escape_sequences_osc(input, &output[2..], theme)
-                        }
-                        Some(&LEFT_PAREN) => {
+                        Some(&b']') => self.handle_escape_sequences_osc(input, &output[2..], theme),
+                        Some(&b'(') => {
                             match output.get(2) {
-                                Some(&UPPERCASE_B) => {
+                                Some(&b'B') => {
                                     // Use ASCII character set (other character sets are unsupported).
                                     Some(&output[3..])
                                 }
                                 _ => None,
                             }
                         }
-                        Some(&EQUAL) => {
+                        Some(&b'=') => {
                             // Enter alternative keypad mode, ignored.
                             Some(&output[2..])
                         }
-                        Some(&GREATER_THAN) => {
+                        Some(&b'>') => {
                             // Exit alternative keypad mode, ignored.
                             Some(&output[2..])
                         }
@@ -89,7 +87,7 @@ impl TerminalEmulator {
                     continue;
                 }
                 // Tab:
-                0x9 => {
+                b'\t' => {
                     let next_tab_stop = (self.grid_cursor.x / 8 + 1) * 8;
 
                     while self.grid_cursor.x < next_tab_stop {
@@ -100,14 +98,14 @@ impl TerminalEmulator {
                     continue;
                 }
                 // Carriage Return:
-                0xD => {
+                b'\r' => {
                     self.jump_cursor(Position::new(0, self.grid_cursor.y), doc);
 
                     output = &output[1..];
                     continue;
                 }
                 // Newline:
-                0xA => {
+                b'\n' => {
                     self.newline_cursor(doc, line_pool, time);
 
                     output = &output[1..];
@@ -127,22 +125,22 @@ impl TerminalEmulator {
     fn handle_escape_sequences_csi<'a>(
         &mut self,
         doc: &mut Doc,
-        input: &mut Vec<u32>,
-        mut output: &'a [u32],
+        input: &mut Vec<u8>,
+        mut output: &'a [u8],
         line_pool: &mut LinePool,
         time: f32,
-    ) -> Option<&'a [u32]> {
+    ) -> Option<&'a [u8]> {
         let mut parameter_buffer = [0; 16];
 
         match output.first() {
-            Some(&QUESTION_MARK) => {
+            Some(&b'?') => {
                 output = &output[1..];
 
                 let (output, parameters) =
                     Self::parse_numeric_parameters(output, &mut parameter_buffer);
 
                 match output.first() {
-                    Some(&LOWERCASE_L) => {
+                    Some(&b'l') => {
                         match parameters.first() {
                             Some(&25) => self.is_cursor_visible = false,
                             Some(&1047) | Some(&1049) => self.switch_to_normal_buffer(),
@@ -156,7 +154,7 @@ impl TerminalEmulator {
 
                         Some(&output[1..])
                     }
-                    Some(&LOWERCASE_H) => {
+                    Some(&b'h') => {
                         match parameters.first() {
                             Some(&25) => {
                                 self.is_cursor_visible = true;
@@ -173,7 +171,7 @@ impl TerminalEmulator {
 
                         Some(&output[1..])
                     }
-                    Some(&LOWERCASE_M) => {
+                    Some(&b'm') => {
                         // Query xterm modifier key options.
                         let default_value = match parameters.first() {
                             Some(0) => 0, // modifyKeyboard
@@ -184,28 +182,28 @@ impl TerminalEmulator {
                         };
 
                         let response = format!("\u{1B}[>{}m", default_value);
-                        input.extend(response.chars().map(|c| c as u32));
+                        input.extend(response.bytes());
 
                         Some(&output[1..])
                     }
                     _ => None,
                 }
             }
-            Some(&GREATER_THAN) => {
+            Some(&b'>') => {
                 output = &output[1..];
 
                 let (output, _) = Self::parse_numeric_parameters(output, &mut parameter_buffer);
 
                 match output.first() {
-                    Some(&LOWERCASE_M) => {
+                    Some(&b'm') => {
                         // Set/reset xterm modifier key options, ignored.
                         Some(&output[1..])
                     }
-                    Some(&LOWERCASE_C) => {
+                    Some(&b'c') => {
                         // Query device attributes.
                         // According to invisible-island.net/xterm 41 corresponds to a VT420 which is the default.
                         let response = "\u{1B}[>41;0;0c";
-                        input.extend(response.chars().map(|c| c as u32));
+                        input.extend(response.bytes());
 
                         Some(&output[1..])
                     }
@@ -219,18 +217,18 @@ impl TerminalEmulator {
     fn handle_unprefixed_escape_sequences_csi<'a>(
         &mut self,
         doc: &mut Doc,
-        input: &mut Vec<u32>,
-        mut output: &'a [u32],
+        input: &mut Vec<u8>,
+        mut output: &'a [u8],
         line_pool: &mut LinePool,
         time: f32,
-    ) -> Option<&'a [u32]> {
+    ) -> Option<&'a [u8]> {
         let mut parameter_buffer = [0; 16];
 
         let parameters;
         (output, parameters) = Self::parse_numeric_parameters(output, &mut parameter_buffer);
 
         match output.first() {
-            Some(&LOWERCASE_M) => {
+            Some(&b'm') => {
                 let parameters = if parameters.is_empty() {
                     &[0]
                 } else {
@@ -303,7 +301,7 @@ impl TerminalEmulator {
 
                 Some(&output[1..])
             }
-            Some(&LOWERCASE_L) => {
+            Some(&b'l') => {
                 match parameters.first() {
                     // Otherwise, ignored.
                     #[cfg(feature = "terminal_emulator_debug")]
@@ -315,7 +313,7 @@ impl TerminalEmulator {
 
                 Some(&output[1..])
             }
-            Some(&LOWERCASE_H) => {
+            Some(&b'h') => {
                 match parameters.first() {
                     // Otherwise, ignored.
                     #[cfg(feature = "terminal_emulator_debug")]
@@ -327,21 +325,21 @@ impl TerminalEmulator {
 
                 Some(&output[1..])
             }
-            Some(&UPPERCASE_G) => {
+            Some(&b'G') => {
                 let x = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
 
                 self.jump_cursor(Position::new(x as isize, self.grid_cursor.y), doc);
 
                 Some(&output[1..])
             }
-            Some(&LOWERCASE_D) => {
+            Some(&b'd') => {
                 let y = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
 
                 self.jump_cursor(Position::new(self.grid_cursor.x, y as isize), doc);
 
                 Some(&output[1..])
             }
-            Some(&UPPERCASE_H) => {
+            Some(&b'H') => {
                 let y = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
                 let x = Self::get_parameter(parameters, 1, 1).saturating_sub(1);
 
@@ -349,31 +347,31 @@ impl TerminalEmulator {
 
                 Some(&output[1..])
             }
-            Some(&UPPERCASE_A) => {
+            Some(&b'A') => {
                 let distance = Self::get_parameter(parameters, 0, 1) as isize;
                 self.move_cursor(Position::new(0, -distance), doc);
 
                 Some(&output[1..])
             }
-            Some(&UPPERCASE_B) => {
+            Some(&b'B') => {
                 let distance = Self::get_parameter(parameters, 0, 1) as isize;
                 self.move_cursor(Position::new(0, distance), doc);
 
                 Some(&output[1..])
             }
-            Some(&UPPERCASE_C) => {
+            Some(&b'C') => {
                 let distance = Self::get_parameter(parameters, 0, 1) as isize;
                 self.move_cursor(Position::new(distance, 0), doc);
 
                 Some(&output[1..])
             }
-            Some(&UPPERCASE_D) => {
+            Some(&b'D') => {
                 let distance = Self::get_parameter(parameters, 0, 1) as isize;
                 self.move_cursor(Position::new(-distance, 0), doc);
 
                 Some(&output[1..])
             }
-            Some(&UPPERCASE_J) => {
+            Some(&b'J') => {
                 let (start, end) = match Self::get_parameter(parameters, 0, 0) {
                     0 => {
                         // Clear from the cursor to the end of the screen.
@@ -403,7 +401,7 @@ impl TerminalEmulator {
 
                 Some(&output[1..])
             }
-            Some(&UPPERCASE_K) => {
+            Some(&b'K') => {
                 let (start, end) = match Self::get_parameter(parameters, 0, 0) {
                     0 => {
                         // Clear from the cursor to the end of the line.
@@ -433,7 +431,7 @@ impl TerminalEmulator {
 
                 Some(&output[1..])
             }
-            Some(&UPPERCASE_L) => {
+            Some(&b'L') => {
                 // Insert lines.
                 let count = Self::get_parameter(parameters, 0, 1);
 
@@ -450,7 +448,7 @@ impl TerminalEmulator {
 
                 Some(&output[1..])
             }
-            Some(&UPPERCASE_M) => {
+            Some(&b'M') => {
                 // Delete lines.
                 let count = Self::get_parameter(parameters, 0, 1);
 
@@ -467,7 +465,7 @@ impl TerminalEmulator {
 
                 Some(&output[1..])
             }
-            Some(&UPPERCASE_S) => {
+            Some(&b'S') => {
                 // Scroll up.
                 let count = Self::get_parameter(parameters, 0, 1);
 
@@ -482,7 +480,7 @@ impl TerminalEmulator {
 
                 Some(&output[1..])
             }
-            Some(&UPPERCASE_T) => {
+            Some(&b'T') => {
                 // Scroll down.
                 let count = Self::get_parameter(parameters, 0, 1);
 
@@ -497,7 +495,7 @@ impl TerminalEmulator {
 
                 Some(&output[1..])
             }
-            Some(&UPPERCASE_X) => {
+            Some(&b'X') => {
                 let distance = Self::get_parameter(parameters, 0, 1);
 
                 // Clear characters after the cursor.
@@ -508,7 +506,7 @@ impl TerminalEmulator {
 
                 Some(&output[1..])
             }
-            Some(&UPPERCASE_P) => {
+            Some(&b'P') => {
                 let distance = Self::get_parameter(parameters, 0, 1);
 
                 // Delete characters after the cursor, shifting the rest of the line over.
@@ -534,21 +532,21 @@ impl TerminalEmulator {
 
                 Some(&output[1..])
             }
-            Some(&SPACE) => {
+            Some(&b' ') => {
                 output = &output[1..];
 
-                if output.first() == Some(&LOWERCASE_Q) {
+                if output.first() == Some(&b'q') {
                     // Set cursor shape, ignored.
                     Some(&output[1..])
                 } else {
                     None
                 }
             }
-            Some(&LOWERCASE_T) => {
+            Some(&b't') => {
                 // Xterm window controls, ignored.
                 Some(&output[1..])
             }
-            Some(&LOWERCASE_R) => {
+            Some(&b'r') => {
                 // Set scroll region.
                 let top = Self::get_parameter(parameters, 0, 1) as isize - 1;
                 let bottom =
@@ -559,7 +557,7 @@ impl TerminalEmulator {
 
                 Some(&output[1..])
             }
-            Some(&LOWERCASE_N) => {
+            Some(&b'n') => {
                 // Device status report.
 
                 if parameters.first() == Some(&6) {
@@ -570,7 +568,7 @@ impl TerminalEmulator {
                         self.grid_cursor.x + 1
                     );
 
-                    input.extend(response.chars().map(|c| c as u32));
+                    input.extend(response.bytes());
 
                     Some(&output[1..])
                 } else {
@@ -583,13 +581,13 @@ impl TerminalEmulator {
 
     fn handle_escape_sequences_osc<'a>(
         &self,
-        input: &mut Vec<u32>,
-        output: &'a [u32],
+        input: &mut Vec<u8>,
+        output: &'a [u8],
         theme: &Theme,
-    ) -> Option<&'a [u32]> {
+    ) -> Option<&'a [u8]> {
         let (mut output, kind) = Self::parse_numeric_parameter(output)?;
 
-        if !output.starts_with(&[SEMICOLON]) {
+        if !output.starts_with(b";") {
             return None;
         }
 
@@ -599,7 +597,7 @@ impl TerminalEmulator {
             10 | 11 => {
                 // Setting/requesting foreground/background color.
 
-                if !output.starts_with(&[QUESTION_MARK]) {
+                if !output.starts_with(b"?") {
                     // Only requesting the value is supported.
                     return None;
                 }
@@ -620,7 +618,7 @@ impl TerminalEmulator {
                     kind, color.r, color.g, color.b
                 );
 
-                input.extend(response.chars().map(|c| c as u32));
+                input.extend(response.bytes());
 
                 Some(output)
             }
@@ -646,10 +644,10 @@ impl TerminalEmulator {
         }
     }
 
-    fn consume_string_terminator(output: &[u32]) -> Option<&[u32]> {
+    fn consume_string_terminator(output: &[u8]) -> Option<&[u8]> {
         if output.starts_with(&[0x7]) {
             Some(&output[1..])
-        } else if output.starts_with(&[0x1B, BACK_SLASH]) {
+        } else if output.starts_with(&[0x1B, b'\\']) {
             Some(&output[2..])
         } else {
             None
@@ -681,9 +679,9 @@ impl TerminalEmulator {
     }
 
     fn parse_numeric_parameters<'a, 'b>(
-        mut output: &'a [u32],
+        mut output: &'a [u8],
         parameter_buffer: &'b mut [usize; 16],
-    ) -> (&'a [u32], &'b [usize]) {
+    ) -> (&'a [u8], &'b [usize]) {
         let mut parameter_count = 0;
 
         loop {
@@ -696,7 +694,7 @@ impl TerminalEmulator {
             parameter_buffer[parameter_count] = parameter;
             parameter_count += 1;
 
-            if output.first() == Some(&SEMICOLON) {
+            if output.first() == Some(&b';') {
                 output = &output[1..];
             } else {
                 break;
@@ -706,15 +704,15 @@ impl TerminalEmulator {
         (output, &parameter_buffer[..parameter_count])
     }
 
-    fn parse_numeric_parameter(mut output: &[u32]) -> Option<(&[u32], usize)> {
+    fn parse_numeric_parameter(mut output: &[u8]) -> Option<(&[u8], usize)> {
         let mut parameter = 0;
 
-        if !matches!(output.first()?, ZERO..=NINE) {
+        if !matches!(output.first()?, b'0'..=b'9') {
             return None;
         }
 
-        while matches!(output.first()?, ZERO..=NINE) {
-            parameter = parameter * 10 + (output[0] - ZERO) as usize;
+        while matches!(output.first()?, b'0'..=b'9') {
+            parameter = parameter * 10 + (output[0] - b'0') as usize;
             output = &output[1..];
         }
 

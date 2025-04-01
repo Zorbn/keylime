@@ -21,11 +21,11 @@ impl Pty {
         self.inner.resize(width, height);
     }
 
-    pub fn input(&mut self) -> &mut Vec<u32> {
+    pub fn input(&mut self) -> &mut Vec<u8> {
         &mut self.inner.input
     }
 
-    pub fn input_output(&mut self) -> (&mut Vec<u32>, &Arc<Mutex<Vec<u32>>>) {
+    pub fn input_output(&mut self) -> (&mut Vec<u8>, &Arc<Mutex<Vec<u8>>>) {
         (&mut self.inner.input, &self.inner.output)
     }
 }

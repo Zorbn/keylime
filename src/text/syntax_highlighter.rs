@@ -72,12 +72,6 @@ pub struct HighlightedLine {
 }
 
 impl HighlightedLine {
-    pub fn highlights(&self) -> &[Highlight] {
-        &self.highlights
-    }
-}
-
-impl HighlightedLine {
     pub fn new() -> Self {
         Self {
             highlights: Vec::new(),
@@ -102,6 +96,10 @@ impl HighlightedLine {
         }
 
         self.highlights.push(highlight);
+    }
+
+    pub fn highlights(&self) -> &[Highlight] {
+        &self.highlights
     }
 }
 
@@ -336,28 +334,32 @@ impl SyntaxHighlighter {
 
     pub fn highlight_line_from_terminal_colors(
         &mut self,
+        lines: &[Line],
         colors: &[(TerminalHighlightKind, TerminalHighlightKind)],
         y: usize,
     ) {
-        // TODO:
-        // if self.highlighted_lines.len() <= y {
-        //     self.highlighted_lines.resize(y + 1, HighlightedLine::new());
-        // }
+        if self.highlighted_lines.len() <= y {
+            self.highlighted_lines.resize(y + 1, HighlightedLine::new());
+        }
 
-        // let highlighted_line = &mut self.highlighted_lines[y];
+        let highlighted_line = &mut self.highlighted_lines[y];
 
-        // highlighted_line.clear();
+        highlighted_line.clear();
 
-        // for (x, (foreground, background)) in colors.iter().enumerate() {
-        //     let x = x as isize;
+        let text = &lines[y][..];
+        let mut grapheme_selector = GraphemeSelector::new(text);
 
-        //     highlighted_line.push(Highlight {
-        //         start: x,
-        //         end: x + 1,
-        //         foreground: HighlightKind::Terminal(*foreground),
-        //         background: Some(HighlightKind::Terminal(*background)),
-        //     });
-        // }
+        for (foreground, background) in colors {
+            let start = grapheme_selector.selection();
+            grapheme_selector.next_boundary(text);
+
+            highlighted_line.push(Highlight {
+                start,
+                end: grapheme_selector.selection(),
+                foreground: HighlightKind::Terminal(*foreground),
+                background: Some(HighlightKind::Terminal(*background)),
+            });
+        }
     }
 
     pub fn recycle_highlighted_lines_up_to_y(&mut self, y: usize) {

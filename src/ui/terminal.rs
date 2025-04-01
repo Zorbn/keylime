@@ -19,7 +19,6 @@ use super::{
     Ui, UiHandle,
 };
 
-mod char32;
 mod color_table;
 mod escape_sequences;
 mod terminal_emulator;
