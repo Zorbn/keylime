@@ -13,7 +13,7 @@ use crate::{
         mousebind::Mousebind,
     },
     platform::gfx::Gfx,
-    text::{cursor_index::CursorIndex, doc::Doc, line::Line, line_pool::LinePool},
+    text::{cursor_index::CursorIndex, doc::Doc, line_pool::LinePool},
 };
 
 use super::{

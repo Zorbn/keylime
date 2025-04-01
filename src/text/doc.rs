@@ -6,13 +6,14 @@ use std::{
     vec::Drain,
 };
 
-use unicode_segmentation::UnicodeSegmentation;
+use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 
 use crate::{
     config::language::IndentWidth,
     editor_buffers::EditorBuffers,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     platform::gfx::Gfx,
+    text::grapheme,
 };
 
 use super::{
@@ -20,7 +21,6 @@ use super::{
     char_category::GraphemeCategory,
     cursor::Cursor,
     cursor_index::{CursorIndex, CursorIndices},
-    line::Line,
     line_pool::LinePool,
     selection::Selection,
     syntax::Syntax,
@@ -58,7 +58,7 @@ enum StepStatus {
     Done,
 }
 
-const CURSOR_POSITION_HISTORY_THRESHOLD: isize = 10;
+const CURSOR_POSITION_HISTORY_THRESHOLD: usize = 10;
 
 // One change for File::create, and one change for writing.
 #[cfg(target_os = "windows")]
@@ -75,7 +75,7 @@ pub struct Doc {
     version: usize,
     usages: usize,
 
-    lines: Vec<Line>,
+    lines: Vec<String>,
     cursors: Vec<Cursor>,
     line_ending: LineEnding,
 
@@ -88,7 +88,7 @@ pub struct Doc {
     cursor_position_redo_history: Vec<Position>,
 
     syntax_highlighter: SyntaxHighlighter,
-    unhighlighted_line_y: isize,
+    unhighlighted_line_y: usize,
     tokenizer: Tokenizer,
     needs_tokenization: bool,
 
@@ -147,63 +147,100 @@ impl Doc {
         self.usages
     }
 
-    pub fn move_position(&self, position: Position, delta: Position) -> Position {
-        self.move_position_with_desired_visual_x(position, delta, None)
+    fn move_position_to_next_grapheme(&self, position: &mut Position) -> bool {
+        let Some(line) = self.get_line(position.y) else {
+            return false;
+        };
+
+        let mut grapheme_cursor = GraphemeCursor::new(position.x, line.len(), true);
+
+        match grapheme_cursor.next_boundary(line, 0) {
+            Ok(Some(new_x)) => {
+                position.x = new_x;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    // TODO: This is basically the same as the next_grapheme version.
+    fn move_position_to_previous_grapheme(&self, position: &mut Position) -> bool {
+        let Some(line) = self.get_line(position.y) else {
+            return false;
+        };
+
+        let mut grapheme_cursor = GraphemeCursor::new(position.x, line.len(), true);
+
+        match grapheme_cursor.prev_boundary(line, 0) {
+            Ok(Some(new_x)) => {
+                position.x = new_x;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub fn move_position(&self, position: Position, delta_x: isize, delta_y: isize) -> Position {
+        self.move_position_with_desired_visual_x(position, delta_x, delta_y, None)
     }
 
     pub fn move_position_with_desired_visual_x(
         &self,
         position: Position,
-        delta: Position,
-        desired_visual_x: Option<isize>,
+        delta_x: isize,
+        delta_y: isize,
+        desired_visual_x: Option<usize>,
     ) -> Position {
-        let position = self.clamp_position(position);
+        let mut position = self.clamp_position(position);
 
-        let mut new_y = position.y + delta.y;
-        let mut new_x = position.x;
+        if let Some(new_y) = position.y.checked_add_signed(delta_y) {
+            position.y = new_y;
+        } else {
+            return Position::new(0, 0);
+        };
 
-        if delta.y != 0 {
-            if new_y < 0 {
-                return Position::new(0, 0);
-            }
+        if position.y >= self.lines.len() {
+            return Position::new(self.lines.last().unwrap().len(), self.lines.len() - 1);
+        }
 
-            if new_y >= self.lines.len() as isize {
-                return Position::new(
-                    self.lines.last().unwrap().len() as isize,
-                    self.lines.len() as isize - 1,
-                );
-            }
-
+        if delta_y != 0 {
             if let Some(desired_visual_x) = desired_visual_x {
-                new_x = Gfx::find_x_for_visual_x(&self.lines[new_y as usize][..], desired_visual_x);
-            } else if new_x > self.get_line_len(new_y) {
-                new_x = self.get_line_len(new_y);
+                position.x =
+                    Gfx::find_x_for_visual_x(&self.lines[position.y][..], desired_visual_x);
+            } else if position.x > self.get_line_len(position.y) {
+                position.x = self.get_line_len(position.y);
             }
         }
 
-        new_x += delta.x;
+        if delta_x < 0 {
+            for _ in 0..delta_x.abs() {
+                if self.move_position_to_previous_grapheme(&mut position) {
+                    continue;
+                }
 
-        while new_x < 0 {
-            if new_y == 0 {
-                new_x = 0;
-                break;
+                if position.y == 0 {
+                    break;
+                }
+
+                position.y -= 1;
+                position.x = self.lines[position.y].len();
             }
+        } else {
+            for _ in 0..delta_x {
+                if self.move_position_to_next_grapheme(&mut position) {
+                    continue;
+                }
 
-            new_y -= 1;
-            new_x += self.lines[new_y as usize].len() as isize + 1;
+                if position.y == self.lines.len() - 1 {
+                    break;
+                }
+
+                position.x = 0;
+                position.y += 1;
+            }
         }
 
-        while new_x > self.get_line_len(new_y) {
-            if new_y == self.lines.len() as isize - 1 {
-                new_x = self.get_line_len(new_y);
-                break;
-            }
-
-            new_x -= self.get_line_len(new_y) + 1;
-            new_y += 1;
-        }
-
-        Position::new(new_x, new_y)
+        position
     }
 
     pub fn move_position_skipping_category(
@@ -214,12 +251,15 @@ impl Doc {
     ) -> Position {
         let mut position = self.clamp_position(position);
         let side_offset = Self::get_side_offset(delta_x);
-        let delta = Position::new(delta_x, 0);
 
         loop {
-            let current_category =
-                GraphemeCategory::new(self.get_grapheme(self.move_position(position, side_offset)));
-            let next_position = self.move_position(position, delta);
+            let current_category = GraphemeCategory::new(self.get_grapheme(self.move_position(
+                position,
+                side_offset,
+                0,
+            )));
+
+            let next_position = self.move_position(position, delta_x, 0);
 
             if current_category != category
                 || current_category == GraphemeCategory::Newline
@@ -239,15 +279,17 @@ impl Doc {
             self.move_position_skipping_category(position, delta_x, GraphemeCategory::Space);
 
         let side_offset = Self::get_side_offset(delta_x);
-        let starting_category = GraphemeCategory::new(
-            self.get_grapheme(self.move_position(starting_position, side_offset)),
-        );
+        let starting_category = GraphemeCategory::new(self.get_grapheme(self.move_position(
+            starting_position,
+            side_offset,
+            0,
+        )));
 
         let ending_position =
             self.move_position_skipping_category(starting_position, delta_x, starting_category);
 
         if ending_position == position {
-            self.move_position(ending_position, Position::new(delta_x, 0))
+            self.move_position(ending_position, delta_x, 0)
         } else {
             ending_position
         }
@@ -260,11 +302,10 @@ impl Doc {
         do_skip_empty_lines: bool,
     ) -> Position {
         let mut position = self.clamp_position(position);
-        let delta = Position::new(0, delta_y);
 
         loop {
             let current_line_is_empty = self.get_line_len(position.y) == 0;
-            let next_position = self.move_position(position, delta);
+            let next_position = self.move_position(position, 0, delta_y);
 
             if current_line_is_empty != do_skip_empty_lines || next_position == position {
                 break;
@@ -293,39 +334,49 @@ impl Doc {
         self.move_position_skipping_lines(starting_position, delta_y, starting_line_is_empty)
     }
 
-    fn get_side_offset(direction_x: isize) -> Position {
+    fn get_side_offset(direction_x: isize) -> isize {
         if direction_x < 0 {
-            Position::new(-1, 0)
-        } else {
-            Position::zero()
-        }
-    }
-
-    pub fn get_line(&self, y: isize) -> Option<&Line> {
-        if y < 0 || y >= self.lines.len() as isize {
-            None
-        } else {
-            Some(&self.lines[y as usize])
-        }
-    }
-
-    pub fn get_line_len(&self, y: isize) -> isize {
-        if let Some(line) = self.get_line(y) {
-            line.len() as isize
+            -1
         } else {
             0
         }
     }
 
-    pub fn get_line_start(&self, y: isize) -> isize {
+    pub fn get_line(&self, y: usize) -> Option<&str> {
+        if y >= self.lines.len() {
+            None
+        } else {
+            Some(&self.lines[y])
+        }
+    }
+
+    pub fn get_line_len(&self, y: usize) -> usize {
+        if let Some(line) = self.get_line(y) {
+            line.len()
+        } else {
+            0
+        }
+    }
+
+    pub fn get_line_start(&self, y: usize) -> usize {
         let Some(line) = self.get_line(y) else {
             return 0;
         };
 
-        line.get_start()
+        let mut start = 0;
+
+        for c in line.chars() {
+            if !c.is_whitespace() {
+                break;
+            }
+
+            start += 1;
+        }
+
+        start
     }
 
-    pub fn is_line_whitespace(&self, y: isize) -> bool {
+    pub fn is_line_whitespace(&self, y: usize) -> bool {
         self.get_line_start(y) == self.get_line_len(y)
     }
 
@@ -343,7 +394,7 @@ impl Doc {
     pub fn uncomment_line(
         &mut self,
         comment: &str,
-        y: isize,
+        y: usize,
         line_pool: &mut LinePool,
         time: f32,
     ) -> bool {
@@ -352,12 +403,12 @@ impl Doc {
         }
 
         let start = Position::new(self.get_line_start(y), y);
-        let end = self.move_position(start, Position::new(comment.len() as isize, 0));
+        let end = Position::new(start.x + comment.len(), y);
 
         self.delete(start, end, line_pool, time);
 
         if self.get_grapheme(start) == " " {
-            let end = self.move_position(start, Position::new(1, 0));
+            let end = self.move_position(start, 1, 0);
 
             self.delete(start, end, line_pool, time);
         }
@@ -365,7 +416,7 @@ impl Doc {
         true
     }
 
-    pub fn is_line_commented(&self, comment: &str, y: isize) -> bool {
+    pub fn is_line_commented(&self, comment: &str, y: usize) -> bool {
         false
         // TODO:
         // let Some(line) = self.get_line(y) else {
@@ -413,7 +464,7 @@ impl Doc {
                 })
                 .trim_lines_without_selected_chars();
 
-            let mut min_comment_x = isize::MAX;
+            let mut min_comment_x = usize::MAX;
             let mut did_uncomment = false;
 
             for y in selection.start.y..=selection.end.y {
@@ -487,7 +538,7 @@ impl Doc {
 
     fn indent_line(
         &mut self,
-        y: isize,
+        y: usize,
         indent_width: IndentWidth,
         line_pool: &mut LinePool,
         time: f32,
@@ -497,7 +548,7 @@ impl Doc {
 
     fn unindent_line(
         &mut self,
-        y: isize,
+        y: usize,
         indent_width: IndentWidth,
         line_pool: &mut LinePool,
         time: f32,
@@ -534,15 +585,16 @@ impl Doc {
     }
 
     pub fn get_indent_start(&mut self, end: Position, indent_width: IndentWidth) -> Position {
-        let mut start = self.move_position(end, Position::new(-1, 0));
+        let mut start = self.move_position(end, -1, 0);
         let start_grapheme = self.get_grapheme(start);
 
         match start_grapheme {
             " " => {
-                let indent_width = (end.x - 1) % indent_width.char_count() as isize + 1;
+                // TODO: This is wrong probably, it uses char counts and modifies end.x directly. Should use graphemes here.
+                let indent_width = (end.x - 1) % indent_width.char_count() + 1;
 
                 for _ in 1..indent_width {
-                    let next_start = self.move_position(start, Position::new(-1, 0));
+                    let next_start = self.move_position(start, -1, 0);
 
                     if self.get_grapheme(next_start) != " " {
                         break;
@@ -611,7 +663,7 @@ impl Doc {
 
         let cursor = self.get_cursor_mut(index);
 
-        if (cursor.position.y - last_position.y).abs() < CURSOR_POSITION_HISTORY_THRESHOLD {
+        if cursor.position.y.abs_diff(last_position.y) < CURSOR_POSITION_HISTORY_THRESHOLD {
             return;
         }
 
@@ -619,7 +671,13 @@ impl Doc {
         self.cursor_position_undo_history.push(last_position);
     }
 
-    pub fn move_cursor(&mut self, index: CursorIndex, delta: Position, should_select: bool) {
+    pub fn move_cursor(
+        &mut self,
+        index: CursorIndex,
+        delta_x: isize,
+        delta_y: isize,
+        should_select: bool,
+    ) {
         self.update_cursor_selection(index, should_select);
 
         let cursor = self.get_cursor(index);
@@ -628,19 +686,23 @@ impl Doc {
 
         let last_position = cursor.position;
 
-        self.get_cursor_mut(index).position =
-            self.move_position_with_desired_visual_x(start_position, delta, Some(desired_visual_x));
+        self.get_cursor_mut(index).position = self.move_position_with_desired_visual_x(
+            start_position,
+            delta_x,
+            delta_y,
+            Some(desired_visual_x),
+        );
 
         self.update_cursor_position_history(index, last_position);
 
-        if delta.x != 0 {
+        if delta_x != 0 {
             self.update_cursor_desired_visual_x(index);
         }
     }
 
-    pub fn move_cursors(&mut self, delta: Position, should_select: bool) {
+    pub fn move_cursors(&mut self, delta_x: isize, delta_y: isize, should_select: bool) {
         for index in self.cursor_indices() {
-            self.move_cursor(index, delta, should_select);
+            self.move_cursor(index, delta_x, delta_y, should_select);
         }
     }
 
@@ -715,10 +777,10 @@ impl Doc {
         }
     }
 
-    fn get_cursor_visual_x(&self, index: CursorIndex) -> isize {
+    fn get_cursor_visual_x(&self, index: CursorIndex) -> usize {
         let cursor = self.get_cursor(index);
 
-        let leading_text = &self.lines[cursor.position.y as usize][..cursor.position.x];
+        let leading_text = &self.lines[cursor.position.y][..cursor.position.x];
 
         Gfx::measure_text(leading_text)
     }
@@ -801,7 +863,7 @@ impl Doc {
         self.cursors.len() - 1
     }
 
-    pub fn lines(&self) -> &[Line] {
+    pub fn lines(&self) -> &[String] {
         &self.lines
     }
 
@@ -916,7 +978,7 @@ impl Doc {
         }
     }
 
-    fn mark_line_dirty(&mut self, y: isize) {
+    fn mark_line_dirty(&mut self, y: usize) {
         self.unhighlighted_line_y = self.unhighlighted_line_y.min(y);
         self.needs_tokenization = true;
     }
@@ -964,15 +1026,15 @@ impl Doc {
         self.undo_char_buffer = Some(undo_char_buffer);
 
         if start.y == end.y {
-            self.lines[start.y as usize].remove_graphemes(start.x..end.x);
+            self.lines[start.y as usize].drain(start.x..end.x);
         } else {
             let (start_lines, end_lines) = self.lines.split_at_mut(end.y as usize);
 
             let start_line = &mut start_lines[start.y as usize];
             let end_line = end_lines.first().unwrap();
 
-            start_line.truncate_graphemes(start.x);
-            start_line.extend(&end_line[end.x..]);
+            start_line.truncate(start.x);
+            start_line.push_str(&end_line[end.x..]);
             line_pool.push(self.lines.remove(end.y as usize));
 
             for removed_line in self.lines.drain((start.y + 1) as usize..end.y as usize) {
@@ -1059,16 +1121,16 @@ impl Doc {
                     let old = old.last_mut().unwrap();
                     let new = new.first_mut().unwrap();
 
-                    new.extend(&old[split_x..]);
-                    old.truncate_graphemes(split_x);
+                    new.push_str(&old[split_x..]);
+                    old.truncate(split_x);
 
                     continue;
                 }
                 _ => {}
             }
 
-            self.lines[position.y as usize].insert_grapheme(position.x, grapheme);
-            position.x += 1;
+            self.lines[position.y].insert_str(position.x, grapheme);
+            position.x += grapheme.len();
         }
 
         if self.kind != DocKind::Output {
@@ -1184,39 +1246,40 @@ impl Doc {
     // Positions returned by this function are in bounds as long as the status is None.
     fn step_wrapped(
         &self,
-        line: &Line,
+        line: &str,
         start: Position,
         position: Position,
         step: isize,
     ) -> (Position, StepStatus) {
-        let mut x = position.x;
-        let mut y = position.y;
-        let mut status = StepStatus::None;
+        (position, StepStatus::None)
+        // let mut x = position.x;
+        // let mut y = position.y;
+        // let mut status = StepStatus::None;
 
-        x = x.min(line.len() as isize);
-        x += step;
+        // x = x.min(line.len());
+        // x += step;
 
-        if x == start.x && y == start.y {
-            return (position, StepStatus::Done);
-        }
+        // if x == start.x && y == start.y {
+        //     return (position, StepStatus::Done);
+        // }
 
-        if x < 0 {
-            x = isize::MAX;
-            y -= 1;
-            status = StepStatus::Wrapped;
-        } else if x >= line.len() as isize {
-            x = -1;
-            y += 1;
-            status = StepStatus::Wrapped;
-        };
+        // if x < 0 {
+        //     x = isize::MAX;
+        //     y -= 1;
+        //     status = StepStatus::Wrapped;
+        // } else if x >= line.len() as isize {
+        //     x = -1;
+        //     y += 1;
+        //     status = StepStatus::Wrapped;
+        // };
 
-        y = y.rem_euclid(self.lines.len() as isize);
+        // y = y.rem_euclid(self.lines.len() as isize);
 
-        (Position::new(x, y), status)
+        // (Position::new(x, y), status)
     }
 
     pub fn end(&self) -> Position {
-        let mut position = Position::new(0, self.lines().len() as isize - 1);
+        let mut position = Position::new(0, self.lines().len() - 1);
         position.x = self.get_line_len(position.y);
 
         position
@@ -1224,22 +1287,22 @@ impl Doc {
 
     pub fn get_grapheme(&self, position: Position) -> &str {
         let position = self.clamp_position(position);
-        let line = &self.lines[position.y as usize];
+        let line = &self.lines[position.y];
 
-        if position.x == line.len() as isize {
+        if position.x == line.len() {
             "\n"
         } else {
-            &line[position.x]
+            grapheme::at(position.x, line)
         }
     }
 
     // It's ok for the x position to equal the length of the line.
     // That represents the cursor being right before the newline sequence.
     fn clamp_position(&self, position: Position) -> Position {
-        let max_y = self.lines.len() as isize - 1;
+        let max_y = self.lines.len() - 1;
         let clamped_y = position.y.clamp(0, max_y);
 
-        let max_x = self.lines[clamped_y as usize].len();
+        let max_x = self.lines[clamped_y].len();
         let clamped_x = position.x.clamp(0, max_x);
 
         Position::new(clamped_x, clamped_y)
@@ -1252,7 +1315,7 @@ impl Doc {
         gfx: &Gfx,
     ) -> VisualPosition {
         let position = self.clamp_position(position);
-        let leading_text = &self.lines[position.y as usize][..position.x];
+        let leading_text = &self.lines[position.y][..position.x];
 
         let visual_x = Gfx::measure_text(leading_text);
 
@@ -1269,13 +1332,13 @@ impl Doc {
         gfx: &Gfx,
     ) -> Position {
         let mut position = Position::new(
-            ((visual.x + camera_position.x) / gfx.glyph_width()) as isize,
-            ((visual.y + camera_position.y) / gfx.line_height()) as isize,
+            ((visual.x + camera_position.x) / gfx.glyph_width()).max(0.0) as usize,
+            ((visual.y + camera_position.y) / gfx.line_height()).max(0.0) as usize,
         );
 
         let desired_x = position.x;
         position = self.clamp_position(position);
-        position.x = Gfx::find_x_for_visual_x(&self.lines[position.y as usize][..], desired_x);
+        position.x = Gfx::find_x_for_visual_x(&self.lines[position.y][..], desired_x);
 
         position
     }
@@ -1356,7 +1419,7 @@ impl Doc {
         self.version = 0;
     }
 
-    pub fn drain(&mut self, line_pool: &mut LinePool) -> Drain<Line> {
+    pub fn drain(&mut self, line_pool: &mut LinePool) -> Drain<String> {
         self.line_ending = LineEnding::default();
 
         self.mark_line_dirty(0);
@@ -1719,7 +1782,8 @@ impl Doc {
 
         let end = self.move_position(
             position,
-            Position::new(selection.end.x - selection.start.x, 0),
+            selection.end.x as isize - selection.start.x as isize,
+            0,
         );
 
         self.jump_cursor(CursorIndex::Main, end, true);
@@ -1730,9 +1794,9 @@ impl Doc {
         let mut end = Position::new(self.get_line_len(start.y), start.y);
 
         if start.y as usize == self.lines().len() - 1 {
-            start = self.move_position(start, Position::new(-1, 0));
+            start = self.move_position(start, -1, 0);
         } else {
-            end = self.move_position(end, Position::new(1, 0));
+            end = self.move_position(end, 1, 0);
         }
 
         Selection { start, end }
@@ -1754,7 +1818,7 @@ impl Doc {
         let line_len = self.get_line_len(position.y);
 
         if position.x < line_len {
-            position = self.move_position(position, Position::new(1, 0));
+            position = self.move_position(position, 1, 0);
         }
 
         if position.x > 0 {

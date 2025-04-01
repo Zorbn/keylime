@@ -44,21 +44,21 @@ impl Gfx {
         self.inner.end();
     }
 
-    pub fn measure_text(text: &str) -> isize {
-        let added_tab_width: isize = text
+    pub fn measure_text(text: &str) -> usize {
+        let added_tab_width: usize = text
             .chars()
             .map(|c| match c {
-                '\t' => TAB_WIDTH as isize - 1,
+                '\t' => TAB_WIDTH - 1,
                 _ => 0,
             })
             .sum();
 
-        added_tab_width + UnicodeWidthStr::width(text) as isize
+        added_tab_width + UnicodeWidthStr::width(text)
     }
 
-    pub fn find_x_for_visual_x(text: &str, visual_x: isize) -> isize {
-        let mut current_visual_x = 0isize;
-        let mut x = 0isize;
+    pub fn find_x_for_visual_x(text: &str, visual_x: usize) -> usize {
+        let mut current_visual_x = 0;
+        let mut x = 0;
 
         for grapheme in text.graphemes(true) {
             current_visual_x += Gfx::measure_text(grapheme);
@@ -74,10 +74,10 @@ impl Gfx {
     }
 
     // TODO: Should we still be using this?
-    pub fn get_char_width(c: char) -> isize {
+    pub fn get_char_width(c: char) -> usize {
         match c {
-            '\t' => TAB_WIDTH as isize,
-            _ => UnicodeWidthChar::width(c).unwrap_or(0) as isize,
+            '\t' => TAB_WIDTH,
+            _ => UnicodeWidthChar::width(c).unwrap_or(0),
         }
     }
 
@@ -89,7 +89,7 @@ impl Gfx {
         self.inner.get_glyph_span(glyph_spans, index)
     }
 
-    pub fn add_text(&mut self, text: &str, x: f32, y: f32, color: Color) -> isize {
+    pub fn add_text(&mut self, text: &str, x: f32, y: f32, color: Color) -> usize {
         let glyph_spans = self.get_glyph_spans(text);
 
         let AtlasDimensions {

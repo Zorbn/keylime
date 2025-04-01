@@ -1,4 +1,4 @@
-use super::{line::Line, line_pool::LinePool};
+use super::line_pool::LinePool;
 
 struct TrieNode {
     start: usize,
@@ -89,8 +89,8 @@ impl Trie {
     fn traverse_at_node(
         &self,
         index: usize,
-        prefix: Line,
-        results: &mut Vec<Line>,
+        prefix: String, // TODO: Should this be &str?
+        results: &mut Vec<String>,
         result_pool: &mut LinePool,
     ) {
         // let node = &self.nodes[index];

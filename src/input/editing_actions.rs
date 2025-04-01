@@ -28,11 +28,11 @@ pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, line_pool: &mut LinePool, 
 
         let current_grapheme = doc.get_grapheme(cursor.position);
 
-        let previous_position = doc.move_position(cursor.position, Position::new(-1, 0));
+        let previous_position = doc.move_position(cursor.position, -1, 0);
         let previous_grapheme = doc.get_grapheme(previous_position);
 
         if is_matching_grapheme(grapheme) && current_grapheme == grapheme {
-            doc.move_cursor(index, Position::new(1, 0), false);
+            doc.move_cursor(index, 1, 0, false);
 
             continue;
         }
@@ -43,7 +43,7 @@ pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, line_pool: &mut LinePool, 
         }) {
             doc.insert_at_cursor(index, grapheme, line_pool, time);
             doc.insert_at_cursor(index, matching_grapheme, line_pool, time);
-            doc.move_cursor(index, Position::new(-1, 0), false);
+            doc.move_cursor(index, -1, 0, false);
 
             continue;
         }
@@ -61,16 +61,10 @@ pub fn handle_action(
     time: f32,
 ) -> bool {
     match action {
-        action_name!(MoveLeft, mods) => {
-            handle_move(Position::new(-1, 0), mods & MOD_SHIFT != 0, doc)
-        }
-        action_name!(MoveRight, mods) => {
-            handle_move(Position::new(1, 0), mods & MOD_SHIFT != 0, doc)
-        }
-        action_name!(MoveUp, mods) => handle_move(Position::new(0, -1), mods & MOD_SHIFT != 0, doc),
-        action_name!(MoveDown, mods) => {
-            handle_move(Position::new(0, 1), mods & MOD_SHIFT != 0, doc)
-        }
+        action_name!(MoveLeft, mods) => handle_move(-1, 0, mods & MOD_SHIFT != 0, doc),
+        action_name!(MoveRight, mods) => handle_move(1, 0, mods & MOD_SHIFT != 0, doc),
+        action_name!(MoveUp, mods) => handle_move(0, -1, mods & MOD_SHIFT != 0, doc),
+        action_name!(MoveDown, mods) => handle_move(0, 1, mods & MOD_SHIFT != 0, doc),
         action_name!(MoveLeftWord, mods) => {
             doc.move_cursors_to_next_word(-1, mods & MOD_SHIFT != 0)
         }
@@ -87,8 +81,8 @@ pub fn handle_action(
         action_name!(ShiftLinesDown) => handle_shift_lines(1, doc, buffers, time),
         action_name!(UndoCursorPosition) => doc.undo_cursor_position(),
         action_name!(RedoCursorPosition) => doc.redo_cursor_position(),
-        action_name!(AddCursorUp) => handle_add_cursor(Position::new(0, -1), doc),
-        action_name!(AddCursorDown) => handle_add_cursor(Position::new(0, 1), doc),
+        action_name!(AddCursorUp) => handle_add_cursor(-1, doc),
+        action_name!(AddCursorDown) => handle_add_cursor(1, doc),
         action_name!(DeleteBackward) => {
             handle_delete_backward(DeleteKind::Char, doc, language, &mut buffers.lines, time)
         }
@@ -113,12 +107,12 @@ pub fn handle_action(
         action_name!(PageUp, mods) => {
             let height_lines = window.gfx().height_lines();
 
-            doc.move_cursors(Position::new(0, -height_lines), mods & MOD_SHIFT != 0);
+            doc.move_cursors(0, -height_lines, mods & MOD_SHIFT != 0);
         }
         action_name!(PageDown, mods) => {
             let height_lines = window.gfx().height_lines();
 
-            doc.move_cursors(Position::new(0, height_lines), mods & MOD_SHIFT != 0);
+            doc.move_cursors(0, height_lines, mods & MOD_SHIFT != 0);
         }
         action_name!(Home, mods) => {
             handle_home(mods & MOD_SHIFT != 0, doc);
@@ -137,7 +131,7 @@ pub fn handle_action(
             }
         }
         action_name!(SelectAll) => {
-            let y = doc.lines().len() as isize - 1;
+            let y = doc.lines().len() - 1;
             let x = doc.get_line_len(y);
 
             doc.jump_cursors(Position::zero(), false);
@@ -193,33 +187,34 @@ pub fn handle_action(
     true
 }
 
-fn handle_move(direction: Position, should_select: bool, doc: &mut Doc) {
+fn handle_move(direction_x: isize, direction_y: isize, should_select: bool, doc: &mut Doc) {
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
 
         match cursor.get_selection() {
             Some(selection) if !should_select => {
-                if direction.x < 0 || direction.y < 0 {
+                if direction_x < 0 || direction_y < 0 {
                     doc.jump_cursor(index, selection.start, false);
-                } else if direction.x > 0 || direction.y > 0 {
+                } else if direction_x > 0 || direction_y > 0 {
                     doc.jump_cursor(index, selection.end, false);
                 }
 
-                if direction.y != 0 {
-                    doc.move_cursor(index, direction, false);
+                if direction_y != 0 {
+                    doc.move_cursor(index, direction_x, direction_y, false);
                 }
             }
-            _ => doc.move_cursor(index, direction, should_select),
+            _ => doc.move_cursor(index, direction_x, direction_y, should_select),
         }
     }
 }
 
-fn handle_add_cursor(direction: Position, doc: &mut Doc) {
+fn handle_add_cursor(direction_y: isize, doc: &mut Doc) {
     let cursor = doc.get_cursor(CursorIndex::Main);
 
     let position = doc.move_position_with_desired_visual_x(
         cursor.position,
-        direction,
+        0,
+        direction_y,
         Some(cursor.desired_visual_x),
     );
 
@@ -270,7 +265,7 @@ pub fn handle_left_click(
     let selection_anchor_word = select_at_position(
         doc,
         if is_selected_word_left_of_anchor {
-            doc.move_position(selection_anchor, Position::new(-1, 0))
+            doc.move_position(selection_anchor, -1, 0)
         } else {
             selection_anchor
         },
@@ -310,13 +305,13 @@ fn handle_delete_backward(
                     if end.x > 0 && end.x == doc.get_line_start(end.y) {
                         doc.get_indent_start(end, indent_width)
                     } else {
-                        let start = doc.move_position(end, Position::new(-1, 0));
+                        let start = doc.move_position(end, -1, 0);
                         let start_char = doc.get_grapheme(start);
 
                         if get_matching_grapheme(start_char)
                             == Some(doc.get_grapheme(cursor.position))
                         {
-                            end = doc.move_position(end, Position::new(1, 0));
+                            end = doc.move_position(end, 1, 0);
                         }
 
                         start
@@ -344,7 +339,7 @@ fn handle_delete_forward(kind: DeleteKind, doc: &mut Doc, line_pool: &mut LinePo
             let start = cursor.position;
 
             let end = match kind {
-                DeleteKind::Char => doc.move_position(start, Position::new(1, 0)),
+                DeleteKind::Char => doc.move_position(start, 1, 0),
                 DeleteKind::Word => doc.move_position_to_next_word(start, 1),
                 DeleteKind::Line => Position::new(doc.get_line_len(start.y), start.y),
             };
@@ -375,13 +370,13 @@ fn handle_enter(
 
             if grapheme::is_whitespace(grapheme) {
                 text_buffer.push_str(grapheme);
-                indent_position = doc.move_position(indent_position, Position::new(1, 0));
+                indent_position = doc.move_position(indent_position, 1, 0);
             } else {
                 break;
             }
         }
 
-        let previous_position = doc.move_position(cursor.position, Position::new(-1, 0));
+        let previous_position = doc.move_position(cursor.position, -1, 0);
         let do_start_block =
             doc.get_grapheme(previous_position) == "{" && doc.get_grapheme(cursor.position) == "}";
 

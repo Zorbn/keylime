@@ -1,7 +1,5 @@
-use super::line::Line;
-
 pub struct LinePool {
-    available: Vec<Line>,
+    available: Vec<String>,
 }
 
 impl LinePool {
@@ -11,11 +9,11 @@ impl LinePool {
         }
     }
 
-    pub fn pop(&mut self) -> Line {
+    pub fn pop(&mut self) -> String {
         self.available.pop().unwrap_or_default()
     }
 
-    pub fn push(&mut self, mut line: Line) {
+    pub fn push(&mut self, mut line: String) {
         line.clear();
         self.available.push(line);
     }

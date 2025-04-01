@@ -16,7 +16,6 @@ use crate::{
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
-        grapheme::GraphemeSelection,
     },
 };
 
@@ -356,7 +355,7 @@ impl Tab {
                 - width
                 - (GUTTER_PADDING_WIDTH + GUTTER_BORDER_WIDTH) * gfx.glyph_width();
 
-            let color = if is_focused && y as isize == cursor_y {
+            let color = if is_focused && y == cursor_y {
                 theme.normal
             } else {
                 theme.line_number
@@ -395,11 +394,11 @@ impl Tab {
             let background_visual_y =
                 Self::get_line_background_visual_y(i, visible_lines.offset, gfx);
 
-            if !doc.is_line_whitespace(y as isize) {
-                indent_guide_x = doc.get_line_start(y as isize)
+            if !doc.is_line_whitespace(y) {
+                indent_guide_x = doc.get_line_start(y)
             };
 
-            for x in (indent_width..indent_guide_x).step_by(indent_width as usize) {
+            for x in (indent_width..indent_guide_x).step_by(indent_width) {
                 let visual_x = gfx.glyph_width() * x as f32 - camera_position.x;
 
                 gfx.add_rect(
@@ -453,7 +452,7 @@ impl Tab {
                     let background = theme.highlight_kind_to_color(highlight_background);
 
                     Self::draw_background(
-                        highlight.end.index() - highlight.start.index(),
+                        highlight.end - highlight.start,
                         gfx,
                         visual_x,
                         background_visual_y,
@@ -463,7 +462,7 @@ impl Tab {
                 }
 
                 x += gfx.add_text(
-                    GraphemeSelection::grapheme_range(&highlight.start, &highlight.end, &line[..]),
+                    &line[highlight.start..highlight.end],
                     visual_x,
                     foreground_visual_y,
                     foreground,
@@ -473,7 +472,7 @@ impl Tab {
     }
 
     fn draw_background(
-        len: isize,
+        len: usize,
         gfx: &mut Gfx,
         x: f32,
         y: f32,
@@ -511,12 +510,8 @@ impl Tab {
                 continue;
             };
 
-            let start = selection
-                .start
-                .max(Position::new(0, visible_lines.min_y as isize));
-            let end = selection
-                .end
-                .min(Position::new(0, visible_lines.max_y as isize));
+            let start = selection.start.max(Position::new(0, visible_lines.min_y));
+            let end = selection.end.min(Position::new(0, visible_lines.max_y));
             let mut position = start;
 
             while position < end {
@@ -535,7 +530,7 @@ impl Tab {
                     theme.selection,
                 );
 
-                position = doc.move_position(position, Position::new(1, 0));
+                position = doc.move_position(position, 1, 0);
             }
         }
 
