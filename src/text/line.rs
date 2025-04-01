@@ -10,12 +10,14 @@ use super::grapheme::GraphemeSelection;
 #[derive(Debug, Default)]
 pub struct Line {
     text: String,
+    len: isize,
 }
 
 impl Line {
     pub fn new() -> Self {
         Self {
             text: String::new(),
+            len: 0,
         }
     }
 
@@ -24,22 +26,22 @@ impl Line {
     }
 
     pub fn len(&self) -> isize {
-        // TODO: This could be cached by storing len as an option and setting it to none when the line is modified.
-        UnicodeSegmentation::graphemes(self.text.as_str(), true).count() as isize
+        self.len
     }
 
     fn get_grapheme_start(&self, i: isize) -> isize {
         let mut cursor = GraphemeCursor::new(0, self.text.len(), true);
 
         for _ in 0..i {
-            let _ = cursor.next_boundary(&self.text, 0);
+            assert!(matches!(cursor.next_boundary(&self.text, 0), Ok(Some(_))));
         }
 
         cursor.cur_cursor() as isize
     }
 
     fn graphemes(&self, range: Range<isize>) -> Take<Skip<Graphemes>> {
-        UnicodeSegmentation::graphemes(self.text.as_str(), true)
+        self.text
+            .graphemes(true)
             .skip((range.start).max(0) as usize)
             .take((range.end - range.start).max(0) as usize)
     }
@@ -49,22 +51,26 @@ impl Line {
         let end = self.get_grapheme_start(range.end) as usize;
 
         self.text.drain(start..end);
+        self.len -= range.len() as isize;
     }
 
     pub fn truncate_graphemes(&mut self, i: isize) {
         let start = self.get_grapheme_start(i) as usize;
 
         self.text.truncate(start);
+        self.len = self.len.min(i);
     }
 
     pub fn extend(&mut self, text: &str) {
         self.text.push_str(text);
+        self.len += text.graphemes(true).count() as isize;
     }
 
     pub fn insert_grapheme(&mut self, i: isize, grapheme: &str) {
         let start = self.get_grapheme_start(i);
 
         self.text.insert_str(start as usize, grapheme);
+        self.len += 1;
     }
 
     pub fn get_start(&self) -> isize {

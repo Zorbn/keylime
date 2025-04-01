@@ -1,4 +1,6 @@
-use std::{iter, mem::swap, ops::RangeInclusive};
+use std::{mem::swap, ops::RangeInclusive};
+
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     config::Config,
@@ -373,12 +375,11 @@ impl TerminalEmulator {
         let insert_start = self.grid_position_to_doc_position(Position::new(0, scroll_top), doc);
 
         doc.delete(delete_start, delete_end, line_pool, time);
+        doc.insert(insert_start, "\n", line_pool, time);
 
-        let new_line_chars = iter::repeat(' ')
-            .take(self.grid_width as usize)
-            .chain("\n".chars());
-
-        // doc.insert(insert_start, new_line_chars, line_pool, time);
+        for _ in 0..self.grid_width {
+            doc.insert(insert_start, " ", line_pool, time);
+        }
 
         let bottom_grid_line = self.grid_line_colors.remove(scroll_bottom as usize);
         self.grid_line_colors
@@ -426,11 +427,11 @@ impl TerminalEmulator {
             insert_start
         };
 
-        let new_line_chars = "\n"
-            .chars()
-            .chain(iter::repeat(' ').take(self.grid_width as usize));
+        for _ in 0..self.grid_width {
+            doc.insert(insert_start, " ", line_pool, time);
+        }
 
-        // doc.insert(insert_start, new_line_chars, line_pool, time);
+        doc.insert(insert_start, "\n", line_pool, time);
 
         let top_grid_line = self.grid_line_colors.remove(scroll_top as usize);
         self.grid_line_colors
@@ -595,24 +596,22 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn insert_at_cursor(
+    pub fn insert_grapheme_at_cursor(
         &mut self,
-        text: &[char],
+        grapheme: &str,
         doc: &mut Doc,
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        for c in text {
-            if self.grid_cursor.x >= self.grid_width {
-                self.jump_cursor(Position::new(0, self.grid_cursor.y), doc);
-                self.newline_cursor(doc, line_pool, time);
-            }
-
-            // self.insert(self.grid_cursor, &[*c], doc, line_pool, time);
-
-            self.grid_cursor.x += Gfx::get_char_width(*c);
-            self.jump_doc_cursors_to_grid_cursor(doc);
+        if self.grid_cursor.x >= self.grid_width {
+            self.jump_cursor(Position::new(0, self.grid_cursor.y), doc);
+            self.newline_cursor(doc, line_pool, time);
         }
+
+        self.insert(self.grid_cursor, grapheme, doc, line_pool, time);
+
+        self.grid_cursor.x += Gfx::measure_text(grapheme);
+        self.jump_doc_cursors_to_grid_cursor(doc);
     }
 
     fn color_to_bright(color: TerminalHighlightKind) -> TerminalHighlightKind {
@@ -662,8 +661,8 @@ impl TerminalEmulator {
             colors
         };
 
-        for mut c in text.chars() {
-            for _ in 0..Gfx::get_char_width(c) {
+        for mut grapheme in text.graphemes(true) {
+            for _ in 0..Gfx::measure_text(grapheme) {
                 let next_position = self.move_position(position, Position::new(1, 0));
 
                 {
@@ -671,13 +670,13 @@ impl TerminalEmulator {
                     let next_position = self.grid_position_to_doc_position(next_position, doc);
 
                     doc.delete(position, next_position, line_pool, time);
-                    // doc.insert(position, [*c], line_pool, time);
+                    doc.insert(position, grapheme, line_pool, time);
                 }
 
                 self.grid_line_colors[position.y as usize][position.x as usize] = colors;
                 position = next_position;
 
-                c = '\0';
+                grapheme = "\0";
             }
         }
 

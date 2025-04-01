@@ -1,8 +1,11 @@
+use core::str;
+
 use crate::{
     config::theme::Theme,
     geometry::position::Position,
     text::{
         doc::Doc,
+        grapheme::GraphemeSelector,
         line_pool::LinePool,
         syntax_highlighter::{HighlightKind, TerminalHighlightKind},
     },
@@ -91,7 +94,7 @@ impl TerminalEmulator {
                     let next_tab_stop = (self.grid_cursor.x / 8 + 1) * 8;
 
                     while self.grid_cursor.x < next_tab_stop {
-                        self.insert_at_cursor(&[' '], doc, line_pool, time);
+                        self.insert_grapheme_at_cursor(" ", doc, line_pool, time);
                     }
 
                     output = &output[1..];
@@ -114,11 +117,25 @@ impl TerminalEmulator {
                 _ => {}
             }
 
-            if let Some(c) = char::from_u32(output[0]) {
-                self.insert_at_cursor(&[c], doc, line_pool, time);
-            }
+            unsafe {
+                let string = str::from_utf8_unchecked(output);
 
-            output = &output[1..];
+                if !string.is_empty() {
+                    let grapheme_selector = GraphemeSelector::new(string);
+                    let grapheme = grapheme_selector.grapheme(string);
+
+                    self.insert_grapheme_at_cursor(grapheme, doc, line_pool, time);
+
+                    output = &output[grapheme.len()..];
+                }
+            }
+        }
+    }
+
+    fn get_valid_utf8_range(bytes: &[u8]) -> &str {
+        match str::from_utf8(bytes) {
+            Ok(string) => string,
+            Err(err) => unsafe { str::from_utf8_unchecked(&bytes[..err.valid_up_to()]) },
         }
     }
 
@@ -707,11 +724,11 @@ impl TerminalEmulator {
     fn parse_numeric_parameter(mut output: &[u8]) -> Option<(&[u8], usize)> {
         let mut parameter = 0;
 
-        if !matches!(output.first()?, b'0'..=b'9') {
+        if !output.first()?.is_ascii_digit() {
             return None;
         }
 
-        while matches!(output.first()?, b'0'..=b'9') {
+        while output.first()?.is_ascii_digit() {
             parameter = parameter * 10 + (output[0] - b'0') as usize;
             output = &output[1..];
         }

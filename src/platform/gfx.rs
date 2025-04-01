@@ -60,7 +60,7 @@ impl Gfx {
         let mut current_visual_x = 0isize;
         let mut x = 0isize;
 
-        for grapheme in UnicodeSegmentation::graphemes(text, true) {
+        for grapheme in text.graphemes(true) {
             current_visual_x += Gfx::measure_text(grapheme);
 
             if current_visual_x > visual_x {
@@ -100,7 +100,7 @@ impl Gfx {
 
         let mut offset = 0;
 
-        for (i, grapheme) in UnicodeSegmentation::graphemes(text, true).enumerate() {
+        for (i, grapheme) in text.graphemes(true).enumerate() {
             if grapheme::is_whitespace(grapheme) || grapheme::is_control(grapheme) {
                 offset += Self::measure_text(grapheme);
                 continue;
