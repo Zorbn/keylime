@@ -16,7 +16,7 @@ use crate::{
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
-        grapheme::GraphemeSelector,
+        grapheme::GraphemeSelection,
     },
 };
 
@@ -463,7 +463,7 @@ impl Tab {
                 }
 
                 x += gfx.add_text(
-                    GraphemeSelector::grapheme_range(&highlight.start, &highlight.end, &line[..]),
+                    GraphemeSelection::grapheme_range(&highlight.start, &highlight.end, &line[..]),
                     visual_x,
                     foreground_visual_y,
                     foreground,

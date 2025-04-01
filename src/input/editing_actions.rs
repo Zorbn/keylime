@@ -5,8 +5,8 @@ use crate::{
     platform::window::Window,
     temp_buffer::TempString,
     text::{
-        action_history::ActionKind, cursor_index::CursorIndex, doc::Doc,
-        grapheme::grapheme_is_whitespace, line_pool::LinePool,
+        action_history::ActionKind, cursor_index::CursorIndex, doc::Doc, grapheme,
+        line_pool::LinePool,
     },
 };
 
@@ -38,8 +38,8 @@ pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, line_pool: &mut LinePool, 
         }
 
         if let Some(matching_grapheme) = get_matching_grapheme(grapheme).filter(|grapheme| {
-            (current_grapheme == *grapheme || grapheme_is_whitespace(current_grapheme))
-                && (*grapheme != "'" || grapheme_is_whitespace(previous_grapheme))
+            (current_grapheme == *grapheme || grapheme::is_whitespace(current_grapheme))
+                && (*grapheme != "'" || grapheme::is_whitespace(previous_grapheme))
         }) {
             doc.insert_at_cursor(index, grapheme, line_pool, time);
             doc.insert_at_cursor(index, matching_grapheme, line_pool, time);
@@ -373,7 +373,7 @@ fn handle_enter(
         while indent_position < cursor.position {
             let grapheme = doc.get_grapheme(indent_position);
 
-            if grapheme_is_whitespace(grapheme) {
+            if grapheme::is_whitespace(grapheme) {
                 text_buffer.push_str(grapheme);
                 indent_position = doc.move_position(indent_position, Position::new(1, 0));
             } else {
