@@ -6,7 +6,7 @@ use crate::{
         rect::Rect,
         side::{SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     },
-    text::grapheme::{grapheme_is_control, grapheme_is_whitespace},
+    text::grapheme,
     ui::color::Color,
 };
 
@@ -101,7 +101,7 @@ impl Gfx {
         let mut offset = 0;
 
         for (i, grapheme) in UnicodeSegmentation::graphemes(text, true).enumerate() {
-            if grapheme_is_whitespace(grapheme) || grapheme_is_control(grapheme) {
+            if grapheme::is_whitespace(grapheme) || grapheme::is_control(grapheme) {
                 offset += Self::measure_text(grapheme);
                 continue;
             }

@@ -1,3 +1,5 @@
+use super::grapheme;
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum GraphemeCategory {
     Identifier,
@@ -10,9 +12,9 @@ impl GraphemeCategory {
     pub fn new(grapheme: &str) -> GraphemeCategory {
         if grapheme == "\n" {
             GraphemeCategory::Newline
-        } else if grapheme.chars().all(|c| c.is_whitespace()) {
+        } else if grapheme::is_whitespace(grapheme) {
             GraphemeCategory::Space
-        } else if grapheme.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        } else if grapheme == "_" || grapheme::is_alphanumeric(grapheme) {
             GraphemeCategory::Identifier
         } else {
             GraphemeCategory::Symbol
