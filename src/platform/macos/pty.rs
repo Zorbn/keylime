@@ -8,17 +8,14 @@ use std::{
 use libc::{kevent, EVFILT_READ, EV_ADD, EV_CLEAR};
 use objc2::rc::Retained;
 
-use crate::text::utf32::{utf32_to_utf8, utf8_to_utf32};
-
 use super::{
     result::Result,
     view::{View, ViewRef},
 };
 
 pub struct Pty {
-    pub output: Arc<Mutex<Vec<u32>>>,
-    pub input: Vec<u32>,
-    input_bytes: Vec<u8>,
+    pub output: Arc<Mutex<Vec<u8>>>,
+    pub input: Vec<u8>,
 
     read_thread_join: Option<JoinHandle<()>>,
 
@@ -75,7 +72,6 @@ impl Pty {
         Ok(Self {
             output: Arc::new(Mutex::new(Vec::new())),
             input: Vec::new(),
-            input_bytes: Vec::new(),
 
             read_thread_join: None,
 
@@ -89,18 +85,11 @@ impl Pty {
             return;
         }
 
-        utf32_to_utf8(&self.input, &mut self.input_bytes);
-        self.input.clear();
-
         unsafe {
-            libc::write(
-                self.fd,
-                self.input_bytes.as_ptr() as _,
-                self.input_bytes.len(),
-            );
+            libc::write(self.fd, self.input.as_ptr() as _, self.input.len());
         }
 
-        self.input_bytes.clear();
+        self.input.clear();
     }
 
     pub fn resize(&mut self, width: isize, height: isize) {
@@ -130,7 +119,7 @@ impl Pty {
     }
 
     fn run_read_thread(
-        output: Arc<Mutex<Vec<u32>>>,
+        output: Arc<Mutex<Vec<u8>>>,
         view: ViewRef,
         kq: i32,
         fd: i32,
@@ -167,7 +156,7 @@ impl Pty {
 
                 if !matches!(bytes_read, 0 | -1) {
                     let mut output = output.lock().unwrap();
-                    utf8_to_utf32(&buffer[..bytes_read as usize], &mut output);
+                    output.extend_from_slice(&buffer[..bytes_read as usize]);
                 } else {
                     break;
                 }

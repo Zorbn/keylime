@@ -17,7 +17,7 @@ use crate::{
     ui::{tab::Tab, widget::WidgetHandle},
 };
 
-use super::{char32::*, TerminalDocs};
+use super::TerminalDocs;
 
 const MAX_SCROLLBACK_LINES: usize = 100;
 const MIN_GRID_WIDTH: isize = 1;
@@ -111,13 +111,13 @@ impl TerminalEmulator {
         while let Some(action) = action_handler.next(widget.window()) {
             match action {
                 action_keybind!(key: Enter) => {
-                    pty.input().push('\r' as u32);
+                    pty.input().push(b'\r');
                 }
                 action_keybind!(key: Escape) => {
                     pty.input().push(0x1B);
                 }
                 action_keybind!(key: Tab) => {
-                    pty.input().push('\t' as u32);
+                    pty.input().push(b'\t');
                 }
                 action_keybind!(key: Backspace, mods) => {
                     let key_char = if mods & MOD_CTRL != 0 { 0x8 } else { 0x7F };
@@ -127,34 +127,34 @@ impl TerminalEmulator {
                 action_keybind!(keys: key @ (Key::Up | Key::Down | Key::Left | Key::Right | Key::Home | Key::End), mods) =>
                 {
                     let key_char = match key {
-                        Key::Up => 'A',
-                        Key::Down => 'B',
-                        Key::Left => 'D',
-                        Key::Right => 'C',
-                        Key::Home => 'H',
-                        Key::End => 'F',
+                        Key::Up => b'A',
+                        Key::Down => b'B',
+                        Key::Left => b'D',
+                        Key::Right => b'C',
+                        Key::Home => b'H',
+                        Key::End => b'F',
                         _ => unreachable!(),
                     };
 
-                    pty.input().extend_from_slice(&[0x1B, LEFT_BRACKET]);
+                    pty.input().extend_from_slice(&[0x1B, b'[']);
 
                     if mods != 0 {
-                        pty.input().extend_from_slice(&[ONE, SEMICOLON]);
+                        pty.input().extend_from_slice(b"1;");
                     }
 
                     if mods & MOD_SHIFT != 0 && mods & MOD_CTRL != 0 {
-                        pty.input().push(SIX);
+                        pty.input().push(b'6');
                     } else if mods & MOD_SHIFT != 0 && mods & MOD_ALT != 0 {
-                        pty.input().push(FOUR);
+                        pty.input().push(b'4');
                     } else if mods & MOD_SHIFT != 0 {
-                        pty.input().push(TWO);
+                        pty.input().push(b'2');
                     } else if mods & MOD_CTRL != 0 {
-                        pty.input().push(FIVE);
+                        pty.input().push(b'5');
                     } else if mods & MOD_ALT != 0 {
-                        pty.input().push(THREE);
+                        pty.input().push(b'3');
                     }
 
-                    pty.input().push(key_char as u32);
+                    pty.input().push(key_char);
                 }
                 action_name!(names: Some(ActionName::Copy | ActionName::Cut))
                     if doc.has_selection() =>
@@ -164,15 +164,13 @@ impl TerminalEmulator {
                 action_name!(Paste) => {
                     let text = widget.window().get_clipboard().unwrap_or("");
 
-                    for c in text.chars() {
-                        pty.input().push(c as u32);
-                    }
+                    pty.input().extend(text.bytes());
                 }
                 action_keybind!(key, mods: MOD_CTRL) => {
-                    const KEY_A: u32 = Key::A as u32;
-                    const KEY_Z: u32 = Key::Z as u32;
+                    const KEY_A: u8 = Key::A as u8;
+                    const KEY_Z: u8 = Key::Z as u8;
 
-                    let key = key as u32;
+                    let key = key as u8;
 
                     if matches!(key, KEY_A..=KEY_Z) {
                         pty.input().push(key & 0x1F);
@@ -185,8 +183,7 @@ impl TerminalEmulator {
         let mut grapheme_handler = widget.get_grapheme_handler();
 
         while let Some(grapheme) = grapheme_handler.next(widget.window()) {
-            // TODO: Re-evaluate how input is handled for the pty, can it just be a string and we do push_str here?
-            pty.input().extend(grapheme.chars().map(|c| c as u32));
+            pty.input().extend(grapheme.bytes());
         }
 
         pty.flush();
