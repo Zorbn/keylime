@@ -1436,35 +1436,31 @@ impl Doc {
 
     fn get_line_ending_and_len(&self, string: &str) -> (LineEnding, usize) {
         let mut len = 0;
-        let mut line_ending = LineEnding::default();
-        let mut last_char_was_cr = false;
 
-        for c in string.chars() {
-            match c {
-                '\r' => {
-                    last_char_was_cr = true;
-                    line_ending = LineEnding::CrLf;
-                }
-                '\n' => {
-                    if !last_char_was_cr {
-                        line_ending = LineEnding::Lf;
-                    }
+        for grapheme in UnicodeSegmentation::graphemes(string, true) {
+            match grapheme {
+                "\r\n" | "\n" => {
+                    let line_ending = if grapheme == "\r\n" {
+                        LineEnding::CrLf
+                    } else {
+                        LineEnding::Lf
+                    };
 
-                    last_char_was_cr = false;
+                    let len = if self.kind == DocKind::SingleLine {
+                        len
+                    } else {
+                        string.len()
+                    };
 
-                    if self.kind == DocKind::SingleLine {
-                        break;
-                    }
+                    return (line_ending, len);
                 }
-                _ => {
-                    last_char_was_cr = false;
-                }
+                _ => {}
             }
 
-            len += 1;
+            len += grapheme.len();
         }
 
-        (line_ending, len)
+        (LineEnding::default(), string.len())
     }
 
     pub fn path(&self) -> Option<&Path> {

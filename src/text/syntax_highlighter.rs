@@ -138,12 +138,6 @@ impl SyntaxHighlighter {
             grapheme_selector.next_boundary(text);
         }
 
-        println!(
-            "matched ident: {:?} {:?}",
-            start.index(),
-            grapheme_selector.index(),
-        );
-
         HighlightResult::Token {
             start,
             end: grapheme_selector,
@@ -152,18 +146,10 @@ impl SyntaxHighlighter {
 
     fn match_token(text: &str, start: GraphemeSelector, token: &SyntaxToken) -> HighlightResult {
         match token.pattern.match_text(text, start) {
-            Some(pattern_match) => {
-                println!(
-                    "matched token: {:?} {:?}",
-                    pattern_match.start.index(),
-                    pattern_match.end.index(),
-                );
-
-                HighlightResult::Token {
-                    start: pattern_match.start,
-                    end: pattern_match.end,
-                }
-            }
+            Some(pattern_match) => HighlightResult::Token {
+                start: pattern_match.start,
+                end: pattern_match.end,
+            },
             None => HighlightResult::None,
         }
     }
