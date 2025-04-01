@@ -2,12 +2,14 @@ use std::cmp::Ordering;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Position {
-    pub x: isize,
-    pub y: isize,
+    // The index of a byte within the line.
+    pub x: usize,
+    // The index of a line.
+    pub y: usize,
 }
 
 impl Position {
-    pub fn new(x: isize, y: isize) -> Self {
+    pub fn new(x: usize, y: usize) -> Self {
         Self { x, y }
     }
 

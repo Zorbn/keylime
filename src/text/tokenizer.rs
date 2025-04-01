@@ -1,8 +1,4 @@
-use super::{
-    line::Line,
-    syntax_highlighter::{HighlightResult, SyntaxHighlighter},
-    trie::Trie,
-};
+use super::trie::Trie;
 
 pub struct Tokenizer {
     tokens: Trie,
@@ -15,7 +11,7 @@ impl Tokenizer {
         }
     }
 
-    pub fn tokenize(&mut self, lines: &[Line]) {
+    pub fn tokenize(&mut self, lines: &[String]) {
         // self.tokens.clear();
 
         // for line in lines {

@@ -242,7 +242,7 @@ fn delete_last_path_component(
     let end = Position::new(line_len, 0);
 
     let find_start = if can_delete_dirs {
-        doc.move_position(end, Position::new(-1, 0))
+        doc.move_position(end, -1, 0)
     } else {
         end
     };
@@ -268,7 +268,7 @@ fn find_path_component_start(doc: &Doc, position: Position) -> Position {
     let mut start = position;
 
     while start > Position::zero() {
-        let next_start = doc.move_position(start, Position::new(-1, 0));
+        let next_start = doc.move_position(start, -1, 0);
 
         if is_grapheme_path_separator(doc.get_grapheme(next_start)) {
             break;

@@ -15,7 +15,6 @@ use crate::{
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
-        line::Line,
         line_pool::LinePool,
     },
 };
@@ -61,7 +60,7 @@ pub struct CommandPalette {
     last_updated_version: Option<usize>,
 
     result_list: ResultList<String>,
-    previous_results: Vec<Line>,
+    previous_results: Vec<String>,
 
     title_bounds: Rect,
     input_bounds: Rect,

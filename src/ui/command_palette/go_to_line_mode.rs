@@ -24,7 +24,7 @@ fn on_submit(
 
     let line_text = command_palette.doc.to_string();
 
-    let Ok(line) = str::parse::<isize>(&line_text) else {
+    let Ok(line) = str::parse::<usize>(&line_text) else {
         return CommandPaletteAction::Close;
     };
 
@@ -32,7 +32,7 @@ fn on_submit(
         return CommandPaletteAction::Close;
     };
 
-    doc.jump_cursors(Position::new(0, line - 1), false);
+    doc.jump_cursors(Position::new(0, line.saturating_sub(1)), false);
     tab.camera.recenter();
 
     CommandPaletteAction::Close
