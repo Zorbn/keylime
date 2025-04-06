@@ -292,7 +292,7 @@ impl CommandPalette {
         gfx.add_text(
             self.mode.title.chars(),
             gfx.glyph_width(),
-            gfx.border_width() * 2.0 + gfx.tab_padding_y(),
+            gfx.border_width() + gfx.tab_padding_y(),
             config.theme.normal,
         );
 
