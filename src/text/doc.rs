@@ -6,8 +6,6 @@ use std::{
     vec::Drain,
 };
 
-use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
-
 use crate::{
     config::language::IndentWidth,
     editor_buffers::EditorBuffers,
@@ -21,6 +19,7 @@ use super::{
     char_category::GraphemeCategory,
     cursor::Cursor,
     cursor_index::{CursorIndex, CursorIndices},
+    grapheme::{CharCursor, GraphemeCursor, GraphemeIterator},
     line_pool::LinePool,
     selection::Selection,
     syntax::Syntax,
@@ -147,15 +146,15 @@ impl Doc {
         self.usages
     }
 
-    fn move_position_to_next_grapheme(&self, position: &mut Position) -> bool {
+    pub fn move_position_to_next_grapheme(&self, position: &mut Position) -> bool {
         let Some(line) = self.get_line(position.y) else {
             return false;
         };
 
-        let mut grapheme_cursor = GraphemeCursor::new(position.x, line.len(), true);
+        let mut grapheme_cursor = GraphemeCursor::new(position.x, line.len());
 
-        match grapheme_cursor.next_boundary(line, 0) {
-            Ok(Some(new_x)) => {
+        match grapheme_cursor.next_boundary(line) {
+            Some(new_x) => {
                 position.x = new_x;
                 true
             }
@@ -164,15 +163,50 @@ impl Doc {
     }
 
     // TODO: This is basically the same as the next_grapheme version.
-    fn move_position_to_previous_grapheme(&self, position: &mut Position) -> bool {
+    pub fn move_position_to_previous_grapheme(&self, position: &mut Position) -> bool {
         let Some(line) = self.get_line(position.y) else {
             return false;
         };
 
-        let mut grapheme_cursor = GraphemeCursor::new(position.x, line.len(), true);
+        let mut grapheme_cursor = GraphemeCursor::new(position.x, line.len());
 
-        match grapheme_cursor.prev_boundary(line, 0) {
-            Ok(Some(new_x)) => {
+        match grapheme_cursor.previous_boundary(line) {
+            Some(new_x) => {
+                position.x = new_x;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    // General text editing should use graphemes, but operating on characters
+    // is necessary in the terminal emulator where compatibility is most important.
+    pub fn move_position_to_next_char(&self, position: &mut Position) -> bool {
+        let Some(line) = self.get_line(position.y) else {
+            return false;
+        };
+
+        let mut char_cursor = CharCursor::new(position.x, line.len());
+
+        match char_cursor.next_boundary(line) {
+            Some(new_x) => {
+                position.x = new_x;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    // TODO: This is basically the same as the next_char version.
+    pub fn move_position_to_previous_char(&self, position: &mut Position) -> bool {
+        let Some(line) = self.get_line(position.y) else {
+            return false;
+        };
+
+        let mut char_cursor = CharCursor::new(position.x, line.len());
+
+        match char_cursor.previous_boundary(line) {
+            Some(new_x) => {
                 position.x = new_x;
                 true
             }
@@ -872,17 +906,17 @@ impl Doc {
         let end = self.clamp_position(end);
 
         if start.y == end.y {
-            buffer.push_str(&self.lines[start.y as usize][start.x..end.x]);
+            buffer.push_str(&self.lines[start.y][start.x..end.x]);
         } else {
-            buffer.push_str(&self.lines[start.y as usize][start.x..]);
+            buffer.push_str(&self.lines[start.y][start.x..]);
             buffer.push('\n');
 
-            for line in &self.lines[(start.y + 1) as usize..end.y as usize] {
+            for line in &self.lines[start.y + 1..end.y] {
                 buffer.push_str(&line[..]);
                 buffer.push('\n');
             }
 
-            buffer.push_str(&self.lines[end.y as usize][..end.x]);
+            buffer.push_str(&self.lines[end.y][..end.x]);
         }
     }
 
@@ -1026,18 +1060,18 @@ impl Doc {
         self.undo_char_buffer = Some(undo_char_buffer);
 
         if start.y == end.y {
-            self.lines[start.y as usize].drain(start.x..end.x);
+            self.lines[start.y].drain(start.x..end.x);
         } else {
-            let (start_lines, end_lines) = self.lines.split_at_mut(end.y as usize);
+            let (start_lines, end_lines) = self.lines.split_at_mut(end.y);
 
-            let start_line = &mut start_lines[start.y as usize];
+            let start_line = &mut start_lines[start.y];
             let end_line = end_lines.first().unwrap();
 
             start_line.truncate(start.x);
             start_line.push_str(&end_line[end.x..]);
-            line_pool.push(self.lines.remove(end.y as usize));
+            line_pool.push(self.lines.remove(end.y));
 
-            for removed_line in self.lines.drain((start.y + 1) as usize..end.y as usize) {
+            for removed_line in self.lines.drain(start.y + 1..end.y) {
                 line_pool.push(removed_line);
             }
         }
@@ -1101,14 +1135,14 @@ impl Doc {
         let start = self.clamp_position(start);
         let mut position = self.clamp_position(start);
 
-        for grapheme in text.graphemes(true) {
+        for grapheme in GraphemeIterator::new(text) {
             match grapheme {
                 "\r\n" | "\n" => {
                     if self.kind == DocKind::SingleLine {
                         continue;
                     }
 
-                    let new_y = position.y as usize + 1;
+                    let new_y = position.y + 1;
                     let split_x = position.x;
 
                     position.y += 1;
@@ -1500,7 +1534,7 @@ impl Doc {
     fn get_line_ending_and_len(&self, string: &str) -> (LineEnding, usize) {
         let mut len = 0;
 
-        for grapheme in string.graphemes(true) {
+        for grapheme in GraphemeIterator::new(string) {
             match grapheme {
                 "\r\n" | "\n" => {
                     let line_ending = if grapheme == "\r\n" {
@@ -1693,12 +1727,8 @@ impl Doc {
             gfx,
         );
 
-        self.syntax_highlighter.update(
-            &self.lines,
-            syntax,
-            self.unhighlighted_line_y as usize,
-            end.y as usize,
-        );
+        self.syntax_highlighter
+            .update(&self.lines, syntax, self.unhighlighted_line_y, end.y);
 
         self.unhighlighted_line_y = end.y + 1;
     }
@@ -1793,7 +1823,7 @@ impl Doc {
         let mut start = Position::new(0, position.y);
         let mut end = Position::new(self.get_line_len(start.y), start.y);
 
-        if start.y as usize == self.lines().len() - 1 {
+        if start.y == self.lines().len() - 1 {
             start = self.move_position(start, -1, 0);
         } else {
             end = self.move_position(end, 1, 0);

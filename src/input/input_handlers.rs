@@ -1,6 +1,4 @@
-use unicode_segmentation::GraphemeCursor;
-
-use crate::platform::window::Window;
+use crate::{platform::window::Window, text::grapheme::GraphemeCursor};
 
 use super::{action::Action, mouse_scroll::MouseScroll, mousebind::Mousebind};
 
@@ -56,22 +54,14 @@ impl GraphemeHandler {
         let (graphemes_typed, grapheme_cursor) = window.graphemes_typed();
 
         let start = self.grapheme_cursor.cur_cursor();
-
-        if start == graphemes_typed.len() {
-            return None;
-        }
-
-        let Ok(Some(end)) = self.grapheme_cursor.next_boundary(graphemes_typed, 0) else {
-            return None;
-        };
-
-        let _ = grapheme_cursor.next_boundary(graphemes_typed, 0);
+        let end = self.grapheme_cursor.next_boundary(graphemes_typed)?;
+        let _ = grapheme_cursor.next_boundary(graphemes_typed);
 
         Some(&graphemes_typed[start..end])
     }
 
     pub fn unprocessed(&mut self, window: &mut Window) {
         let (graphemes_typed, grapheme_cursor) = window.graphemes_typed();
-        let _ = grapheme_cursor.prev_boundary(graphemes_typed, 0);
+        let _ = grapheme_cursor.previous_boundary(graphemes_typed);
     }
 }

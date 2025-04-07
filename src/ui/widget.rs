@@ -1,9 +1,8 @@
-use unicode_segmentation::GraphemeCursor;
-
 use crate::{
     geometry::rect::Rect,
     input::input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
     platform::{gfx::Gfx, window::Window},
+    text::grapheme::GraphemeCursor,
 };
 
 use super::{Ui, UiHandle};
@@ -32,7 +31,7 @@ impl Widget {
         if self.is_focused(ui) {
             ui.window.get_grapheme_handler()
         } else {
-            GraphemeHandler::new(GraphemeCursor::new(0, 0, true))
+            GraphemeHandler::new(GraphemeCursor::new(0, 0))
         }
     }
 

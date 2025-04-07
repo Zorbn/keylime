@@ -1,7 +1,6 @@
 use serde::{de::Error, Deserialize, Deserializer};
-use unicode_segmentation::GraphemeCursor;
 
-use super::grapheme;
+use super::grapheme::{self, GraphemeCursor};
 
 #[derive(Debug, Clone, Copy)]
 pub struct PatternMatch {
@@ -75,7 +74,7 @@ impl Pattern {
         let mut has_capture_end = false;
         let mut is_escaped = false;
 
-        let mut grapheme_cursor = GraphemeCursor::new(0, code.len(), true);
+        let mut grapheme_cursor = GraphemeCursor::new(0, code.len());
 
         while grapheme_cursor.cur_cursor() < code.len() {
             let index = grapheme_cursor.cur_cursor();
@@ -87,7 +86,7 @@ impl Pattern {
                     &code, index,
                 )));
 
-                grapheme_cursor.next_boundary(&code, 0);
+                grapheme_cursor.next_boundary(&code);
 
                 continue;
             }
@@ -146,7 +145,7 @@ impl Pattern {
                 ))),
             }
 
-            grapheme_cursor.next_boundary(&code, 0);
+            grapheme_cursor.next_boundary(&code);
         }
 
         if has_capture_start && !has_capture_end {
@@ -184,7 +183,7 @@ impl Pattern {
 
                 class.push(Self::get_escaped_literal(code, index));
 
-                grapheme_cursor.next_boundary(code, 0);
+                grapheme_cursor.next_boundary(code);
 
                 continue;
             }
@@ -197,7 +196,7 @@ impl Pattern {
                 _ => class.push(PatternLiteral::Grapheme(index, index + grapheme.len())),
             }
 
-            grapheme_cursor.next_boundary(code, 0);
+            grapheme_cursor.next_boundary(code);
         }
 
         Err("unterminated class")
@@ -237,7 +236,7 @@ impl Pattern {
         parts: &[PatternPart],
         start: usize,
     ) -> Option<PartialPatternMatch> {
-        let mut grapheme_cursor = GraphemeCursor::new(start, text.len(), true);
+        let mut grapheme_cursor = GraphemeCursor::new(start, text.len());
 
         let mut capture_start = None;
         let mut capture_end = None;
@@ -272,7 +271,7 @@ impl Pattern {
                 }
                 _ => {
                     if self.match_literal_or_class(text, grapheme_cursor.cur_cursor(), part) {
-                        grapheme_cursor.next_boundary(text, 0);
+                        grapheme_cursor.next_boundary(text);
                     } else {
                         return None;
                     }
@@ -320,13 +319,13 @@ impl Pattern {
         remaining_parts: &[PatternPart],
         start: usize,
     ) -> Option<PartialPatternMatch> {
-        let mut grapheme_cursor = GraphemeCursor::new(start, text.len(), true);
+        let mut grapheme_cursor = GraphemeCursor::new(start, text.len());
 
         if !self.match_literal_or_class(text, grapheme_cursor.cur_cursor(), next_part) {
             return None;
         }
 
-        grapheme_cursor.next_boundary(text, 0);
+        grapheme_cursor.next_boundary(text);
 
         self.match_modifier_zero_or_more_greedy(
             text,
@@ -343,7 +342,7 @@ impl Pattern {
         remaining_parts: &[PatternPart],
         start: usize,
     ) -> Option<PartialPatternMatch> {
-        let mut grapheme_cursor = GraphemeCursor::new(start, text.len(), true);
+        let mut grapheme_cursor = GraphemeCursor::new(start, text.len());
         let mut pattern_match: Option<PartialPatternMatch> = None;
 
         loop {
@@ -352,7 +351,7 @@ impl Pattern {
                 .or(pattern_match);
 
             if self.match_literal_or_class(text, grapheme_cursor.cur_cursor(), next_part) {
-                grapheme_cursor.next_boundary(text, 0);
+                grapheme_cursor.next_boundary(text);
             } else {
                 break;
             }
@@ -368,7 +367,7 @@ impl Pattern {
         remaining_parts: &[PatternPart],
         start: usize,
     ) -> Option<PartialPatternMatch> {
-        let mut grapheme_cursor = GraphemeCursor::new(start, text.len(), true);
+        let mut grapheme_cursor = GraphemeCursor::new(start, text.len());
 
         loop {
             if let Some(pattern_match) =
@@ -378,7 +377,7 @@ impl Pattern {
             }
 
             if self.match_literal_or_class(text, grapheme_cursor.cur_cursor(), next_part) {
-                grapheme_cursor.next_boundary(text, 0);
+                grapheme_cursor.next_boundary(text);
             } else {
                 return None;
             }
@@ -393,10 +392,10 @@ impl Pattern {
         start: usize,
     ) -> Option<PartialPatternMatch> {
         let mut pattern_match = self.match_parts(text, remaining_parts, start);
-        let mut grapheme_cursor = GraphemeCursor::new(start, text.len(), true);
+        let mut grapheme_cursor = GraphemeCursor::new(start, text.len());
 
         if self.match_literal_or_class(text, grapheme_cursor.cur_cursor(), next_part) {
-            grapheme_cursor.next_boundary(text, 0);
+            grapheme_cursor.next_boundary(text);
 
             pattern_match = self
                 .match_parts(text, remaining_parts, grapheme_cursor.cur_cursor())

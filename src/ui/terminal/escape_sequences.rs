@@ -5,6 +5,7 @@ use crate::{
     geometry::position::Position,
     text::{
         doc::Doc,
+        grapheme,
         line_pool::LinePool,
         syntax_highlighter::{HighlightKind, TerminalHighlightKind},
     },
@@ -83,7 +84,7 @@ impl TerminalEmulator {
                 }
                 // Backspace:
                 0x8 => {
-                    // self.move_cursor(Position::new(-1, 0), doc);
+                    self.move_cursor(-1, 0, doc);
 
                     output = &output[1..];
                     continue;
@@ -93,7 +94,7 @@ impl TerminalEmulator {
                     let next_tab_stop = (self.grid_cursor.x / 8 + 1) * 8;
 
                     while self.grid_cursor.x < next_tab_stop {
-                        self.insert_grapheme_at_cursor(" ", doc, line_pool, time);
+                        self.insert_at_cursor(" ", doc, line_pool, time);
                     }
 
                     output = &output[1..];
@@ -116,20 +117,19 @@ impl TerminalEmulator {
                 _ => {}
             }
 
-            // unsafe {
-            //     let string = str::from_utf8_unchecked(output);
+            let string = Self::get_valid_utf8_range(output);
 
-            //     if !string.is_empty() {
-            //         let grapheme_selector = GraphemeSelector::new(string);
-            //         let grapheme = grapheme_selector.grapheme(string);
+            if !string.is_empty() {
+                let c = grapheme::at(0, string);
 
-            //         self.insert_grapheme_at_cursor(grapheme, doc, line_pool, time);
+                self.insert_at_cursor(c, doc, line_pool, time);
 
-            //         output = &output[grapheme.len()..];
-            //     }
-            // }
-            output = &output[1..];
+                output = &output[c.len()..];
+            }
         }
+
+        let doc = self.get_doc_mut(docs);
+        self.flush_highlights(doc);
     }
 
     fn get_valid_utf8_range(bytes: &[u8]) -> &str {
@@ -160,7 +160,7 @@ impl TerminalEmulator {
                     Some(&b'l') => {
                         match parameters.first() {
                             Some(&25) => self.is_cursor_visible = false,
-                            Some(&1047) | Some(&1049) => self.switch_to_normal_buffer(),
+                            Some(&1047) | Some(&1049) => self.switch_to_normal_buffer(doc),
                             // Otherwise, ignored.
                             #[cfg(feature = "terminal_emulator_debug")]
                             Some(parameter) => {
@@ -177,7 +177,7 @@ impl TerminalEmulator {
                                 self.is_cursor_visible = true;
                                 self.jump_doc_cursors_to_grid_cursor(doc);
                             }
-                            Some(&1047) | Some(&1049) => self.switch_to_alternate_buffer(),
+                            Some(&1047) | Some(&1049) => self.switch_to_alternate_buffer(doc),
                             // Otherwise, ignored.
                             #[cfg(feature = "terminal_emulator_debug")]
                             Some(parameter) => {
@@ -343,142 +343,147 @@ impl TerminalEmulator {
                 Some(&output[1..])
             }
             Some(&b'G') => {
-                // let x = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
+                let x = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
+                let position =
+                    self.grid_position_char_to_byte(Position::new(x, self.grid_cursor.y), doc);
 
-                // self.jump_cursor(Position::new(x as isize, self.grid_cursor.y), doc);
+                self.jump_cursor(position, doc);
 
                 Some(&output[1..])
             }
             Some(&b'd') => {
-                // let y = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
+                let y = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
+                let grapheme_x = self.grid_position_byte_to_char(self.grid_cursor, doc);
+                let position = self.grid_position_char_to_byte(Position::new(grapheme_x, y), doc);
 
-                // self.jump_cursor(Position::new(self.grid_cursor.x, y as isize), doc);
+                self.jump_cursor(position, doc);
 
                 Some(&output[1..])
             }
             Some(&b'H') => {
-                // let y = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
-                // let x = Self::get_parameter(parameters, 1, 1).saturating_sub(1);
+                let y = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
+                let x = Self::get_parameter(parameters, 1, 1).saturating_sub(1);
+                let position = self.grid_position_char_to_byte(Position::new(x, y), doc);
 
-                // self.jump_cursor(Position::new(x as isize, y as isize), doc);
+                self.jump_cursor(position, doc);
 
                 Some(&output[1..])
             }
             Some(&b'A') => {
-                // let distance = Self::get_parameter(parameters, 0, 1) as isize;
-                // self.move_cursor(Position::new(0, -distance), doc);
+                let distance = Self::get_parameter(parameters, 0, 1) as isize;
+                self.move_cursor(0, -distance, doc);
 
                 Some(&output[1..])
             }
             Some(&b'B') => {
-                // let distance = Self::get_parameter(parameters, 0, 1) as isize;
-                // self.move_cursor(Position::new(0, distance), doc);
+                let distance = Self::get_parameter(parameters, 0, 1) as isize;
+                self.move_cursor(0, distance, doc);
 
                 Some(&output[1..])
             }
             Some(&b'C') => {
-                // let distance = Self::get_parameter(parameters, 0, 1) as isize;
-                // self.move_cursor(Position::new(distance, 0), doc);
+                let distance = Self::get_parameter(parameters, 0, 1) as isize;
+                self.move_cursor(distance, 0, doc);
 
                 Some(&output[1..])
             }
             Some(&b'D') => {
-                // let distance = Self::get_parameter(parameters, 0, 1) as isize;
-                // self.move_cursor(Position::new(-distance, 0), doc);
+                let distance = Self::get_parameter(parameters, 0, 1) as isize;
+                self.move_cursor(-distance, 0, doc);
 
                 Some(&output[1..])
             }
             Some(&b'J') => {
-                // let (start, end) = match Self::get_parameter(parameters, 0, 0) {
-                //     0 => {
-                //         // Clear from the cursor to the end of the screen.
-                //         let start = self.grid_cursor;
-                //         let end = Position::new(self.grid_width, self.grid_height - 1);
+                let (start, end) = match Self::get_parameter(parameters, 0, 0) {
+                    0 => {
+                        // Clear from the cursor to the end of the screen.
+                        let start = self.grid_cursor;
+                        let end = self.get_line_end(self.grid_height - 1, doc);
 
-                //         Some((start, end))
-                //     }
-                //     1 => {
-                //         // Clear from the cursor to the beginning of the screen.
-                //         let start = Position::zero();
-                //         let end = self.grid_cursor;
+                        Some((start, end))
+                    }
+                    1 => {
+                        // Clear from the cursor to the beginning of the screen.
+                        let start = Position::zero();
+                        let end = self.grid_cursor;
 
-                //         Some((start, end))
-                //     }
-                //     2 => {
-                //         // Clear screen.
-                //         let start = Position::zero();
-                //         let end = Position::new(self.grid_width, self.grid_height - 1);
+                        Some((start, end))
+                    }
+                    2 => {
+                        // Clear screen.
+                        let start = Position::zero();
+                        let end = self.get_line_end(self.grid_height - 1, doc);
 
-                //         Some((start, end))
-                //     }
-                //     _ => None,
-                // }?;
+                        Some((start, end))
+                    }
+                    _ => None,
+                }?;
 
-                // self.delete(start, end, doc, line_pool, time);
+                self.delete(start, end, doc, line_pool, time);
 
                 Some(&output[1..])
             }
             Some(&b'K') => {
-                // let (start, end) = match Self::get_parameter(parameters, 0, 0) {
-                //     0 => {
-                //         // Clear from the cursor to the end of the line.
-                //         let start = self.grid_cursor;
-                //         let end = Position::new(self.grid_width, start.y);
+                let (start, end) = match Self::get_parameter(parameters, 0, 0) {
+                    0 => {
+                        // Clear from the cursor to the end of the line.
+                        let start = self.grid_cursor;
+                        let end = self.get_line_end(start.y, doc);
 
-                //         Some((start, end))
-                //     }
-                //     1 => {
-                //         // Clear from the cursor to the beginning of the line.
-                //         let start = Position::new(0, self.grid_cursor.y);
-                //         let end = Position::new(self.grid_cursor.x, start.y);
+                        Some((start, end))
+                    }
+                    1 => {
+                        // Clear from the cursor to the beginning of the line.
+                        let start = Position::new(0, self.grid_cursor.y);
+                        let end = Position::new(self.grid_cursor.x, self.grid_cursor.y);
 
-                //         Some((start, end))
-                //     }
-                //     2 => {
-                //         // Clear line.
-                //         let start = Position::new(0, self.grid_cursor.y);
-                //         let end = Position::new(self.grid_width, start.y);
+                        Some((start, end))
+                    }
+                    2 => {
+                        // Clear line.
+                        let start = Position::new(0, self.grid_cursor.y);
+                        let end = self.get_line_end(start.y, doc);
 
-                //         Some((start, end))
-                //     }
-                //     _ => None,
-                // }?;
+                        Some((start, end))
+                    }
+                    _ => None,
+                }?;
 
-                // self.delete(start, end, doc, line_pool, time);
+                self.delete(start, end, doc, line_pool, time);
 
                 Some(&output[1..])
             }
             Some(&b'L') => {
                 // Insert lines.
-                // let count = Self::get_parameter(parameters, 0, 1);
+                let count = Self::get_parameter(parameters, 0, 1);
 
-                // let scroll_top = self.scroll_top.max(self.grid_cursor.y);
-                // let scroll_bottom = self.scroll_bottom;
+                let scroll_top = self.scroll_top.max(self.grid_cursor.y);
+                let scroll_bottom = self.scroll_bottom;
 
-                // if scroll_top > scroll_bottom {
-                //     return None;
-                // }
+                if scroll_top > scroll_bottom {
+                    return None;
+                }
 
-                // for _ in 0..count {
-                //     self.scroll_grid_region_down(scroll_top..=scroll_bottom, doc, line_pool, time);
-                // }
+                for _ in 0..count {
+                    self.scroll_grid_region_down(scroll_top..=scroll_bottom, doc, line_pool, time);
+                }
 
                 Some(&output[1..])
             }
             Some(&b'M') => {
                 // Delete lines.
-                // let count = Self::get_parameter(parameters, 0, 1);
+                let count = Self::get_parameter(parameters, 0, 1);
 
-                // let scroll_top = self.scroll_top.max(self.grid_cursor.y);
-                // let scroll_bottom = self.scroll_bottom;
+                let scroll_top = self.scroll_top.max(self.grid_cursor.y);
+                let scroll_bottom = self.scroll_bottom;
 
-                // if scroll_top > scroll_bottom {
-                //     return None;
-                // }
+                if scroll_top > scroll_bottom {
+                    return None;
+                }
 
-                // for _ in 0..count {
-                //     self.scroll_grid_region_up(scroll_top..=scroll_bottom, doc, line_pool, time);
-                // }
+                for _ in 0..count {
+                    self.scroll_grid_region_up(scroll_top..=scroll_bottom, doc, line_pool, time);
+                }
 
                 Some(&output[1..])
             }
@@ -513,39 +518,34 @@ impl TerminalEmulator {
                 Some(&output[1..])
             }
             Some(&b'X') => {
-                // let distance = Self::get_parameter(parameters, 0, 1);
+                let distance = Self::get_parameter(parameters, 0, 1);
 
-                // // Clear characters after the cursor.
-                // let start = self.grid_cursor;
-                // let end = self.move_position(start, Position::new(distance as isize, 0));
+                // Clear characters after the cursor.
+                let start = self.grid_cursor;
+                let end = self.move_position(start, distance as isize, 0, doc);
 
-                // self.delete(start, end, doc, line_pool, time);
+                self.delete(start, end, doc, line_pool, time);
 
                 Some(&output[1..])
             }
             Some(&b'P') => {
-                // let distance = Self::get_parameter(parameters, 0, 1);
+                let distance = Self::get_parameter(parameters, 0, 1);
 
-                // // Delete characters after the cursor, shifting the rest of the line over.
-                // let start = self.grid_cursor;
-                // let end = self.move_position(start, Position::new(1, 0));
+                // Delete characters after the cursor, shifting the rest of the line over.
+                let start = self.grid_cursor;
+                let end = self.move_position(start, 1, 0, doc);
 
-                // let start = self.grid_position_to_doc_position(start, doc);
-                // let end = self.grid_position_to_doc_position(end, doc);
+                let start = self.grid_position_to_doc_position(start, doc);
+                let end = self.grid_position_to_doc_position(end, doc);
 
-                // if start.y != end.y {
-                //     return Some(&output[1..]);
-                // }
+                if start.y != end.y {
+                    return Some(&output[1..]);
+                }
 
-                // for _ in 0..distance {
-                //     doc.delete(start, end, line_pool, time);
-                //     doc.insert(
-                //         Position::new(self.grid_width - 1, start.y),
-                //         " ",
-                //         line_pool,
-                //         time,
-                //     );
-                // }
+                for _ in 0..distance {
+                    doc.delete(start, end, line_pool, time);
+                    doc.insert(self.get_line_end(start.y, doc), " ", line_pool, time);
+                }
 
                 Some(&output[1..])
             }
@@ -565,9 +565,8 @@ impl TerminalEmulator {
             }
             Some(&b'r') => {
                 // Set scroll region.
-                let top = Self::get_parameter(parameters, 0, 1) as isize - 1;
-                let bottom =
-                    Self::get_parameter(parameters, 1, self.grid_height as usize) as isize - 1;
+                let top = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
+                let bottom = Self::get_parameter(parameters, 1, self.grid_height).saturating_sub(1);
 
                 self.scroll_bottom = bottom.clamp(0, self.grid_height - 1);
                 self.scroll_top = top.clamp(0, self.scroll_bottom);
@@ -579,11 +578,8 @@ impl TerminalEmulator {
 
                 if parameters.first() == Some(&6) {
                     // Report cursor position (1-based).
-                    let response = format!(
-                        "\u{1B}[{};{}R",
-                        self.grid_cursor.y + 1,
-                        self.grid_cursor.x + 1
-                    );
+                    let grapheme_x = self.grid_position_byte_to_char(self.grid_cursor, doc);
+                    let response = format!("\u{1B}[{};{}R", self.grid_cursor.y + 1, grapheme_x + 1);
 
                     input.extend(response.bytes());
 

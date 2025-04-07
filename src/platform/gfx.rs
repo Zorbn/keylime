@@ -1,4 +1,3 @@
-use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
@@ -6,7 +5,7 @@ use crate::{
         rect::Rect,
         side::{SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     },
-    text::grapheme,
+    text::grapheme::{self, GraphemeIterator},
     ui::color::Color,
 };
 
@@ -60,14 +59,14 @@ impl Gfx {
         let mut current_visual_x = 0;
         let mut x = 0;
 
-        for grapheme in text.graphemes(true) {
+        for grapheme in GraphemeIterator::new(text) {
             current_visual_x += Gfx::measure_text(grapheme);
 
             if current_visual_x > visual_x {
                 return x;
             }
 
-            x += 1;
+            x += grapheme.len();
         }
 
         x
@@ -100,7 +99,7 @@ impl Gfx {
 
         let mut offset = 0;
 
-        for (i, grapheme) in text.graphemes(true).enumerate() {
+        for (i, grapheme) in GraphemeIterator::new(text).enumerate() {
             if grapheme::is_whitespace(grapheme) || grapheme::is_control(grapheme) {
                 offset += Self::measure_text(grapheme);
                 continue;

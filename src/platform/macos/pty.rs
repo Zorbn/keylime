@@ -24,7 +24,7 @@ pub struct Pty {
 }
 
 impl Pty {
-    pub fn new(width: isize, height: isize, child_paths: &[&str]) -> Result<Self> {
+    pub fn new(width: usize, height: usize, child_paths: &[&str]) -> Result<Self> {
         let mut window_size = libc::winsize {
             ws_row: height as u16,
             ws_col: width as u16,
@@ -92,7 +92,7 @@ impl Pty {
         self.input.clear();
     }
 
-    pub fn resize(&mut self, width: isize, height: isize) {
+    pub fn resize(&mut self, width: usize, height: usize) {
         let mut window_size = libc::winsize {
             ws_row: height as u16,
             ws_col: width as u16,

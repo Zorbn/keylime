@@ -1,5 +1,3 @@
-use unicode_segmentation::GraphemeCursor;
-
 use crate::{
     app::App,
     input::{
@@ -8,6 +6,7 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::Mousebind,
     },
+    text::grapheme::GraphemeCursor,
 };
 
 use super::{file_watcher::FileWatcher, gfx::Gfx, platform_impl, result::Result};
@@ -98,6 +97,6 @@ impl Window {
     }
 
     pub(super) fn is_char_copy_pastable(c: char) -> bool {
-        c != '\r' && c != '\0'
+        c != '\r' && c != '\u{200B}'
     }
 }

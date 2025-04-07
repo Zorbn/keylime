@@ -7,7 +7,7 @@ pub struct Pty {
 }
 
 impl Pty {
-    pub fn new(width: isize, height: isize, child_paths: &[&str]) -> Result<Self> {
+    pub fn new(width: usize, height: usize, child_paths: &[&str]) -> Result<Self> {
         let inner = platform_impl::pty::Pty::new(width, height, child_paths)?;
 
         Ok(Self { inner })
@@ -17,7 +17,7 @@ impl Pty {
         self.inner.flush();
     }
 
-    pub fn resize(&mut self, width: isize, height: isize) {
+    pub fn resize(&mut self, width: usize, height: usize) {
         self.inner.resize(width, height);
     }
 

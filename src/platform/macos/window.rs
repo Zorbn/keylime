@@ -3,7 +3,6 @@ use std::{cell::RefCell, collections::HashMap, path::Path, ptr::NonNull, rc::Rc}
 use objc2::{rc::Retained, runtime::ProtocolObject, sel};
 use objc2_app_kit::*;
 use objc2_foundation::*;
-use unicode_segmentation::GraphemeCursor;
 
 use crate::{
     app::App,
@@ -20,6 +19,7 @@ use crate::{
     },
     platform::aliases::{AnyFileWatcher, AnyGfx, AnyPty, AnyWindow},
     temp_buffer::{TempBuffer, TempString},
+    text::grapheme::GraphemeCursor,
 };
 
 use super::{delegate::Delegate, file_watcher::FileWatcher, keymaps::new_keymaps, result::Result};
@@ -214,7 +214,7 @@ impl Window {
 
             keymaps: new_keymaps(),
             graphemes_typed: String::new(),
-            grapheme_cursor: GraphemeCursor::new(0, 0, true),
+            grapheme_cursor: GraphemeCursor::new(0, 0),
             actions_typed: Vec::new(),
             mousebinds_pressed: Vec::new(),
             mouse_scrolls: Vec::new(),
@@ -287,7 +287,7 @@ impl Window {
 
     fn clear_inputs(&mut self) {
         self.graphemes_typed.clear();
-        self.grapheme_cursor = GraphemeCursor::new(0, 0, true);
+        self.grapheme_cursor = GraphemeCursor::new(0, 0);
         self.actions_typed.clear();
         self.mousebinds_pressed.clear();
         self.mouse_scrolls.clear();
@@ -438,7 +438,6 @@ impl Window {
             self.grapheme_cursor = GraphemeCursor::new(
                 self.grapheme_cursor.cur_cursor(),
                 self.graphemes_typed.len(),
-                true,
             );
         }
     }
