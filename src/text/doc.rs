@@ -1220,6 +1220,7 @@ impl Doc {
     }
 
     pub fn search(&self, text: &str, start: Position, is_reverse: bool) -> Option<Position> {
+        None
         // TODO:
         // let start = self.clamp_position(start);
         // let start = Position::new(start.x.min(self.get_line_len(start.y) - 1).max(0), start.y);
@@ -1272,42 +1273,41 @@ impl Doc {
         //     }
         // }
 
-        None
+        // None
     }
 
     // Positions returned by this function are in bounds as long as the status is None.
     fn step_wrapped(
         &self,
         line: &str,
-        start: Position,
-        position: Position,
+        start_x: isize,
+        start_y: isize,
+        mut x: isize,
+        mut y: isize,
         step: isize,
-    ) -> (Position, StepStatus) {
-        (position, StepStatus::None)
-        // let mut x = position.x;
-        // let mut y = position.y;
-        // let mut status = StepStatus::None;
+    ) -> (isize, isize, StepStatus) {
+        let mut status = StepStatus::None;
 
-        // x = x.min(line.len());
-        // x += step;
+        x = x.min(line.len() as isize);
+        x += step;
 
-        // if x == start.x && y == start.y {
-        //     return (position, StepStatus::Done);
-        // }
+        if x == start_x && y == start_y {
+            return (x, y, StepStatus::Done);
+        }
 
-        // if x < 0 {
-        //     x = isize::MAX;
-        //     y -= 1;
-        //     status = StepStatus::Wrapped;
-        // } else if x >= line.len() as isize {
-        //     x = -1;
-        //     y += 1;
-        //     status = StepStatus::Wrapped;
-        // };
+        if x < 0 {
+            x = isize::MAX;
+            y -= 1;
+            status = StepStatus::Wrapped;
+        } else if x >= line.len() as isize {
+            x = -1;
+            y += 1;
+            status = StepStatus::Wrapped;
+        };
 
-        // y = y.rem_euclid(self.lines.len() as isize);
+        y = y.rem_euclid(self.lines.len() as isize);
 
-        // (Position::new(x, y), status)
+        (x, y, status)
     }
 
     pub fn end(&self) -> Position {

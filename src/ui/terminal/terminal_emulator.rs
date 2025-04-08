@@ -714,7 +714,7 @@ impl TerminalEmulator {
                 let line_colors_len = line_colors.len();
 
                 line_colors.splice(
-                    insert_start.x..delete_end.x.min(line_colors_len.saturating_sub(1)),
+                    insert_start.x..delete_end.x.min(line_colors_len),
                     iter::repeat(colors).take(c.len()),
                 );
 

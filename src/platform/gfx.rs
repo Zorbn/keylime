@@ -5,7 +5,7 @@ use crate::{
         rect::Rect,
         side::{SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     },
-    text::grapheme::{self, GraphemeIterator},
+    text::grapheme::GraphemeIterator,
     ui::color::Color,
 };
 
@@ -84,8 +84,8 @@ impl Gfx {
         self.inner.get_glyph_spans(text)
     }
 
-    fn get_glyph_span(&mut self, glyph_spans: &GlyphSpans, index: usize) -> Option<GlyphSpan> {
-        self.inner.get_glyph_span(glyph_spans, index)
+    fn get_glyph_span(&mut self, index: usize) -> GlyphSpan {
+        self.inner.get_glyph_span(index)
     }
 
     pub fn add_text(&mut self, text: &str, x: f32, y: f32, color: Color) -> usize {
@@ -99,10 +99,8 @@ impl Gfx {
 
         let mut offset = 0;
 
-        for (i, grapheme) in GraphemeIterator::new(text).enumerate() {
-            let Some(span) = self.get_glyph_span(&glyph_spans, i) else {
-                break;
-            };
+        for i in glyph_spans.spans_start..glyph_spans.spans_end {
+            let span = self.get_glyph_span(i);
 
             let kind = if span.has_color_glyphs {
                 SpriteKind::ColorGlyph
@@ -132,7 +130,7 @@ impl Gfx {
                 kind,
             );
 
-            offset += Self::measure_text(grapheme);
+            offset += (destination_width / glyph_width as f32).round().max(1.0) as usize;
         }
 
         offset

@@ -256,8 +256,8 @@ impl Gfx {
         spans
     }
 
-    pub fn get_glyph_span(&mut self, glyph_spans: &GlyphSpans, index: usize) -> Option<GlyphSpan> {
-        self.text.get_glyph_span(glyph_spans, index)
+    pub fn get_glyph_span(&mut self, index: usize) -> GlyphSpan {
+        self.text.get_glyph_span(index)
     }
 
     fn handle_glyph_cache_result(&mut self) {

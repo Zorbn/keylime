@@ -108,11 +108,8 @@ impl Text {
         (glyph_spans, result)
     }
 
-    pub fn get_glyph_span(&mut self, glyph_spans: &GlyphSpans, index: usize) -> Option<GlyphSpan> {
-        self.cache
-            .glyph_spans
-            .get(glyph_spans.spans_start + index)
-            .copied()
+    pub fn get_glyph_span(&mut self, index: usize) -> GlyphSpan {
+        self.cache.glyph_spans[index]
     }
 
     pub fn swap_caches(&mut self) {

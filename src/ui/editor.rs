@@ -239,11 +239,11 @@ impl Editor {
                     if let Some((_, doc)) =
                         pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
                     {
-                        // doc.insert_at_cursors(
-                        //     &result[self.completion_prefix.len()..],
-                        //     &mut buffers.lines,
-                        //     time,
-                        // );
+                        doc.insert_at_cursors(
+                            &result[self.completion_prefix.len()..],
+                            &mut buffers.lines,
+                            time,
+                        );
                     }
                 }
 
@@ -348,7 +348,7 @@ impl Editor {
         completion_result_pool: &mut LinePool,
     ) {
         for result in completion_result_list.drain() {
-            // completion_result_pool.push(result);
+            completion_result_pool.push(result);
         }
     }
 
