@@ -16,8 +16,6 @@ use platform::window::WindowRunner;
  * TODO:
  * Directory-wide search.
  * Unit testing for patterns and text editing functions.
- * 🏼 Breaks the terminal always and the text editor if the fast path for ascii is removed from GraphemeCursor.
- * ^ Because this character is a modifier so it has strange behavior.
  */
 
 fn main() {

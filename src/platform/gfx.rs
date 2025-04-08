@@ -100,11 +100,6 @@ impl Gfx {
         let mut offset = 0;
 
         for (i, grapheme) in GraphemeIterator::new(text).enumerate() {
-            if grapheme::is_whitespace(grapheme) || grapheme::is_control(grapheme) {
-                offset += Self::measure_text(grapheme);
-                continue;
-            }
-
             let Some(span) = self.get_glyph_span(&glyph_spans, i) else {
                 break;
             };
