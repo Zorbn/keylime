@@ -51,12 +51,6 @@ pub enum DocKind {
     Output,
 }
 
-enum StepStatus {
-    None,
-    Wrapped,
-    Done,
-}
-
 const CURSOR_POSITION_HISTORY_THRESHOLD: usize = 10;
 
 // One change for File::create, and one change for writing.
@@ -1185,94 +1179,105 @@ impl Doc {
     }
 
     pub fn search(&self, text: &str, start: Position, is_reverse: bool) -> Option<Position> {
-        None
-        // TODO:
-        // let start = self.clamp_position(start);
-        // let start = Position::new(start.x.min(self.get_line_len(start.y) - 1).max(0), start.y);
-
-        // let step = if is_reverse { -1 } else { 1 };
-
-        // let text_start_index = if is_reverse {
-        //     text.len() as isize - 1
-        // } else {
-        //     0
-        // };
-
-        // let mut position = start;
-        // let mut match_index = 0;
-
-        // if is_reverse {
-        //     position.x += step;
-        // }
-
-        // loop {
-        //     let line = &self.lines[position.y as usize];
-        //     let last_position = position;
-        //     let status;
-        //     (position, status) = self.step_wrapped(line, start, position, step);
-
-        //     match status {
-        //         StepStatus::None => {}
-        //         StepStatus::Wrapped => {
-        //             match_index = 0;
-        //             continue;
-        //         }
-        //         StepStatus::Done => break,
-        //     }
-
-        //     if text[(match_index as isize * step + text_start_index) as usize] == line[position.x] {
-        //         match_index += 1;
-
-        //         if match_index >= text.len() {
-        //             return Some(Position::new(
-        //                 position.x + 1 - text.len() as isize + text_start_index,
-        //                 position.y,
-        //             ));
-        //         }
-        //     } else {
-        //         if match_index > 0 {
-        //             position = last_position;
-        //         }
-
-        //         match_index = 0;
-        //     }
-        // }
-
-        // None
+        if is_reverse {
+            self.search_backward(text, start)
+        } else {
+            self.search_forward(text, start)
+        }
     }
 
-    // Positions returned by this function are in bounds as long as the status is None.
-    fn step_wrapped(
-        &self,
-        line: &str,
-        start_x: isize,
-        start_y: isize,
-        mut x: isize,
-        mut y: isize,
-        step: isize,
-    ) -> (isize, isize, StepStatus) {
-        let mut status = StepStatus::None;
+    pub fn search_forward(&self, text: &str, start: Position) -> Option<Position> {
+        let start = self.clamp_position(start);
 
-        x = x.min(line.len() as isize);
-        x += step;
-
-        if x == start_x && y == start_y {
-            return (x, y, StepStatus::Done);
+        if text.is_empty() {
+            return Some(start);
         }
 
-        if x < 0 {
-            x = isize::MAX;
-            y -= 1;
-            status = StepStatus::Wrapped;
-        } else if x >= line.len() as isize {
-            x = -1;
-            y += 1;
-            status = StepStatus::Wrapped;
-        };
+        let mut y = start.y as isize;
+        let mut x = start.x;
 
-        y = y.rem_euclid(self.lines.len() as isize);
+        let mut match_cursor = GraphemeCursor::new(0, text.len());
 
-        (x, y, status)
+        loop {
+            let line = &self.lines[y as usize];
+
+            for grapheme in GraphemeIterator::with_offset(x, line) {
+                for _ in 0..2 {
+                    if grapheme::at(match_cursor.cur_cursor(), text) == grapheme {
+                        match_cursor.next_boundary(text);
+
+                        if match_cursor.cur_cursor() >= text.len() {
+                            let match_x =
+                                grapheme.as_ptr() as usize - line.as_ptr() as usize - text.len()
+                                    + 1;
+
+                            return Some(Position::new(match_x, y as usize));
+                        }
+
+                        break;
+                    } else {
+                        match_cursor.set_cursor(0);
+
+                        // Now retry matching from the start of the text.
+                    }
+                }
+            }
+
+            y = (y + 1).rem_euclid(self.lines.len() as isize);
+            x = 0;
+
+            if y == start.y as isize {
+                break;
+            }
+        }
+
+        None
+    }
+
+    pub fn search_backward(&self, text: &str, start: Position) -> Option<Position> {
+        let start = self.move_position(start, -1, 0);
+
+        if text.is_empty() {
+            return Some(start);
+        }
+
+        let mut y = start.y as isize;
+        let mut x = start.x;
+
+        let mut match_cursor = GraphemeCursor::new(text.len(), text.len());
+
+        loop {
+            let line = &self.lines[y as usize];
+
+            for grapheme in GraphemeIterator::with_offset(x, line).rev() {
+                for _ in 0..2 {
+                    if grapheme::ending_at(match_cursor.cur_cursor(), text) == grapheme {
+                        match_cursor.previous_boundary(text);
+
+                        if match_cursor.cur_cursor() == 0 {
+                            let match_x = grapheme.as_ptr() as usize - line.as_ptr() as usize;
+
+                            return Some(Position::new(match_x, y as usize));
+                        }
+
+                        break;
+                    } else {
+                        match_cursor.set_cursor(text.len());
+
+                        // Now retry matching from the start of the text.
+                    }
+                }
+            }
+
+            y = (y - 1).rem_euclid(self.lines.len() as isize);
+            x = self.lines[y as usize].len();
+
+            if y == start.y as isize {
+                break;
+            }
+        }
+
+        None
     }
 
     pub fn end(&self) -> Position {

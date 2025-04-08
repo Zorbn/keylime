@@ -73,7 +73,7 @@ impl Trie {
         }
 
         let mut char_cursor = CharCursor::new(0, remaining.len());
-        let _ = char_cursor.next_boundary(remaining);
+        char_cursor.next_boundary(remaining);
 
         let c = remaining.chars().nth(0).unwrap();
         let remaining = &remaining[char_cursor.cur_cursor()..];

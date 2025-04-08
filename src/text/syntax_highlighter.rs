@@ -165,14 +165,15 @@ impl SyntaxHighlighter {
         }
 
         while grapheme_cursor.cur_cursor() < line.len() {
-            // TODO:
-            // if Some(grapheme_selector.grapheme(text)) == range.escape {
-            //     grapheme_selector.next_boundary(text);
-            //     grapheme_selector.next_boundary(text);
-            //     continue;
-            // }
+            let index = grapheme_cursor.cur_cursor();
 
-            if let Some(pattern_match) = range.end.match_text(line, grapheme_cursor.cur_cursor()) {
+            if Some(grapheme::at(index, line)) == range.escape.as_deref() {
+                grapheme_cursor.next_boundary(line);
+                grapheme_cursor.next_boundary(line);
+                continue;
+            }
+
+            if let Some(pattern_match) = range.end.match_text(line, index) {
                 return HighlightResult::Range {
                     start,
                     end: pattern_match.end,

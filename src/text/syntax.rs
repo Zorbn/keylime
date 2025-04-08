@@ -14,7 +14,7 @@ pub struct SyntaxToken {
 pub struct SyntaxRange {
     pub start: Pattern,
     pub end: Pattern,
-    pub escape: Option<char>,
+    pub escape: Option<String>,
     pub kind: HighlightKind,
 }
 

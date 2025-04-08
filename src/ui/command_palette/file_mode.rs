@@ -152,7 +152,7 @@ fn on_complete_result(
 
     let line_len = command_palette.doc.get_line_len(0);
     let start = Position::new(line_len, 0);
-    command_palette.doc.insert(start, &result, line_pool, time);
+    command_palette.doc.insert(start, result, line_pool, time);
 }
 
 fn on_update_results(command_palette: &mut CommandPalette, _: CommandPaletteEventArgs) {
@@ -192,20 +192,19 @@ fn on_backspace(
         line_pool, time, ..
     }: CommandPaletteEventArgs,
 ) -> bool {
-    // let cursor = command_palette.doc.get_cursor(CursorIndex::Main);
-    // let end = cursor.position;
-    // let mut start = command_palette.doc.move_position(end, Position::new(-1, 0));
+    let cursor = command_palette.doc.get_cursor(CursorIndex::Main);
+    let end = cursor.position;
+    let mut start = command_palette.doc.move_position(end, -1, 0);
 
-    // if is_char_path_separator(command_palette.doc.get_grapheme(start)) {
-    //     start = find_path_component_start(&command_palette.doc, start);
+    if is_grapheme_path_separator(command_palette.doc.get_grapheme(start)) {
+        start = find_path_component_start(&command_palette.doc, start);
 
-    //     command_palette.doc.delete(start, end, line_pool, time);
+        command_palette.doc.delete(start, end, line_pool, time);
 
-    //     true
-    // } else {
-    //     false
-    // }
-    false
+        true
+    } else {
+        false
+    }
 }
 
 fn get_command_palette_dir<'a>(

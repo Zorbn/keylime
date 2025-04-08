@@ -55,13 +55,13 @@ impl GraphemeHandler {
 
         let start = self.grapheme_cursor.cur_cursor();
         let end = self.grapheme_cursor.next_boundary(graphemes_typed)?;
-        let _ = grapheme_cursor.next_boundary(graphemes_typed);
+        grapheme_cursor.next_boundary(graphemes_typed);
 
         Some(&graphemes_typed[start..end])
     }
 
     pub fn unprocessed(&mut self, window: &mut Window) {
         let (graphemes_typed, grapheme_cursor) = window.graphemes_typed();
-        let _ = grapheme_cursor.previous_boundary(graphemes_typed);
+        grapheme_cursor.previous_boundary(graphemes_typed);
     }
 }
