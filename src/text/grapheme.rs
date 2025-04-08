@@ -80,7 +80,7 @@ impl<'a> Iterator for GraphemeIterator<'a> {
 
 pub fn at(index: usize, text: &str) -> &str {
     let mut grapheme_cursor = GraphemeCursor::new(index, text.len());
-    assert!(grapheme_cursor.next_boundary(text).is_some());
+    let _ = grapheme_cursor.next_boundary(text);
 
     &text[index..grapheme_cursor.cur_cursor()]
 }
@@ -127,10 +127,6 @@ pub fn is_ascii_hexdigit(grapheme: &str) -> bool {
     grapheme.chars().all(|c| c.is_ascii_hexdigit())
 }
 
-pub fn is_control(grapheme: &str) -> bool {
-    grapheme.chars().all(|c| c.is_control())
-}
-
 #[derive(Debug, Clone)]
 pub struct CharCursor {
     offset: usize,
@@ -168,10 +164,6 @@ impl CharCursor {
         }
 
         Some(self.offset)
-    }
-
-    pub fn set_cursor(&mut self, offset: usize) {
-        self.offset = offset;
     }
 
     pub fn cur_cursor(&self) -> usize {

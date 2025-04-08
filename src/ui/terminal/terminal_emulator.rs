@@ -650,6 +650,7 @@ impl TerminalEmulator {
         }
     }
 
+    // TODO: Only update lines that have been modified.
     pub fn flush_highlights(&mut self, doc: &mut Doc) {
         self.highlight_lines(0..=self.grid_height - 1, doc);
     }

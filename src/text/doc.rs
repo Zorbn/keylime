@@ -399,12 +399,12 @@ impl Doc {
 
         let mut start = 0;
 
-        for c in line.chars() {
-            if !c.is_whitespace() {
+        for grapheme in GraphemeIterator::new(line) {
+            if !grapheme::is_whitespace(grapheme) {
                 break;
             }
 
-            start += 1;
+            start += grapheme.len();
         }
 
         start
@@ -451,34 +451,32 @@ impl Doc {
     }
 
     pub fn is_line_commented(&self, comment: &str, y: usize) -> bool {
-        false
-        // TODO:
-        // let Some(line) = self.get_line(y) else {
-        //     return false;
-        // };
+        let Some(line) = self.get_line(y) else {
+            return false;
+        };
 
-        // let start = self.get_line_start(y) as usize;
+        let start = self.get_line_start(y);
 
-        // if start + comment.len() >= line.len() {
-        //     return false;
-        // }
+        if start + comment.len() >= line.len() {
+            return false;
+        }
 
-        // let mut grapheme_cursor = GraphemeCursor::new(start, comment.len(), true);
+        let mut grapheme_cursor = GraphemeCursor::new(start, comment.len());
 
-        // for comment_grapheme in UnicodeSegmentation::graphemes(comment, true) {
-        //     let start = grapheme_cursor.cur_cursor();
-        //     let Ok(Some(end)) = grapheme_cursor.next_boundary(line, 0) else {
-        //         break;
-        //     };
+        for comment_grapheme in GraphemeIterator::new(comment) {
+            let start = grapheme_cursor.cur_cursor();
+            let Some(end) = grapheme_cursor.next_boundary(line) else {
+                break;
+            };
 
-        //     let line_grapheme = &line[start..end];
+            let line_grapheme = &line[start..end];
 
-        //     if comment_grapheme != line_grapheme {
-        //         return false;
-        //     }
-        // }
+            if comment_grapheme != line_grapheme {
+                return false;
+            }
+        }
 
-        // true
+        true
     }
 
     pub fn toggle_comments_at_cursors(
@@ -1378,25 +1376,33 @@ impl Doc {
     }
 
     pub fn trim_trailing_whitespace(&mut self, line_pool: &mut LinePool, time: f32) {
-        // TODO:
-        // for y in 0..self.lines.len() {
-        //     let line = &self.lines[y];
-        //     let mut whitespace_start = 0;
+        for y in 0..self.lines.len() {
+            let line = &self.lines[y];
+            let mut whitespace_start = 0;
 
-        //     for (i, c) in line.iter().enumerate().rev() {
-        //         if !c.is_whitespace() {
-        //             whitespace_start = i + 1;
-        //             break;
-        //         }
-        //     }
+            let mut grapheme_cursor = GraphemeCursor::new(line.len(), line.len());
 
-        //     if whitespace_start < line.len() {
-        //         let start = Position::new(whitespace_start as isize, y as isize);
-        //         let end = Position::new(line.len() as isize, y as isize);
+            loop {
+                let grapheme = grapheme::at(grapheme_cursor.cur_cursor(), line);
 
-        //         self.delete(start, end, line_pool, time);
-        //     }
-        // }
+                if !grapheme::is_whitespace(grapheme) {
+                    break;
+                };
+
+                whitespace_start = grapheme_cursor.cur_cursor();
+
+                if grapheme_cursor.previous_boundary(line).is_none() {
+                    break;
+                }
+            }
+
+            if whitespace_start < line.len() {
+                let start = Position::new(whitespace_start, y);
+                let end = Position::new(line.len(), y);
+
+                self.delete(start, end, line_pool, time);
+            }
+        }
     }
 
     fn set_path(&mut self, path: PathBuf) -> io::Result<()> {
