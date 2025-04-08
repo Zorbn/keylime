@@ -84,7 +84,7 @@ impl TerminalEmulator {
                 }
                 // Backspace:
                 0x8 => {
-                    self.move_cursor(-1, 0, doc);
+                    self.move_cursor(-1, 0, doc, line_pool, time);
 
                     output = &output[1..];
                     continue;
@@ -344,8 +344,12 @@ impl TerminalEmulator {
             }
             Some(&b'G') => {
                 let x = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
-                let position =
-                    self.grid_position_char_to_byte(Position::new(x, self.grid_cursor.y), doc);
+                let position = self.grid_position_char_to_byte(
+                    Position::new(x, self.grid_cursor.y),
+                    doc,
+                    line_pool,
+                    time,
+                );
 
                 self.jump_cursor(position, doc, line_pool, time);
 
@@ -354,7 +358,8 @@ impl TerminalEmulator {
             Some(&b'd') => {
                 let y = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
                 let char_x = self.grid_position_byte_to_char(self.grid_cursor, doc);
-                let position = self.grid_position_char_to_byte(Position::new(char_x, y), doc);
+                let position =
+                    self.grid_position_char_to_byte(Position::new(char_x, y), doc, line_pool, time);
 
                 self.jump_cursor(position, doc, line_pool, time);
 
@@ -363,7 +368,8 @@ impl TerminalEmulator {
             Some(&b'H') => {
                 let y = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
                 let x = Self::get_parameter(parameters, 1, 1).saturating_sub(1);
-                let position = self.grid_position_char_to_byte(Position::new(x, y), doc);
+                let position =
+                    self.grid_position_char_to_byte(Position::new(x, y), doc, line_pool, time);
 
                 self.jump_cursor(position, doc, line_pool, time);
 
@@ -371,25 +377,25 @@ impl TerminalEmulator {
             }
             Some(&b'A') => {
                 let distance = Self::get_parameter(parameters, 0, 1) as isize;
-                self.move_cursor(0, -distance, doc);
+                self.move_cursor(0, -distance, doc, line_pool, time);
 
                 Some(&output[1..])
             }
             Some(&b'B') => {
                 let distance = Self::get_parameter(parameters, 0, 1) as isize;
-                self.move_cursor(0, distance, doc);
+                self.move_cursor(0, distance, doc, line_pool, time);
 
                 Some(&output[1..])
             }
             Some(&b'C') => {
                 let distance = Self::get_parameter(parameters, 0, 1) as isize;
-                self.move_cursor(distance, 0, doc);
+                self.move_cursor(distance, 0, doc, line_pool, time);
 
                 Some(&output[1..])
             }
             Some(&b'D') => {
                 let distance = Self::get_parameter(parameters, 0, 1) as isize;
-                self.move_cursor(-distance, 0, doc);
+                self.move_cursor(-distance, 0, doc, line_pool, time);
 
                 Some(&output[1..])
             }
@@ -522,7 +528,7 @@ impl TerminalEmulator {
 
                 // Clear characters after the cursor.
                 let start = self.grid_cursor;
-                let end = self.move_position(start, distance as isize, 0, doc);
+                let end = self.move_position(start, distance as isize, 0, doc, line_pool, time);
 
                 self.delete(start, end, doc, line_pool, time);
 
@@ -533,7 +539,7 @@ impl TerminalEmulator {
 
                 // Delete characters after the cursor, shifting the rest of the line over.
                 let start = self.grid_cursor;
-                let end = self.move_position(start, 1, 0, doc);
+                let end = self.move_position(start, 1, 0, doc, line_pool, time);
 
                 let start = self.grid_position_to_doc_position(start, doc);
                 let end = self.grid_position_to_doc_position(end, doc);

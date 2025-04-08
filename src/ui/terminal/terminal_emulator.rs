@@ -371,7 +371,7 @@ impl TerminalEmulator {
         bottom_grid_line.clear();
         self.grid_line_colors.insert(scroll_top, bottom_grid_line);
 
-        self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc);
+        self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc, line_pool, time);
 
         self.highlight_lines(region, doc);
     }
@@ -414,7 +414,7 @@ impl TerminalEmulator {
         top_grid_line.clear();
         self.grid_line_colors.insert(scroll_bottom, top_grid_line);
 
-        self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc);
+        self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc, line_pool, time);
 
         self.highlight_lines(region, doc);
     }
@@ -468,52 +468,103 @@ impl TerminalEmulator {
         Position::new(x, y)
     }
 
+    fn move_position_right_by_chars(
+        &self,
+        position: Position,
+        distance: usize,
+        doc: &mut Doc,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) -> Position {
+        let mut doc_position = self.grid_position_to_doc_position(position, doc);
+
+        let Some(line) = doc.get_line(doc_position.y) else {
+            return position;
+        };
+
+        let mut char_cursor = CharCursor::new(doc_position.x, line.len());
+
+        for i in 0..distance {
+            match char_cursor.next_boundary(line) {
+                Some(new_x) => {
+                    doc_position.x = new_x;
+                }
+                _ => {
+                    for _ in i..distance {
+                        doc.insert(doc_position, " ", line_pool, time);
+                        doc_position.x += 1;
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        self.doc_position_to_grid_position(doc_position, doc)
+    }
+
+    fn move_position_left_by_chars(
+        &self,
+        position: Position,
+        distance: usize,
+        doc: &Doc,
+    ) -> Position {
+        let mut doc_position = self.grid_position_to_doc_position(position, doc);
+
+        let Some(line) = doc.get_line(doc_position.y) else {
+            return position;
+        };
+
+        let mut char_cursor = CharCursor::new(doc_position.x, line.len());
+
+        for _ in 0..distance {
+            match char_cursor.previous_boundary(line) {
+                Some(new_x) => {
+                    doc_position.x = new_x;
+                }
+                _ => break,
+            }
+        }
+
+        self.doc_position_to_grid_position(doc_position, doc)
+    }
+
     pub fn move_position(
         &mut self,
         mut position: Position,
         delta_x: isize,
         delta_y: isize,
         doc: &mut Doc,
+        line_pool: &mut LinePool,
+        time: f32,
     ) -> Position {
         if delta_y != 0 {
             position.x = self.grid_position_byte_to_char(position, doc);
             position.y = position.y.saturating_add_signed(delta_y);
-            position = self.grid_position_char_to_byte(position, doc);
+            position = self.grid_position_char_to_byte(position, doc, line_pool, time);
         }
-
-        position = self.grid_position_to_doc_position(position, doc);
 
         if delta_x < 0 {
-            for _ in 0..delta_x.abs() {
-                if !doc.move_position_to_previous_char(&mut position) {
-                    break;
-                }
-            }
+            self.move_position_left_by_chars(position, delta_x.unsigned_abs(), doc)
         } else {
-            for _ in 0..delta_x {
-                if !doc.move_position_to_next_char(&mut position) {
-                    break;
-                }
-            }
+            self.move_position_right_by_chars(position, delta_x as usize, doc, line_pool, time)
         }
-
-        self.doc_position_to_grid_position(position, doc)
     }
 
-    pub fn grid_position_char_to_byte(&self, position: Position, doc: &Doc) -> Position {
-        let doc_position = self.grid_position_to_doc_position(position, doc);
-
-        let Some(line) = doc.get_line(doc_position.y) else {
-            return Position::new(0, position.y);
-        };
-
-        let mut char_cursor = CharCursor::new(0, line.len());
-
-        for _ in 0..position.x {
-            let _ = char_cursor.next_boundary(line);
-        }
-
-        Position::new(char_cursor.cur_cursor(), position.y)
+    pub fn grid_position_char_to_byte(
+        &self,
+        position: Position,
+        doc: &mut Doc,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) -> Position {
+        self.move_position_right_by_chars(
+            Position::new(0, position.y),
+            position.x,
+            doc,
+            line_pool,
+            time,
+        )
     }
 
     pub fn grid_position_byte_to_char(&self, position: Position, doc: &Doc) -> usize {
@@ -584,8 +635,16 @@ impl TerminalEmulator {
         doc.jump_cursors(doc_position, false);
     }
 
-    pub fn move_cursor(&mut self, delta_x: isize, delta_y: isize, doc: &mut Doc) {
-        self.grid_cursor = self.move_position(self.grid_cursor, delta_x, delta_y, doc);
+    pub fn move_cursor(
+        &mut self,
+        delta_x: isize,
+        delta_y: isize,
+        doc: &mut Doc,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        self.grid_cursor =
+            self.move_position(self.grid_cursor, delta_x, delta_y, doc, line_pool, time);
         self.jump_doc_cursors_to_grid_cursor(doc);
     }
 
@@ -607,7 +666,7 @@ impl TerminalEmulator {
         if self.grid_cursor.y == self.scroll_bottom {
             self.scroll_grid_region_up(self.scroll_top..=self.scroll_bottom, doc, line_pool, time);
         } else {
-            self.move_cursor(0, 1, doc);
+            self.move_cursor(0, 1, doc, line_pool, time);
         }
     }
 
@@ -702,7 +761,7 @@ impl TerminalEmulator {
 
         for mut c in CharIterator::new(text) {
             for _ in 0..Gfx::measure_text(c) {
-                let delete_end = self.move_position(position, 1, 0, doc);
+                let delete_end = self.move_position(position, 1, 0, doc, line_pool, time);
 
                 let insert_start = self.grid_position_to_doc_position(position, doc);
                 let delete_end = self.grid_position_to_doc_position(delete_end, doc);
@@ -718,7 +777,7 @@ impl TerminalEmulator {
                     iter::repeat(colors).take(c.len()),
                 );
 
-                let next_position = self.move_position(position, 1, 0, doc);
+                let next_position = self.move_position(position, 1, 0, doc, line_pool, time);
 
                 position = next_position;
                 c = "\u{200B}";

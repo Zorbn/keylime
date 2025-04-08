@@ -19,7 +19,7 @@ use super::{
     char_category::GraphemeCategory,
     cursor::Cursor,
     cursor_index::{CursorIndex, CursorIndices},
-    grapheme::{CharCursor, GraphemeCursor, GraphemeIterator},
+    grapheme::{GraphemeCursor, GraphemeIterator},
     line_pool::LinePool,
     selection::Selection,
     syntax::Syntax,
@@ -171,41 +171,6 @@ impl Doc {
         let mut grapheme_cursor = GraphemeCursor::new(position.x, line.len());
 
         match grapheme_cursor.previous_boundary(line) {
-            Some(new_x) => {
-                position.x = new_x;
-                true
-            }
-            _ => false,
-        }
-    }
-
-    // General text editing should use graphemes, but operating on characters
-    // is necessary in the terminal emulator where compatibility is most important.
-    pub fn move_position_to_next_char(&self, position: &mut Position) -> bool {
-        let Some(line) = self.get_line(position.y) else {
-            return false;
-        };
-
-        let mut char_cursor = CharCursor::new(position.x, line.len());
-
-        match char_cursor.next_boundary(line) {
-            Some(new_x) => {
-                position.x = new_x;
-                true
-            }
-            _ => false,
-        }
-    }
-
-    // TODO: This is basically the same as the next_char version.
-    pub fn move_position_to_previous_char(&self, position: &mut Position) -> bool {
-        let Some(line) = self.get_line(position.y) else {
-            return false;
-        };
-
-        let mut char_cursor = CharCursor::new(position.x, line.len());
-
-        match char_cursor.previous_boundary(line) {
             Some(new_x) => {
                 position.x = new_x;
                 true
