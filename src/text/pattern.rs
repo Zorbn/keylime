@@ -114,11 +114,11 @@ impl Pattern {
                     parts.push(PatternPart::CaptureEnd);
                 }
                 "+" | "*" | "-" | "?" => {
-                    let is_after_chars = parts.last().is_some_and(|part| {
+                    let is_suffix = parts.last().is_some_and(|part| {
                         matches!(part, PatternPart::Literal(..) | PatternPart::Class(..))
                     });
 
-                    if !is_after_chars {
+                    if !is_suffix {
                         return Err("modifier must follow a literal or a class");
                     }
 

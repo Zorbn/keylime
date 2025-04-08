@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::{
     config::language::Language,
     editor_buffers::EditorBuffers,
@@ -6,7 +8,7 @@ use crate::{
     temp_buffer::TempString,
     text::{
         action_history::ActionKind, cursor_index::CursorIndex, doc::Doc, grapheme,
-        line_pool::LinePool,
+        line_pool::LinePool, selection::Selection,
     },
 };
 
@@ -306,9 +308,9 @@ fn handle_delete_backward(
                         doc.get_indent_start(end, indent_width)
                     } else {
                         let start = doc.move_position(end, -1, 0);
-                        let start_char = doc.get_grapheme(start);
+                        let start_grapheme = doc.get_grapheme(start);
 
-                        if get_matching_grapheme(start_char)
+                        if get_matching_grapheme(start_grapheme)
                             == Some(doc.get_grapheme(cursor.position))
                         {
                             end = doc.move_position(end, 1, 0);
@@ -482,88 +484,93 @@ fn handle_paste(window: &mut Window, doc: &mut Doc, line_pool: &mut LinePool, ti
 }
 
 fn handle_shift_lines(direction: isize, doc: &mut Doc, buffers: &mut EditorBuffers, time: f32) {
-    // let direction = direction.signum();
+    let direction = direction.signum();
 
-    // for index in doc.cursor_indices() {
-    //     let cursor = doc.get_cursor(index);
-    //     let cursor_position = cursor.position;
-    //     let cursor_selection = cursor.get_selection();
+    for index in doc.cursor_indices() {
+        let cursor = doc.get_cursor(index);
+        let cursor_position = cursor.position;
+        let cursor_selection = cursor.get_selection();
 
-    //     let had_selection = cursor_selection.is_some();
-    //     let cursor_selection = cursor_selection.unwrap_or(Selection {
-    //         start: cursor_position,
-    //         end: cursor_position,
-    //     });
+        let had_selection = cursor_selection.is_some();
+        let cursor_selection = cursor_selection.unwrap_or(Selection {
+            start: cursor_position,
+            end: cursor_position,
+        });
 
-    //     match direction.cmp(&0) {
-    //         Ordering::Less => {
-    //             if cursor_selection.start.y == 0 {
-    //                 continue;
-    //             }
-    //         }
-    //         Ordering::Greater => {
-    //             if cursor_selection.end.y == doc.lines().len() as isize - 1 {
-    //                 continue;
-    //             }
-    //         }
-    //         Ordering::Equal => continue,
-    //     };
+        match direction.cmp(&0) {
+            Ordering::Less => {
+                if cursor_selection.start.y == 0 {
+                    continue;
+                }
+            }
+            Ordering::Greater => {
+                if cursor_selection.end.y == doc.lines().len() - 1 {
+                    continue;
+                }
+            }
+            Ordering::Equal => continue,
+        };
 
-    //     let selection = cursor_selection.trim_lines_without_selected_chars();
+        let selection = cursor_selection.trim();
 
-    //     let text_buffer = buffers.text.get_mut();
+        let text_buffer = buffers.text.get_mut();
 
-    //     let mut start = Position::new(0, selection.start.y);
-    //     let mut end = Position::new(doc.get_line_len(selection.end.y), selection.end.y);
+        let mut start = Position::new(0, selection.start.y);
+        let mut end = Position::new(doc.get_line_len(selection.end.y), selection.end.y);
 
-    //     if direction > 0 {
-    //         text_buffer.push('\n');
-    //     }
+        if direction > 0 {
+            text_buffer.push('\n');
+        }
 
-    //     doc.collect_chars(start, end, text_buffer);
+        doc.collect_string(start, end, text_buffer);
 
-    //     if direction < 0 {
-    //         text_buffer.push('\n');
-    //     }
+        if direction < 0 {
+            text_buffer.push('\n');
+        }
 
-    //     if end.y as usize == doc.lines().len() - 1 {
-    //         start = doc.move_position(start, Position::new(-1, 0));
-    //     } else {
-    //         end = doc.move_position(end, Position::new(1, 0));
-    //     }
+        if end.y == doc.lines().len() - 1 {
+            start = doc.move_position(start, -1, 0);
+        } else {
+            end = doc.move_position(end, 1, 0);
+        }
 
-    //     doc.delete(start, end, &mut buffers.lines, time);
+        doc.delete(start, end, &mut buffers.lines, time);
 
-    //     let insert_start = if direction < 0 {
-    //         Position::new(0, selection.start.y - 1)
-    //     } else {
-    //         Position::new(doc.get_line_len(selection.start.y), selection.start.y)
-    //     };
+        let insert_start = if direction < 0 {
+            Position::new(0, selection.start.y - 1)
+        } else {
+            Position::new(doc.get_line_len(selection.start.y), selection.start.y)
+        };
 
-    //     doc.insert(insert_start, text_buffer.iter(), &mut buffers.lines, time);
+        doc.insert(insert_start, text_buffer, &mut buffers.lines, time);
 
-    //     // Reset the selection to prevent it being expanded by the latest insert.
-    //     if had_selection {
-    //         let new_selection_start = Position::new(
-    //             cursor_selection.start.x,
-    //             cursor_selection.start.y + direction,
-    //         );
-    //         let new_selection_end =
-    //             Position::new(cursor_selection.end.x, cursor_selection.end.y + direction);
+        // Reset the selection to prevent it being expanded by the latest insert.
+        if had_selection {
+            let new_selection_start = Position::new(
+                cursor_selection.start.x,
+                cursor_selection.start.y.saturating_add_signed(direction),
+            );
+            let new_selection_end = Position::new(
+                cursor_selection.end.x,
+                cursor_selection.end.y.saturating_add_signed(direction),
+            );
 
-    //         if cursor_position == cursor_selection.start {
-    //             doc.jump_cursor(index, new_selection_end, false);
-    //             doc.jump_cursor(index, new_selection_start, true);
-    //         } else {
-    //             doc.jump_cursor(index, new_selection_start, false);
-    //             doc.jump_cursor(index, new_selection_end, true);
-    //         }
-    //     } else {
-    //         let new_position = Position::new(cursor_position.x, cursor_position.y + direction);
+            if cursor_position == cursor_selection.start {
+                doc.jump_cursor(index, new_selection_end, false);
+                doc.jump_cursor(index, new_selection_start, true);
+            } else {
+                doc.jump_cursor(index, new_selection_start, false);
+                doc.jump_cursor(index, new_selection_end, true);
+            }
+        } else {
+            let new_position = Position::new(
+                cursor_position.x,
+                cursor_position.y.saturating_add_signed(direction),
+            );
 
-    //         doc.jump_cursor(index, new_position, false);
-    //     }
-    // }
+            doc.jump_cursor(index, new_position, false);
+        }
+    }
 }
 
 fn get_matching_grapheme(grapheme: &str) -> Option<&str> {

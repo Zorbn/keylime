@@ -1,8 +1,6 @@
-use std::iter;
-
 use serde::Deserialize;
 
-use crate::text::syntax::Syntax;
+use crate::{platform::gfx::Gfx, text::syntax::Syntax};
 
 #[derive(Deserialize, Debug, Default, Clone, Copy)]
 #[serde(untagged)]
@@ -13,20 +11,22 @@ pub enum IndentWidth {
 }
 
 impl IndentWidth {
-    pub fn char_count(self) -> usize {
+    pub fn grapheme_count(self) -> usize {
         match self {
             IndentWidth::Tab => 1,
             IndentWidth::Spaces(indent_width) => indent_width,
         }
     }
 
-    pub fn chars(self) -> impl Iterator<Item = char> {
-        let (c, count) = match self {
-            IndentWidth::Tab => ('\t', 1),
-            IndentWidth::Spaces(indent_width) => (' ', indent_width),
-        };
+    pub fn measure(self) -> usize {
+        Gfx::measure_text(self.grapheme()) * self.grapheme_count()
+    }
 
-        iter::repeat_n(c, count)
+    pub fn grapheme(self) -> &'static str {
+        match self {
+            IndentWidth::Tab => "\t",
+            IndentWidth::Spaces(_) => " ",
+        }
     }
 }
 

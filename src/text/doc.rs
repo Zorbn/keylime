@@ -11,15 +11,16 @@ use crate::{
     editor_buffers::EditorBuffers,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     platform::gfx::Gfx,
+    temp_buffer::TempString,
     text::grapheme,
 };
 
 use super::{
     action_history::{Action, ActionHistory, ActionKind},
-    char_category::GraphemeCategory,
     cursor::Cursor,
     cursor_index::{CursorIndex, CursorIndices},
     grapheme::{GraphemeCursor, GraphemeIterator},
+    grapheme_category::GraphemeCategory,
     line_pool::LinePool,
     selection::Selection,
     syntax::Syntax,
@@ -74,8 +75,7 @@ pub struct Doc {
 
     undo_history: ActionHistory,
     redo_history: ActionHistory,
-    // TODO: Can this be a TempString?
-    undo_char_buffer: Option<String>,
+    undo_buffer: Option<TempString>,
 
     cursor_position_undo_history: Vec<Position>,
     cursor_position_redo_history: Vec<Position>,
@@ -110,7 +110,7 @@ impl Doc {
 
             undo_history: ActionHistory::new(),
             redo_history: ActionHistory::new(),
-            undo_char_buffer: Some(String::new()),
+            undo_buffer: Some(TempString::new()),
 
             cursor_position_undo_history: Vec::new(),
             cursor_position_redo_history: Vec::new(),
@@ -156,7 +156,6 @@ impl Doc {
         }
     }
 
-    // TODO: This is basically the same as the next_grapheme version.
     pub fn move_position_to_previous_grapheme(&self, position: &mut Position) -> bool {
         let Some(line) = self.get_line(position.y) else {
             return false;
@@ -453,7 +452,7 @@ impl Doc {
                     start: cursor.position,
                     end: cursor.position,
                 })
-                .trim_lines_without_selected_chars();
+                .trim();
 
             let mut min_comment_x = usize::MAX;
             let mut did_uncomment = false;
@@ -500,7 +499,7 @@ impl Doc {
                 start: cursor.position,
                 end: cursor.position,
             })
-            .trim_lines_without_selected_chars();
+            .trim();
 
         for y in selection.start.y..=selection.end.y {
             if has_selection && self.get_line_len(y) == 0 {
@@ -556,11 +555,12 @@ impl Doc {
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        // TODO:
-        // for c in indent_width.chars() {
-        //     self.insert(start, [c], line_pool, time);
-        //     start = self.move_position(start, Position::new(1, 0));
-        // }
+        let grapheme = indent_width.grapheme();
+
+        for _ in 0..indent_width.grapheme_count() {
+            self.insert(start, grapheme, line_pool, time);
+            start = self.move_position(start, 1, 0);
+        }
     }
 
     fn unindent(
@@ -581,8 +581,7 @@ impl Doc {
 
         match start_grapheme {
             " " => {
-                // TODO: This is wrong probably, it uses char counts and modifies end.x directly. Should use graphemes here.
-                let indent_width = (end.x - 1) % indent_width.char_count() + 1;
+                let indent_width = (end.x - 1) % indent_width.grapheme_count() + 1;
 
                 for _ in 1..indent_width {
                     let next_start = self.move_position(start, -1, 0);
@@ -919,28 +918,28 @@ impl Doc {
                         popped_action.time,
                     );
                 }
-                Action::Delete { start, chars_start } => {
+                Action::Delete { start, text_start } => {
                     were_cursors_reset = false;
 
-                    let mut undo_char_buffer = self.undo_char_buffer.take().unwrap();
-                    undo_char_buffer.clear();
-                    undo_char_buffer
-                        .push_str(&action_history!(self, action_kind).deleted_chars[chars_start..]);
+                    let mut owned_undo_buffer = self.undo_buffer.take().unwrap();
+                    let undo_buffer = owned_undo_buffer.get_mut();
+
+                    undo_buffer
+                        .push_str(&action_history!(self, action_kind).deleted_text[text_start..]);
 
                     self.insert_as_action_kind(
                         start,
-                        &undo_char_buffer,
+                        undo_buffer,
                         line_pool,
                         reverse_action_kind,
                         popped_action.time,
                     );
 
-                    undo_char_buffer.clear();
-                    self.undo_char_buffer = Some(undo_char_buffer);
+                    self.undo_buffer = Some(owned_undo_buffer);
 
                     action_history!(self, action_kind)
-                        .deleted_chars
-                        .truncate(chars_start);
+                        .deleted_text
+                        .truncate(text_start);
                 }
             }
         }
@@ -999,22 +998,22 @@ impl Doc {
         let start = self.clamp_position(start);
         let end = self.clamp_position(end);
 
-        let mut undo_char_buffer = self.undo_char_buffer.take().unwrap();
-        undo_char_buffer.clear();
+        let mut owned_undo_buffer = self.undo_buffer.take().unwrap();
+        let undo_buffer = owned_undo_buffer.get_mut();
 
-        self.collect_string(start, end, &mut undo_char_buffer);
+        self.collect_string(start, end, undo_buffer);
 
         if self.kind != DocKind::Output {
-            let deleted_chars_start = action_history!(self, action_kind).deleted_chars.len();
+            let deleted_text_start = action_history!(self, action_kind).deleted_text.len();
 
             action_history!(self, action_kind)
-                .deleted_chars
-                .push_str(&undo_char_buffer);
+                .deleted_text
+                .push_str(undo_buffer);
 
-            action_history!(self, action_kind).push_delete(start, deleted_chars_start, time);
+            action_history!(self, action_kind).push_delete(start, deleted_text_start, time);
         }
 
-        self.undo_char_buffer = Some(undo_char_buffer);
+        self.undo_buffer = Some(owned_undo_buffer);
 
         if start.y == end.y {
             self.lines[start.y].drain(start.x..end.x);
@@ -1630,7 +1629,6 @@ impl Doc {
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        // TODO:
         let mut line_count = 1;
 
         for c in text.chars() {
@@ -1643,33 +1641,30 @@ impl Doc {
             self.cursors_len() > 1 && line_count % self.cursors_len() == 0;
 
         if do_spread_lines_between_cursors {
-            // let lines_per_cursor = line_count / self.cursors_len();
-            // let mut i = 0;
+            let lines_per_cursor = line_count / self.cursors_len();
+            let mut grapheme_iterator = GraphemeIterator::new(text);
 
-            // for index in self.cursor_indices() {
-            //     for line_i in 0..lines_per_cursor {
-            //         while i < text.len() {
-            //             let c = text[i];
-            //             i += 1;
+            for index in self.cursor_indices() {
+                for line_i in 0..lines_per_cursor {
+                    for grapheme in grapheme_iterator.by_ref() {
+                        if grapheme == "\n" {
+                            if line_i < lines_per_cursor - 1 {
+                                self.paste_at_cursor(
+                                    index,
+                                    grapheme,
+                                    was_copy_implicit,
+                                    line_pool,
+                                    time,
+                                );
+                            }
 
-            //             if c == '\n' {
-            //                 if line_i < lines_per_cursor - 1 {
-            //                     self.paste_at_cursor(
-            //                         index,
-            //                         &[c],
-            //                         was_copy_implicit,
-            //                         line_pool,
-            //                         time,
-            //                     );
-            //                 }
+                            break;
+                        }
 
-            //                 break;
-            //             }
-
-            //             self.paste_at_cursor(index, &[c], was_copy_implicit, line_pool, time);
-            //         }
-            //     }
-            // }
+                        self.paste_at_cursor(index, grapheme, was_copy_implicit, line_pool, time);
+                    }
+                }
+            }
         } else {
             for index in self.cursor_indices() {
                 self.paste_at_cursor(index, text, was_copy_implicit, line_pool, time);

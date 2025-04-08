@@ -67,7 +67,7 @@ impl TerminalEmulator {
                     {
                         // Print unhandled control sequences.
                         for c in output.iter().take(8) {
-                            if let Some(c) = char::from_u32(*c) {
+                            if let Some(c) = char::from_u32(*c as u32) {
                                 print!("{:?} ", c);
                             } else {
                                 print!("{:?} ", c);

@@ -27,15 +27,6 @@ impl GraphemeCursor {
     }
 
     pub fn previous_boundary(&mut self, text: &str) -> Option<usize> {
-        // TODO: Fast path doesn't work here because multi-byte chars start
-        // with a byte above 0x7F but may end with one that looks like ASCII.
-        // let offset = self.inner.cur_cursor();
-
-        // if offset > 1 && text.as_bytes()[offset - 1] < 0x7F {
-        //     self.inner.set_cursor(offset - 1);
-        //     return Some(offset - 1);
-        // }
-
         match self.inner.prev_boundary(text, 0) {
             Ok(Some(end)) => Some(end),
             _ => None,

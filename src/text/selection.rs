@@ -22,7 +22,7 @@ impl Selection {
         })
     }
 
-    pub fn trim_lines_without_selected_chars(&self) -> Selection {
+    pub fn trim(&self) -> Selection {
         let mut result = *self;
 
         if self.end.y > self.start.y && self.end.x == 0 {

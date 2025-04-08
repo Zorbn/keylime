@@ -381,8 +381,7 @@ impl Tab {
         camera_position: VisualPosition,
         visible_lines: VisibleLines,
     ) {
-        let indent_width =
-            language.map(|language| language.indent_width.chars().map(Gfx::get_char_width).sum());
+        let indent_width = language.map(|language| language.indent_width.measure());
 
         let Some(indent_width) = indent_width else {
             return;
@@ -517,14 +516,14 @@ impl Tab {
             while position < end {
                 let highlight_position = doc.position_to_visual(position, camera_position, gfx);
 
-                let char = doc.get_grapheme(position);
-                let char_width = Gfx::measure_text(char);
+                let grapheme = doc.get_grapheme(position);
+                let grapheme_width = Gfx::measure_text(grapheme);
 
                 gfx.add_rect(
                     Rect::new(
                         highlight_position.x,
                         highlight_position.y,
-                        char_width as f32 * gfx.glyph_width(),
+                        grapheme_width as f32 * gfx.glyph_width(),
                         gfx.line_height(),
                     ),
                     theme.selection,

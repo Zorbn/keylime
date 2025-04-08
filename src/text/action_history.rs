@@ -29,7 +29,7 @@ pub enum Action {
     },
     Delete {
         start: Position,
-        chars_start: usize,
+        text_start: usize,
     },
 }
 
@@ -43,20 +43,20 @@ pub struct TimedAction {
 
 pub struct ActionHistory {
     actions: Vec<TimedAction>,
-    pub deleted_chars: String,
+    pub deleted_text: String,
 }
 
 impl ActionHistory {
     pub fn new() -> Self {
         Self {
             actions: Vec::new(),
-            deleted_chars: String::new(),
+            deleted_text: String::new(),
         }
     }
 
     pub fn clear(&mut self) {
         self.actions.clear();
-        self.deleted_chars.clear();
+        self.deleted_text.clear();
     }
 
     pub fn push_set_cursor(
@@ -83,9 +83,9 @@ impl ActionHistory {
         });
     }
 
-    pub fn push_delete(&mut self, start: Position, chars_start: usize, time: f32) {
+    pub fn push_delete(&mut self, start: Position, text_start: usize, time: f32) {
         self.actions.push(TimedAction {
-            action: Action::Delete { start, chars_start },
+            action: Action::Delete { start, text_start },
             time,
         });
     }

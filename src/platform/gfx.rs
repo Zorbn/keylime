@@ -1,4 +1,4 @@
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthStr;
 
 use crate::{
     geometry::{
@@ -70,14 +70,6 @@ impl Gfx {
         }
 
         x
-    }
-
-    // TODO: Should we still be using this?
-    pub fn get_char_width(c: char) -> usize {
-        match c {
-            '\t' => TAB_WIDTH,
-            _ => UnicodeWidthChar::width(c).unwrap_or(0),
-        }
     }
 
     fn get_glyph_spans(&mut self, text: &str) -> GlyphSpans {

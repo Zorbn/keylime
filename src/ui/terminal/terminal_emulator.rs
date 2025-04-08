@@ -124,13 +124,13 @@ impl TerminalEmulator {
                     pty.input().push(b'\t');
                 }
                 action_keybind!(key: Backspace, mods) => {
-                    let key_char = if mods & MOD_CTRL != 0 { 0x8 } else { 0x7F };
+                    let key_byte = if mods & MOD_CTRL != 0 { 0x8 } else { 0x7F };
 
-                    pty.input().extend_from_slice(&[key_char]);
+                    pty.input().extend_from_slice(&[key_byte]);
                 }
                 action_keybind!(keys: key @ (Key::Up | Key::Down | Key::Left | Key::Right | Key::Home | Key::End), mods) =>
                 {
-                    let key_char = match key {
+                    let key_byte = match key {
                         Key::Up => b'A',
                         Key::Down => b'B',
                         Key::Left => b'D',
@@ -158,7 +158,7 @@ impl TerminalEmulator {
                         pty.input().push(b'3');
                     }
 
-                    pty.input().push(key_char);
+                    pty.input().push(key_byte);
                 }
                 action_name!(names: Some(ActionName::Copy | ActionName::Cut))
                     if doc.has_selection() =>
