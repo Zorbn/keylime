@@ -332,7 +332,6 @@ impl SyntaxHighlighter {
 
     pub fn highlight_line_from_terminal_colors(
         &mut self,
-        lines: &[String],
         colors: &[(TerminalHighlightKind, TerminalHighlightKind)],
         y: usize,
     ) {

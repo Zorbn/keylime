@@ -120,11 +120,11 @@ impl TerminalEmulator {
             let string = Self::get_valid_utf8_range(output);
 
             if !string.is_empty() {
-                let c = grapheme::at(0, string);
+                let grapheme = grapheme::at(0, string);
 
-                self.insert_at_cursor(c, doc, line_pool, time);
+                self.insert_at_cursor(grapheme, doc, line_pool, time);
 
-                output = &output[c.len()..];
+                output = &output[grapheme.len()..];
             }
         }
 
@@ -353,8 +353,8 @@ impl TerminalEmulator {
             }
             Some(&b'd') => {
                 let y = Self::get_parameter(parameters, 0, 1).saturating_sub(1);
-                let grapheme_x = self.grid_position_byte_to_char(self.grid_cursor, doc);
-                let position = self.grid_position_char_to_byte(Position::new(grapheme_x, y), doc);
+                let char_x = self.grid_position_byte_to_char(self.grid_cursor, doc);
+                let position = self.grid_position_char_to_byte(Position::new(char_x, y), doc);
 
                 self.jump_cursor(position, doc, line_pool, time);
 
@@ -578,8 +578,8 @@ impl TerminalEmulator {
 
                 if parameters.first() == Some(&6) {
                     // Report cursor position (1-based).
-                    let grapheme_x = self.grid_position_byte_to_char(self.grid_cursor, doc);
-                    let response = format!("\u{1B}[{};{}R", self.grid_cursor.y + 1, grapheme_x + 1);
+                    let char_x = self.grid_position_byte_to_char(self.grid_cursor, doc);
+                    let response = format!("\u{1B}[{};{}R", self.grid_cursor.y + 1, char_x + 1);
 
                     input.extend(response.bytes());
 

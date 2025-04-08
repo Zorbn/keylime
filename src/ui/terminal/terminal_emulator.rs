@@ -458,7 +458,6 @@ impl TerminalEmulator {
     fn get_line_len(&self, y: usize, doc: &Doc) -> usize {
         let doc_position = self.grid_position_to_doc_position(Position::new(0, y), doc);
 
-        // TODO: Shouldn't line length be in # of chars for the terminal?
         doc.get_line_len(doc_position.y)
     }
 
@@ -526,15 +525,23 @@ impl TerminalEmulator {
     pub fn grid_position_to_doc_position(&self, position: Position, doc: &Doc) -> Position {
         Position::new(
             position.x,
-            doc.lines().len() - self.grid_height + position.y,
+            self.grid_y_to_doc_y(position.y as isize, doc) as usize,
         )
     }
 
     fn doc_position_to_grid_position(&self, position: Position, doc: &Doc) -> Position {
         Position::new(
             position.x,
-            position.y - doc.lines().len().saturating_sub(self.grid_height),
+            self.doc_y_to_grid_y(position.y as isize, doc) as usize,
         )
+    }
+
+    pub fn grid_y_to_doc_y(&self, y: isize, doc: &Doc) -> isize {
+        doc.lines().len().saturating_sub(self.grid_height) as isize + y
+    }
+
+    fn doc_y_to_grid_y(&self, y: isize, doc: &Doc) -> isize {
+        y - doc.lines().len().saturating_sub(self.grid_height) as isize
     }
 
     fn backup_doc_cursor_positions(&mut self, doc: &Doc, cursor_buffer: &mut Vec<Cursor>) {
@@ -694,25 +701,23 @@ impl TerminalEmulator {
 
         for mut c in CharIterator::new(text) {
             for _ in 0..Gfx::measure_text(c) {
-                {
-                    let next_position = self.move_position(position, 1, 0, doc);
+                let delete_end = self.move_position(position, 1, 0, doc);
 
-                    let position = self.grid_position_to_doc_position(position, doc);
-                    let next_position = self.grid_position_to_doc_position(next_position, doc);
+                let insert_start = self.grid_position_to_doc_position(position, doc);
+                let delete_end = self.grid_position_to_doc_position(delete_end, doc);
 
-                    doc.delete(position, next_position, line_pool, time);
-                    doc.insert(position, c, line_pool, time);
-                }
-
-                let next_position = self.move_position(position, 1, 0, doc);
+                doc.delete(insert_start, delete_end, line_pool, time);
+                doc.insert(insert_start, c, line_pool, time);
 
                 let line_colors = &mut self.grid_line_colors[position.y];
                 let line_colors_len = line_colors.len();
 
                 line_colors.splice(
-                    position.x..next_position.x.min(line_colors_len.saturating_sub(1)),
+                    insert_start.x..delete_end.x.min(line_colors_len.saturating_sub(1)),
                     iter::repeat(colors).take(c.len()),
                 );
+
+                let next_position = self.move_position(position, 1, 0, doc);
 
                 position = next_position;
                 c = "\u{200B}";
