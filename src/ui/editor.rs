@@ -13,7 +13,7 @@ use crate::{
         mousebind::Mousebind,
     },
     platform::gfx::Gfx,
-    text::{cursor_index::CursorIndex, doc::Doc, line_pool::LinePool},
+    text::{cursor_index::CursorIndex, doc::Doc, grapheme, line_pool::LinePool},
 };
 
 use super::{
@@ -36,7 +36,7 @@ pub struct Editor {
 
     completion_result_list: ResultList<String>,
     completion_result_pool: LinePool,
-    completion_prefix: Vec<char>,
+    completion_prefix: String,
 
     pub widget: Widget,
 }
@@ -50,7 +50,7 @@ impl Editor {
 
             completion_result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS),
             completion_result_pool: LinePool::new(),
-            completion_prefix: Vec::new(),
+            completion_prefix: String::new(),
 
             widget: Widget::new(ui, true),
         };
@@ -317,30 +317,29 @@ impl Editor {
         }
     }
 
-    fn get_completion_prefix(doc: &Doc) -> Option<&[char]> {
-        None
-        // let prefix_end = doc.get_cursor(CursorIndex::Main).position;
+    fn get_completion_prefix(doc: &Doc) -> Option<&str> {
+        let prefix_end = doc.get_cursor(CursorIndex::Main).position;
 
-        // if prefix_end.x == 0 {
-        //     return Some(&[]);
-        // }
+        if prefix_end.x == 0 {
+            return Some("");
+        }
 
-        // let mut prefix_start = prefix_end;
+        let mut prefix_start = prefix_end;
 
-        // while prefix_start.x > 0 {
-        //     let next_start = doc.move_position(prefix_start, Position::new(-1, 0));
+        while prefix_start.x > 0 {
+            let next_start = doc.move_position(prefix_start, -1, 0);
 
-        //     let c = doc.get_grapheme(next_start);
+            let grapheme = doc.get_grapheme(next_start);
 
-        //     if !c.is_alphanumeric() && c != '_' {
-        //         break;
-        //     }
+            if !grapheme::is_alphanumeric(grapheme) && grapheme != "_" {
+                break;
+            }
 
-        //     prefix_start = next_start;
-        // }
+            prefix_start = next_start;
+        }
 
-        // doc.get_line(prefix_end.y)
-        //     .map(|line| &line[prefix_start.x as usize..prefix_end.x as usize])
+        doc.get_line(prefix_end.y)
+            .map(|line| &line[prefix_start.x..prefix_end.x])
     }
 
     fn clear_completions(
@@ -387,7 +386,7 @@ impl Editor {
             return;
         };
 
-        self.completion_prefix.extend_from_slice(prefix);
+        self.completion_prefix.push_str(prefix);
 
         if !prefix.is_empty() {
             doc.tokens().traverse(

@@ -1,4 +1,7 @@
-use super::trie::Trie;
+use super::{
+    syntax_highlighter::{HighlightResult, SyntaxHighlighter},
+    trie::Trie,
+};
 
 pub struct Tokenizer {
     tokens: Trie,
@@ -12,26 +15,26 @@ impl Tokenizer {
     }
 
     pub fn tokenize(&mut self, lines: &[String]) {
-        // self.tokens.clear();
+        self.tokens.clear();
 
-        // for line in lines {
-        //     let mut x = 0;
+        for line in lines {
+            let mut x = 0;
 
-        //     while x < line.len() {
-        //         let HighlightResult::Token { start, end } =
-        //             SyntaxHighlighter::match_identifier(line, x)
-        //         else {
-        //             x += 1;
-        //             continue;
-        //         };
+            while x < line.len() {
+                let HighlightResult::Token { start, end } =
+                    SyntaxHighlighter::match_identifier(line, x)
+                else {
+                    x += 1;
+                    continue;
+                };
 
-        //         x = end;
+                x = end;
 
-        //         let token_chars = &line[start..end];
+                let token = &line[start..end];
 
-        //         self.tokens.insert(token_chars);
-        //     }
-        // }
+                self.tokens.insert(token);
+            }
+        }
     }
 
     pub fn tokens(&self) -> &Trie {

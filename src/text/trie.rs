@@ -1,4 +1,4 @@
-use super::line_pool::LinePool;
+use super::{grapheme::CharCursor, line_pool::LinePool};
 
 struct TrieNode {
     start: usize,
@@ -20,11 +20,11 @@ impl Trie {
         }
     }
 
-    pub fn insert(&mut self, chars: &[char]) {
-        self.insert_at_node(0, chars);
+    pub fn insert(&mut self, text: &str) {
+        self.insert_at_node(0, text);
     }
 
-    pub fn traverse(&self, prefix: &[char], results: &mut Vec<String>, result_pool: &mut LinePool) {
+    pub fn traverse(&self, prefix: &str, results: &mut Vec<String>, result_pool: &mut LinePool) {
         self.traverse_with_prefix_at_node(0, prefix, prefix, results, result_pool);
     }
 
@@ -36,13 +36,12 @@ impl Trie {
         self.nodes.push(root);
     }
 
-    fn insert_at_node(&mut self, mut index: usize, mut chars: &[char]) {
-        while !chars.is_empty() {
-            let c = chars[0];
-            let remaining = &chars[1..];
+    fn insert_at_node(&mut self, mut index: usize, mut text: &str) {
+        while let Some(c) = text.chars().nth(0) {
+            let remaining = &text[1..];
 
             index = self.get_or_add_child(index, c);
-            chars = remaining;
+            text = remaining;
         }
 
         self.nodes[index].is_terminal = true;
@@ -52,69 +51,72 @@ impl Trie {
     fn traverse_with_prefix_at_node(
         &self,
         index: usize,
-        prefix: &[char],
-        remaining: &[char],
+        prefix: &str,
+        remaining: &str,
         results: &mut Vec<String>,
         result_pool: &mut LinePool,
     ) {
-        // let node = &self.nodes[index];
+        let node = &self.nodes[index];
 
-        // if remaining.is_empty() {
-        //     for i in 0..node.len {
-        //         let child = &self.data[node.start + i];
+        if remaining.is_empty() {
+            for i in 0..node.len {
+                let child = &self.data[node.start + i];
 
-        //         let mut new_prefix = result_pool.pop();
-        //         new_prefix.extend_from_slice(prefix);
-        //         new_prefix.push(child.0);
+                let mut new_prefix = result_pool.pop();
+                new_prefix.push_str(prefix);
+                new_prefix.push(child.0);
 
-        //         self.traverse_at_node(child.1, new_prefix, results, result_pool);
-        //     }
+                self.traverse_at_node(child.1, new_prefix, results, result_pool);
+            }
 
-        //     return;
-        // }
+            return;
+        }
 
-        // let c = remaining[0];
-        // let remaining = &remaining[1..];
+        let mut char_cursor = CharCursor::new(0, remaining.len());
+        let _ = char_cursor.next_boundary(remaining);
 
-        // for i in 0..node.len {
-        //     let child = &self.data[node.start + i];
+        let c = remaining.chars().nth(0).unwrap();
+        let remaining = &remaining[char_cursor.cur_cursor()..];
 
-        //     if child.0 == c {
-        //         self.traverse_with_prefix_at_node(child.1, prefix, remaining, results, result_pool);
-        //     }
-        // }
+        for i in 0..node.len {
+            let child = &self.data[node.start + i];
+
+            if child.0 == c {
+                self.traverse_with_prefix_at_node(child.1, prefix, remaining, results, result_pool);
+            }
+        }
     }
 
     // Traverses all nodes.
     fn traverse_at_node(
         &self,
         index: usize,
-        prefix: String, // TODO: Should this be &str?
+        prefix: String,
         results: &mut Vec<String>,
         result_pool: &mut LinePool,
     ) {
-        // let node = &self.nodes[index];
+        let node = &self.nodes[index];
 
-        // let prefix = if node.is_terminal {
-        //     let mut new_prefix = result_pool.pop();
-        //     new_prefix.extend_from_slice(&prefix);
+        let prefix = if node.is_terminal {
+            let mut new_prefix = result_pool.pop();
+            new_prefix.push_str(&prefix);
 
-        //     results.push(prefix);
+            results.push(prefix);
 
-        //     new_prefix
-        // } else {
-        //     prefix
-        // };
+            new_prefix
+        } else {
+            prefix
+        };
 
-        // for child in &self.data[node.start..node.start + node.len] {
-        //     let mut new_prefix = result_pool.pop();
-        //     new_prefix.extend_from_slice(&prefix);
-        //     new_prefix.push(child.0);
+        for child in &self.data[node.start..node.start + node.len] {
+            let mut new_prefix = result_pool.pop();
+            new_prefix.push_str(&prefix);
+            new_prefix.push(child.0);
 
-        //     self.traverse_at_node(child.1, new_prefix, results, result_pool);
-        // }
+            self.traverse_at_node(child.1, new_prefix, results, result_pool);
+        }
 
-        // result_pool.push(prefix);
+        result_pool.push(prefix);
     }
 
     fn new_node(&mut self) -> TrieNode {

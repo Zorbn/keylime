@@ -16,8 +16,6 @@ use platform::window::WindowRunner;
  * TODO:
  * Directory-wide search.
  * Unit testing for patterns and text editing functions.
- * 🏼🏼🏼.
- * Ctrl-R to reverse search in the terminal has broken rendering.
  */
 
 fn main() {
