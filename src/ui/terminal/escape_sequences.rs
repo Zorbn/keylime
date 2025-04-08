@@ -102,7 +102,7 @@ impl TerminalEmulator {
                 }
                 // Carriage Return:
                 b'\r' => {
-                    self.jump_cursor(Position::new(0, self.grid_cursor.y), doc);
+                    self.jump_cursor(Position::new(0, self.grid_cursor.y), doc, line_pool, time);
 
                     output = &output[1..];
                     continue;
@@ -347,7 +347,7 @@ impl TerminalEmulator {
                 let position =
                     self.grid_position_char_to_byte(Position::new(x, self.grid_cursor.y), doc);
 
-                self.jump_cursor(position, doc);
+                self.jump_cursor(position, doc, line_pool, time);
 
                 Some(&output[1..])
             }
@@ -356,7 +356,7 @@ impl TerminalEmulator {
                 let grapheme_x = self.grid_position_byte_to_char(self.grid_cursor, doc);
                 let position = self.grid_position_char_to_byte(Position::new(grapheme_x, y), doc);
 
-                self.jump_cursor(position, doc);
+                self.jump_cursor(position, doc, line_pool, time);
 
                 Some(&output[1..])
             }
@@ -365,7 +365,7 @@ impl TerminalEmulator {
                 let x = Self::get_parameter(parameters, 1, 1).saturating_sub(1);
                 let position = self.grid_position_char_to_byte(Position::new(x, y), doc);
 
-                self.jump_cursor(position, doc);
+                self.jump_cursor(position, doc, line_pool, time);
 
                 Some(&output[1..])
             }

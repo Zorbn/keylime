@@ -19,7 +19,6 @@ use platform::window::WindowRunner;
  * Correctly render complex emojis like 🧑🏼‍🦳.
  * 🏼 Breaks the terminal always and the text editor if the fast path for ascii is removed from GraphemeCursor.
  * ^ Because this character is a modifier so it has strange behavior.
- * Terminal color doesn't currently work and making a line too long in the terminal also breaks.
  */
 
 fn main() {
