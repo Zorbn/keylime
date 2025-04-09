@@ -120,11 +120,11 @@ impl TerminalEmulator {
             let string = Self::get_valid_utf8_range(output);
 
             if !string.is_empty() {
-                let grapheme = grapheme::at(0, string);
+                let c = grapheme::char_at(0, string);
 
-                self.insert_at_cursor(grapheme, doc, line_pool, time);
+                self.insert_at_cursor(c, doc, line_pool, time);
 
-                output = &output[grapheme.len()..];
+                output = &output[c.len()..];
             }
         }
 
@@ -133,6 +133,10 @@ impl TerminalEmulator {
     }
 
     fn get_valid_utf8_range(bytes: &[u8]) -> &str {
+        const MAX_CHAR_LEN: usize = 4;
+
+        let bytes = &bytes[..bytes.len().min(MAX_CHAR_LEN)];
+
         match str::from_utf8(bytes) {
             Ok(string) => string,
             Err(err) => unsafe { str::from_utf8_unchecked(&bytes[..err.valid_up_to()]) },

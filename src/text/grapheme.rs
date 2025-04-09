@@ -213,3 +213,10 @@ impl<'a> Iterator for CharIterator<'a> {
         }
     }
 }
+
+pub fn char_at(index: usize, text: &str) -> &str {
+    let mut char_cursor = CharCursor::new(index, text.len());
+    char_cursor.next_boundary(text);
+
+    &text[index..char_cursor.cur_cursor()]
+}
