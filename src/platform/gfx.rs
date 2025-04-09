@@ -97,35 +97,48 @@ impl Gfx {
         for i in glyph_spans.spans_start..glyph_spans.spans_end {
             let span = self.get_glyph_span(i);
 
-            let kind = if span.has_color_glyphs {
-                SpriteKind::ColorGlyph
-            } else {
-                SpriteKind::Glyph
-            };
+            match span {
+                GlyphSpan::Space => offset += glyph_width,
+                GlyphSpan::Tab => offset += TAB_WIDTH as f32 * glyph_width,
+                GlyphSpan::Glyph {
+                    origin_x,
+                    origin_y,
+                    x: span_x,
+                    width,
+                    height,
+                    has_color_glyphs,
+                } => {
+                    let kind = if has_color_glyphs {
+                        SpriteKind::ColorGlyph
+                    } else {
+                        SpriteKind::Glyph
+                    };
 
-            let source_x = span.x as f32;
-            let source_y = 0.0;
-            let source_width = span.width as f32;
-            let source_height = span.height as f32;
+                    let source_x = span_x as f32;
+                    let source_y = 0.0;
+                    let source_width = width as f32;
+                    let source_height = height as f32;
 
-            let destination_x = x + offset + span.origin_x;
-            let destination_y = y + glyph_height - span.height as f32 + span.origin_y;
-            let destination_width = span.width as f32;
-            let destination_height = span.height as f32;
+                    let destination_x = x + offset + origin_x;
+                    let destination_y = y + glyph_height - height as f32 + origin_y;
+                    let destination_width = width as f32;
+                    let destination_height = height as f32;
 
-            self.add_sprite(
-                Rect::new(source_x, source_y, source_width, source_height),
-                Rect::new(
-                    destination_x,
-                    destination_y,
-                    destination_width,
-                    destination_height,
-                ),
-                color,
-                kind,
-            );
+                    self.add_sprite(
+                        Rect::new(source_x, source_y, source_width, source_height),
+                        Rect::new(
+                            destination_x,
+                            destination_y,
+                            destination_width,
+                            destination_height,
+                        ),
+                        color,
+                        kind,
+                    );
 
-            offset += (destination_width / glyph_width).round().max(1.0) * glyph_width;
+                    offset += (destination_width / glyph_width).round().max(1.0) * glyph_width;
+                }
+            }
         }
 
         offset

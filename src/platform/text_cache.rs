@@ -76,13 +76,17 @@ impl PartialEq for CachedLayout {
 impl Eq for CachedLayout {}
 
 #[derive(Debug, Clone, Copy)]
-pub struct GlyphSpan {
-    pub origin_x: f32,
-    pub origin_y: f32,
-    pub x: usize,
-    pub width: usize,
-    pub height: usize,
-    pub has_color_glyphs: bool,
+pub enum GlyphSpan {
+    Space,
+    Tab,
+    Glyph {
+        origin_x: f32,
+        origin_y: f32,
+        x: usize,
+        width: usize,
+        height: usize,
+        has_color_glyphs: bool,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -163,13 +167,14 @@ impl TextCache {
 
         let x = self.atlas_used_width;
         let sub_atlas = unsafe { text.generate_atlas(glyph) }.unwrap();
-        let glyph_right = x + sub_atlas.dimensions.width;
+        let width = sub_atlas.dimensions.width;
+        let glyph_right = x + width;
 
         if glyph_right == 0
             || glyph_right > self.atlas.dimensions.width
             || sub_atlas.dimensions.height > self.atlas.dimensions.height
         {
-            let mut new_width = self.atlas.dimensions.width.max(sub_atlas.dimensions.width);
+            let mut new_width = self.atlas.dimensions.width.max(width);
 
             while glyph_right > new_width {
                 new_width *= 2;
@@ -201,17 +206,17 @@ impl TextCache {
 
         sub_atlas.copy_to(&mut self.atlas, x);
 
-        let span = GlyphSpan {
+        let span = GlyphSpan::Glyph {
             origin_x: sub_atlas.dimensions.origin_x,
             origin_y: sub_atlas.dimensions.origin_y,
             x,
-            width: sub_atlas.dimensions.width,
+            width,
             height: sub_atlas.dimensions.height,
             has_color_glyphs: sub_atlas.has_color_glyphs,
         };
 
         self.glyph_cache.insert(glyph.index, span);
-        self.atlas_used_width += span.width;
+        self.atlas_used_width += width;
 
         (span, result)
     }

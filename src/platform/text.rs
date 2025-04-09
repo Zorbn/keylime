@@ -1,3 +1,5 @@
+use crate::text::grapheme::{self, CharCursor};
+
 use super::{
     aliases::PlatformText,
     platform_impl::text::Glyph,
@@ -84,16 +86,7 @@ impl Text {
                 &self.cache.last_glyph_spans[glyph_spans.spans_start..glyph_spans.spans_end],
             );
         } else {
-            let Text { inner, cache } = self;
-
-            unsafe {
-                result = inner.get_glyphs(cache, result, text, |inner, cache, glyph, result| {
-                    let (glyph_span, glyph_cache_result) = cache.get_glyph_span(inner, glyph);
-
-                    cache.glyph_spans.push(glyph_span);
-                    result.worse(glyph_cache_result)
-                });
-            }
+            result = result.worse(self.get_uncached_layout_glyph_spans(text));
         };
 
         let spans_end = self.cache.glyph_spans.len();
@@ -106,6 +99,64 @@ impl Text {
         self.cache.layout_cache.insert(cached_text, glyph_spans);
 
         (glyph_spans, result)
+    }
+
+    fn get_uncached_layout_glyph_spans(&mut self, text: &str) -> GlyphCacheResult {
+        let Text { inner, cache } = self;
+
+        let mut glyphs_start = 0;
+        let mut char_cursor = CharCursor::new(0, text.len());
+        let mut result = GlyphCacheResult::Hit;
+
+        loop {
+            let c = grapheme::char_at(char_cursor.cur_cursor(), text);
+
+            let has_pending_glyphs = match c {
+                " " | "\t" => true,
+                _ => char_cursor.cur_cursor() == text.len(),
+            };
+
+            if has_pending_glyphs {
+                let pending_text = &text[glyphs_start..char_cursor.cur_cursor()];
+
+                unsafe {
+                    result = inner.get_glyphs(
+                        cache,
+                        result,
+                        pending_text,
+                        |inner, cache, glyph, result| {
+                            let (glyph_span, glyph_cache_result) =
+                                cache.get_glyph_span(inner, glyph);
+
+                            cache.glyph_spans.push(glyph_span);
+                            result.worse(glyph_cache_result)
+                        },
+                    );
+                }
+            }
+
+            match c {
+                " " => {
+                    cache.glyph_spans.push(GlyphSpan::Space);
+                }
+                "\t" => {
+                    cache.glyph_spans.push(GlyphSpan::Tab);
+                }
+                _ => {}
+            }
+
+            if char_cursor.cur_cursor() >= text.len() {
+                break;
+            }
+
+            char_cursor.next_boundary(text);
+
+            if has_pending_glyphs {
+                glyphs_start = char_cursor.cur_cursor();
+            }
+        }
+
+        result
     }
 
     pub fn get_glyph_span(&mut self, index: usize) -> GlyphSpan {
