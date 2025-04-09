@@ -416,6 +416,9 @@ impl TerminalEmulator {
         self.colored_grid_lines.insert(scroll_top, bottom_grid_line);
 
         self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc, line_pool, time);
+
+        self.mark_lines_dirty(region);
+        self.highlight_lines(doc);
     }
 
     // Scrolls the text in the region up, giving the impression that the camera is panning down.
@@ -458,6 +461,9 @@ impl TerminalEmulator {
         self.colored_grid_lines.insert(scroll_bottom, top_grid_line);
 
         self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc, line_pool, time);
+
+        self.mark_lines_dirty(region);
+        self.highlight_lines(doc);
     }
 
     pub fn switch_to_alternate_buffer(&mut self, doc: &mut Doc) {
@@ -737,6 +743,12 @@ impl TerminalEmulator {
             TerminalHighlightKind::Magenta => TerminalHighlightKind::BrightMagenta,
             TerminalHighlightKind::Cyan => TerminalHighlightKind::BrightCyan,
             _ => color,
+        }
+    }
+
+    pub fn mark_lines_dirty(&mut self, region: RangeInclusive<usize>) {
+        for y in region {
+            self.colored_grid_lines[y].is_dirty = true;
         }
     }
 
