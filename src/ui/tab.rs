@@ -440,11 +440,11 @@ impl Tab {
                 continue;
             }
 
-            let mut x = 0;
+            let mut x = 0.0;
             let highlighted_line = &highlighted_lines[y];
 
             for highlight in highlighted_line.highlights() {
-                let visual_x = x as f32 * gfx.glyph_width() - camera_position.x;
+                let visual_x = x - camera_position.x;
                 let foreground = theme.highlight_kind_to_color(highlight.foreground);
 
                 if let Some(highlight_background) = highlight.background {

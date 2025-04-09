@@ -80,7 +80,7 @@ impl Gfx {
         self.inner.get_glyph_span(index)
     }
 
-    pub fn add_text(&mut self, text: &str, x: f32, y: f32, color: Color) -> usize {
+    pub fn add_text(&mut self, text: &str, x: f32, y: f32, color: Color) -> f32 {
         let glyph_spans = self.get_glyph_spans(text);
 
         let AtlasDimensions {
@@ -89,7 +89,7 @@ impl Gfx {
             ..
         } = *self.inner.atlas_dimensions();
 
-        let mut offset = 0;
+        let mut offset = 0.0;
 
         for i in glyph_spans.spans_start..glyph_spans.spans_end {
             let span = self.get_glyph_span(i);
@@ -105,7 +105,7 @@ impl Gfx {
             let source_width = span.width as f32;
             let source_height = span.height as f32;
 
-            let destination_x = x + offset as f32 * glyph_width as f32 + span.origin_x;
+            let destination_x = x + offset + span.origin_x;
             let destination_y = y + glyph_height as f32 - span.height as f32 + span.origin_y;
             let destination_width = span.width as f32;
             let destination_height = span.height as f32;
@@ -122,7 +122,7 @@ impl Gfx {
                 kind,
             );
 
-            offset += (destination_width / glyph_width as f32).round().max(1.0) as usize;
+            offset += span.advance.max(glyph_width) as f32;
         }
 
         offset

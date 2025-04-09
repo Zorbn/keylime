@@ -82,6 +82,7 @@ pub struct GlyphSpan {
     pub x: usize,
     pub width: usize,
     pub height: usize,
+    pub advance: usize,
     pub has_color_glyphs: bool,
 }
 
@@ -207,6 +208,7 @@ impl TextCache {
             x,
             width: sub_atlas.dimensions.width,
             height: sub_atlas.dimensions.height,
+            advance: glyph.advance,
             has_color_glyphs: sub_atlas.has_color_glyphs,
         };
 

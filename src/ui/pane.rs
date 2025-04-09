@@ -225,12 +225,7 @@ impl<T> Pane<T> {
         let text_width = gfx.add_text(doc.file_name(), text_x, text_y, theme.normal);
 
         if !doc.is_saved() {
-            gfx.add_text(
-                "*",
-                text_x + text_width as f32 * gfx.glyph_width(),
-                text_y,
-                theme.symbol,
-            );
+            gfx.add_text("*", text_x + text_width, text_y, theme.symbol);
         }
 
         gfx.add_rect(tab_bounds.right_border(gfx.border_width()), theme.border);
