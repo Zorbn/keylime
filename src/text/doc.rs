@@ -350,6 +350,10 @@ impl Doc {
         }
     }
 
+    pub fn get_line_end(&self, y: usize) -> Position {
+        Position::new(self.get_line_len(y), y)
+    }
+
     pub fn get_line_start(&self, y: usize) -> usize {
         let Some(line) = self.get_line(y) else {
             return 0;
@@ -1280,10 +1284,7 @@ impl Doc {
     }
 
     pub fn end(&self) -> Position {
-        let mut position = Position::new(0, self.lines().len() - 1);
-        position.x = self.get_line_len(position.y);
-
-        position
+        self.get_line_end(self.lines().len() - 1)
     }
 
     pub fn get_grapheme(&self, position: Position) -> &str {
@@ -1596,7 +1597,7 @@ impl Doc {
 
     pub fn copy_line_at_position(&mut self, position: Position, text: &mut String) {
         let start = Position::new(0, position.y);
-        let end = Position::new(self.get_line_len(start.y), start.y);
+        let end = self.get_line_end(start.y);
 
         self.collect_string(start, end, text);
         text.push('\n');
@@ -1792,7 +1793,7 @@ impl Doc {
 
     pub fn select_current_line_at_position(&self, position: Position) -> Selection {
         let mut start = Position::new(0, position.y);
-        let mut end = Position::new(self.get_line_len(start.y), start.y);
+        let mut end = self.get_line_end(start.y);
 
         if start.y == self.lines().len() - 1 {
             start = self.move_position(start, -1, 0);

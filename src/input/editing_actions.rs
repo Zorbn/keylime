@@ -133,11 +133,8 @@ pub fn handle_action(
             }
         }
         action_name!(SelectAll) => {
-            let y = doc.lines().len() - 1;
-            let x = doc.get_line_len(y);
-
             doc.jump_cursors(Position::zero(), false);
-            doc.jump_cursors(Position::new(x, y), true);
+            doc.jump_cursors(doc.end(), true);
         }
         action_keybind!(key: Escape, mods: 0) => {
             if doc.cursors_len() > 1 {
@@ -343,7 +340,7 @@ fn handle_delete_forward(kind: DeleteKind, doc: &mut Doc, line_pool: &mut LinePo
             let end = match kind {
                 DeleteKind::Char => doc.move_position(start, 1, 0),
                 DeleteKind::Word => doc.move_position_to_next_word(start, 1),
-                DeleteKind::Line => Position::new(doc.get_line_len(start.y), start.y),
+                DeleteKind::Line => doc.get_line_end(start.y),
             };
 
             (start, end)
@@ -444,8 +441,7 @@ fn handle_home(should_select: bool, doc: &mut Doc) {
 
 fn handle_end(should_select: bool, doc: &mut Doc) {
     for index in doc.cursor_indices() {
-        let mut position = doc.get_cursor(index).position;
-        position.x = doc.get_line_len(position.y);
+        let position = doc.get_line_end(doc.get_cursor(index).position.y);
 
         doc.jump_cursor(index, position, should_select);
     }
@@ -516,7 +512,7 @@ fn handle_shift_lines(direction: isize, doc: &mut Doc, buffers: &mut EditorBuffe
         let text_buffer = buffers.text.get_mut();
 
         let mut start = Position::new(0, selection.start.y);
-        let mut end = Position::new(doc.get_line_len(selection.end.y), selection.end.y);
+        let mut end = doc.get_line_end(selection.end.y);
 
         if direction > 0 {
             text_buffer.push('\n');
@@ -539,7 +535,7 @@ fn handle_shift_lines(direction: isize, doc: &mut Doc, buffers: &mut EditorBuffe
         let insert_start = if direction < 0 {
             Position::new(0, selection.start.y - 1)
         } else {
-            Position::new(doc.get_line_len(selection.start.y), selection.start.y)
+            doc.get_line_end(selection.start.y)
         };
 
         doc.insert(insert_start, text_buffer, &mut buffers.lines, time);

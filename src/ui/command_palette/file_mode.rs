@@ -237,8 +237,7 @@ fn delete_last_path_component(
     line_pool: &mut LinePool,
     time: f32,
 ) {
-    let line_len = doc.get_line_len(0);
-    let end = Position::new(line_len, 0);
+    let end = doc.get_line_end(0);
 
     let find_start = if can_delete_dirs {
         doc.move_position(end, -1, 0)

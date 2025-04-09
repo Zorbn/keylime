@@ -463,12 +463,12 @@ impl TerminalEmulator {
 
     pub fn get_line_end(&self, y: usize, doc: &Doc) -> Position {
         let doc_position = self.grid_position_to_doc_position(Position::new(0, y), doc);
-        let x = doc.get_line_len(doc_position.y);
+        let doc_position = doc.get_line_end(doc_position.y);
 
-        Position::new(x, y)
+        self.doc_position_to_grid_position(doc_position, doc)
     }
 
-    fn move_position_right_by_chars(
+    fn move_position_right(
         &self,
         position: Position,
         distance: usize,
@@ -503,12 +503,7 @@ impl TerminalEmulator {
         self.doc_position_to_grid_position(doc_position, doc)
     }
 
-    fn move_position_left_by_chars(
-        &self,
-        position: Position,
-        distance: usize,
-        doc: &Doc,
-    ) -> Position {
+    fn move_position_left(&self, position: Position, distance: usize, doc: &Doc) -> Position {
         let mut doc_position = self.grid_position_to_doc_position(position, doc);
 
         let Some(line) = doc.get_line(doc_position.y) else {
@@ -545,9 +540,9 @@ impl TerminalEmulator {
         }
 
         if delta_x < 0 {
-            self.move_position_left_by_chars(position, delta_x.unsigned_abs(), doc)
+            self.move_position_left(position, delta_x.unsigned_abs(), doc)
         } else {
-            self.move_position_right_by_chars(position, delta_x as usize, doc, line_pool, time)
+            self.move_position_right(position, delta_x as usize, doc, line_pool, time)
         }
     }
 
@@ -558,7 +553,7 @@ impl TerminalEmulator {
         line_pool: &mut LinePool,
         time: f32,
     ) -> Position {
-        self.move_position_right_by_chars(
+        self.move_position_right(
             Position::new(0, position.y),
             position.x,
             doc,
@@ -777,9 +772,7 @@ impl TerminalEmulator {
                     iter::repeat(colors).take(c.len()),
                 );
 
-                let next_position = self.move_position(position, 1, 0, doc, line_pool, time);
-
-                position = next_position;
+                position = self.move_position(position, 1, 0, doc, line_pool, time);
                 c = "\u{200B}";
             }
         }

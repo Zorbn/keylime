@@ -550,7 +550,7 @@ impl TerminalEmulator {
 
                 for _ in 0..distance {
                     doc.delete(start, end, line_pool, time);
-                    doc.insert(self.get_line_end(start.y, doc), " ", line_pool, time);
+                    doc.insert(doc.get_line_end(start.y), " ", line_pool, time);
                 }
 
                 Some(&output[1..])
