@@ -89,6 +89,9 @@ impl Gfx {
             ..
         } = *self.inner.atlas_dimensions();
 
+        let glyph_width = glyph_width as f32;
+        let glyph_height = glyph_height as f32;
+
         let mut offset = 0.0;
 
         for i in glyph_spans.spans_start..glyph_spans.spans_end {
@@ -106,7 +109,7 @@ impl Gfx {
             let source_height = span.height as f32;
 
             let destination_x = x + offset + span.origin_x;
-            let destination_y = y + glyph_height as f32 - span.height as f32 + span.origin_y;
+            let destination_y = y + glyph_height - span.height as f32 + span.origin_y;
             let destination_width = span.width as f32;
             let destination_height = span.height as f32;
 
@@ -122,7 +125,7 @@ impl Gfx {
                 kind,
             );
 
-            offset += span.advance.max(glyph_width) as f32;
+            offset += (destination_width / glyph_width).round().max(1.0) * glyph_width;
         }
 
         offset

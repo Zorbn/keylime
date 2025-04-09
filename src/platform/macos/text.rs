@@ -18,7 +18,6 @@ use objc2_foundation::{NSMutableAttributedString, NSRange, NSString};
 #[derive(Debug, Clone, Copy)]
 pub struct Glyph<'a> {
     pub index: u16,
-    pub advance: usize,
     has_color: bool,
     font: &'a CTFont,
 }
@@ -27,7 +26,6 @@ pub struct Text {
     font: CFRetained<CTFont>,
 
     glyph_indices: Vec<u16>,
-    glyph_advances: Vec<CGSize>,
 
     glyph_width: usize,
     line_height: usize,
@@ -91,7 +89,6 @@ impl Text {
             font,
 
             glyph_indices: Vec::new(),
-            glyph_advances: Vec::new(),
 
             glyph_width,
             line_height,
@@ -115,10 +112,7 @@ impl Text {
 
         let rect = CGRect::new(
             CGPoint::ZERO,
-            CGSize::new(
-                (rect.size.width + origin.x.abs()).ceil() + 1.0,
-                (rect.size.height + origin.y.abs()).ceil() + 1.0,
-            ),
+            CGSize::new(rect.size.width.ceil() + 1.0, rect.size.height.ceil() + 1.0),
         );
 
         let mut raw_data = vec![0u8; rect.size.width as usize * rect.size.height as usize * 4];
@@ -229,29 +223,14 @@ impl Text {
                 NonNull::new(self.glyph_indices.as_mut_ptr()).unwrap(),
             );
 
-            self.glyph_advances.resize(glyph_count, CGSize::ZERO);
-
-            CTRunGetAdvances(
-                run,
-                CFRange {
-                    location: 0,
-                    length: 0,
-                },
-                NonNull::new(self.glyph_advances.as_mut_ptr()).unwrap(),
-            );
-
             for i in 0..glyph_count {
                 let index = self.glyph_indices[i];
-                let advance = (self.glyph_advances[i].width / self.glyph_width as f64).round()
-                    as usize
-                    * self.glyph_width;
 
                 glyph_cache_result = glyph_fn(
                     self,
                     text_cache,
                     Glyph {
                         index,
-                        advance,
                         has_color,
                         font,
                     },
