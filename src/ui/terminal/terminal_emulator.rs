@@ -1,4 +1,8 @@
-use std::{iter, mem::swap, ops::RangeInclusive};
+use std::{
+    iter,
+    mem::swap,
+    ops::{Range, RangeInclusive},
+};
 
 use crate::{
     config::Config,
@@ -37,7 +41,42 @@ const SHELLS: &[&str] = &[
 #[cfg(target_os = "macos")]
 const SHELLS: &[&str] = &["zsh", "bash", "sh"];
 
-type GridLineColors = Vec<Vec<(TerminalHighlightKind, TerminalHighlightKind)>>;
+struct ColoredGridLine {
+    is_dirty: bool,
+    colors: Vec<(TerminalHighlightKind, TerminalHighlightKind)>,
+}
+
+impl ColoredGridLine {
+    fn new() -> Self {
+        Self {
+            is_dirty: false,
+            colors: Vec::new(),
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.colors.len()
+    }
+
+    fn push(&mut self, color_pair: (TerminalHighlightKind, TerminalHighlightKind)) {
+        self.colors.push(color_pair);
+        self.is_dirty = true;
+    }
+
+    fn splice(
+        &mut self,
+        range: Range<usize>,
+        color_pair: impl Iterator<Item = (TerminalHighlightKind, TerminalHighlightKind)>,
+    ) {
+        self.colors.splice(range, color_pair);
+        self.is_dirty = true;
+    }
+
+    fn clear(&mut self) {
+        self.colors.clear();
+        self.is_dirty = true;
+    }
+}
 
 pub struct TerminalEmulator {
     pty: Option<Pty>,
@@ -48,14 +87,14 @@ pub struct TerminalEmulator {
     pub grid_cursor: Position,
     pub grid_width: usize,
     pub grid_height: usize,
-    pub grid_line_colors: GridLineColors,
+    colored_grid_lines: Vec<ColoredGridLine>,
 
     maintain_cursor_positions: bool,
 
     // Data for either the normal buffer or the alternate buffer,
     // depending on which one isn't currently being used.
-    pub saved_grid_cursor: Position,
-    pub saved_grid_line_colors: GridLineColors,
+    saved_grid_cursor: Position,
+    saved_colored_grid_lines: Vec<ColoredGridLine>,
     saved_maintain_cursor_positions: bool,
 
     pub is_cursor_visible: bool,
@@ -76,12 +115,12 @@ impl TerminalEmulator {
             grid_cursor: Position::zero(),
             grid_width: 0,
             grid_height: 0,
-            grid_line_colors: Vec::new(),
+            colored_grid_lines: Vec::new(),
 
             maintain_cursor_positions: false,
 
             saved_grid_cursor: Position::zero(),
-            saved_grid_line_colors: Vec::new(),
+            saved_colored_grid_lines: Vec::new(),
             saved_maintain_cursor_positions: false,
 
             is_cursor_visible: true,
@@ -262,12 +301,12 @@ impl TerminalEmulator {
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        while self.grid_line_colors.len() < self.grid_height {
-            self.grid_line_colors.push(Vec::new());
+        while self.colored_grid_lines.len() < self.grid_height {
+            self.colored_grid_lines.push(ColoredGridLine::new());
         }
 
-        while self.saved_grid_line_colors.len() < self.grid_height {
-            self.saved_grid_line_colors.push(Vec::new());
+        while self.saved_colored_grid_lines.len() < self.grid_height {
+            self.saved_colored_grid_lines.push(ColoredGridLine::new());
         }
 
         self.expand_doc_to_grid_size(&mut docs.normal, line_pool, time);
@@ -354,7 +393,8 @@ impl TerminalEmulator {
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        self.flush_highlights(doc);
+        self.highlight_lines(doc);
+
         self.grid_cursor.x = self.grid_position_byte_to_char(self.grid_cursor, doc);
 
         let scroll_top = *region.start();
@@ -371,13 +411,11 @@ impl TerminalEmulator {
         doc.delete(delete_start, delete_end, line_pool, time);
         doc.insert(insert_start, "\n", line_pool, time);
 
-        let mut bottom_grid_line = self.grid_line_colors.remove(scroll_bottom);
+        let mut bottom_grid_line = self.colored_grid_lines.remove(scroll_bottom);
         bottom_grid_line.clear();
-        self.grid_line_colors.insert(scroll_top, bottom_grid_line);
+        self.colored_grid_lines.insert(scroll_top, bottom_grid_line);
 
         self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc, line_pool, time);
-
-        self.highlight_lines(region, doc);
     }
 
     // Scrolls the text in the region up, giving the impression that the camera is panning down.
@@ -388,7 +426,8 @@ impl TerminalEmulator {
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        self.flush_highlights(doc);
+        self.highlight_lines(doc);
+
         self.grid_cursor.x = self.grid_position_byte_to_char(self.grid_cursor, doc);
 
         let scroll_top = *region.start();
@@ -414,13 +453,11 @@ impl TerminalEmulator {
 
         doc.insert(insert_start, "\n", line_pool, time);
 
-        let mut top_grid_line = self.grid_line_colors.remove(scroll_top);
+        let mut top_grid_line = self.colored_grid_lines.remove(scroll_top);
         top_grid_line.clear();
-        self.grid_line_colors.insert(scroll_bottom, top_grid_line);
+        self.colored_grid_lines.insert(scroll_bottom, top_grid_line);
 
         self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc, line_pool, time);
-
-        self.highlight_lines(region, doc);
     }
 
     pub fn switch_to_alternate_buffer(&mut self, doc: &mut Doc) {
@@ -440,10 +477,13 @@ impl TerminalEmulator {
     }
 
     pub fn switch_buffer(&mut self, doc: &mut Doc) {
-        self.flush_highlights(doc);
+        self.highlight_lines(doc);
 
         swap(&mut self.grid_cursor, &mut self.saved_grid_cursor);
-        swap(&mut self.grid_line_colors, &mut self.saved_grid_line_colors);
+        swap(
+            &mut self.colored_grid_lines,
+            &mut self.saved_colored_grid_lines,
+        );
         swap(
             &mut self.maintain_cursor_positions,
             &mut self.saved_maintain_cursor_positions,
@@ -700,17 +740,19 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn highlight_lines(&mut self, range: RangeInclusive<usize>, doc: &mut Doc) {
-        for y in range {
+    pub fn highlight_lines(&mut self, doc: &mut Doc) {
+        for y in 0..self.colored_grid_lines.len() {
             let doc_position = self.grid_position_to_doc_position(Position::new(0, y), doc);
+            let colored_line = &mut self.colored_grid_lines[y];
 
-            doc.highlight_line_from_terminal_colors(&self.grid_line_colors[y], doc_position.y);
+            if !colored_line.is_dirty {
+                continue;
+            }
+
+            doc.highlight_line_from_terminal_colors(&colored_line.colors, doc_position.y);
+
+            colored_line.is_dirty = false;
         }
-    }
-
-    // TODO: Only update lines that have been modified.
-    pub fn flush_highlights(&mut self, doc: &mut Doc) {
-        self.highlight_lines(0..=self.grid_height - 1, doc);
     }
 
     fn ensure_position_in_grid(
@@ -720,8 +762,8 @@ impl TerminalEmulator {
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        while self.grid_line_colors[position.y].len() <= position.x + 1 {
-            self.grid_line_colors[position.y].push((
+        while self.colored_grid_lines[position.y].len() <= position.x + 1 {
+            self.colored_grid_lines[position.y].push((
                 TerminalHighlightKind::Foreground,
                 TerminalHighlightKind::Background,
             ));
@@ -768,11 +810,11 @@ impl TerminalEmulator {
                 doc.delete(insert_start, delete_end, line_pool, time);
                 doc.insert(insert_start, c, line_pool, time);
 
-                let line_colors = &mut self.grid_line_colors[position.y];
-                let line_colors_len = line_colors.len();
+                let colored_line = &mut self.colored_grid_lines[position.y];
+                let colored_line_len = colored_line.len();
 
-                line_colors.splice(
-                    insert_start.x..delete_end.x.min(line_colors_len),
+                colored_line.splice(
+                    insert_start.x..delete_end.x.min(colored_line_len),
                     iter::repeat(colors).take(c.len()),
                 );
 

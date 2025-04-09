@@ -129,7 +129,7 @@ impl TerminalEmulator {
         }
 
         let doc = self.get_doc_mut(docs);
-        self.flush_highlights(doc);
+        self.highlight_lines(doc);
     }
 
     fn get_valid_utf8_range(bytes: &[u8]) -> &str {
