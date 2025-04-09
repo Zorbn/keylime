@@ -106,6 +106,7 @@ impl Gfx {
                     x: span_x,
                     width,
                     height,
+                    advance,
                     has_color_glyphs,
                 } => {
                     let kind = if has_color_glyphs {
@@ -136,7 +137,7 @@ impl Gfx {
                         kind,
                     );
 
-                    offset += (destination_width / glyph_width).round().max(1.0) * glyph_width;
+                    offset += advance as f32;
                 }
             }
         }

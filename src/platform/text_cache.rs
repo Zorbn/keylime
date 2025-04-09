@@ -85,6 +85,7 @@ pub enum GlyphSpan {
         x: usize,
         width: usize,
         height: usize,
+        advance: usize,
         has_color_glyphs: bool,
     },
 }
@@ -212,6 +213,7 @@ impl TextCache {
             x,
             width,
             height: sub_atlas.dimensions.height,
+            advance: glyph.advance,
             has_color_glyphs: sub_atlas.has_color_glyphs,
         };
 
