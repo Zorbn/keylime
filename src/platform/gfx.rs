@@ -137,7 +137,7 @@ impl Gfx {
                         kind,
                     );
 
-                    offset += advance as f32;
+                    offset += (advance as f32 / glyph_width).round() * glyph_width;
                 }
             }
         }

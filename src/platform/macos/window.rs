@@ -161,6 +161,7 @@ pub struct Window {
     pub mousebinds_pressed: Vec<Mousebind>,
     pub mouse_scrolls: Vec<MouseScroll>,
 
+    was_last_scroll_horizontal: bool,
     current_pressed_button: Option<RecordedMouseClick>,
 
     implicit_copy_change_count: Option<isize>,
@@ -219,6 +220,7 @@ impl Window {
             mousebinds_pressed: Vec::new(),
             mouse_scrolls: Vec::new(),
 
+            was_last_scroll_horizontal: false,
             current_pressed_button: None,
 
             implicit_copy_change_count: None,
@@ -380,11 +382,17 @@ impl Window {
         let delta_x = unsafe { -event.scrollingDeltaX() } as f32;
         let delta_y = unsafe { event.scrollingDeltaY() } as f32;
 
-        let (delta, is_horizontal) = if delta_y.abs() > delta_x.abs() {
-            (delta_y, false)
+        const INERTIA: f32 = 2.0;
+
+        let is_horizontal = if self.was_last_scroll_horizontal {
+            delta_x.abs() * INERTIA > delta_y.abs()
         } else {
-            (delta_x, true)
+            delta_x.abs() > delta_y.abs() * INERTIA
         };
+
+        let delta = if is_horizontal { delta_x } else { delta_y };
+
+        self.was_last_scroll_horizontal = is_horizontal;
 
         self.mouse_scrolls.push(MouseScroll {
             delta,

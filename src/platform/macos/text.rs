@@ -239,9 +239,7 @@ impl Text {
 
             for i in 0..glyph_count {
                 let index = self.glyph_indices[i];
-                let advance = (self.glyph_advances[i].width / self.glyph_width as f64).round()
-                    as usize
-                    * self.glyph_width;
+                let advance = self.glyph_advances[i].width as usize;
 
                 glyph_cache_result = glyph_fn(
                     self,
