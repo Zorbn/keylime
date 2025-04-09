@@ -262,15 +262,19 @@ impl TerminalEmulator {
         line_pool: &mut LinePool,
         time: f32,
     ) {
+        while self.grid_line_colors.len() < self.grid_height {
+            self.grid_line_colors.push(Vec::new());
+        }
+
+        while self.saved_grid_line_colors.len() < self.grid_height {
+            self.saved_grid_line_colors.push(Vec::new());
+        }
+
         self.expand_doc_to_grid_size(&mut docs.normal, line_pool, time);
         self.expand_doc_to_grid_size(&mut docs.alternate, line_pool, time);
     }
 
     fn expand_doc_to_grid_size(&mut self, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
-        while self.grid_line_colors.len() < self.grid_height {
-            self.grid_line_colors.push(Vec::new());
-        }
-
         while doc.lines().len() < self.grid_height {
             let start = doc.end();
             doc.insert(start, "\n", line_pool, time);
