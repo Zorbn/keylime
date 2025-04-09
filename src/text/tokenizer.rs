@@ -1,5 +1,5 @@
 use super::{
-    syntax_highlighter::{HighlightResult, SyntaxHighlighter},
+    grapheme::{self, GraphemeCursor},
     trie::Trie,
 };
 
@@ -18,23 +18,46 @@ impl Tokenizer {
         self.tokens.clear();
 
         for line in lines {
-            let mut x = 0;
+            let mut grapheme_cursor = GraphemeCursor::new(0, line.len());
 
-            while x < line.len() {
-                let HighlightResult::Token { start, end } =
-                    SyntaxHighlighter::match_identifier(line, x)
+            while grapheme_cursor.cur_cursor() < line.len() {
+                let Some((start, end)) = Self::tokenize_identifier(line, &mut grapheme_cursor)
                 else {
-                    x += 1;
+                    grapheme_cursor.next_boundary(line);
                     continue;
                 };
-
-                x = end;
 
                 let token = &line[start..end];
 
                 self.tokens.insert(token);
             }
         }
+    }
+
+    pub fn tokenize_identifier(
+        line: &str,
+        grapheme_cursor: &mut GraphemeCursor,
+    ) -> Option<(usize, usize)> {
+        let start = grapheme_cursor.cur_cursor();
+        let start_grapheme = grapheme::at(start, line);
+
+        if start_grapheme != "_" && !grapheme::is_alphabetic(start_grapheme) {
+            return None;
+        }
+
+        grapheme_cursor.next_boundary(line);
+
+        while grapheme_cursor.cur_cursor() < line.len() {
+            let grapheme = grapheme::at(grapheme_cursor.cur_cursor(), line);
+
+            if grapheme != "_" && !grapheme::is_alphanumeric(grapheme) {
+                break;
+            }
+
+            grapheme_cursor.next_boundary(line);
+        }
+
+        Some((start, grapheme_cursor.cur_cursor()))
     }
 
     pub fn tokens(&self) -> &Trie {

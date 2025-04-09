@@ -5,6 +5,7 @@ use crate::ui::color::Color;
 use super::{
     grapheme::{self, GraphemeCursor},
     syntax::{Syntax, SyntaxRange, SyntaxToken},
+    tokenizer::Tokenizer,
 };
 
 #[derive(Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
@@ -115,27 +116,11 @@ impl SyntaxHighlighter {
 
     pub fn match_identifier(line: &str, start: usize) -> HighlightResult {
         let mut grapheme_cursor = GraphemeCursor::new(start, line.len());
-        let start_grapheme = grapheme::at(grapheme_cursor.cur_cursor(), line);
 
-        if start_grapheme != "_" && !grapheme::is_alphabetic(start_grapheme) {
-            return HighlightResult::None;
-        }
-
-        grapheme_cursor.next_boundary(line);
-
-        while grapheme_cursor.cur_cursor() < line.len() {
-            let grapheme = grapheme::at(grapheme_cursor.cur_cursor(), line);
-
-            if grapheme != "_" && !grapheme::is_alphanumeric(grapheme) {
-                break;
-            }
-
-            grapheme_cursor.next_boundary(line);
-        }
-
-        HighlightResult::Token {
-            start,
-            end: grapheme_cursor.cur_cursor(),
+        if let Some((start, end)) = Tokenizer::tokenize_identifier(line, &mut grapheme_cursor) {
+            HighlightResult::Token { start, end }
+        } else {
+            HighlightResult::None
         }
     }
 
