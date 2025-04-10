@@ -774,7 +774,7 @@ impl TerminalEmulator {
         line_pool: &mut LinePool,
         time: f32,
     ) {
-        while self.colored_grid_lines[position.y].len() <= position.x + 1 {
+        while self.colored_grid_lines[position.y].len() <= position.x {
             self.colored_grid_lines[position.y].push((
                 TerminalHighlightKind::Foreground,
                 TerminalHighlightKind::Background,
@@ -783,7 +783,7 @@ impl TerminalEmulator {
 
         let position = self.grid_position_to_doc_position(position, doc);
 
-        while doc.get_line_len(position.y) <= position.x + 1 {
+        while doc.get_line_len(position.y) <= position.x {
             doc.insert(position, " ", line_pool, time);
         }
     }
