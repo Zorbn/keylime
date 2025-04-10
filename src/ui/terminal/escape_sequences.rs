@@ -62,10 +62,11 @@ impl TerminalEmulator {
                         _ => None,
                     };
 
-                    match remaining {
-                        Some(remaining) => output = remaining,
+                    if let Some(remaining) = remaining {
+                        output = remaining;
+                    } else {
                         #[cfg(feature = "terminal_emulator_debug")]
-                        _ => {
+                        {
                             // Print unhandled control sequences.
                             for c in output.iter().take(8) {
                                 if let Some(c) = char::from_u32(*c as u32) {
@@ -77,8 +78,8 @@ impl TerminalEmulator {
 
                             println!();
                         }
-                        #[cfg(not(feature = "terminal_emulator_debug"))]
-                        _ => {}
+
+                        output = &output[1..];
                     }
                 }
                 // Bell:
