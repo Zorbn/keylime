@@ -5,7 +5,6 @@ use crate::{
     geometry::position::Position,
     text::{
         doc::Doc,
-        grapheme,
         line_pool::LinePool,
         syntax_highlighter::{HighlightKind, TerminalHighlightKind},
     },
@@ -24,11 +23,16 @@ impl TerminalEmulator {
         theme: &Theme,
         time: f32,
     ) {
+        let mut plain_output = output;
+
         while !output.is_empty() {
             let doc = self.get_doc_mut(docs);
+            let mut reset_plain_output = true;
 
             match output[0] {
                 0x1B => {
+                    self.flush_plain_output(plain_output, output, doc, line_pool, time);
+
                     let remaining = match output.get(1) {
                         Some(&b'[') => self.handle_escape_sequences_csi(
                             doc,
@@ -58,39 +62,43 @@ impl TerminalEmulator {
                         _ => None,
                     };
 
-                    if let Some(remaining) = remaining {
-                        output = remaining;
-                        continue;
-                    }
-
-                    #[cfg(feature = "terminal_emulator_debug")]
-                    {
-                        // Print unhandled control sequences.
-                        for c in output.iter().take(8) {
-                            if let Some(c) = char::from_u32(*c as u32) {
-                                print!("{:?} ", c);
-                            } else {
-                                print!("{:?} ", c);
+                    match remaining {
+                        Some(remaining) => output = remaining,
+                        #[cfg(feature = "terminal_emulator_debug")]
+                        _ => {
+                            // Print unhandled control sequences.
+                            for c in output.iter().take(8) {
+                                if let Some(c) = char::from_u32(*c as u32) {
+                                    print!("{:?} ", c);
+                                } else {
+                                    print!("{:?} ", c);
+                                }
                             }
-                        }
 
-                        println!();
+                            println!();
+                        }
+                        #[cfg(not(feature = "terminal_emulator_debug"))]
+                        _ => {}
                     }
                 }
                 // Bell:
                 0x7 => {
+                    self.flush_plain_output(plain_output, output, doc, line_pool, time);
+
                     output = &output[1..];
-                    continue;
                 }
                 // Backspace:
                 0x8 => {
+                    self.flush_plain_output(plain_output, output, doc, line_pool, time);
+
                     self.move_cursor(-1, 0, doc, line_pool, time);
 
                     output = &output[1..];
-                    continue;
                 }
                 // Tab:
                 b'\t' => {
+                    self.flush_plain_output(plain_output, output, doc, line_pool, time);
+
                     let next_tab_stop = (self.grid_cursor.x / 8 + 1) * 8;
 
                     while self.grid_cursor.x < next_tab_stop {
@@ -98,45 +106,55 @@ impl TerminalEmulator {
                     }
 
                     output = &output[1..];
-                    continue;
                 }
                 // Carriage Return:
                 b'\r' => {
+                    self.flush_plain_output(plain_output, output, doc, line_pool, time);
+
                     self.jump_cursor(Position::new(0, self.grid_cursor.y), doc, line_pool, time);
 
                     output = &output[1..];
-                    continue;
                 }
                 // Newline:
                 b'\n' => {
+                    self.flush_plain_output(plain_output, output, doc, line_pool, time);
+
                     self.newline_cursor(doc, line_pool, time);
 
                     output = &output[1..];
-                    continue;
                 }
-                _ => {}
+                _ => {
+                    output = &output[1..];
+                    reset_plain_output = false;
+                }
             }
 
-            let string = Self::get_valid_utf8_range(output);
-
-            if !string.is_empty() {
-                let c = grapheme::char_at(0, string);
-
-                self.insert_at_cursor(c, doc, line_pool, time);
-
-                output = &output[c.len()..];
+            if reset_plain_output {
+                plain_output = output;
             }
         }
 
         let doc = self.get_doc_mut(docs);
+
+        self.flush_plain_output(plain_output, output, doc, line_pool, time);
         self.highlight_lines(doc);
     }
 
+    fn flush_plain_output(
+        &mut self,
+        plain_output: &[u8],
+        output: &[u8],
+        doc: &mut Doc,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        let plain_len = output.as_ptr() as usize - plain_output.as_ptr() as usize;
+        let plain_string = Self::get_valid_utf8_range(&plain_output[..plain_len]);
+
+        self.insert_at_cursor(plain_string, doc, line_pool, time);
+    }
+
     fn get_valid_utf8_range(bytes: &[u8]) -> &str {
-        const MAX_CHAR_LEN: usize = 4;
-
-        let bytes = &bytes[..bytes.len().min(MAX_CHAR_LEN)];
-
         match str::from_utf8(bytes) {
             Ok(string) => string,
             Err(err) => unsafe { str::from_utf8_unchecked(&bytes[..err.valid_up_to()]) },

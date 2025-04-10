@@ -727,7 +727,7 @@ impl TerminalEmulator {
             self.newline_cursor(doc, line_pool, time);
         }
 
-        self.grid_cursor = self.insert(self.grid_cursor, text, doc, line_pool, time);
+        self.grid_cursor = self.raw_insert(self.grid_cursor, text, doc, line_pool, time);
 
         self.jump_doc_cursors_to_grid_cursor(doc);
     }
@@ -788,7 +788,36 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn insert(
+    pub fn delete(
+        &mut self,
+        start: Position,
+        end: Position,
+        doc: &mut Doc,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) {
+        self.ensure_position_in_grid(start, doc, line_pool, time);
+
+        for y in start.y..=end.y {
+            let start_x = if y == start.y { start.x } else { 0 };
+
+            let end_x = if y == end.y {
+                end.x
+            } else {
+                self.get_line_len(y, doc)
+            };
+
+            for x in start_x..end_x {
+                self.raw_insert(Position::new(x, y), " ", doc, line_pool, time);
+            }
+        }
+
+        self.jump_doc_cursors_to_grid_cursor(doc);
+    }
+
+    // Should be used indirectly by delete, insert_at_cursor, etc.
+    // Doesn't ensure the start position is in the grid or update the doc cursors.
+    fn raw_insert(
         &mut self,
         start: Position,
         text: &str,
@@ -796,8 +825,6 @@ impl TerminalEmulator {
         line_pool: &mut LinePool,
         time: f32,
     ) -> Position {
-        self.ensure_position_in_grid(start, doc, line_pool, time);
-
         let mut position = start;
 
         let colors = if self.are_colors_swapped {
@@ -835,32 +862,7 @@ impl TerminalEmulator {
             }
         }
 
-        self.jump_doc_cursors_to_grid_cursor(doc);
-
         position
-    }
-
-    pub fn delete(
-        &mut self,
-        start: Position,
-        end: Position,
-        doc: &mut Doc,
-        line_pool: &mut LinePool,
-        time: f32,
-    ) {
-        for y in start.y..=end.y {
-            let start_x = if y == start.y { start.x } else { 0 };
-
-            let end_x = if y == end.y {
-                end.x
-            } else {
-                self.get_line_len(y, doc)
-            };
-
-            for x in start_x..end_x {
-                self.insert(Position::new(x, y), " ", doc, line_pool, time);
-            }
-        }
     }
 
     pub fn get_doc<'a>(&self, docs: &'a TerminalDocs) -> &'a Doc {
