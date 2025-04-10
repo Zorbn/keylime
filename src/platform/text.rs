@@ -108,55 +108,73 @@ impl Text {
         let mut char_cursor = CharCursor::new(0, text.len());
         let mut result = GlyphCacheResult::Hit;
 
-        loop {
-            let c = grapheme::char_at(char_cursor.cur_cursor(), text);
+        while char_cursor.cur_cursor() < text.len() {
+            let mut reset_glyphs_start = true;
 
-            let has_pending_glyphs = match c {
-                " " | "\t" => true,
-                _ => char_cursor.cur_cursor() == text.len(),
-            };
-
-            if has_pending_glyphs {
-                let pending_text = &text[glyphs_start..char_cursor.cur_cursor()];
-
-                unsafe {
-                    result = inner.get_glyphs(
-                        cache,
-                        result,
-                        pending_text,
-                        |inner, cache, glyph, result| {
-                            let (glyph_span, glyph_cache_result) =
-                                cache.get_glyph_span(inner, glyph);
-
-                            cache.glyph_spans.push(glyph_span);
-                            result.worse(glyph_cache_result)
-                        },
-                    );
-                }
-            }
-
-            match c {
+            match grapheme::char_at(char_cursor.cur_cursor(), text) {
                 " " => {
+                    result = result.worse(Self::flush_glyphs(
+                        inner,
+                        cache,
+                        glyphs_start,
+                        &char_cursor,
+                        text,
+                    ));
+
                     cache.glyph_spans.push(GlyphSpan::Space);
                 }
                 "\t" => {
+                    result = result.worse(Self::flush_glyphs(
+                        inner,
+                        cache,
+                        glyphs_start,
+                        &char_cursor,
+                        text,
+                    ));
+
                     cache.glyph_spans.push(GlyphSpan::Tab);
                 }
-                _ => {}
-            }
-
-            if char_cursor.cur_cursor() >= text.len() {
-                break;
+                _ => reset_glyphs_start = false,
             }
 
             char_cursor.next_boundary(text);
 
-            if has_pending_glyphs {
+            if reset_glyphs_start {
                 glyphs_start = char_cursor.cur_cursor();
             }
         }
 
-        result
+        result.worse(Self::flush_glyphs(
+            inner,
+            cache,
+            glyphs_start,
+            &char_cursor,
+            text,
+        ))
+    }
+
+    fn flush_glyphs(
+        inner: &mut PlatformText,
+        cache: &mut TextCache,
+        glyphs_start: usize,
+        char_cursor: &CharCursor,
+        text: &str,
+    ) -> GlyphCacheResult {
+        let glyph_text = &text[glyphs_start..char_cursor.cur_cursor()];
+
+        unsafe {
+            inner.get_glyphs(
+                cache,
+                GlyphCacheResult::Hit,
+                glyph_text,
+                |inner, cache, glyph, result| {
+                    let (glyph_span, glyph_cache_result) = cache.get_glyph_span(inner, glyph);
+
+                    cache.glyph_spans.push(glyph_span);
+                    result.worse(glyph_cache_result)
+                },
+            )
+        }
     }
 
     pub fn get_glyph_span(&mut self, index: usize) -> GlyphSpan {
