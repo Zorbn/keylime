@@ -205,6 +205,7 @@ impl Config {
 
     pub fn get_language_for_doc<'a>(&'a self, doc: &Doc) -> Option<&'a Language> {
         doc.path()
+            .some()
             .and_then(|path| path.extension())
             .and_then(|extension| extension.to_str())
             .and_then(|extension| self.get_language(extension))

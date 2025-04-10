@@ -34,8 +34,8 @@ impl TerminalDocs {
         const TERMINAL_DISPLAY_NAME: Option<&str> = Some("Terminal");
 
         Self {
-            normal: Doc::new(line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
-            alternate: Doc::new(line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
+            normal: Doc::new(None, line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
+            alternate: Doc::new(None, line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
         }
     }
 

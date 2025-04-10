@@ -29,7 +29,7 @@ impl EditorPane {
     pub fn new(doc_list: &mut SlotList<Doc>, line_pool: &mut LinePool) -> Self {
         let mut inner = Pane::new(|doc| doc, |doc| doc);
 
-        let doc_index = doc_list.add(Doc::new(line_pool, None, DocKind::MultiLine));
+        let doc_index = doc_list.add(Doc::new(None, line_pool, None, DocKind::MultiLine));
         inner.add_tab(doc_index, doc_list);
 
         Self { inner }
@@ -76,9 +76,7 @@ impl EditorPane {
                     }
                 }
                 action_name!(NewTab) => {
-                    let doc_index =
-                        doc_list.add(Doc::new(&mut buffers.lines, None, DocKind::MultiLine));
-                    self.add_tab(doc_index, doc_list, config, &mut buffers.lines, time);
+                    let _ = self.new_file(None, doc_list, config, &mut buffers.lines, time);
                 }
                 action_name!(CloseTab) => {
                     self.remove_tab(doc_list, config, &mut buffers.lines, time);
@@ -104,6 +102,28 @@ impl EditorPane {
         if let Some((tab, doc)) = self.get_tab_with_data_mut(focused_tab_index, doc_list) {
             tab.update(widget, doc, buffers, config, time);
         }
+    }
+
+    pub fn new_file(
+        &mut self,
+        path: Option<&Path>,
+        doc_list: &mut SlotList<Doc>,
+        config: &Config,
+        line_pool: &mut LinePool,
+        time: f32,
+    ) -> io::Result<()> {
+        let doc = Doc::new(
+            path.map(|path| path.to_owned()),
+            line_pool,
+            None,
+            DocKind::MultiLine,
+        );
+
+        let doc_index = doc_list.add(doc);
+
+        self.add_tab(doc_index, doc_list, config, line_pool, time);
+
+        Ok(())
     }
 
     pub fn open_file(

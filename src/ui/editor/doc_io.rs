@@ -45,14 +45,14 @@ pub fn confirm_close(
 }
 
 pub fn try_save(doc: &mut Doc, config: &Config, line_pool: &mut LinePool, time: f32) -> bool {
-    let path = if let Some(path) = doc.path() {
-        Ok(path.to_owned())
-    } else {
-        find_file(FindFileKind::Save)
-    };
+    let path = if doc.path().is_none() {
+        let Ok(path) = find_file(FindFileKind::Save) else {
+            return false;
+        };
 
-    let Ok(path) = path else {
-        return false;
+        Some(path)
+    } else {
+        None
     };
 
     if config.trim_trailing_whitespace {
@@ -76,14 +76,13 @@ pub fn open_or_reuse(
     let path = absolute(path)?;
 
     for (i, doc) in doc_list.iter().enumerate() {
-        if doc.as_ref().and_then(|doc| doc.path()) == Some(&path) {
+        if doc.as_ref().and_then(|doc| doc.path().some()) == Some(&path) {
             return Ok(i);
         }
     }
 
-    let mut doc = Doc::new(line_pool, None, DocKind::MultiLine);
-
-    doc.load(path, line_pool, time)?;
+    let mut doc = Doc::new(Some(path), line_pool, None, DocKind::MultiLine);
+    doc.load(line_pool, time)?;
 
     Ok(doc_list.add(doc))
 }

@@ -2,6 +2,7 @@ use std::{
     fmt::Display,
     fs::{read_to_string, File},
     io::{self, Write},
+    mem::take,
     path::{absolute, Path, PathBuf},
     vec::Drain,
 };
@@ -52,6 +53,35 @@ pub enum DocKind {
     Output,
 }
 
+#[derive(Debug, Default)]
+pub enum DocPath {
+    #[default]
+    None,
+    InMemory(PathBuf),
+    OnDrive(PathBuf),
+}
+
+impl DocPath {
+    pub fn some(&self) -> Option<&Path> {
+        match &self {
+            DocPath::None => None,
+            DocPath::InMemory(path) => Some(path),
+            DocPath::OnDrive(path) => Some(path),
+        }
+    }
+
+    pub fn is_none(&self) -> bool {
+        matches!(self, DocPath::None)
+    }
+
+    pub fn on_drive(&self) -> Option<&Path> {
+        match &self {
+            DocPath::OnDrive(path) => Some(path),
+            _ => None,
+        }
+    }
+}
+
 const CURSOR_POSITION_HISTORY_THRESHOLD: usize = 10;
 
 // One change for File::create, and one change for writing.
@@ -63,7 +93,7 @@ const EXPECTED_CHANGE_COUNT_ON_SAVE: usize = 1;
 
 pub struct Doc {
     display_name: Option<&'static str>,
-    path: Option<PathBuf>,
+    path: DocPath,
     is_saved: bool,
     expected_change_count: usize,
     version: usize,
@@ -90,16 +120,22 @@ pub struct Doc {
 
 impl Doc {
     pub fn new(
+        path: Option<PathBuf>,
         line_pool: &mut LinePool,
         display_name: Option<&'static str>,
         kind: DocKind,
     ) -> Self {
         let lines = vec![line_pool.pop()];
 
+        let (path, is_saved) = match path {
+            Some(path) => (DocPath::InMemory(path), false),
+            _ => (DocPath::None, true),
+        };
+
         let mut doc = Self {
             display_name,
-            path: None,
-            is_saved: true,
+            path,
+            is_saved,
             expected_change_count: 0,
             version: 0,
             usages: 0,
@@ -1375,38 +1411,6 @@ impl Doc {
         }
     }
 
-    fn set_path(&mut self, path: PathBuf) -> io::Result<()> {
-        self.path = Some(if path.is_absolute() {
-            path
-        } else {
-            absolute(path)?
-        });
-
-        Ok(())
-    }
-
-    pub fn save(&mut self, path: PathBuf) -> io::Result<()> {
-        let string = self.to_string();
-
-        File::create(&path)?.write_all(string.as_bytes())?;
-
-        self.set_path(path)?;
-        self.is_saved = true;
-        self.expected_change_count = EXPECTED_CHANGE_COUNT_ON_SAVE;
-
-        Ok(())
-    }
-
-    pub fn is_change_unexpected(&mut self) -> bool {
-        if self.expected_change_count == 0 {
-            true
-        } else {
-            self.expected_change_count -= 1;
-
-            false
-        }
-    }
-
     fn reset_cursors(&mut self) {
         self.cursors.clear();
         self.cursors.push(Cursor::new(Position::zero(), 0));
@@ -1446,10 +1450,52 @@ impl Doc {
         }
     }
 
-    pub fn load(&mut self, path: PathBuf, line_pool: &mut LinePool, time: f32) -> io::Result<()> {
+    pub fn is_change_unexpected(&mut self) -> bool {
+        if self.expected_change_count == 0 {
+            true
+        } else {
+            self.expected_change_count -= 1;
+
+            false
+        }
+    }
+
+    pub fn save(&mut self, path: Option<PathBuf>) -> io::Result<()> {
+        let string = self.to_string();
+
+        if let Some(path) = path {
+            self.set_path_on_drive(path)?;
+        }
+
+        let Some(path) = self.path.some() else {
+            return Ok(());
+        };
+
+        File::create(path)?.write_all(string.as_bytes())?;
+
+        self.path = match take(&mut self.path) {
+            DocPath::None => DocPath::None,
+            DocPath::InMemory(path) => DocPath::OnDrive(path),
+            DocPath::OnDrive(path) => {
+                self.expected_change_count = EXPECTED_CHANGE_COUNT_ON_SAVE;
+
+                DocPath::OnDrive(path)
+            }
+        };
+
+        self.is_saved = true;
+
+        Ok(())
+    }
+
+    pub fn load(&mut self, line_pool: &mut LinePool, time: f32) -> io::Result<()> {
         self.clear(line_pool);
 
-        let string = read_to_string(&path)?;
+        let Some(path) = self.path.some() else {
+            return Ok(());
+        };
+
+        let string = read_to_string(path)?;
 
         let (line_ending, len) = self.get_line_ending_and_len(&string);
 
@@ -1457,13 +1503,19 @@ impl Doc {
         self.reset_edit_state();
         self.line_ending = line_ending;
 
-        self.set_path(path)?;
+        self.is_saved = true;
+
+        self.path = match take(&mut self.path) {
+            DocPath::None => DocPath::None,
+            DocPath::InMemory(path) => DocPath::OnDrive(path),
+            DocPath::OnDrive(path) => DocPath::OnDrive(path),
+        };
 
         Ok(())
     }
 
     pub fn reload(&mut self, buffers: &mut EditorBuffers, time: f32) -> io::Result<()> {
-        let Some(path) = self.path.as_ref() else {
+        let Some(path) = self.path.on_drive() else {
             return Ok(());
         };
 
@@ -1536,15 +1588,25 @@ impl Doc {
         (LineEnding::default(), string.len())
     }
 
-    pub fn path(&self) -> Option<&Path> {
-        self.path.as_deref()
+    fn set_path_on_drive(&mut self, path: PathBuf) -> io::Result<()> {
+        self.path = DocPath::OnDrive(if path.is_absolute() {
+            path
+        } else {
+            absolute(path)?
+        });
+
+        Ok(())
+    }
+
+    pub fn path(&self) -> &DocPath {
+        &self.path
     }
 
     pub fn file_name(&self) -> &str {
         const DEFAULT_NAME: &str = "Unnamed";
 
         self.path
-            .as_ref()
+            .some()
             .and_then(|path| path.file_name())
             .and_then(|name| name.to_str())
             .or(self.display_name)

@@ -288,7 +288,7 @@ impl Editor {
     ) {
         for path in changed_files {
             for doc in self.doc_list.iter_mut().flatten() {
-                if doc.path() != Some(path) {
+                if doc.path().some() != Some(path) {
                     continue;
                 }
 
@@ -481,6 +481,9 @@ impl Editor {
     }
 
     pub fn files(&self) -> impl Iterator<Item = &Path> {
-        self.doc_list.iter().flatten().filter_map(|doc| doc.path())
+        self.doc_list
+            .iter()
+            .flatten()
+            .filter_map(|doc| doc.path().on_drive())
     }
 }

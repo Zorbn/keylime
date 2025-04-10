@@ -1,6 +1,6 @@
 use std::{
     env::current_dir,
-    fs::{create_dir_all, read_dir, File},
+    fs::{create_dir_all, read_dir},
     path::{Component, Path, PathBuf},
 };
 
@@ -56,6 +56,7 @@ fn on_open(
 
     let Some(path) = doc
         .path()
+        .some()
         .and_then(|path| path.parent())
         .map(|path| path.strip_prefix(current_dir).unwrap_or(path))
     else {
@@ -119,17 +120,14 @@ fn on_submit(
             on_update_results(command_palette, args);
 
             return CommandPaletteAction::Stay;
-        } else {
-            if let Some(parent) = path.parent() {
-                let _ = create_dir_all(parent);
-            }
-
-            let _ = File::create(path);
+        } else if let Some(parent) = path.parent() {
+            let _ = create_dir_all(parent);
         }
     }
 
     if pane
         .open_file(path, doc_list, config, line_pool, *time)
+        .or_else(|_| pane.new_file(Some(path), doc_list, config, line_pool, *time))
         .is_ok()
     {
         CommandPaletteAction::Close
