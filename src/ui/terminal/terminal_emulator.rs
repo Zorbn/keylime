@@ -105,6 +105,7 @@ pub struct TerminalEmulator {
     pub scroll_top: usize,
     pub scroll_bottom: usize,
     is_in_alternate_buffer: bool,
+    excess_lines_trimmed: usize,
 }
 
 impl TerminalEmulator {
@@ -131,6 +132,7 @@ impl TerminalEmulator {
             scroll_top: 0,
             scroll_bottom: 0,
             is_in_alternate_buffer: false,
+            excess_lines_trimmed: 0,
         }
     }
 
@@ -276,7 +278,6 @@ impl TerminalEmulator {
         }
 
         let doc = self.get_doc_mut(docs);
-        self.trim_excess_lines(widget, tab, doc, &mut buffers.lines, time);
 
         if self.maintain_cursor_positions {
             self.restore_doc_cursor_positions(doc, cursor_buffer);
@@ -288,9 +289,13 @@ impl TerminalEmulator {
             // The alternate buffer is always the size of the camera and doesn't need to scroll.
             tab.camera.reset();
         } else {
-            let doc = self.get_doc(docs);
+            tab.camera.vertical.position -=
+                self.excess_lines_trimmed as f32 * widget.gfx().line_height();
+            self.excess_lines_trimmed = 0;
 
             tab.camera.horizontal.reset_velocity();
+
+            let doc = self.get_doc(docs);
             tab.update_camera(widget, doc, dt);
         }
     }
@@ -354,35 +359,21 @@ impl TerminalEmulator {
         (grid_width, grid_height)
     }
 
-    pub fn trim_excess_lines(
-        &mut self,
-        widget: &mut WidgetHandle,
-        tab: &mut Tab,
-        doc: &mut Doc,
-        line_pool: &mut LinePool,
-        time: f32,
-    ) {
+    pub fn trim_excess_lines(&mut self, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
         let max_lines = self.grid_height + MAX_SCROLLBACK_LINES;
 
         if doc.lines().len() <= max_lines {
             return;
         }
 
-        let gfx = widget.gfx();
-
-        let camera_offset_y =
-            tab.camera.vertical.position - doc.lines().len() as f32 * gfx.line_height();
-
         let excess_lines = doc.lines().len() - max_lines;
+        self.excess_lines_trimmed += excess_lines;
 
         let start = Position::zero();
         let end = Position::new(0, excess_lines);
 
         doc.delete(start, end, line_pool, time);
         doc.recycle_highlighted_lines_up_to_y(excess_lines);
-
-        tab.camera.vertical.position =
-            doc.lines().len() as f32 * gfx.line_height() + camera_offset_y;
     }
 
     // Scrolls the text in the region down, giving the impression that the camera is panning up.
@@ -462,6 +453,7 @@ impl TerminalEmulator {
 
         self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc, line_pool, time);
 
+        self.trim_excess_lines(doc, line_pool, time);
         self.mark_lines_dirty(region);
         self.highlight_lines(doc);
     }
