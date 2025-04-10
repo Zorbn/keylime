@@ -149,6 +149,11 @@ impl TerminalEmulator {
         time: f32,
     ) {
         let plain_len = output.as_ptr() as usize - plain_output.as_ptr() as usize;
+
+        if plain_len == 0 {
+            return;
+        }
+
         let plain_string = Self::get_valid_utf8_range(&plain_output[..plain_len]);
 
         self.insert_at_cursor(plain_string, doc, line_pool, time);
