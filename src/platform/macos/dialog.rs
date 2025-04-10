@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use objc2::rc::Retained;
 use objc2_app_kit::{
     NSAlert, NSAlertFirstButtonReturn, NSAlertSecondButtonReturn, NSAlertStyle, NSBackingStoreType,
-    NSOpenPanel, NSRunningApplication, NSSavePanel, NSWindowStyleMask,
+    NSModalResponseOK, NSOpenPanel, NSRunningApplication, NSSavePanel, NSWindowStyleMask,
 };
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{ns_string, MainThreadMarker, NSRect, NSString, NSURL};
@@ -56,7 +56,10 @@ unsafe fn find_file_open(
         _ => {}
     }
 
-    open_panel.runModal();
+    if open_panel.runModal() != NSModalResponseOK {
+        return None;
+    }
+
     open_panel.URL()
 }
 
@@ -73,7 +76,10 @@ unsafe fn find_file_save(
         true,
     );
 
-    save_panel.runModal();
+    if save_panel.runModal() != NSModalResponseOK {
+        return None;
+    }
+
     save_panel.URL()
 }
 
