@@ -1,5 +1,3 @@
-use unicode_width::UnicodeWidthStr;
-
 use crate::{
     geometry::{
         rect::Rect,
@@ -11,7 +9,7 @@ use crate::{
 
 use super::{
     platform_impl,
-    text_cache::{AtlasDimensions, GlyphSpan, GlyphSpans},
+    text_cache::{GlyphSpan, GlyphSpans},
 };
 
 pub(super) enum SpriteKind {
@@ -43,24 +41,12 @@ impl Gfx {
         self.inner.end();
     }
 
-    pub fn measure_text(text: &str) -> usize {
-        let added_tab_width: usize = text
-            .chars()
-            .map(|c| match c {
-                '\t' => TAB_WIDTH - 1,
-                _ => 0,
-            })
-            .sum();
-
-        added_tab_width + UnicodeWidthStr::width(text)
-    }
-
-    pub fn find_x_for_visual_x(text: &str, visual_x: usize) -> usize {
+    pub fn find_x_for_visual_x(&mut self, text: &str, visual_x: usize) -> usize {
         let mut current_visual_x = 0;
         let mut x = 0;
 
         for grapheme in GraphemeIterator::new(text) {
-            current_visual_x += Gfx::measure_text(grapheme);
+            current_visual_x += self.measure_text(grapheme);
 
             if current_visual_x > visual_x {
                 return x;
@@ -83,14 +69,8 @@ impl Gfx {
     pub fn add_text(&mut self, text: &str, x: f32, y: f32, color: Color) -> f32 {
         let glyph_spans = self.get_glyph_spans(text);
 
-        let AtlasDimensions {
-            glyph_width,
-            glyph_height,
-            ..
-        } = *self.inner.atlas_dimensions();
-
-        let glyph_width = glyph_width as f32;
-        let glyph_height = glyph_height as f32;
+        let glyph_width = self.glyph_width();
+        let glyph_height = self.glyph_height();
 
         let mut offset = 0.0;
 
@@ -137,7 +117,7 @@ impl Gfx {
                         kind,
                     );
 
-                    offset += Self::round_glyph_advance(advance, glyph_width);
+                    offset += self.round_glyph_advance(advance) as f32 * glyph_width;
                 }
             }
         }
@@ -146,31 +126,34 @@ impl Gfx {
     }
 
     pub fn add_background(&mut self, text: &str, x: f32, y: f32, color: Color) {
+        let glyph_width = self.glyph_width();
+        let width = self.measure_text(text) as f32 * glyph_width;
+
+        self.add_rect(Rect::new(x, y, width, self.line_height()), color);
+    }
+
+    pub fn measure_text(&mut self, text: &str) -> usize {
         let glyph_spans = self.get_glyph_spans(text);
 
-        let AtlasDimensions { glyph_width, .. } = *self.inner.atlas_dimensions();
-
-        let glyph_width = glyph_width as f32;
-
-        let mut width = 0.0;
+        let mut width = 0;
 
         for i in glyph_spans.spans_start..glyph_spans.spans_end {
             let span = self.get_glyph_span(i);
 
             match span {
-                GlyphSpan::Space => width += glyph_width,
-                GlyphSpan::Tab => width += TAB_WIDTH as f32 * glyph_width,
+                GlyphSpan::Space => width += 1,
+                GlyphSpan::Tab => width += TAB_WIDTH,
                 GlyphSpan::Glyph { advance, .. } => {
-                    width += Self::round_glyph_advance(advance, glyph_width);
+                    width += self.round_glyph_advance(advance);
                 }
             }
         }
 
-        self.add_rect(Rect::new(x, y, width, self.line_height()), color);
+        width
     }
 
-    fn round_glyph_advance(advance: usize, glyph_width: f32) -> f32 {
-        (advance as f32 / glyph_width).round() * glyph_width
+    fn round_glyph_advance(&self, advance: usize) -> usize {
+        (advance as f32 / self.glyph_width()).round() as usize
     }
 
     pub fn add_bordered_rect(&mut self, rect: Rect, sides: u8, color: Color, border_color: Color) {

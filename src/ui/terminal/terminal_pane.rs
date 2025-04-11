@@ -1,8 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::{
+    platform::window::Window,
     text::line_pool::LinePool,
-    ui::{pane::Pane, slot_list::SlotList, widget::WidgetHandle},
+    ui::{pane::Pane, slot_list::SlotList, widget::Widget, Ui},
 };
 
 use super::{action_name, terminal_emulator::TerminalEmulator, Term, TerminalDocs};
@@ -27,13 +28,15 @@ impl TerminalPane {
 
     pub fn update(
         &mut self,
-        widget: &mut WidgetHandle,
+        widget: &mut Widget,
+        ui: &mut Ui,
+        window: &mut Window,
         term_list: &mut SlotList<Term>,
         line_pool: &mut LinePool,
     ) {
-        let mut action_handler = widget.get_action_handler();
+        let mut action_handler = widget.get_action_handler(ui, window);
 
-        while let Some(action) = action_handler.next(widget.window()) {
+        while let Some(action) = action_handler.next(window) {
             match action {
                 action_name!(NewTab) => {
                     let term = Self::new_term(line_pool);
@@ -52,11 +55,11 @@ impl TerminalPane {
                         }
                     }
                 }
-                _ => action_handler.unprocessed(widget.window(), action),
+                _ => action_handler.unprocessed(window, action),
             }
         }
 
-        self.inner.update(widget);
+        self.inner.update(widget, ui, window);
     }
 
     fn new_term(line_pool: &mut LinePool) -> Term {

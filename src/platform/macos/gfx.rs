@@ -263,7 +263,10 @@ impl Gfx {
     fn handle_glyph_cache_result(&mut self) {
         let atlas = &mut self.text.cache.atlas;
 
-        let (x, width) = match self.glyph_cache_result {
+        let glyph_cache_result = self.glyph_cache_result;
+        self.glyph_cache_result = GlyphCacheResult::Hit;
+
+        let (x, width) = match glyph_cache_result {
             GlyphCacheResult::Hit => return,
             GlyphCacheResult::Miss => (0, atlas.dimensions.width),
             GlyphCacheResult::Resize => {
@@ -380,8 +383,6 @@ impl Gfx {
     }
 
     pub fn begin(&mut self, bounds: Option<Rect>) {
-        self.glyph_cache_result = GlyphCacheResult::Hit;
-
         self.vertices.clear();
         self.indices.clear();
 

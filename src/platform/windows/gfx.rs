@@ -8,7 +8,7 @@ use std::{
 use windows::{
     core::{s, Result},
     Win32::{
-        Foundation::{HMODULE, RECT, TRUE},
+        Foundation::{HMODULE, HWND, RECT, TRUE},
         Graphics::{
             Direct3D::{
                 Fxc::{D3DCompile, D3DCOMPILE_DEBUG},
@@ -29,8 +29,6 @@ use crate::{
     },
     ui::color::Color,
 };
-
-use super::window::Window;
 
 const SHADER_CODE: &str = r#"
 cbuffer constants : register(b0) {
@@ -141,7 +139,7 @@ pub struct Gfx {
 }
 
 impl Gfx {
-    pub unsafe fn new(font_name: &str, font_size: f32, window: &Window) -> Result<Self> {
+    pub unsafe fn new(font_name: &str, font_size: f32, scale: f32, hwnd: HWND) -> Result<Self> {
         let (device, context) = {
             let mut device_result = None;
             let mut context_result = None;
@@ -183,7 +181,7 @@ impl Gfx {
                 ..Default::default()
             };
 
-            factory.CreateSwapChainForHwnd(&device, window.hwnd(), &desc, None, None)?
+            factory.CreateSwapChainForHwnd(&device, hwnd, &desc, None, None)?
         };
 
         let rasterizer_state = {
@@ -358,8 +356,6 @@ impl Gfx {
 
             uniform_buffer_result.unwrap()
         };
-
-        let scale = window.scale();
 
         let text = AnyText::new(font_name, |font_name| unsafe {
             PlatformText::new(font_name, font_size, scale, &device)
@@ -584,15 +580,19 @@ impl Gfx {
                 );
             },
             GlyphCacheResult::Resize => unsafe {
-                self.texture_data = Self::create_texture(
-                    &self.device,
-                    atlas.dimensions.width as u32,
-                    atlas.dimensions.height as u32,
-                    &atlas.data,
-                )
-                .ok();
+                self.texture_data = Some(
+                    Self::create_texture(
+                        &self.device,
+                        atlas.dimensions.width as u32,
+                        atlas.dimensions.height as u32,
+                        &atlas.data,
+                    )
+                    .unwrap(),
+                );
             },
         }
+
+        self.glyph_cache_result = GlyphCacheResult::Hit;
     }
 
     pub fn begin_frame(&mut self, clear_color: Color) {
@@ -620,8 +620,6 @@ impl Gfx {
     }
 
     pub fn begin(&mut self, bounds: Option<Rect>) {
-        self.glyph_cache_result = GlyphCacheResult::Hit;
-
         self.vertices.clear();
         self.indices.clear();
 

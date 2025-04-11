@@ -64,6 +64,7 @@ const DEFAULT_HEIGHT: i32 = 480;
 
 pub struct WindowRunner {
     window: ManuallyDrop<AnyWindow>,
+    gfx: Option<AnyGfx>,
     app: ManuallyDrop<App>,
 }
 
@@ -75,6 +76,7 @@ impl WindowRunner {
             window: ManuallyDrop::new(AnyWindow {
                 inner: Window::new()?,
             }),
+            gfx: None,
             app: ManuallyDrop::new(app),
         });
 
@@ -125,7 +127,9 @@ impl WindowRunner {
     }
 
     pub fn run(&mut self) {
-        let WindowRunner { window, app, .. } = self;
+        let WindowRunner {
+            window, gfx, app, ..
+        } = self;
 
         while window.inner.is_running() {
             let is_animating = app.is_animating();
@@ -133,13 +137,21 @@ impl WindowRunner {
             let (files, ptys) = app.files_and_ptys();
             window.inner.update(is_animating, files, ptys);
 
-            let timestamp = window.inner.get_time(is_animating);
-            app.update(window, timestamp);
+            let Some(gfx) = gfx else {
+                continue;
+            };
 
-            app.draw(window);
+            let timestamp = window.inner.get_time(is_animating);
+            app.update(window, gfx, timestamp);
+
+            app.draw(window, gfx);
         }
 
-        app.close(self.window.inner.time);
+        let time = window.inner.time;
+
+        if let Some(gfx) = gfx {
+            app.close(gfx, time);
+        }
     }
 
     unsafe extern "system" fn window_proc(
@@ -173,6 +185,41 @@ impl WindowRunner {
 
                 DefWindowProcW(hwnd, msg, wparam, lparam)
             }
+            WM_CREATE => {
+                let window_runner = &mut *window_runner;
+
+                let scale = GetDpiForWindow(hwnd) as f32 / DEFAULT_DPI;
+
+                window_runner.window.inner.on_create(scale, hwnd);
+
+                let Config {
+                    font, font_size, ..
+                } = window_runner.app.config();
+
+                window_runner.gfx = Some(AnyGfx {
+                    inner: Gfx::new(font, *font_size, scale, hwnd).unwrap(),
+                });
+
+                LRESULT(0)
+            }
+            WM_DPICHANGED => {
+                let window_runner = &mut *window_runner;
+
+                let scale = (wparam.0 & 0xFFFF) as f32 / DEFAULT_DPI;
+                let rect = *(lparam.0 as *const RECT);
+
+                window_runner.window.inner.on_dpi_changed(scale, rect);
+
+                if let Some(gfx) = &mut window_runner.gfx {
+                    let Config {
+                        font, font_size, ..
+                    } = window_runner.app.config();
+
+                    gfx.inner.update_font(font, *font_size, scale);
+                }
+
+                LRESULT(0)
+            }
             WM_SIZE => {
                 let width = (lparam.0 & 0xFFFF) as i32;
                 let height = ((lparam.0 >> 16) & 0xFFFF) as i32;
@@ -182,20 +229,26 @@ impl WindowRunner {
                 window_runner.window.inner.width = width;
                 window_runner.window.inner.height = height;
 
-                if let Some(gfx) = &mut window_runner.window.inner.gfx {
+                if let WindowRunner {
+                    window,
+                    gfx: Some(gfx),
+                    app,
+                    ..
+                } = window_runner
+                {
                     gfx.inner.resize(width, height).unwrap();
-
-                    let WindowRunner { window, app, .. } = window_runner;
-
-                    app.draw(window);
+                    app.draw(window, gfx);
                 }
 
                 LRESULT(0)
             }
             _ => {
-                let WindowRunner { window, app, .. } = &mut *window_runner;
+                let window_runner = &mut *window_runner;
 
-                window.inner.window_proc(app, hwnd, msg, wparam, lparam)
+                window_runner
+                    .window
+                    .inner
+                    .window_proc(hwnd, msg, wparam, lparam)
             }
         }
     }
@@ -204,6 +257,7 @@ impl WindowRunner {
 impl Drop for WindowRunner {
     fn drop(&mut self) {
         unsafe {
+            self.gfx.take();
             ManuallyDrop::drop(&mut self.window);
             ManuallyDrop::drop(&mut self.app);
             CoUninitialize();
@@ -241,8 +295,6 @@ pub struct Window {
 
     wide_text_buffer: TempBuffer<u16>,
     text_buffer: TempString,
-
-    gfx: Option<AnyGfx>,
 
     // Keep track of which mouse buttons have been pressed since the window was
     // last focused, so that we can skip stray mouse drag events that may happen
@@ -296,8 +348,6 @@ impl Window {
 
             wide_text_buffer: TempBuffer::new(),
             text_buffer: TempString::new(),
-
-            gfx: None,
 
             draggable_buttons: HashSet::new(),
             current_click: None,
@@ -415,14 +465,6 @@ impl Window {
         self.hwnd
     }
 
-    pub fn scale(&self) -> f32 {
-        self.scale
-    }
-
-    pub fn gfx(&mut self) -> &mut AnyGfx {
-        self.gfx.as_mut().unwrap()
-    }
-
     pub fn file_watcher(&mut self) -> &mut AnyFileWatcher {
         &mut self.file_watcher
     }
@@ -536,9 +578,44 @@ impl Window {
         self.was_copy_implicit
     }
 
+    unsafe fn on_create(&mut self, scale: f32, hwnd: HWND) {
+        self.hwnd = hwnd;
+
+        let mut window_rect = RECT {
+            left: 0,
+            top: 0,
+            right: self.width,
+            bottom: self.height,
+        };
+
+        AdjustWindowRectEx(
+            &mut window_rect,
+            WS_OVERLAPPEDWINDOW,
+            false,
+            WINDOW_EX_STYLE::default(),
+        )
+        .unwrap();
+
+        let width = ((window_rect.right - window_rect.left) as f32 * scale) as i32;
+        let height = ((window_rect.bottom - window_rect.top) as f32 * scale) as i32;
+
+        let _ = SetWindowPos(hwnd, None, 0, 0, width, height, SWP_NOMOVE);
+    }
+
+    unsafe fn on_dpi_changed(&mut self, scale: f32, rect: RECT) {
+        let _ = SetWindowPos(
+            self.hwnd,
+            None,
+            0,
+            0,
+            rect.right - rect.left,
+            rect.bottom - rect.top,
+            SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOMOVE,
+        );
+    }
+
     unsafe fn window_proc(
         &mut self,
-        app: &mut App,
         hwnd: HWND,
         msg: u32,
         wparam: WPARAM,
@@ -566,62 +643,6 @@ impl Window {
                 );
 
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
-            }
-            WM_CREATE => {
-                self.hwnd = hwnd;
-                self.scale = GetDpiForWindow(hwnd) as f32 / DEFAULT_DPI;
-
-                let mut window_rect = RECT {
-                    left: 0,
-                    top: 0,
-                    right: self.width,
-                    bottom: self.height,
-                };
-
-                AdjustWindowRectEx(
-                    &mut window_rect,
-                    WS_OVERLAPPEDWINDOW,
-                    false,
-                    WINDOW_EX_STYLE::default(),
-                )
-                .unwrap();
-
-                let width = ((window_rect.right - window_rect.left) as f32 * self.scale) as i32;
-                let height = ((window_rect.bottom - window_rect.top) as f32 * self.scale) as i32;
-
-                let _ = SetWindowPos(hwnd, None, 0, 0, width, height, SWP_NOMOVE);
-
-                let Config {
-                    font, font_size, ..
-                } = app.config();
-
-                self.gfx = Some(AnyGfx {
-                    inner: Gfx::new(font, *font_size, self).unwrap(),
-                });
-            }
-            WM_DPICHANGED => {
-                let scale = (wparam.0 & 0xFFFF) as f32 / DEFAULT_DPI;
-                self.scale = scale;
-
-                if let Some(gfx) = &mut self.gfx {
-                    let Config {
-                        font, font_size, ..
-                    } = app.config();
-
-                    gfx.inner.update_font(font, *font_size, scale);
-                }
-
-                let rect = *(lparam.0 as *const RECT);
-
-                let _ = SetWindowPos(
-                    self.hwnd,
-                    None,
-                    0,
-                    0,
-                    rect.right - rect.left,
-                    rect.bottom - rect.top,
-                    SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOMOVE,
-                );
             }
             WM_MOVE => {
                 self.x = transmute::<u32, i32>((lparam.0 & 0xFFFF) as u32);

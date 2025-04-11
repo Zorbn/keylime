@@ -3,7 +3,7 @@ use widget::Widget;
 use crate::{
     geometry::visual_position::VisualPosition,
     input::{mouse_button::MouseButton, mousebind::Mousebind},
-    platform::{gfx::Gfx, window::Window},
+    platform::window::Window,
 };
 
 mod camera;
@@ -34,32 +34,13 @@ impl Ui {
         }
     }
 
-    pub fn get_handle<'a>(&'a mut self, window: &'a mut Window) -> UiHandle<'a> {
-        UiHandle::new(self, window)
-    }
-}
-
-pub struct UiHandle<'a> {
-    inner: &'a mut Ui,
-    window: &'a mut Window,
-}
-
-impl<'a> UiHandle<'a> {
-    pub fn new(ui: &'a mut Ui, window: &'a mut Window) -> Self {
-        Self { inner: ui, window }
-    }
-
-    pub fn gfx(&mut self) -> &mut Gfx {
-        self.window.gfx()
-    }
-
-    pub fn update(&mut self, focusable_widgets: &mut [&mut Widget]) {
+    pub fn update(&mut self, focusable_widgets: &mut [&mut Widget], window: &mut Window) {
         let mut focused_widget_index = None;
         let mut hovered_widget_index = None;
 
-        let mut mousebind_handler = self.window.get_mousebind_handler();
+        let mut mousebind_handler = window.get_mousebind_handler();
 
-        while let Some(mousebind) = mousebind_handler.next(self.window) {
+        while let Some(mousebind) = mousebind_handler.next(window) {
             let position = VisualPosition::new(mousebind.x, mousebind.y);
             let widget_index = Self::get_widget_index_at(position, focusable_widgets);
             hovered_widget_index = widget_index;
@@ -73,17 +54,17 @@ impl<'a> UiHandle<'a> {
                 focused_widget_index = widget_index;
             }
 
-            mousebind_handler.unprocessed(self.window, mousebind);
+            mousebind_handler.unprocessed(window, mousebind);
         }
 
-        let mut mouse_scroll_handler = self.window.get_mouse_scroll_handler();
+        let mut mouse_scroll_handler = window.get_mouse_scroll_handler();
 
-        while let Some(mouse_scroll) = mouse_scroll_handler.next(self.window) {
+        while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
             let widget_index = Self::get_widget_index_at(position, focusable_widgets);
             hovered_widget_index = widget_index;
 
-            mouse_scroll_handler.unprocessed(self.window, mouse_scroll);
+            mouse_scroll_handler.unprocessed(window, mouse_scroll);
         }
 
         if let Some(focused_widget_index) = focused_widget_index {

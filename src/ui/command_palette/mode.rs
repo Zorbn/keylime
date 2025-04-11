@@ -1,6 +1,7 @@
 use crate::{
     config::Config,
     editor_buffers::EditorBuffers,
+    platform::gfx::Gfx,
     text::{doc::Doc, line_pool::LinePool},
     ui::{
         editor::{editor_pane::EditorPane, Editor},
@@ -16,6 +17,7 @@ pub struct CommandPaletteEventArgs<'a> {
     pub doc_list: &'a mut SlotList<Doc>,
     pub config: &'a Config,
     pub line_pool: &'a mut LinePool,
+    pub gfx: &'a mut Gfx,
     pub time: f32,
 }
 
@@ -24,6 +26,7 @@ impl<'a> CommandPaletteEventArgs<'a> {
         editor: &'a mut Editor,
         buffers: &'a mut EditorBuffers,
         config: &'a Config,
+        gfx: &'a mut Gfx,
         time: f32,
     ) -> CommandPaletteEventArgs<'a> {
         let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
@@ -33,6 +36,7 @@ impl<'a> CommandPaletteEventArgs<'a> {
             doc_list,
             config,
             line_pool: &mut buffers.lines,
+            gfx,
             time,
         }
     }

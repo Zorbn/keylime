@@ -7,7 +7,6 @@ edition = "2021"
 terminal_emulator_debug = []
 
 [dependencies]
-unicode-width = "0.2"
 unicode-segmentation = "1.12"
 basic-toml = "0.1"
 serde = { version = "1.0", features = ["derive"] }

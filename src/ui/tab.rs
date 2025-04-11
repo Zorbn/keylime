@@ -12,7 +12,7 @@ use crate::{
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
-    platform::gfx::Gfx,
+    platform::{gfx::Gfx, window::Window},
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
@@ -22,7 +22,8 @@ use crate::{
 use super::{
     camera::{Camera, RECENTER_DISTANCE},
     color::Color,
-    widget::WidgetHandle,
+    widget::Widget,
+    Ui,
 };
 
 const GUTTER_PADDING_WIDTH: f32 = 1.0;
@@ -92,45 +93,47 @@ impl Tab {
 
     pub fn update(
         &mut self,
-        widget: &mut WidgetHandle,
+        widget: &mut Widget,
+        ui: &mut Ui,
+        window: &mut Window,
         doc: &mut Doc,
         buffers: &mut EditorBuffers,
         config: &Config,
+        gfx: &mut Gfx,
         time: f32,
     ) {
         let language = config.get_language_for_doc(doc);
 
         self.handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
 
-        let mut grapheme_handler = widget.get_grapheme_handler();
+        let mut grapheme_handler = widget.get_grapheme_handler(ui, window);
 
-        while let Some(grapheme) = grapheme_handler.next(widget.window()) {
-            handle_grapheme(grapheme, doc, &mut buffers.lines, time);
+        while let Some(grapheme) = grapheme_handler.next(window) {
+            handle_grapheme(grapheme, doc, &mut buffers.lines, gfx, time);
         }
 
-        let mut mousebind_handler = widget.get_mousebind_handler();
+        let mut mousebind_handler = widget.get_mousebind_handler(ui, window);
 
-        while let Some(mousebind) = mousebind_handler.next(widget.window()) {
+        while let Some(mousebind) = mousebind_handler.next(window) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
 
             if !self
                 .doc_bounds
                 .contains_position(VisualPosition::new(mousebind.x, mousebind.y))
             {
-                mousebind_handler.unprocessed(widget.window(), mousebind);
+                mousebind_handler.unprocessed(window, mousebind);
                 continue;
             }
 
             // The mouse position is shifted over by half
             // a glyph to make the cursor line up with the mouse.
             let visual_position = VisualPosition::new(
-                visual_position.x + widget.gfx().glyph_width() / 2.0,
+                visual_position.x + gfx.glyph_width() / 2.0,
                 visual_position.y,
             )
             .unoffset_by(self.doc_bounds);
 
-            let position =
-                doc.visual_to_position(visual_position, self.camera.position(), widget.gfx());
+            let position = doc.visual_to_position(visual_position, self.camera.position(), gfx);
 
             match mousebind {
                 Mousebind {
@@ -140,7 +143,7 @@ impl Tab {
                     is_drag,
                     ..
                 } => {
-                    handle_left_click(doc, position, mousebind.mods, kind, is_drag);
+                    handle_left_click(doc, position, mousebind.mods, kind, is_drag, gfx);
                     self.handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
                 }
                 Mousebind {
@@ -149,19 +152,19 @@ impl Tab {
                     is_drag: false,
                     ..
                 } => {
-                    doc.add_cursor(position);
+                    doc.add_cursor(position, gfx);
                 }
-                _ => mousebind_handler.unprocessed(widget.window(), mousebind),
+                _ => mousebind_handler.unprocessed(window, mousebind),
             }
         }
 
-        let mut action_handler = widget.get_action_handler();
+        let mut action_handler = widget.get_action_handler(ui, window);
 
-        while let Some(action) = action_handler.next(widget.window()) {
-            let was_handled = handle_action(action, widget.window(), doc, language, buffers, time);
+        while let Some(action) = action_handler.next(window) {
+            let was_handled = handle_action(action, window, doc, language, buffers, gfx, time);
 
             if !was_handled {
-                action_handler.unprocessed(widget.window(), action);
+                action_handler.unprocessed(window, action);
             }
         }
 
@@ -169,18 +172,26 @@ impl Tab {
         doc.update_tokens();
     }
 
-    pub fn update_camera(&mut self, widget: &mut WidgetHandle, doc: &Doc, dt: f32) {
-        let mut mouse_scroll_handler = widget.get_mouse_scroll_handler();
+    pub fn update_camera(
+        &mut self,
+        widget: &mut Widget,
+        ui: &mut Ui,
+        window: &mut Window,
+        doc: &Doc,
+        gfx: &mut Gfx,
+        dt: f32,
+    ) {
+        let mut mouse_scroll_handler = widget.get_mouse_scroll_handler(ui, window);
 
-        while let Some(mouse_scroll) = mouse_scroll_handler.next(widget.window()) {
+        while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
 
             if !self.doc_bounds.contains_position(position) {
-                mouse_scroll_handler.unprocessed(widget.window(), mouse_scroll);
+                mouse_scroll_handler.unprocessed(window, mouse_scroll);
                 continue;
             }
 
-            let delta = mouse_scroll.delta * widget.gfx().line_height();
+            let delta = mouse_scroll.delta * gfx.line_height();
 
             if mouse_scroll.is_horizontal {
                 self.camera.vertical.reset_velocity();
@@ -193,13 +204,11 @@ impl Tab {
             }
         }
 
-        let gfx = widget.gfx();
-
         self.update_camera_vertical(doc, gfx, dt);
         self.update_camera_horizontal(doc, gfx, dt);
     }
 
-    fn update_camera_vertical(&mut self, doc: &Doc, gfx: &Gfx, dt: f32) {
+    fn update_camera_vertical(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
         let new_cursor_position = doc.get_cursor(CursorIndex::Main).position;
         let new_cursor_visual_position =
             doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
@@ -222,7 +231,7 @@ impl Tab {
         );
     }
 
-    fn update_camera_horizontal(&mut self, doc: &Doc, gfx: &Gfx, dt: f32) {
+    fn update_camera_horizontal(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
         let new_cursor_position = doc.get_cursor(CursorIndex::Main).position;
         let new_cursor_visual_position =
             doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
@@ -381,7 +390,7 @@ impl Tab {
         camera_position: VisualPosition,
         visible_lines: VisibleLines,
     ) {
-        let indent_width = language.map(|language| language.indent_width.measure());
+        let indent_width = language.map(|language| language.indent_width.measure(gfx));
 
         let Some(indent_width) = indent_width else {
             return;
@@ -488,7 +497,7 @@ impl Tab {
                 let highlight_position = doc.position_to_visual(position, camera_position, gfx);
 
                 let grapheme = doc.get_grapheme(position);
-                let grapheme_width = Gfx::measure_text(grapheme);
+                let grapheme_width = gfx.measure_text(grapheme);
 
                 gfx.add_rect(
                     Rect::new(
@@ -500,7 +509,7 @@ impl Tab {
                     theme.selection,
                 );
 
-                position = doc.move_position(position, 1, 0);
+                position = doc.move_position(position, 1, 0, gfx);
             }
         }
 

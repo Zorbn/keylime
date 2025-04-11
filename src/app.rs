@@ -4,7 +4,7 @@ use crate::{
     config::{Config, ConfigError},
     editor_buffers::EditorBuffers,
     geometry::rect::Rect,
-    platform::{pty::Pty, window::Window},
+    platform::{gfx::Gfx, pty::Pty, window::Window},
     temp_buffer::{TempBuffer, TempString},
     text::line_pool::LinePool,
     ui::{command_palette::CommandPalette, editor::Editor, terminal::Terminal, Ui},
@@ -53,7 +53,7 @@ impl App {
         }
     }
 
-    pub fn update(&mut self, window: &mut Window, timestamp: (f32, f32)) {
+    pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, timestamp: (f32, f32)) {
         if let Some(err) = window
             .was_shown()
             .then(|| self.config_error.take())
@@ -62,33 +62,45 @@ impl App {
             err.show_message();
         }
 
-        let mut ui = self.ui.get_handle(window);
-
-        ui.update(&mut [
-            &mut self.terminal.widget,
-            &mut self.editor.widget,
-            &mut self.command_palette.widget,
-        ]);
+        self.ui.update(
+            &mut [
+                &mut self.terminal.widget,
+                &mut self.editor.widget,
+                &mut self.command_palette.widget,
+            ],
+            window,
+        );
 
         self.command_palette.update(
-            &mut ui,
+            &mut self.ui,
+            window,
             &mut self.editor,
             &mut self.buffers,
             &self.config,
+            gfx,
             timestamp,
         );
 
-        self.terminal
-            .update(&mut ui, &mut self.buffers, &self.config, timestamp);
+        self.terminal.update(
+            &mut self.ui,
+            window,
+            &mut self.buffers,
+            &self.config,
+            gfx,
+            timestamp,
+        );
 
-        self.editor
-            .update(&mut ui, &mut self.buffers, &self.config, timestamp);
+        self.editor.update(
+            &mut self.ui,
+            window,
+            &mut self.buffers,
+            &self.config,
+            gfx,
+            timestamp,
+        );
     }
 
-    pub fn draw(&mut self, window: &mut Window) {
-        let mut ui = self.ui.get_handle(window);
-        let gfx = ui.gfx();
-
+    pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx) {
         let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
 
         self.command_palette.layout(bounds, gfx);
@@ -100,16 +112,17 @@ impl App {
 
         gfx.begin_frame(self.config.theme.background);
 
-        self.terminal.draw(&mut ui, &self.config);
-        self.editor.draw(&mut ui, &self.config);
-        self.command_palette.draw(&mut ui, &self.config);
+        self.terminal.draw(&mut self.ui, window, gfx, &self.config);
+        self.editor.draw(&mut self.ui, window, gfx, &self.config);
+        self.command_palette
+            .draw(&mut self.ui, window, gfx, &self.config);
 
-        ui.gfx().end_frame();
+        gfx.end_frame();
     }
 
-    pub fn close(&mut self, time: f32) {
+    pub fn close(&mut self, gfx: &mut Gfx, time: f32) {
         self.editor
-            .on_close(&self.config, &mut self.buffers.lines, time);
+            .on_close(&self.config, &mut self.buffers.lines, gfx, time);
     }
 
     pub fn config(&self) -> &Config {

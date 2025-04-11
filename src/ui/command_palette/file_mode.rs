@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     geometry::position::Position,
-    platform::recycle::recycle,
+    platform::{gfx::Gfx, recycle::recycle},
     text::{cursor_index::CursorIndex, doc::Doc, line_pool::LinePool},
     ui::result_list::ResultListSubmitKind,
 };
@@ -40,6 +40,7 @@ fn on_open(
         pane,
         doc_list,
         line_pool,
+        gfx,
         time,
         ..
     }: CommandPaletteEventArgs,
@@ -70,10 +71,16 @@ fn on_open(
             continue;
         };
 
-        command_doc.insert(command_doc.end(), string, line_pool, time);
+        command_doc.insert(command_doc.end(), string, line_pool, gfx, time);
 
         if !ends_with_path_separator(string) {
-            command_doc.insert(command_doc.end(), PREFERRED_PATH_SEPARATOR, line_pool, time);
+            command_doc.insert(
+                command_doc.end(),
+                PREFERRED_PATH_SEPARATOR,
+                line_pool,
+                gfx,
+                time,
+            );
         }
     }
 }
@@ -95,6 +102,7 @@ fn on_submit(
         doc_list,
         config,
         line_pool,
+        gfx,
         time,
     } = &mut args;
 
@@ -107,7 +115,7 @@ fn on_submit(
 
     if kind == ResultListSubmitKind::Delete {
         if path.exists() && recycle(path).is_ok() {
-            delete_last_path_component(true, &mut command_palette.doc, line_pool, *time);
+            delete_last_path_component(true, &mut command_palette.doc, line_pool, gfx, *time);
         }
 
         return CommandPaletteAction::Stay;
@@ -126,8 +134,8 @@ fn on_submit(
     }
 
     if pane
-        .open_file(path, doc_list, config, line_pool, *time)
-        .or_else(|_| pane.new_file(Some(path), doc_list, config, line_pool, *time))
+        .open_file(path, doc_list, config, line_pool, gfx, *time)
+        .or_else(|_| pane.new_file(Some(path), doc_list, config, line_pool, gfx, *time))
         .is_ok()
     {
         CommandPaletteAction::Close
@@ -139,18 +147,23 @@ fn on_submit(
 fn on_complete_result(
     command_palette: &mut CommandPalette,
     CommandPaletteEventArgs {
-        line_pool, time, ..
+        line_pool,
+        gfx,
+        time,
+        ..
     }: CommandPaletteEventArgs,
 ) {
     let Some(result) = command_palette.result_list.get_selected_result() else {
         return;
     };
 
-    delete_last_path_component(false, &mut command_palette.doc, line_pool, time);
+    delete_last_path_component(false, &mut command_palette.doc, line_pool, gfx, time);
 
     let line_len = command_palette.doc.get_line_len(0);
     let start = Position::new(line_len, 0);
-    command_palette.doc.insert(start, result, line_pool, time);
+    command_palette
+        .doc
+        .insert(start, result, line_pool, gfx, time);
 }
 
 fn on_update_results(command_palette: &mut CommandPalette, _: CommandPaletteEventArgs) {
@@ -187,17 +200,20 @@ fn on_update_results(command_palette: &mut CommandPalette, _: CommandPaletteEven
 fn on_backspace(
     command_palette: &mut CommandPalette,
     CommandPaletteEventArgs {
-        line_pool, time, ..
+        line_pool,
+        gfx,
+        time,
+        ..
     }: CommandPaletteEventArgs,
 ) -> bool {
     let cursor = command_palette.doc.get_cursor(CursorIndex::Main);
     let end = cursor.position;
-    let mut start = command_palette.doc.move_position(end, -1, 0);
+    let mut start = command_palette.doc.move_position(end, -1, 0, gfx);
 
     if is_grapheme_path_separator(command_palette.doc.get_grapheme(start)) {
-        start = find_path_component_start(&command_palette.doc, start);
+        start = find_path_component_start(&command_palette.doc, start, gfx);
 
-        command_palette.doc.delete(start, end, line_pool, time);
+        command_palette.doc.delete(start, end, line_pool, gfx, time);
 
         true
     } else {
@@ -233,19 +249,20 @@ fn delete_last_path_component(
     can_delete_dirs: bool,
     doc: &mut Doc,
     line_pool: &mut LinePool,
+    gfx: &mut Gfx,
     time: f32,
 ) {
     let end = doc.get_line_end(0);
 
     let find_start = if can_delete_dirs {
-        doc.move_position(end, -1, 0)
+        doc.move_position(end, -1, 0, gfx)
     } else {
         end
     };
 
-    let start = find_path_component_start(doc, find_start);
+    let start = find_path_component_start(doc, find_start, gfx);
 
-    doc.delete(start, end, line_pool, time);
+    doc.delete(start, end, line_pool, gfx, time);
 }
 
 fn is_grapheme_path_separator(grapheme: &str) -> bool {
@@ -260,11 +277,11 @@ fn ends_with_path_separator(text: &str) -> bool {
         .any(|separator| text.ends_with(separator))
 }
 
-fn find_path_component_start(doc: &Doc, position: Position) -> Position {
+fn find_path_component_start(doc: &Doc, position: Position, gfx: &mut Gfx) -> Position {
     let mut start = position;
 
     while start > Position::zero() {
-        let next_start = doc.move_position(start, -1, 0);
+        let next_start = doc.move_position(start, -1, 0, gfx);
 
         if is_grapheme_path_separator(doc.get_grapheme(next_start)) {
             break;

@@ -14,7 +14,7 @@ use crate::{
         key::Key,
         keybind::{MOD_ALT, MOD_CTRL, MOD_SHIFT},
     },
-    platform::{gfx::Gfx, pty::Pty},
+    platform::{gfx::Gfx, pty::Pty, window::Window},
     text::{
         cursor::Cursor,
         doc::Doc,
@@ -22,7 +22,7 @@ use crate::{
         line_pool::LinePool,
         syntax_highlighter::TerminalHighlightKind,
     },
-    ui::{tab::Tab, widget::WidgetHandle},
+    ui::{tab::Tab, widget::Widget, Ui},
 };
 
 use super::TerminalDocs;
@@ -144,11 +144,14 @@ impl TerminalEmulator {
 
     pub fn update_input(
         &mut self,
-        widget: &mut WidgetHandle,
+        widget: &mut Widget,
+        ui: &mut Ui,
+        window: &mut Window,
         docs: &mut TerminalDocs,
         tab: &mut Tab,
         buffers: &mut EditorBuffers,
         config: &Config,
+        gfx: &mut Gfx,
         time: f32,
     ) {
         let Some(mut pty) = self.pty.take() else {
@@ -157,9 +160,9 @@ impl TerminalEmulator {
 
         let doc = self.get_doc_mut(docs);
 
-        let mut action_handler = widget.get_action_handler();
+        let mut action_handler = widget.get_action_handler(ui, window);
 
-        while let Some(action) = action_handler.next(widget.window()) {
+        while let Some(action) = action_handler.next(window) {
             match action {
                 action_keybind!(key: Enter) => {
                     pty.input().push(b'\r');
@@ -210,10 +213,10 @@ impl TerminalEmulator {
                 action_name!(names: Some(ActionName::Copy | ActionName::Cut))
                     if doc.has_selection() =>
                 {
-                    handle_copy(widget.window(), doc, &mut buffers.text);
+                    handle_copy(window, doc, &mut buffers.text);
                 }
                 action_name!(Paste) => {
-                    let text = widget.window().get_clipboard().unwrap_or("");
+                    let text = window.get_clipboard().unwrap_or("");
 
                     pty.input().extend(text.bytes());
                 }
@@ -231,9 +234,9 @@ impl TerminalEmulator {
             }
         }
 
-        let mut grapheme_handler = widget.get_grapheme_handler();
+        let mut grapheme_handler = widget.get_grapheme_handler(ui, window);
 
-        while let Some(grapheme) = grapheme_handler.next(widget.window()) {
+        while let Some(grapheme) = grapheme_handler.next(window) {
             pty.input().extend(grapheme.bytes());
         }
 
@@ -241,19 +244,22 @@ impl TerminalEmulator {
 
         self.pty = Some(pty);
 
-        tab.update(widget, doc, buffers, config, time);
+        tab.update(widget, ui, window, doc, buffers, config, gfx, time);
     }
 
     pub fn update_output(
         &mut self,
-        widget: &mut WidgetHandle,
+        widget: &mut Widget,
+        ui: &mut Ui,
+        window: &mut Window,
         docs: &mut TerminalDocs,
         tab: &mut Tab,
         buffers: &mut EditorBuffers,
         config: &Config,
+        gfx: &mut Gfx,
         (time, dt): (f32, f32),
     ) {
-        self.resize_grid(widget, tab);
+        self.resize_grid(gfx, tab);
 
         let Some(mut pty) = self.pty.take() else {
             return;
@@ -266,7 +272,7 @@ impl TerminalEmulator {
         let doc = self.get_doc_mut(docs);
         self.backup_doc_cursor_positions(doc, cursor_buffer);
 
-        self.expand_to_grid_size(docs, &mut buffers.lines, time);
+        self.expand_to_grid_size(docs, &mut buffers.lines, gfx, time);
 
         let (input, output) = pty.input_output();
 
@@ -277,6 +283,7 @@ impl TerminalEmulator {
                 &output,
                 &mut buffers.lines,
                 &config.theme,
+                gfx,
                 time,
             );
 
@@ -295,14 +302,13 @@ impl TerminalEmulator {
             // The alternate buffer is always the size of the camera and doesn't need to scroll.
             tab.camera.reset();
         } else {
-            tab.camera.vertical.position -=
-                self.excess_lines_trimmed as f32 * widget.gfx().line_height();
+            tab.camera.vertical.position -= self.excess_lines_trimmed as f32 * gfx.line_height();
             self.excess_lines_trimmed = 0;
 
             tab.camera.horizontal.reset_velocity();
 
             let doc = self.get_doc(docs);
-            tab.update_camera(widget, doc, dt);
+            tab.update_camera(widget, ui, window, doc, gfx, dt);
         }
     }
 
@@ -310,10 +316,11 @@ impl TerminalEmulator {
         &mut self,
         docs: &mut TerminalDocs,
         line_pool: &mut LinePool,
+        gfx: &mut Gfx,
         time: f32,
     ) {
-        self.expand_doc_to_grid_size(&mut docs.normal, line_pool, time);
-        self.expand_doc_to_grid_size(&mut docs.alternate, line_pool, time);
+        self.expand_doc_to_grid_size(&mut docs.normal, line_pool, gfx, time);
+        self.expand_doc_to_grid_size(&mut docs.alternate, line_pool, gfx, time);
 
         Self::expand_colored_grid_lines_to_grid_size(
             self.grid_width,
@@ -327,18 +334,24 @@ impl TerminalEmulator {
         );
     }
 
-    fn expand_doc_to_grid_size(&mut self, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
+    fn expand_doc_to_grid_size(
+        &mut self,
+        doc: &mut Doc,
+        line_pool: &mut LinePool,
+        gfx: &mut Gfx,
+        time: f32,
+    ) {
         while doc.lines().len() < self.grid_height {
             let start = doc.end();
 
-            doc.insert(start, "\n", line_pool, time);
+            doc.insert(start, "\n", line_pool, gfx, time);
         }
 
         for y in 0..self.grid_height {
             let y = self.grid_y_to_doc_y(y as isize, doc) as usize;
 
             while doc.get_line_len(y) < self.grid_width {
-                doc.insert(doc.get_line_end(y), " ", line_pool, time);
+                doc.insert(doc.get_line_end(y), " ", line_pool, gfx, time);
             }
         }
     }
@@ -357,8 +370,8 @@ impl TerminalEmulator {
         }
     }
 
-    fn resize_grid(&mut self, widget: &mut WidgetHandle, tab: &Tab) {
-        let (grid_width, grid_height) = Self::get_grid_size(widget, tab);
+    fn resize_grid(&mut self, gfx: &mut Gfx, tab: &Tab) {
+        let (grid_width, grid_height) = Self::get_grid_size(gfx, tab);
 
         if grid_width != self.grid_width || grid_height != self.grid_height {
             if let Some(pty) = self.pty.as_mut() {
@@ -375,23 +388,29 @@ impl TerminalEmulator {
         }
     }
 
-    fn get_grid_size(widget: &mut WidgetHandle, tab: &Tab) -> (usize, usize) {
+    fn get_grid_size(gfx: &mut Gfx, tab: &Tab) -> (usize, usize) {
         let Rect {
             width: doc_width,
             height: doc_height,
             ..
         } = tab.doc_bounds();
 
-        let grid_width = (doc_width / widget.gfx().glyph_width()).floor() as usize;
+        let grid_width = (doc_width / gfx.glyph_width()).floor() as usize;
         let grid_width = grid_width.max(MIN_GRID_WIDTH);
 
-        let grid_height = (doc_height / widget.gfx().line_height()).floor() as usize;
+        let grid_height = (doc_height / gfx.line_height()).floor() as usize;
         let grid_height = grid_height.max(MIN_GRID_HEIGHT);
 
         (grid_width, grid_height)
     }
 
-    pub fn trim_excess_lines(&mut self, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
+    pub fn trim_excess_lines(
+        &mut self,
+        doc: &mut Doc,
+        line_pool: &mut LinePool,
+        gfx: &mut Gfx,
+        time: f32,
+    ) {
         let max_lines = self.grid_height + MAX_SCROLLBACK_LINES;
 
         if doc.lines().len() <= max_lines {
@@ -404,7 +423,7 @@ impl TerminalEmulator {
         let start = Position::zero();
         let end = Position::new(0, excess_lines);
 
-        doc.delete(start, end, line_pool, time);
+        doc.delete(start, end, line_pool, gfx, time);
         doc.recycle_highlighted_lines_up_to_y(excess_lines);
     }
 
@@ -414,6 +433,7 @@ impl TerminalEmulator {
         region: RangeInclusive<usize>,
         doc: &mut Doc,
         line_pool: &mut LinePool,
+        gfx: &mut Gfx,
         time: f32,
     ) {
         self.highlight_lines(doc);
@@ -431,11 +451,11 @@ impl TerminalEmulator {
 
         let insert_start = self.grid_position_to_doc_position(Position::new(0, scroll_top), doc);
 
-        doc.delete(delete_start, delete_end, line_pool, time);
-        doc.insert(insert_start, "\n", line_pool, time);
+        doc.delete(delete_start, delete_end, line_pool, gfx, time);
+        doc.insert(insert_start, "\n", line_pool, gfx, time);
 
         for _ in 0..self.grid_width {
-            doc.insert(insert_start, " ", line_pool, time);
+            doc.insert(insert_start, " ", line_pool, gfx, time);
         }
 
         let mut bottom_grid_line = self.colored_grid_lines.remove(scroll_bottom);
@@ -456,6 +476,7 @@ impl TerminalEmulator {
         region: RangeInclusive<usize>,
         doc: &mut Doc,
         line_pool: &mut LinePool,
+        gfx: &mut Gfx,
         time: f32,
     ) {
         self.highlight_lines(doc);
@@ -478,16 +499,16 @@ impl TerminalEmulator {
             let insert_start =
                 self.grid_position_to_doc_position(self.get_line_end(scroll_bottom - 1, doc), doc);
 
-            doc.delete(delete_start, delete_end, line_pool, time);
+            doc.delete(delete_start, delete_end, line_pool, gfx, time);
 
             insert_start
         };
 
         for _ in 0..self.grid_width {
-            doc.insert(insert_start, " ", line_pool, time);
+            doc.insert(insert_start, " ", line_pool, gfx, time);
         }
 
-        doc.insert(insert_start, "\n", line_pool, time);
+        doc.insert(insert_start, "\n", line_pool, gfx, time);
 
         let mut top_grid_line = self.colored_grid_lines.remove(scroll_top);
         top_grid_line.clear();
@@ -497,7 +518,7 @@ impl TerminalEmulator {
 
         self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc);
 
-        self.trim_excess_lines(doc, line_pool, time);
+        self.trim_excess_lines(doc, line_pool, gfx, time);
         self.mark_lines_dirty(region);
         self.highlight_lines(doc);
     }
@@ -676,7 +697,7 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn jump_doc_cursors_to_grid_cursor(&mut self, doc: &mut Doc) {
+    pub fn jump_doc_cursors_to_grid_cursor(&mut self, doc: &mut Doc, gfx: &mut Gfx) {
         if !self.is_cursor_visible {
             return;
         }
@@ -685,25 +706,37 @@ impl TerminalEmulator {
 
         let doc_position =
             self.grid_position_to_doc_position(self.clamp_position(self.grid_cursor, doc), doc);
-        doc.jump_cursors(doc_position, false);
+        doc.jump_cursors(doc_position, false, gfx);
     }
 
-    pub fn move_cursor(&mut self, delta_x: isize, delta_y: isize, doc: &mut Doc) {
+    pub fn move_cursor(&mut self, delta_x: isize, delta_y: isize, doc: &mut Doc, gfx: &mut Gfx) {
         self.grid_cursor = self.move_position(self.grid_cursor, delta_x, delta_y, doc);
-        self.jump_doc_cursors_to_grid_cursor(doc);
+        self.jump_doc_cursors_to_grid_cursor(doc, gfx);
     }
 
-    pub fn jump_cursor(&mut self, position: Position, doc: &mut Doc) {
+    pub fn jump_cursor(&mut self, position: Position, doc: &mut Doc, gfx: &mut Gfx) {
         self.grid_cursor = self.clamp_position(position, doc);
 
-        self.jump_doc_cursors_to_grid_cursor(doc);
+        self.jump_doc_cursors_to_grid_cursor(doc, gfx);
     }
 
-    pub fn newline_cursor(&mut self, doc: &mut Doc, line_pool: &mut LinePool, time: f32) {
+    pub fn newline_cursor(
+        &mut self,
+        doc: &mut Doc,
+        line_pool: &mut LinePool,
+        gfx: &mut Gfx,
+        time: f32,
+    ) {
         if self.grid_cursor.y == self.scroll_bottom {
-            self.scroll_grid_region_up(self.scroll_top..=self.scroll_bottom, doc, line_pool, time);
+            self.scroll_grid_region_up(
+                self.scroll_top..=self.scroll_bottom,
+                doc,
+                line_pool,
+                gfx,
+                time,
+            );
         } else {
-            self.move_cursor(0, 1, doc);
+            self.move_cursor(0, 1, doc, gfx);
         }
     }
 
@@ -712,18 +745,19 @@ impl TerminalEmulator {
         text: &str,
         doc: &mut Doc,
         line_pool: &mut LinePool,
+        gfx: &mut Gfx,
         time: f32,
     ) {
         for c in CharIterator::new(text) {
             if self.grid_position_byte_to_char(self.grid_cursor, doc) >= self.grid_width {
-                self.jump_cursor(Position::new(0, self.grid_cursor.y), doc);
-                self.newline_cursor(doc, line_pool, time);
+                self.jump_cursor(Position::new(0, self.grid_cursor.y), doc, gfx);
+                self.newline_cursor(doc, line_pool, gfx, time);
             }
 
-            self.grid_cursor = self.raw_insert_char(self.grid_cursor, c, doc, line_pool, time);
+            self.grid_cursor = self.raw_insert_char(self.grid_cursor, c, doc, line_pool, gfx, time);
         }
 
-        self.jump_doc_cursors_to_grid_cursor(doc);
+        self.jump_doc_cursors_to_grid_cursor(doc, gfx);
     }
 
     fn color_to_bright(color: TerminalHighlightKind) -> TerminalHighlightKind {
@@ -767,6 +801,7 @@ impl TerminalEmulator {
         end: Position,
         doc: &mut Doc,
         line_pool: &mut LinePool,
+        gfx: &mut Gfx,
         time: f32,
     ) {
         for y in start.y..=end.y {
@@ -779,11 +814,11 @@ impl TerminalEmulator {
             };
 
             for x in start_x..end_x {
-                self.raw_insert_char(Position::new(x, y), " ", doc, line_pool, time);
+                self.raw_insert_char(Position::new(x, y), " ", doc, line_pool, gfx, time);
             }
         }
 
-        self.jump_doc_cursors_to_grid_cursor(doc);
+        self.jump_doc_cursors_to_grid_cursor(doc, gfx);
     }
 
     // Should be used indirectly by delete, insert_at_cursor, etc.
@@ -794,6 +829,7 @@ impl TerminalEmulator {
         mut c: &str,
         doc: &mut Doc,
         line_pool: &mut LinePool,
+        gfx: &mut Gfx,
         time: f32,
     ) -> Position {
         let mut position = start;
@@ -810,14 +846,14 @@ impl TerminalEmulator {
             colors
         };
 
-        for _ in 0..Gfx::measure_text(c) {
+        for _ in 0..gfx.measure_text(c) {
             let delete_end = self.move_position(position, 1, 0, doc);
 
             let insert_start = self.grid_position_to_doc_position(position, doc);
             let delete_end = self.grid_position_to_doc_position(delete_end, doc);
 
-            doc.delete(insert_start, delete_end, line_pool, time);
-            doc.insert(insert_start, c, line_pool, time);
+            doc.delete(insert_start, delete_end, line_pool, gfx, time);
+            doc.insert(insert_start, c, line_pool, gfx, time);
 
             let colored_line = &mut self.colored_grid_lines[position.y];
             let colored_line_len = colored_line.len();

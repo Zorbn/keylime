@@ -1,4 +1,5 @@
 use crate::{
+    platform::gfx::Gfx,
     text::{cursor_index::CursorIndex, doc::Doc, selection::Selection},
     ui::{result_list::ResultListSubmitKind, tab::Tab},
 };
@@ -29,7 +30,12 @@ pub const MODE_SEARCH_AND_REPLACE_END: &CommandPaletteMode = &CommandPaletteMode
 
 fn on_submit_search(
     command_palette: &mut CommandPalette,
-    CommandPaletteEventArgs { pane, doc_list, .. }: CommandPaletteEventArgs,
+    CommandPaletteEventArgs {
+        pane,
+        doc_list,
+        gfx,
+        ..
+    }: CommandPaletteEventArgs,
     kind: ResultListSubmitKind,
 ) -> CommandPaletteAction {
     if !matches!(
@@ -54,6 +60,7 @@ fn on_submit_search(
         tab,
         doc,
         kind == ResultListSubmitKind::Alternate,
+        gfx,
     );
 
     CommandPaletteAction::Stay
@@ -77,6 +84,7 @@ fn on_submit_search_and_replace_end(
         pane,
         doc_list,
         line_pool,
+        gfx,
         time,
         ..
     }: CommandPaletteEventArgs,
@@ -114,12 +122,12 @@ fn on_submit_search_and_replace_end(
             }
 
             if has_match {
-                doc.insert_at_cursor(CursorIndex::Main, replace_term, line_pool, time);
+                doc.insert_at_cursor(CursorIndex::Main, replace_term, line_pool, gfx, time);
 
-                let end = doc.move_position(start, replace_term.len() as isize, 0);
+                let end = doc.move_position(start, replace_term.len() as isize, 0, gfx);
 
-                doc.jump_cursor(CursorIndex::Main, start, false);
-                doc.jump_cursor(CursorIndex::Main, end, true);
+                doc.jump_cursor(CursorIndex::Main, start, false, gfx);
+                doc.jump_cursor(CursorIndex::Main, end, true, gfx);
 
                 return CommandPaletteAction::Stay;
             }
@@ -131,19 +139,20 @@ fn on_submit_search_and_replace_end(
         tab,
         doc,
         kind == ResultListSubmitKind::Alternate,
+        gfx,
     );
 
     CommandPaletteAction::Stay
 }
 
-fn search(search_term: &str, tab: &mut Tab, doc: &mut Doc, is_reverse: bool) {
+fn search(search_term: &str, tab: &mut Tab, doc: &mut Doc, is_reverse: bool, gfx: &mut Gfx) {
     let start = doc.get_cursor(CursorIndex::Main).position;
 
-    if let Some(position) = doc.search(search_term, start, is_reverse) {
-        let end = doc.move_position(position, search_term.len() as isize, 0);
+    if let Some(position) = doc.search(search_term, start, is_reverse, gfx) {
+        let end = doc.move_position(position, search_term.len() as isize, 0, gfx);
 
-        doc.jump_cursors(position, false);
-        doc.jump_cursors(end, true);
+        doc.jump_cursors(position, false, gfx);
+        doc.jump_cursors(end, true, gfx);
 
         tab.camera.recenter();
     }

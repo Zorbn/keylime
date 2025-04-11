@@ -3,6 +3,7 @@ use core::str;
 use crate::{
     config::theme::Theme,
     geometry::position::Position,
+    platform::gfx::Gfx,
     text::{
         doc::Doc,
         line_pool::LinePool,
@@ -21,6 +22,7 @@ impl TerminalEmulator {
         mut output: &[u8],
         line_pool: &mut LinePool,
         theme: &Theme,
+        gfx: &mut Gfx,
         time: f32,
     ) {
         let mut plain_output = output;
@@ -31,7 +33,7 @@ impl TerminalEmulator {
 
             match output[0] {
                 0x1B => {
-                    self.flush_plain_output(plain_output, output, doc, line_pool, time);
+                    self.flush_plain_output(plain_output, output, doc, line_pool, gfx, time);
 
                     let remaining = match output.get(1) {
                         Some(&b'[') => self.handle_escape_sequences_csi(
@@ -39,6 +41,7 @@ impl TerminalEmulator {
                             input,
                             &output[2..],
                             line_pool,
+                            gfx,
                             time,
                         ),
                         Some(&b']') => self.handle_escape_sequences_osc(input, &output[2..], theme),
@@ -84,43 +87,43 @@ impl TerminalEmulator {
                 }
                 // Bell:
                 0x7 => {
-                    self.flush_plain_output(plain_output, output, doc, line_pool, time);
+                    self.flush_plain_output(plain_output, output, doc, line_pool, gfx, time);
 
                     output = &output[1..];
                 }
                 // Backspace:
                 0x8 => {
-                    self.flush_plain_output(plain_output, output, doc, line_pool, time);
+                    self.flush_plain_output(plain_output, output, doc, line_pool, gfx, time);
 
-                    self.move_cursor(-1, 0, doc);
+                    self.move_cursor(-1, 0, doc, gfx);
 
                     output = &output[1..];
                 }
                 // Tab:
                 b'\t' => {
-                    self.flush_plain_output(plain_output, output, doc, line_pool, time);
+                    self.flush_plain_output(plain_output, output, doc, line_pool, gfx, time);
 
                     let next_tab_stop = (self.grid_cursor.x / 8 + 1) * 8;
 
                     while self.grid_cursor.x < next_tab_stop {
-                        self.insert_at_cursor(" ", doc, line_pool, time);
+                        self.insert_at_cursor(" ", doc, line_pool, gfx, time);
                     }
 
                     output = &output[1..];
                 }
                 // Carriage Return:
                 b'\r' => {
-                    self.flush_plain_output(plain_output, output, doc, line_pool, time);
+                    self.flush_plain_output(plain_output, output, doc, line_pool, gfx, time);
 
-                    self.jump_cursor(Position::new(0, self.grid_cursor.y), doc);
+                    self.jump_cursor(Position::new(0, self.grid_cursor.y), doc, gfx);
 
                     output = &output[1..];
                 }
                 // Newline:
                 b'\n' => {
-                    self.flush_plain_output(plain_output, output, doc, line_pool, time);
+                    self.flush_plain_output(plain_output, output, doc, line_pool, gfx, time);
 
-                    self.newline_cursor(doc, line_pool, time);
+                    self.newline_cursor(doc, line_pool, gfx, time);
 
                     output = &output[1..];
                 }
@@ -137,7 +140,7 @@ impl TerminalEmulator {
 
         let doc = self.get_doc_mut(docs);
 
-        self.flush_plain_output(plain_output, output, doc, line_pool, time);
+        self.flush_plain_output(plain_output, output, doc, line_pool, gfx, time);
         self.highlight_lines(doc);
     }
 
@@ -147,6 +150,7 @@ impl TerminalEmulator {
         output: &[u8],
         doc: &mut Doc,
         line_pool: &mut LinePool,
+        gfx: &mut Gfx,
         time: f32,
     ) {
         let plain_len = output.as_ptr() as usize - plain_output.as_ptr() as usize;
@@ -157,7 +161,7 @@ impl TerminalEmulator {
 
         let plain_string = Self::get_valid_utf8_range(&plain_output[..plain_len]);
 
-        self.insert_at_cursor(plain_string, doc, line_pool, time);
+        self.insert_at_cursor(plain_string, doc, line_pool, gfx, time);
     }
 
     fn get_valid_utf8_range(bytes: &[u8]) -> &str {
@@ -173,6 +177,7 @@ impl TerminalEmulator {
         input: &mut Vec<u8>,
         mut output: &'a [u8],
         line_pool: &mut LinePool,
+        gfx: &mut Gfx,
         time: f32,
     ) -> Option<&'a [u8]> {
         let mut parameter_buffer = [0; 16];
@@ -203,7 +208,7 @@ impl TerminalEmulator {
                         match parameters.first() {
                             Some(&25) => {
                                 self.is_cursor_visible = true;
-                                self.jump_doc_cursors_to_grid_cursor(doc);
+                                self.jump_doc_cursors_to_grid_cursor(doc, gfx);
                             }
                             Some(&1047) | Some(&1049) => self.switch_to_alternate_buffer(doc),
                             // Otherwise, ignored.
@@ -255,7 +260,8 @@ impl TerminalEmulator {
                     _ => None,
                 }
             }
-            _ => self.handle_unprefixed_escape_sequences_csi(doc, input, output, line_pool, time),
+            _ => self
+                .handle_unprefixed_escape_sequences_csi(doc, input, output, line_pool, gfx, time),
         }
     }
 
@@ -265,6 +271,7 @@ impl TerminalEmulator {
         input: &mut Vec<u8>,
         mut output: &'a [u8],
         line_pool: &mut LinePool,
+        gfx: &mut Gfx,
         time: f32,
     ) -> Option<&'a [u8]> {
         let mut parameter_buffer = [0; 16];
@@ -375,7 +382,7 @@ impl TerminalEmulator {
                 let position =
                     self.grid_position_char_to_byte(Position::new(x, self.grid_cursor.y), doc);
 
-                self.jump_cursor(position, doc);
+                self.jump_cursor(position, doc, gfx);
 
                 Some(&output[1..])
             }
@@ -384,7 +391,7 @@ impl TerminalEmulator {
                 let char_x = self.grid_position_byte_to_char(self.grid_cursor, doc);
                 let position = self.grid_position_char_to_byte(Position::new(char_x, y), doc);
 
-                self.jump_cursor(position, doc);
+                self.jump_cursor(position, doc, gfx);
 
                 Some(&output[1..])
             }
@@ -393,31 +400,31 @@ impl TerminalEmulator {
                 let x = Self::get_parameter(parameters, 1, 1).saturating_sub(1);
                 let position = self.grid_position_char_to_byte(Position::new(x, y), doc);
 
-                self.jump_cursor(position, doc);
+                self.jump_cursor(position, doc, gfx);
 
                 Some(&output[1..])
             }
             Some(&b'A') => {
                 let distance = Self::get_parameter(parameters, 0, 1) as isize;
-                self.move_cursor(0, -distance, doc);
+                self.move_cursor(0, -distance, doc, gfx);
 
                 Some(&output[1..])
             }
             Some(&b'B') => {
                 let distance = Self::get_parameter(parameters, 0, 1) as isize;
-                self.move_cursor(0, distance, doc);
+                self.move_cursor(0, distance, doc, gfx);
 
                 Some(&output[1..])
             }
             Some(&b'C') => {
                 let distance = Self::get_parameter(parameters, 0, 1) as isize;
-                self.move_cursor(distance, 0, doc);
+                self.move_cursor(distance, 0, doc, gfx);
 
                 Some(&output[1..])
             }
             Some(&b'D') => {
                 let distance = Self::get_parameter(parameters, 0, 1) as isize;
-                self.move_cursor(-distance, 0, doc);
+                self.move_cursor(-distance, 0, doc, gfx);
 
                 Some(&output[1..])
             }
@@ -447,7 +454,7 @@ impl TerminalEmulator {
                     _ => None,
                 }?;
 
-                self.delete(start, end, doc, line_pool, time);
+                self.delete(start, end, doc, line_pool, gfx, time);
 
                 Some(&output[1..])
             }
@@ -477,7 +484,7 @@ impl TerminalEmulator {
                     _ => None,
                 }?;
 
-                self.delete(start, end, doc, line_pool, time);
+                self.delete(start, end, doc, line_pool, gfx, time);
 
                 Some(&output[1..])
             }
@@ -493,7 +500,13 @@ impl TerminalEmulator {
                 }
 
                 for _ in 0..count {
-                    self.scroll_grid_region_down(scroll_top..=scroll_bottom, doc, line_pool, time);
+                    self.scroll_grid_region_down(
+                        scroll_top..=scroll_bottom,
+                        doc,
+                        line_pool,
+                        gfx,
+                        time,
+                    );
                 }
 
                 Some(&output[1..])
@@ -510,7 +523,13 @@ impl TerminalEmulator {
                 }
 
                 for _ in 0..count {
-                    self.scroll_grid_region_up(scroll_top..=scroll_bottom, doc, line_pool, time);
+                    self.scroll_grid_region_up(
+                        scroll_top..=scroll_bottom,
+                        doc,
+                        line_pool,
+                        gfx,
+                        time,
+                    );
                 }
 
                 Some(&output[1..])
@@ -524,6 +543,7 @@ impl TerminalEmulator {
                         self.scroll_top..=self.scroll_bottom,
                         doc,
                         line_pool,
+                        gfx,
                         time,
                     );
                 }
@@ -539,6 +559,7 @@ impl TerminalEmulator {
                         self.scroll_top..=self.scroll_bottom,
                         doc,
                         line_pool,
+                        gfx,
                         time,
                     );
                 }
@@ -552,7 +573,7 @@ impl TerminalEmulator {
                 let start = self.grid_cursor;
                 let end = self.move_position(start, distance as isize, 0, doc);
 
-                self.delete(start, end, doc, line_pool, time);
+                self.delete(start, end, doc, line_pool, gfx, time);
 
                 Some(&output[1..])
             }
@@ -571,8 +592,8 @@ impl TerminalEmulator {
                 }
 
                 for _ in 0..distance {
-                    doc.delete(start, end, line_pool, time);
-                    doc.insert(doc.get_line_end(start.y), " ", line_pool, time);
+                    doc.delete(start, end, line_pool, gfx, time);
+                    doc.insert(doc.get_line_end(start.y), " ", line_pool, gfx, time);
                 }
 
                 Some(&output[1..])

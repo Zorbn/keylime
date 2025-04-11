@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use doc_io::confirm_close_all;
 use editor_pane::EditorPane;
@@ -12,15 +12,15 @@ use crate::{
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
-    platform::gfx::Gfx,
+    platform::{gfx::Gfx, window::Window},
     text::{cursor_index::CursorIndex, doc::Doc, grapheme, line_pool::LinePool},
 };
 
 use super::{
     result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     slot_list::SlotList,
-    widget::{Widget, WidgetHandle},
-    Ui, UiHandle,
+    widget::Widget,
+    Ui,
 };
 
 mod doc_io;
@@ -76,7 +76,7 @@ impl Editor {
         false
     }
 
-    pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
+    pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx) {
         let mut pane_bounds = bounds;
         pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
 
@@ -126,26 +126,28 @@ impl Editor {
 
     pub fn update(
         &mut self,
-        ui: &mut UiHandle,
+        ui: &mut Ui,
+        window: &mut Window,
         buffers: &mut EditorBuffers,
         config: &Config,
+        gfx: &mut Gfx,
         (time, dt): (f32, f32),
     ) {
-        self.reload_changed_files(ui.window.file_watcher().get_changed_files(), buffers, time);
+        self.reload_changed_files(window, buffers, gfx, time);
 
-        let mut grapheme_handler = self.widget.get_grapheme_handler(ui);
+        let mut grapheme_handler = self.widget.get_grapheme_handler(ui, window);
 
-        let mut should_open_completions = if grapheme_handler.next(ui.window).is_some() {
-            grapheme_handler.unprocessed(ui.window);
+        let mut should_open_completions = if grapheme_handler.next(window).is_some() {
+            grapheme_handler.unprocessed(window);
 
             true
         } else {
             false
         };
 
-        let mut mousebind_handler = self.widget.get_mousebind_handler(ui);
+        let mut mousebind_handler = self.widget.get_mousebind_handler(ui, window);
 
-        while let Some(mousebind) = mousebind_handler.next(ui.window) {
+        while let Some(mousebind) = mousebind_handler.next(window) {
             let visual_position =
                 VisualPosition::new(mousebind.x, mousebind.y).unoffset_by(self.widget.bounds());
 
@@ -166,26 +168,26 @@ impl Editor {
                         self.focused_pane_index = i;
                     }
 
-                    mousebind_handler.unprocessed(ui.window, mousebind);
+                    mousebind_handler.unprocessed(window, mousebind);
                 }
-                _ => mousebind_handler.unprocessed(ui.window, mousebind),
+                _ => mousebind_handler.unprocessed(window, mousebind),
             }
         }
 
-        let mut action_handler = self.widget.get_action_handler(ui);
+        let mut action_handler = self.widget.get_action_handler(ui, window);
 
-        while let Some(action) = action_handler.next(ui.window) {
+        while let Some(action) = action_handler.next(window) {
             match action {
                 action_keybind!(key: Backspace) => {
                     should_open_completions = true;
 
-                    action_handler.unprocessed(ui.window, action);
+                    action_handler.unprocessed(window, action);
                 }
                 action_name!(NewPane) => {
                     self.add_pane(&mut buffers.lines);
                 }
                 action_name!(ClosePane) => {
-                    self.close_pane(config, &mut buffers.lines, time);
+                    self.close_pane(config, &mut buffers.lines, gfx, time);
                 }
                 action_name!(PreviousPane) => {
                     self.previous_pane();
@@ -199,7 +201,7 @@ impl Editor {
                     if pane.focused_tab_index() == 0 {
                         self.previous_pane();
                     } else {
-                        action_handler.unprocessed(ui.window, action);
+                        action_handler.unprocessed(window, action);
                     }
                 }
                 action_name!(NextTab) => {
@@ -208,19 +210,20 @@ impl Editor {
                     if pane.focused_tab_index() == pane.tabs_len() - 1 {
                         self.next_pane();
                     } else {
-                        action_handler.unprocessed(ui.window, action);
+                        action_handler.unprocessed(window, action);
                     }
                 }
-                _ => action_handler.unprocessed(ui.window, action),
+                _ => action_handler.unprocessed(window, action),
             }
         }
 
-        let are_results_visible = self.is_cursor_visible(ui.gfx());
+        let are_results_visible = self.is_cursor_visible(gfx);
         let are_results_focused = !self.completion_result_list.results.is_empty();
 
-        let mut widget = WidgetHandle::new(&mut self.widget, ui);
         let result_input = self.completion_result_list.update(
-            &mut widget,
+            &mut self.widget,
+            ui,
+            window,
             are_results_visible,
             are_results_focused,
             dt,
@@ -242,6 +245,7 @@ impl Editor {
                         doc.insert_at_cursors(
                             &result[self.completion_prefix.len()..],
                             &mut buffers.lines,
+                            gfx,
                             time,
                         );
                     }
@@ -262,30 +266,39 @@ impl Editor {
         }
 
         let handled_position = self.get_cursor_position();
-        let mut widget = WidgetHandle::new(&mut self.widget, ui);
         let pane = &mut self.panes[self.focused_pane_index];
 
-        pane.update(&mut widget, &mut self.doc_list, buffers, config, time);
+        pane.update(
+            &mut self.widget,
+            ui,
+            window,
+            &mut self.doc_list,
+            buffers,
+            config,
+            gfx,
+            time,
+        );
 
         if pane.tabs_len() == 0 {
-            self.close_pane(config, &mut buffers.lines, time);
+            self.close_pane(config, &mut buffers.lines, gfx, time);
         }
-
-        let mut widget = WidgetHandle::new(&mut self.widget, ui);
 
         for pane in &mut self.panes {
-            pane.update_camera(&mut widget, &mut self.doc_list, dt);
+            pane.update_camera(&mut self.widget, ui, window, &mut self.doc_list, gfx, dt);
         }
 
-        self.update_completions(should_open_completions, handled_position);
+        self.update_completions(should_open_completions, handled_position, gfx);
     }
 
     fn reload_changed_files(
         &mut self,
-        changed_files: &[PathBuf],
+        window: &mut Window,
         buffers: &mut EditorBuffers,
+        gfx: &mut Gfx,
         time: f32,
     ) {
+        let changed_files = window.file_watcher().get_changed_files();
+
         for path in changed_files {
             for doc in self.doc_list.iter_mut().flatten() {
                 if doc.path().some() != Some(path) {
@@ -293,7 +306,7 @@ impl Editor {
                 }
 
                 if doc.is_change_unexpected() {
-                    doc.reload(buffers, time).unwrap();
+                    doc.reload(buffers, gfx, time).unwrap();
                 }
 
                 break;
@@ -301,9 +314,8 @@ impl Editor {
         }
     }
 
-    pub fn draw(&mut self, ui: &mut UiHandle, config: &Config) {
-        let is_focused = self.widget.is_focused(ui);
-        let gfx = ui.gfx();
+    pub fn draw(&mut self, ui: &mut Ui, window: &mut Window, gfx: &mut Gfx, config: &Config) {
+        let is_focused = self.widget.is_focused(ui, window);
 
         for (i, pane) in self.panes.iter_mut().enumerate() {
             let is_focused = is_focused && i == self.focused_pane_index;
@@ -317,7 +329,7 @@ impl Editor {
         }
     }
 
-    fn get_completion_prefix(doc: &Doc) -> Option<&str> {
+    fn get_completion_prefix<'a>(doc: &'a Doc, gfx: &mut Gfx) -> Option<&'a str> {
         let prefix_end = doc.get_cursor(CursorIndex::Main).position;
 
         if prefix_end.x == 0 {
@@ -327,7 +339,7 @@ impl Editor {
         let mut prefix_start = prefix_end;
 
         while prefix_start.x > 0 {
-            let next_start = doc.move_position(prefix_start, -1, 0);
+            let next_start = doc.move_position(prefix_start, -1, 0, gfx);
 
             let grapheme = doc.get_grapheme(next_start);
 
@@ -355,6 +367,7 @@ impl Editor {
         &mut self,
         should_open_completions: bool,
         handled_position: Option<Position>,
+        gfx: &mut Gfx,
     ) {
         let position = self.get_cursor_position();
 
@@ -380,8 +393,8 @@ impl Editor {
             return;
         };
 
-        let Some(prefix) =
-            Self::get_completion_prefix(doc).filter(|prefix| self.completion_prefix != *prefix)
+        let Some(prefix) = Self::get_completion_prefix(doc, gfx)
+            .filter(|prefix| self.completion_prefix != *prefix)
         else {
             return;
         };
@@ -404,7 +417,7 @@ impl Editor {
             .map(|(_, doc)| doc.get_cursor(CursorIndex::Main).position)
     }
 
-    fn is_cursor_visible(&self, gfx: &Gfx) -> bool {
+    fn is_cursor_visible(&self, gfx: &mut Gfx) -> bool {
         let pane = &self.panes[self.focused_pane_index];
 
         let Some((tab, doc)) = pane.get_tab_with_data(pane.focused_tab_index(), &self.doc_list)
@@ -442,7 +455,7 @@ impl Editor {
         }
     }
 
-    fn close_pane(&mut self, config: &Config, line_pool: &mut LinePool, time: f32) {
+    fn close_pane(&mut self, config: &Config, line_pool: &mut LinePool, gfx: &mut Gfx, time: f32) {
         if self.panes.len() == 1 {
             return;
         }
@@ -451,6 +464,7 @@ impl Editor {
             &mut self.doc_list,
             config,
             line_pool,
+            gfx,
             time,
         ) {
             return;
@@ -472,8 +486,14 @@ impl Editor {
         }
     }
 
-    pub fn on_close(&mut self, config: &Config, line_pool: &mut LinePool, time: f32) {
-        confirm_close_all(&mut self.doc_list, "exiting", config, line_pool, time);
+    pub fn on_close(
+        &mut self,
+        config: &Config,
+        line_pool: &mut LinePool,
+        gfx: &mut Gfx,
+        time: f32,
+    ) {
+        confirm_close_all(&mut self.doc_list, "exiting", config, line_pool, gfx, time);
     }
 
     pub fn get_focused_pane_and_doc_list(&mut self) -> (&mut EditorPane, &mut SlotList<Doc>) {

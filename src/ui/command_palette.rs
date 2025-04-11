@@ -11,7 +11,7 @@ use crate::{
         side::{SIDE_ALL, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     },
     input::action::{action_keybind, action_name},
-    platform::gfx::Gfx,
+    platform::{gfx::Gfx, window::Window},
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
@@ -23,8 +23,8 @@ use super::{
     editor::Editor,
     result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     tab::Tab,
-    widget::{Widget, WidgetHandle},
-    Ui, UiHandle,
+    widget::Widget,
+    Ui,
 };
 
 use file_mode::MODE_OPEN_FILE;
@@ -39,6 +39,7 @@ macro_rules! temp_args {
             doc_list: $args.doc_list,
             config: $args.config,
             line_pool: $args.line_pool,
+            gfx: $args.gfx,
             time: $args.time,
         }
     };
@@ -90,11 +91,11 @@ impl CommandPalette {
         self.result_list.is_animating() || self.tab.is_animating()
     }
 
-    pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
+    pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx) {
         let title = self.mode.title;
         let title_padding_x = gfx.glyph_width();
         let title_width =
-            Gfx::measure_text(title) as f32 * gfx.glyph_width() + title_padding_x * 2.0;
+            gfx.measure_text(title) as f32 * gfx.glyph_width() + title_padding_x * 2.0;
 
         self.title_bounds = Rect::new(0.0, 0.0, title_width, gfx.tab_height()).floor();
 
@@ -134,21 +135,23 @@ impl CommandPalette {
 
     pub fn update(
         &mut self,
-        ui: &mut UiHandle,
+        ui: &mut Ui,
+        window: &mut Window,
         editor: &mut Editor,
         buffers: &mut EditorBuffers,
         config: &Config,
+        gfx: &mut Gfx,
         (time, dt): (f32, f32),
     ) {
-        if self.widget.is_visible && !self.widget.is_focused(ui) {
+        if self.widget.is_visible && !self.widget.is_focused(ui, window) {
             self.close(ui, &mut buffers.lines);
         }
 
-        let args = CommandPaletteEventArgs::new(editor, buffers, config, time);
+        let args = CommandPaletteEventArgs::new(editor, buffers, config, gfx, time);
 
-        let mut global_action_handler = ui.window.get_action_handler();
+        let mut global_action_handler = window.get_action_handler();
 
-        while let Some(action) = global_action_handler.next(ui.window) {
+        while let Some(action) = global_action_handler.next(window) {
             let args = temp_args!(args);
 
             match action {
@@ -164,30 +167,31 @@ impl CommandPalette {
                 action_name!(OpenGoToLine) => {
                     self.open(ui, MODE_GO_TO_LINE, args);
                 }
-                _ => global_action_handler.unprocessed(ui.window, action),
+                _ => global_action_handler.unprocessed(window, action),
             }
         }
 
-        let mut action_handler = self.widget.get_action_handler(ui);
+        let mut action_handler = self.widget.get_action_handler(ui, window);
 
-        while let Some(action) = action_handler.next(ui.window) {
+        while let Some(action) = action_handler.next(window) {
             match action {
                 action_keybind!(key: Backspace) => {
                     let on_backspace = self.mode.on_backspace;
 
                     if !(on_backspace)(self, temp_args!(args)) {
-                        action_handler.unprocessed(ui.window, action);
+                        action_handler.unprocessed(window, action);
                     }
                 }
-                _ => action_handler.unprocessed(ui.window, action),
+                _ => action_handler.unprocessed(window, action),
             }
         }
 
         self.result_list.do_allow_delete = self.doc.cursors_len() == 1
             && self.doc.get_cursor(CursorIndex::Main).position == self.doc.end();
 
-        let mut widget = WidgetHandle::new(&mut self.widget, ui);
-        let result_input = self.result_list.update(&mut widget, true, true, dt);
+        let result_input = self
+            .result_list
+            .update(&mut self.widget, ui, window, true, true, dt);
 
         match result_input {
             ResultListInput::None => {}
@@ -198,23 +202,25 @@ impl CommandPalette {
             ResultListInput::Close => self.close(ui, args.line_pool),
         }
 
-        let mut widget = WidgetHandle::new(&mut self.widget, ui);
+        self.tab.update(
+            &mut self.widget,
+            ui,
+            window,
+            &mut self.doc,
+            buffers,
+            config,
+            gfx,
+            time,
+        );
 
         self.tab
-            .update(&mut widget, &mut self.doc, buffers, config, time);
+            .update_camera(&mut self.widget, ui, window, &self.doc, gfx, dt);
 
-        self.tab.update_camera(&mut widget, &self.doc, dt);
-
-        let args = CommandPaletteEventArgs::new(editor, buffers, config, time);
+        let args = CommandPaletteEventArgs::new(editor, buffers, config, gfx, time);
         self.update_results(args);
     }
 
-    fn submit(
-        &mut self,
-        ui: &mut UiHandle,
-        kind: ResultListSubmitKind,
-        args: CommandPaletteEventArgs,
-    ) {
+    fn submit(&mut self, ui: &mut Ui, kind: ResultListSubmitKind, args: CommandPaletteEventArgs) {
         self.complete_result(temp_args!(args));
 
         let on_submit = self.mode.on_submit;
@@ -260,13 +266,12 @@ impl CommandPalette {
         (on_update_results)(self, args);
     }
 
-    pub fn draw(&mut self, ui: &mut UiHandle, config: &Config) {
+    pub fn draw(&mut self, ui: &mut Ui, window: &mut Window, gfx: &mut Gfx, config: &Config) {
         if !self.widget.is_visible {
             return;
         }
 
-        let is_focused = self.widget.is_focused(ui);
-        let gfx = ui.gfx();
+        let is_focused = self.widget.is_focused(ui, window);
 
         gfx.begin(Some(self.widget.bounds()));
 
@@ -316,7 +321,7 @@ impl CommandPalette {
 
     pub fn open(
         &mut self,
-        ui: &mut UiHandle,
+        ui: &mut Ui,
         mode: &'static CommandPaletteMode,
         args: CommandPaletteEventArgs,
     ) {
@@ -331,7 +336,7 @@ impl CommandPalette {
         self.update_results(temp_args!(args));
     }
 
-    fn close(&mut self, ui: &mut UiHandle, line_pool: &mut LinePool) {
+    fn close(&mut self, ui: &mut Ui, line_pool: &mut LinePool) {
         self.widget.is_visible = false;
         self.widget.release_focus(ui);
         self.doc.clear(line_pool);

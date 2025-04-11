@@ -13,7 +13,12 @@ pub const MODE_GO_TO_LINE: &CommandPaletteMode = &CommandPaletteMode {
 
 fn on_submit(
     command_palette: &mut CommandPalette,
-    CommandPaletteEventArgs { pane, doc_list, .. }: CommandPaletteEventArgs,
+    CommandPaletteEventArgs {
+        pane,
+        doc_list,
+        gfx,
+        ..
+    }: CommandPaletteEventArgs,
     kind: ResultListSubmitKind,
 ) -> CommandPaletteAction {
     if kind != ResultListSubmitKind::Normal {
@@ -32,7 +37,7 @@ fn on_submit(
         return CommandPaletteAction::Close;
     };
 
-    doc.jump_cursors(Position::new(0, line.saturating_sub(1)), false);
+    doc.jump_cursors(Position::new(0, line.saturating_sub(1)), false, gfx);
     tab.camera.recenter();
 
     CommandPaletteAction::Close

@@ -9,7 +9,7 @@ use crate::{
     text::grapheme::GraphemeCursor,
 };
 
-use super::{file_watcher::FileWatcher, gfx::Gfx, platform_impl, result::Result};
+use super::{file_watcher::FileWatcher, platform_impl, result::Result};
 
 pub struct WindowRunner {
     inner: Box<platform_impl::window::WindowRunner>,
@@ -42,10 +42,6 @@ impl Window {
 
         #[cfg(target_os = "macos")]
         self.inner.was_shown
-    }
-
-    pub fn gfx(&mut self) -> &mut Gfx {
-        self.inner.gfx()
     }
 
     pub fn file_watcher(&mut self) -> &mut FileWatcher {
