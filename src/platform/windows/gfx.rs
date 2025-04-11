@@ -659,6 +659,8 @@ impl Gfx {
                     ..Default::default()
                 };
 
+                self.vertex_buffer.take();
+
                 self.device
                     .CreateBuffer(&desc, None, Some(&mut self.vertex_buffer))
                     .unwrap();
@@ -676,6 +678,8 @@ impl Gfx {
                     CPUAccessFlags: D3D11_CPU_ACCESS_WRITE.0 as u32,
                     ..Default::default()
                 };
+
+                self.index_buffer.take();
 
                 self.device
                     .CreateBuffer(&desc, None, Some(&mut self.index_buffer))
