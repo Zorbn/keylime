@@ -17,7 +17,7 @@ use crate::{
         mousebind::{MouseClickKind, Mousebind},
     },
     platform::aliases::{AnyFileWatcher, AnyPty, AnyWindow},
-    temp_buffer::{TempBuffer, TempString},
+    temp_buffer::TempBuffer,
     text::grapheme::GraphemeCursor,
 };
 
@@ -149,7 +149,6 @@ pub struct Window {
     last_queried_time: Option<f64>,
 
     wide_text_buffer: TempBuffer<u16>,
-    text_buffer: TempString,
 
     keymaps: HashMap<Keybind, ActionName>,
     pub graphemes_typed: String,
@@ -205,7 +204,6 @@ impl Window {
             scale,
 
             wide_text_buffer: TempBuffer::new(),
-            text_buffer: TempString::new(),
 
             keymaps: new_keymaps(),
             graphemes_typed: String::new(),
@@ -494,21 +492,20 @@ impl Window {
         Ok(())
     }
 
-    pub fn get_clipboard(&mut self) -> Result<&str> {
-        let text = unsafe {
+    pub fn get_clipboard(&mut self, text: &mut String) -> Result<()> {
+        let pasteboard_string = unsafe {
             let pasteboard = NSPasteboard::generalPasteboard();
             pasteboard.stringForType(NSPasteboardTypeString)
         };
 
-        let Some(text) = text else {
+        let Some(pasteboard_string) = pasteboard_string else {
             return Err("Failed to get pasteboard content");
         };
 
         let wide_text_buffer = self.wide_text_buffer.get_mut();
-        let text_buffer = self.text_buffer.get_mut();
 
-        for i in 0..text.length() {
-            let wide_char = unsafe { text.characterAtIndex(i) };
+        for i in 0..pasteboard_string.length() {
+            let wide_char = unsafe { pasteboard_string.characterAtIndex(i) };
 
             wide_text_buffer.push(wide_char);
         }
@@ -522,10 +519,10 @@ impl Window {
                 continue;
             }
 
-            text_buffer.push(c);
+            text.push(c);
         }
 
-        Ok(text_buffer)
+        Ok(())
     }
 
     pub fn was_copy_implicit(&self) -> bool {

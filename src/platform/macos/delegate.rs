@@ -232,7 +232,7 @@ impl Delegate {
     }
 
     fn on_close(&self) {
-        let mut window = self.ivars().window.borrow_mut();
+        let window = &mut *self.ivars().window.borrow_mut();
         let mut gfx = self.ivars().gfx.borrow_mut();
         let gfx = gfx.as_mut().unwrap();
 
@@ -246,6 +246,6 @@ impl Delegate {
 
         let time = window.inner.time;
 
-        app.close(gfx, time);
+        app.close(window, gfx, time);
     }
 }

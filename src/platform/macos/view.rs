@@ -311,8 +311,8 @@ impl View {
         let timestamp = window.inner.get_time(app.is_animating());
         app.update(window, gfx, timestamp);
 
-        let (files, ptys) = app.files_and_ptys();
-        window.inner.update(files, ptys);
+        let (file_watcher, files, ptys) = app.files_and_ptys();
+        window.inner.update(file_watcher, files, ptys);
 
         unsafe {
             self.setNeedsDisplay(true);
