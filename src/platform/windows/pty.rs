@@ -1,3 +1,4 @@
+use core::str;
 use std::{
     ptr::copy_nonoverlapping,
     sync::{Arc, Mutex},
@@ -18,12 +19,9 @@ use windows::{
     },
 };
 
-use crate::text::utf32::{utf32_to_utf8, utf8_to_utf32};
-
 pub struct Pty {
-    pub output: Arc<Mutex<Vec<u32>>>,
-    pub input: Vec<u32>,
-    input_bytes: Vec<u8>,
+    pub output: Arc<Mutex<Vec<u8>>>,
+    pub input: Vec<u8>,
 
     read_thread_join: Option<JoinHandle<()>>,
 
@@ -35,7 +33,7 @@ pub struct Pty {
 }
 
 impl Pty {
-    pub fn new(width: isize, height: isize, child_paths: &[&str]) -> Result<Self> {
+    pub fn new(width: usize, height: usize, child_paths: &[&str]) -> Result<Self> {
         // Used to communicate with the child process.
         let mut output_read = HANDLE::default();
         let mut input_write = HANDLE::default();
@@ -78,7 +76,6 @@ impl Pty {
         Ok(Self {
             output,
             input,
-            input_bytes: Vec::new(),
 
             read_thread_join: Some(read_thread_join),
 
@@ -119,7 +116,7 @@ impl Pty {
                 None,
                 None,
                 false,
-                EXTENDED_STARTUPINFO_PRESENT,
+                EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
                 None,
                 None,
                 &startup_info.StartupInfo,
@@ -183,17 +180,14 @@ impl Pty {
             return;
         }
 
-        utf32_to_utf8(&self.input, &mut self.input_bytes);
-        self.input.clear();
-
         unsafe {
-            WriteFile(self.stdin, Some(&self.input_bytes), None, None).unwrap();
+            WriteFile(self.stdin, Some(&self.input), None, None).unwrap();
         }
 
-        self.input_bytes.clear();
+        self.input.clear();
     }
 
-    pub fn resize(&mut self, width: isize, height: isize) {
+    pub fn resize(&mut self, width: usize, height: usize) {
         unsafe {
             ResizePseudoConsole(
                 self.hpcon,
@@ -207,7 +201,7 @@ impl Pty {
     }
 
     fn run_read_thread(
-        output: Arc<Mutex<Vec<u32>>>,
+        output: Arc<Mutex<Vec<u8>>>,
         stdout: HANDLE,
         event: HANDLE,
     ) -> JoinHandle<()> {
@@ -230,7 +224,7 @@ impl Pty {
 
                 {
                     let mut output = output.lock().unwrap();
-                    utf8_to_utf32(&buffer[..bytes_read as usize], &mut output);
+                    output.extend_from_slice(&buffer[..bytes_read as usize]);
                 }
 
                 unsafe {

@@ -23,11 +23,10 @@ use windows::{
 use crate::{
     geometry::{matrix::ortho, rect::Rect},
     platform::{
-        aliases::AnyText,
+        aliases::{AnyText, PlatformText},
         gfx::SpriteKind,
         text_cache::{AtlasDimensions, GlyphCacheResult, GlyphSpan, GlyphSpans},
     },
-    text::text_trait,
     ui::color::Color,
 };
 
@@ -361,7 +360,10 @@ impl Gfx {
         };
 
         let scale = window.scale();
-        let text = AnyText::new(font_name, font_size, scale)?;
+
+        let text = AnyText::new(font_name, |font_name| unsafe {
+            PlatformText::new(font_name, font_size, scale, &device)
+        })?;
 
         let gfx = Self {
             device,
@@ -546,18 +548,22 @@ impl Gfx {
 
     pub fn update_font(&mut self, font_name: &str, font_size: f32, scale: f32) {
         self.scale = scale;
-        self.text = AnyText::new(font_name, font_size, scale).unwrap();
+
+        self.text = AnyText::new(font_name, |font_name| unsafe {
+            PlatformText::new(font_name, font_size, scale, &self.device)
+        })
+        .unwrap();
     }
 
-    pub fn get_glyph_spans(&mut self, text: text_trait!()) -> GlyphSpans {
+    pub fn get_glyph_spans(&mut self, text: &str) -> GlyphSpans {
         let (spans, result) = self.text.get_glyph_spans(text);
         self.glyph_cache_result = self.glyph_cache_result.worse(result);
 
         spans
     }
 
-    pub fn get_glyph_span(&mut self, glyph_spans: &GlyphSpans, index: usize) -> Option<GlyphSpan> {
-        self.text.get_glyph_span(glyph_spans, index)
+    pub fn get_glyph_span(&mut self, index: usize) -> GlyphSpan {
+        self.text.get_glyph_span(index)
     }
 
     fn handle_glyph_cache_result(&mut self) {
@@ -771,8 +777,8 @@ impl Gfx {
     }
 
     pub fn add_sprite(&mut self, src: Rect, dst: Rect, color: Color, kind: SpriteKind) {
-        let left = dst.x + self.bounds.x;
-        let top = dst.y + self.bounds.y;
+        let left = (dst.x + self.bounds.x).floor();
+        let top = (dst.y + self.bounds.y).floor();
         let right = left + dst.width;
         let bottom = top + dst.height;
 

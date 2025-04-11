@@ -22,14 +22,11 @@ const BACKUP_FONT_NAME: &str = "Consolas";
 const BACKUP_FONT_NAME: &str = "Menlo";
 
 impl Text {
-    pub fn new(font_name: &str, font_size: f32, scale: f32) -> Result<Self> {
-        let inner = unsafe {
-            PlatformText::new(font_name, font_size, scale).or(PlatformText::new(
-                BACKUP_FONT_NAME,
-                font_size,
-                scale,
-            ))?
-        };
+    pub fn new(
+        font_name: &str,
+        new_inner_fn: impl Fn(&str) -> Result<PlatformText>,
+    ) -> Result<Self> {
+        let inner = new_inner_fn(font_name).or(new_inner_fn(BACKUP_FONT_NAME))?;
 
         let mut text = Self {
             inner,

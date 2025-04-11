@@ -9,8 +9,9 @@ use windows::{
                 Common::{D2D1_COLOR_F, D2D1_PIXEL_FORMAT},
                 *,
             },
+            Direct3D11::ID3D11Device,
             DirectWrite::*,
-            Dxgi::Common::DXGI_FORMAT_UNKNOWN,
+            Dxgi::{Common::DXGI_FORMAT_UNKNOWN, IDXGIDevice4},
             Imaging::{
                 CLSID_WICImagingFactory, GUID_WICPixelFormat32bppBGR,
                 GUID_WICPixelFormat32bppPBGRA, IWICImagingFactory, WICBitmapCacheOnDemand,
@@ -29,7 +30,6 @@ use crate::{
         text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
     },
     temp_buffer::TempBuffer,
-    text::text_trait,
 };
 
 const LOCALE: PCWSTR = w!("en-us");
@@ -38,6 +38,7 @@ const ATLAS_PADDING: f32 = 2.0;
 #[derive(Debug, Clone, Copy)]
 pub struct Glyph<'a> {
     pub index: u16,
+    pub advance: usize,
     run: &'a DWRITE_GLYPH_RUN,
     measuring_mode: DWRITE_MEASURING_MODE,
 }
@@ -52,6 +53,7 @@ struct DrawingContext<'a> {
 pub struct Text {
     dwrite_factory: IDWriteFactory4,
     d2d_factory: ID2D1Factory4,
+    d2d_context: ID2D1DeviceContext4,
     imaging_factory: IWICImagingFactory,
     text_renderer: Option<IDWriteTextRenderer>,
 
@@ -60,13 +62,17 @@ pub struct Text {
 
     wide_characters: TempBuffer<u16>,
 
-    glyph_metrics_scale: f32,
     glyph_width: f32,
     line_height: f32,
 }
 
 impl Text {
-    pub unsafe fn new(font_name: &str, font_size: f32, scale: f32) -> Result<Self> {
+    pub unsafe fn new(
+        font_name: &str,
+        font_size: f32,
+        scale: f32,
+        device: &ID3D11Device,
+    ) -> Result<Self> {
         let font_size = (scale * font_size).floor();
         let font_name = HSTRING::from(font_name);
 
@@ -82,6 +88,11 @@ impl Text {
                 debugLevel: debug_level,
             }),
         )?;
+
+        let dxgi_device: IDXGIDevice4 = device.cast()?;
+        let d2d_device: ID2D1Device4 = d2d_factory.CreateDevice(&dxgi_device)?.cast()?;
+        let d2d_context: ID2D1DeviceContext4 =
+            d2d_device.CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
 
         let dwrite_factory: IDWriteFactory4 = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
 
@@ -151,6 +162,7 @@ impl Text {
         Ok(Self {
             dwrite_factory,
             d2d_factory,
+            d2d_context,
             imaging_factory,
             text_renderer: Some(TextRenderer {}.into()),
 
@@ -159,33 +171,41 @@ impl Text {
 
             wide_characters: TempBuffer::new(),
 
-            glyph_metrics_scale,
             glyph_width,
             line_height,
         })
     }
 
     pub unsafe fn generate_atlas(&mut self, glyph: Glyph) -> Result<Atlas> {
-        let font_face = glyph.run.fontFace.as_ref().unwrap();
+        let bounds = self.d2d_context.GetGlyphRunWorldBounds(
+            Vector2 { X: 0.0, Y: 0.0 },
+            glyph.run,
+            DWRITE_MEASURING_MODE_NATURAL,
+        )?;
 
-        let mut font_metrics = DWRITE_FONT_METRICS::default();
-        font_face.GetMetrics(&mut font_metrics);
-
-        let mut glyph_metrics = DWRITE_GLYPH_METRICS::default();
-        font_face.GetDesignGlyphMetrics(&glyph.index, 1, &mut glyph_metrics, false)?;
-
-        let left = glyph_metrics.leftSideBearing as f32 * self.glyph_metrics_scale;
-        let top = (glyph_metrics.topSideBearing - glyph_metrics.verticalOriginY) as f32
-            * self.glyph_metrics_scale;
-        let right = (glyph_metrics.advanceWidth as f32 - glyph_metrics.rightSideBearing as f32)
-            * self.glyph_metrics_scale;
-        let bottom = (glyph_metrics.advanceHeight as f32
-            - glyph_metrics.bottomSideBearing as f32
-            - glyph_metrics.verticalOriginY as f32)
-            * self.glyph_metrics_scale;
+        let left = bounds.left;
+        let top = bounds.top;
+        let right = bounds.right;
+        let bottom = bounds.bottom;
 
         let width = (right.ceil() - left.ceil() + ATLAS_PADDING) as u32;
         let height = (bottom.ceil() - top.ceil() + ATLAS_PADDING) as u32;
+
+        if width == 0 || height == 0 {
+            return Ok(Atlas {
+                data: Vec::new(),
+                dimensions: AtlasDimensions {
+                    origin_x: 0.0,
+                    origin_y: 0.0,
+                    width: 0,
+                    height: 0,
+                    glyph_width: self.glyph_width as usize,
+                    glyph_height: 0,
+                    line_height: self.line_height as usize,
+                },
+                has_color_glyphs: false,
+            });
+        }
 
         let origin = Vector2 {
             X: -left.ceil() + ATLAS_PADDING,
@@ -359,13 +379,12 @@ impl Text {
         &mut self,
         text_cache: &mut TextCache,
         glyph_cache_result: GlyphCacheResult,
-        text: text_trait!(),
+        text: &str,
         glyph_fn: GlyphFn,
     ) -> GlyphCacheResult {
         let wide_characters = self.wide_characters.get_mut();
 
-        for c in text {
-            let c = *c.borrow();
+        for c in text.chars() {
             let mut dst = [0u16; 2];
 
             for wide_c in c.encode_utf16(&mut dst) {
@@ -422,10 +441,12 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
         let context = unsafe { context.as_mut().unwrap() };
 
         let glyph_run = unsafe { glyph_run.as_ref() }.unwrap();
-        let glyph_indices =
-            unsafe { from_raw_parts(glyph_run.glyphIndices, glyph_run.glyphCount as usize) };
+        let glyph_count = glyph_run.glyphCount as usize;
 
-        for glyph_index in glyph_indices {
+        let glyph_indices = unsafe { from_raw_parts(glyph_run.glyphIndices, glyph_count) };
+        let glyph_advances = unsafe { from_raw_parts(glyph_run.glyphAdvances, glyph_count) };
+
+        for (glyph_index, glyph_advance) in glyph_indices.iter().zip(glyph_advances) {
             let glyph_run = DWRITE_GLYPH_RUN {
                 fontFace: glyph_run.fontFace.clone(),
                 fontEmSize: glyph_run.fontEmSize,
@@ -439,6 +460,7 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
 
             let glyph = Glyph {
                 index: *glyph_index,
+                advance: *glyph_advance as usize,
                 run: &glyph_run,
                 measuring_mode,
             };

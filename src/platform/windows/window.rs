@@ -43,7 +43,7 @@ use crate::{
     config::Config,
     input::{
         action::{Action, ActionName},
-        input_handlers::{ActionHandler, CharHandler, MouseScrollHandler, MousebindHandler},
+        input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
         key::Key,
         keybind::Keybind,
         mods::Mods,
@@ -52,7 +52,8 @@ use crate::{
         mousebind::{MouseClickKind, Mousebind},
     },
     platform::aliases::{AnyFileWatcher, AnyGfx, AnyPty, AnyWindow},
-    temp_buffer::TempBuffer,
+    temp_buffer::{TempBuffer, TempString},
+    text::grapheme::GraphemeCursor,
 };
 
 use super::{deferred_call::defer, file_watcher::FileWatcher, gfx::Gfx, keymaps::new_keymaps};
@@ -239,7 +240,7 @@ pub struct Window {
     height: i32,
 
     wide_text_buffer: TempBuffer<u16>,
-    text_buffer: TempBuffer<char>,
+    text_buffer: TempString,
 
     gfx: Option<AnyGfx>,
 
@@ -252,7 +253,8 @@ pub struct Window {
     double_click_time: f32,
 
     keymaps: HashMap<Keybind, ActionName>,
-    pub chars_typed: Vec<char>,
+    pub graphemes_typed: String,
+    pub grapheme_cursor: GraphemeCursor,
     pub actions_typed: Vec<Action>,
     pub mousebinds_pressed: Vec<Mousebind>,
     pub mouse_scrolls: Vec<MouseScroll>,
@@ -293,7 +295,7 @@ impl Window {
             height: DEFAULT_HEIGHT,
 
             wide_text_buffer: TempBuffer::new(),
-            text_buffer: TempBuffer::new(),
+            text_buffer: TempString::new(),
 
             gfx: None,
 
@@ -303,7 +305,8 @@ impl Window {
             double_click_time: triple_click_time,
 
             keymaps: new_keymaps(),
-            chars_typed: Vec::new(),
+            graphemes_typed: String::new(),
+            grapheme_cursor: GraphemeCursor::new(0, 0),
             actions_typed: Vec::new(),
             mousebinds_pressed: Vec::new(),
             mouse_scrolls: Vec::new(),
@@ -314,7 +317,8 @@ impl Window {
     }
 
     fn clear_inputs(&mut self) {
-        self.chars_typed.clear();
+        self.graphemes_typed.clear();
+        self.grapheme_cursor = GraphemeCursor::new(0, 0);
         self.actions_typed.clear();
         self.mousebinds_pressed.clear();
         self.mouse_scrolls.clear();
@@ -423,8 +427,8 @@ impl Window {
         &mut self.file_watcher
     }
 
-    pub fn get_char_handler(&self) -> CharHandler {
-        CharHandler::new(self.chars_typed.len())
+    pub fn get_grapheme_handler(&self) -> GraphemeHandler {
+        GraphemeHandler::new(self.grapheme_cursor.clone())
     }
 
     pub fn get_action_handler(&self) -> ActionHandler {
@@ -439,14 +443,14 @@ impl Window {
         MouseScrollHandler::new(self.mouse_scrolls.len())
     }
 
-    pub fn set_clipboard(&mut self, text: &[char], was_copy_implicit: bool) -> Result<()> {
+    pub fn set_clipboard(&mut self, text: &str, was_copy_implicit: bool) -> Result<()> {
         self.was_copy_implicit = was_copy_implicit;
         self.did_just_copy = true;
 
         let wide_text_buffer = self.wide_text_buffer.get_mut();
 
-        for c in text {
-            if !AnyWindow::is_char_copy_pastable(*c) {
+        for c in text.chars() {
+            if !AnyWindow::is_char_copy_pastable(c) {
                 continue;
             }
 
@@ -484,7 +488,7 @@ impl Window {
         Ok(())
     }
 
-    pub fn get_clipboard(&mut self) -> Result<&[char]> {
+    pub fn get_clipboard(&mut self) -> Result<&str> {
         let text_buffer = self.text_buffer.get_mut();
         let wide_text_buffer = self.wide_text_buffer.get_mut();
 
@@ -642,7 +646,12 @@ impl Window {
             WM_CHAR => {
                 if let Some(c) = char::from_u32(wparam.0 as u32) {
                     if !c.is_control() {
-                        self.chars_typed.push(c);
+                        self.graphemes_typed.push(c);
+
+                        self.grapheme_cursor = GraphemeCursor::new(
+                            self.grapheme_cursor.cur_cursor(),
+                            self.graphemes_typed.len(),
+                        );
                     }
                 }
             }
