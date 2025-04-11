@@ -438,7 +438,7 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
         _client_drawing_effect: Ref<IUnknown>,
     ) -> Result<()> {
         let context = client_drawing_context as *mut DrawingContext;
-        let context = unsafe { context.as_mut().unwrap() };
+        let context = unsafe { context.as_mut() }.unwrap();
 
         let glyph_run = unsafe { glyph_run.as_ref() }.unwrap();
         let glyph_count = glyph_run.glyphCount as usize;
@@ -447,13 +447,16 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
         let glyph_advances = unsafe { from_raw_parts(glyph_run.glyphAdvances, glyph_count) };
 
         for (glyph_index, glyph_advance) in glyph_indices.iter().zip(glyph_advances) {
+            let glyph_advances = [0.0];
+            let glyph_offsets = [DWRITE_GLYPH_OFFSET::default()];
+
             let glyph_run = DWRITE_GLYPH_RUN {
                 fontFace: glyph_run.fontFace.clone(),
                 fontEmSize: glyph_run.fontEmSize,
                 glyphCount: 1,
                 glyphIndices: glyph_index,
-                glyphAdvances: [0.0].as_ptr(),
-                glyphOffsets: [DWRITE_GLYPH_OFFSET::default()].as_ptr(),
+                glyphAdvances: glyph_advances.as_ptr(),
+                glyphOffsets: glyph_offsets.as_ptr(),
                 isSideways: FALSE,
                 bidiLevel: 0,
             };
