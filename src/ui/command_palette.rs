@@ -249,47 +249,44 @@ impl CommandPalette {
         }
 
         let is_focused = self.widget.is_focused(ui, ctx.window);
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
 
-        ctx.gfx.begin(Some(self.widget.bounds()));
+        gfx.begin(Some(self.widget.bounds()));
 
-        ctx.gfx.add_bordered_rect(
-            self.input_bounds,
-            SIDE_ALL,
-            ctx.config.theme.background,
-            ctx.config.theme.border,
-        );
+        gfx.add_bordered_rect(self.input_bounds, SIDE_ALL, theme.background, theme.border);
 
-        ctx.gfx.add_bordered_rect(
+        gfx.add_bordered_rect(
             self.title_bounds,
             SIDE_LEFT | SIDE_RIGHT | SIDE_TOP,
-            ctx.config.theme.background,
-            ctx.config.theme.border,
+            theme.background,
+            theme.border,
         );
 
-        ctx.gfx.add_rect(
-            self.title_bounds.top_border(ctx.gfx.border_width()),
-            ctx.config.theme.keyword,
+        gfx.add_rect(
+            self.title_bounds.top_border(gfx.border_width()),
+            theme.keyword,
         );
 
-        ctx.gfx.add_text(
+        gfx.add_text(
             self.mode.title,
-            ctx.gfx.glyph_width(),
-            ctx.gfx.border_width() + ctx.gfx.tab_padding_y(),
-            ctx.config.theme.normal,
+            gfx.glyph_width(),
+            gfx.border_width() + gfx.tab_padding_y(),
+            theme.normal,
         );
 
         let doc_bounds = self.tab.doc_bounds();
 
-        ctx.gfx.add_bordered_rect(
+        gfx.add_bordered_rect(
             doc_bounds
-                .add_margin(ctx.gfx.border_width())
+                .add_margin(gfx.border_width())
                 .unoffset_by(self.widget.bounds()),
             SIDE_ALL,
-            ctx.config.theme.background,
-            ctx.config.theme.border,
+            theme.background,
+            theme.border,
         );
 
-        ctx.gfx.end();
+        gfx.end();
 
         self.tab.draw(None, &mut self.doc, ctx, is_focused);
 

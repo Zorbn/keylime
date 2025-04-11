@@ -236,13 +236,16 @@ impl<T> ResultList<T> {
     }
 
     pub fn draw<'a>(&'a mut self, ctx: &mut Ctx, result_to_str: fn(&'a T) -> &'a str) {
-        ctx.gfx.begin(Some(self.results_bounds));
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
 
-        ctx.gfx.add_bordered_rect(
+        gfx.begin(Some(self.results_bounds));
+
+        gfx.add_bordered_rect(
             self.results_bounds.unoffset_by(self.results_bounds),
             SIDE_ALL,
-            ctx.config.theme.background,
-            ctx.config.theme.border,
+            theme.background,
+            theme.border,
         );
 
         let camera_y = self.camera.y().floor();
@@ -253,23 +256,22 @@ impl<T> ResultList<T> {
 
         for (i, y) in (min_y..max_y).enumerate() {
             let visual_y = i as f32 * self.result_bounds.height
-                + (self.result_bounds.height - ctx.gfx.glyph_height()) / 2.0
+                + (self.result_bounds.height - gfx.glyph_height()) / 2.0
                 - sub_line_offset_y;
 
             let color = if y == self.selected_result_index {
-                ctx.config.theme.keyword
+                theme.keyword
             } else {
-                ctx.config.theme.normal
+                theme.normal
             };
 
             let result = &self.results[y];
             let string = result_to_str(result);
 
-            ctx.gfx
-                .add_text(string, ctx.gfx.glyph_width(), visual_y, color);
+            gfx.add_text(string, gfx.glyph_width(), visual_y, color);
         }
 
-        ctx.gfx.end();
+        gfx.end();
     }
 
     pub fn drain(&mut self) -> Drain<T> {

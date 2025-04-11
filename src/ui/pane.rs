@@ -138,22 +138,24 @@ impl<T> Pane<T> {
         ctx: &mut Ctx,
         is_focused: bool,
     ) {
-        let tab_height = ctx.gfx.tab_height();
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
+        let tab_height = gfx.tab_height();
 
-        ctx.gfx.begin(Some(self.bounds));
+        gfx.begin(Some(self.bounds));
 
-        ctx.gfx.add_rect(
+        gfx.add_rect(
             self.bounds
-                .left_border(ctx.gfx.border_width())
+                .left_border(gfx.border_width())
                 .unoffset_by(self.bounds),
-            ctx.config.theme.border,
+            theme.border,
         );
 
-        ctx.gfx.add_rect(
+        gfx.add_rect(
             self.bounds
-                .top_border(ctx.gfx.border_width())
+                .top_border(gfx.border_width())
                 .unoffset_by(self.bounds),
-            ctx.config.theme.border,
+            theme.border,
         );
 
         for i in 0..self.tabs.len() {
@@ -166,14 +168,14 @@ impl<T> Pane<T> {
             Self::draw_tab(tab, get_doc(data), self.bounds, ctx);
         }
 
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
+
         let focused_tab_bounds = if let Some(tab) = self.tabs.get(self.focused_tab_index) {
             let tab_bounds = tab.tab_bounds().unoffset_by(self.bounds);
 
             if is_focused {
-                ctx.gfx.add_rect(
-                    tab_bounds.top_border(ctx.gfx.border_width()),
-                    ctx.config.theme.keyword,
-                );
+                gfx.add_rect(tab_bounds.top_border(gfx.border_width()), theme.keyword);
             }
 
             tab_bounds
@@ -181,27 +183,27 @@ impl<T> Pane<T> {
             Rect::zero()
         };
 
-        ctx.gfx.add_rect(
+        gfx.add_rect(
             Rect::from_sides(
                 0.0,
-                tab_height - ctx.gfx.border_width(),
+                tab_height - gfx.border_width(),
                 focused_tab_bounds.x,
                 tab_height,
             ),
-            ctx.config.theme.border,
+            theme.border,
         );
 
-        ctx.gfx.add_rect(
+        gfx.add_rect(
             Rect::from_sides(
                 focused_tab_bounds.x + focused_tab_bounds.width,
-                tab_height - ctx.gfx.border_width(),
+                tab_height - gfx.border_width(),
                 self.bounds.width,
                 tab_height,
             ),
-            ctx.config.theme.border,
+            theme.border,
         );
 
-        ctx.gfx.end();
+        gfx.end();
 
         let get_doc_mut = self.get_doc_mut;
 
@@ -212,27 +214,20 @@ impl<T> Pane<T> {
 
     fn draw_tab(tab: &Tab, doc: &Doc, bounds: Rect, ctx: &mut Ctx) {
         let tab_bounds = tab.tab_bounds().unoffset_by(bounds);
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
 
-        ctx.gfx.add_rect(
-            tab_bounds.left_border(ctx.gfx.border_width()),
-            ctx.config.theme.border,
-        );
+        gfx.add_rect(tab_bounds.left_border(gfx.border_width()), theme.border);
 
-        let text_x = (tab_bounds.x + ctx.gfx.glyph_width() * 2.0).floor();
-        let text_y = ctx.gfx.border_width() + ctx.gfx.tab_padding_y();
-        let text_width = ctx
-            .gfx
-            .add_text(doc.file_name(), text_x, text_y, ctx.config.theme.normal);
+        let text_x = (tab_bounds.x + gfx.glyph_width() * 2.0).floor();
+        let text_y = gfx.border_width() + gfx.tab_padding_y();
+        let text_width = gfx.add_text(doc.file_name(), text_x, text_y, theme.normal);
 
         if !doc.is_saved() {
-            ctx.gfx
-                .add_text("*", text_x + text_width, text_y, ctx.config.theme.symbol);
+            gfx.add_text("*", text_x + text_width, text_y, theme.symbol);
         }
 
-        ctx.gfx.add_rect(
-            tab_bounds.right_border(ctx.gfx.border_width()),
-            ctx.config.theme.border,
-        );
+        gfx.add_rect(tab_bounds.right_border(gfx.border_width()), theme.border);
     }
 
     pub fn get_tab_with_data_mut<'a>(

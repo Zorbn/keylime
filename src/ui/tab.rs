@@ -327,33 +327,35 @@ impl Tab {
         is_focused: bool,
         ctx: &mut Ctx,
     ) {
-        let cursor_y = doc.get_cursor(CursorIndex::Main).position.y;
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
 
+        let cursor_y = doc.get_cursor(CursorIndex::Main).position.y;
         let mut digits = [0; 20];
 
         for (i, y) in visible_lines.enumerate() {
             let digits = get_digits(y + 1, &mut digits);
-            let visual_y = Self::get_line_foreground_visual_y(i, visible_lines.offset, ctx.gfx);
+            let visual_y = Self::get_line_foreground_visual_y(i, visible_lines.offset, gfx);
 
-            let width = digits.len() as f32 * ctx.gfx.glyph_width();
+            let width = digits.len() as f32 * gfx.glyph_width();
             let visual_x = self.gutter_bounds.width
                 - width
-                - (GUTTER_PADDING_WIDTH + GUTTER_BORDER_WIDTH) * ctx.gfx.glyph_width();
+                - (GUTTER_PADDING_WIDTH + GUTTER_BORDER_WIDTH) * gfx.glyph_width();
 
             let color = if is_focused && y == cursor_y {
-                ctx.config.theme.normal
+                theme.normal
             } else {
-                ctx.config.theme.line_number
+                theme.line_number
             };
 
-            ctx.gfx.add_text(digits, visual_x, visual_y, color);
+            gfx.add_text(digits, visual_x, visual_y, color);
         }
 
-        ctx.gfx.add_rect(
+        gfx.add_rect(
             self.gutter_bounds
                 .unoffset_by(self.gutter_bounds)
-                .right_border(ctx.gfx.border_width()),
-            ctx.config.theme.border,
+                .right_border(gfx.border_width()),
+            theme.border,
         );
     }
 
@@ -367,6 +369,9 @@ impl Tab {
         let language = ctx.config.get_language_for_doc(doc);
         let indent_width = language.map(|language| language.indent_width.measure(ctx.gfx));
 
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
+
         let Some(indent_width) = indent_width else {
             return;
         };
@@ -375,23 +380,23 @@ impl Tab {
 
         for (i, y) in visible_lines.enumerate() {
             let background_visual_y =
-                Self::get_line_background_visual_y(i, visible_lines.offset, ctx.gfx);
+                Self::get_line_background_visual_y(i, visible_lines.offset, gfx);
 
             if !doc.is_line_whitespace(y) {
                 indent_guide_x = doc.get_line_start(y)
             };
 
             for x in (indent_width..indent_guide_x).step_by(indent_width) {
-                let visual_x = ctx.gfx.glyph_width() * x as f32 - camera_position.x;
+                let visual_x = gfx.glyph_width() * x as f32 - camera_position.x;
 
-                ctx.gfx.add_rect(
+                gfx.add_rect(
                     Rect::new(
                         visual_x,
                         background_visual_y,
-                        ctx.gfx.border_width(),
-                        ctx.gfx.line_height(),
+                        gfx.border_width(),
+                        gfx.line_height(),
                     ),
-                    ctx.config.theme.border,
+                    theme.border,
                 );
             }
         }
@@ -405,25 +410,23 @@ impl Tab {
         visible_lines: VisibleLines,
         ctx: &mut Ctx,
     ) {
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
+
         let lines = doc.lines();
         let highlighted_lines = doc.highlighted_lines();
 
         for (i, y) in visible_lines.enumerate() {
             let line = &lines[y];
             let foreground_visual_y =
-                Self::get_line_foreground_visual_y(i, visible_lines.offset, ctx.gfx);
+                Self::get_line_foreground_visual_y(i, visible_lines.offset, gfx);
             let background_visual_y =
-                Self::get_line_background_visual_y(i, visible_lines.offset, ctx.gfx);
+                Self::get_line_background_visual_y(i, visible_lines.offset, gfx);
 
             if y >= highlighted_lines.len() {
                 let visual_x = -camera_position.x;
 
-                ctx.gfx.add_text(
-                    &line[..],
-                    visual_x,
-                    foreground_visual_y,
-                    ctx.config.theme.normal,
-                );
+                gfx.add_text(&line[..], visual_x, foreground_visual_y, theme.normal);
 
                 continue;
             }
@@ -446,7 +449,7 @@ impl Tab {
                         .highlight_kind_to_color(highlight_background);
 
                     if Some(background) != default_background {
-                        ctx.gfx.add_background(
+                        gfx.add_background(
                             highlighted_text,
                             visual_x,
                             background_visual_y,
@@ -455,9 +458,7 @@ impl Tab {
                     }
                 }
 
-                x += ctx
-                    .gfx
-                    .add_text(highlighted_text, visual_x, foreground_visual_y, foreground);
+                x += gfx.add_text(highlighted_text, visual_x, foreground_visual_y, foreground);
             }
         }
     }
@@ -470,6 +471,9 @@ impl Tab {
         visible_lines: VisibleLines,
         ctx: &mut Ctx,
     ) {
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
+
         for index in doc.cursor_indices() {
             let Some(selection) = doc.get_cursor(index).get_selection() else {
                 continue;
@@ -480,43 +484,43 @@ impl Tab {
             let mut position = start;
 
             while position < end {
-                let highlight_position = doc.position_to_visual(position, camera_position, ctx.gfx);
+                let highlight_position = doc.position_to_visual(position, camera_position, gfx);
 
                 let grapheme = doc.get_grapheme(position);
-                let grapheme_width = ctx.gfx.measure_text(grapheme);
+                let grapheme_width = gfx.measure_text(grapheme);
 
-                ctx.gfx.add_rect(
+                gfx.add_rect(
                     Rect::new(
                         highlight_position.x,
                         highlight_position.y,
-                        grapheme_width as f32 * ctx.gfx.glyph_width(),
-                        ctx.gfx.line_height(),
+                        grapheme_width as f32 * gfx.glyph_width(),
+                        gfx.line_height(),
                     ),
-                    ctx.config.theme.selection,
+                    theme.selection,
                 );
 
-                position = doc.move_position(position, 1, 0, ctx.gfx);
+                position = doc.move_position(position, 1, 0, gfx);
             }
         }
 
         if is_focused {
-            let cursor_width = (ctx.gfx.glyph_width() * 0.25).ceil();
+            let cursor_width = (gfx.glyph_width() * 0.25).ceil();
 
             for index in doc.cursor_indices() {
                 let cursor_position = doc.position_to_visual(
                     doc.get_cursor(index).position,
                     VisualPosition::new(0.0, camera_position.y),
-                    ctx.gfx,
+                    gfx,
                 );
 
-                ctx.gfx.add_rect(
+                gfx.add_rect(
                     Rect::new(
                         (cursor_position.x - cursor_width / 2.0).max(0.0) - camera_position.x,
                         cursor_position.y,
                         cursor_width,
-                        ctx.gfx.line_height(),
+                        gfx.line_height(),
                     ),
-                    ctx.config.theme.normal,
+                    theme.normal,
                 );
             }
         }
