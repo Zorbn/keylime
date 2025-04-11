@@ -58,11 +58,6 @@ impl ColoredGridLine {
         self.colors.len()
     }
 
-    fn push(&mut self, color_pair: (TerminalHighlightKind, TerminalHighlightKind)) {
-        self.colors.push(color_pair);
-        self.is_dirty = true;
-    }
-
     fn splice(
         &mut self,
         range: Range<usize>,
@@ -84,6 +79,8 @@ impl ColoredGridLine {
                 TerminalHighlightKind::Background,
             ));
         }
+
+        self.is_dirty = true;
     }
 }
 
