@@ -446,52 +446,23 @@ impl Tab {
             for highlight in highlighted_line.highlights() {
                 let visual_x = x - camera_position.x;
                 let foreground = theme.highlight_kind_to_color(highlight.foreground);
+                let highlighted_text = &line[highlight.start..highlight.end];
 
                 if let Some(highlight_background) = highlight.background {
                     let background = theme.highlight_kind_to_color(highlight_background);
 
-                    Self::draw_background(
-                        highlight.end - highlight.start,
-                        gfx,
-                        visual_x,
-                        background_visual_y,
-                        default_background,
-                        background,
-                    );
+                    if Some(background) != default_background {
+                        gfx.add_background(
+                            highlighted_text,
+                            visual_x,
+                            background_visual_y,
+                            background,
+                        );
+                    }
                 }
 
-                x += gfx.add_text(
-                    &line[highlight.start..highlight.end],
-                    visual_x,
-                    foreground_visual_y,
-                    foreground,
-                );
+                x += gfx.add_text(highlighted_text, visual_x, foreground_visual_y, foreground);
             }
-        }
-    }
-
-    fn draw_background(
-        len: usize,
-        gfx: &mut Gfx,
-        x: f32,
-        y: f32,
-        default_background: Option<Color>,
-        color: Color,
-    ) {
-        if Some(color) == default_background {
-            return;
-        }
-
-        for i in 0..len {
-            gfx.add_rect(
-                Rect::new(
-                    x + i as f32 * gfx.glyph_width(),
-                    y,
-                    gfx.glyph_width(),
-                    gfx.line_height(),
-                ),
-                color,
-            );
         }
     }
 

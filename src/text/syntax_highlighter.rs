@@ -44,7 +44,7 @@ pub enum HighlightKind {
     Terminal(TerminalHighlightKind),
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Highlight {
     pub start: usize,
     pub end: usize,

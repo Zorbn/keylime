@@ -137,12 +137,40 @@ impl Gfx {
                         kind,
                     );
 
-                    offset += (advance as f32 / glyph_width).round() * glyph_width;
+                    offset += Self::round_glyph_advance(advance, glyph_width);
                 }
             }
         }
 
         offset
+    }
+
+    pub fn add_background(&mut self, text: &str, x: f32, y: f32, color: Color) {
+        let glyph_spans = self.get_glyph_spans(text);
+
+        let AtlasDimensions { glyph_width, .. } = *self.inner.atlas_dimensions();
+
+        let glyph_width = glyph_width as f32;
+
+        let mut width = 0.0;
+
+        for i in glyph_spans.spans_start..glyph_spans.spans_end {
+            let span = self.get_glyph_span(i);
+
+            match span {
+                GlyphSpan::Space => width += glyph_width,
+                GlyphSpan::Tab => width += TAB_WIDTH as f32 * glyph_width,
+                GlyphSpan::Glyph { advance, .. } => {
+                    width += Self::round_glyph_advance(advance, glyph_width);
+                }
+            }
+        }
+
+        self.add_rect(Rect::new(x, y, width, self.line_height()), color);
+    }
+
+    fn round_glyph_advance(advance: usize, glyph_width: f32) -> f32 {
+        (advance as f32 / glyph_width).round() * glyph_width
     }
 
     pub fn add_bordered_rect(&mut self, rect: Rect, sides: u8, color: Color, border_color: Color) {
