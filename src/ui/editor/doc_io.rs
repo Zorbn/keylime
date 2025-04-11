@@ -4,15 +4,9 @@ use std::{
 };
 
 use crate::{
-    config::Config,
-    platform::{
-        dialog::{find_file, message, FindFileKind, MessageKind, MessageResponse},
-        gfx::Gfx,
-    },
-    text::{
-        doc::{Doc, DocKind},
-        line_pool::LinePool,
-    },
+    ctx::Ctx,
+    platform::dialog::{find_file, message, FindFileKind, MessageKind, MessageResponse},
+    text::doc::{Doc, DocKind},
     ui::slot_list::SlotList,
 };
 
@@ -20,9 +14,7 @@ pub fn confirm_close(
     doc: &mut Doc,
     reason: &str,
     is_cancelable: bool,
-    config: &Config,
-    line_pool: &mut LinePool,
-    gfx: &mut Gfx,
+    ctx: &mut Ctx,
     time: f32,
 ) -> bool {
     if doc.is_saved() {
@@ -41,20 +33,14 @@ pub fn confirm_close(
         };
 
         match message("Unsaved Changes", &text, message_kind) {
-            MessageResponse::Yes => try_save(doc, config, line_pool, gfx, time),
+            MessageResponse::Yes => try_save(doc, ctx, time),
             MessageResponse::No => true,
             MessageResponse::Cancel => false,
         }
     }
 }
 
-pub fn try_save(
-    doc: &mut Doc,
-    config: &Config,
-    line_pool: &mut LinePool,
-    gfx: &mut Gfx,
-    time: f32,
-) -> bool {
+pub fn try_save(doc: &mut Doc, ctx: &mut Ctx, time: f32) -> bool {
     let path = if doc.path().is_none() {
         let Ok(path) = find_file(FindFileKind::Save) else {
             return false;
@@ -65,8 +51,8 @@ pub fn try_save(
         None
     };
 
-    if config.trim_trailing_whitespace {
-        doc.trim_trailing_whitespace(line_pool, gfx, time);
+    if ctx.config.trim_trailing_whitespace {
+        doc.trim_trailing_whitespace(ctx, time);
     }
 
     if let Err(err) = doc.save(path) {
@@ -80,8 +66,7 @@ pub fn try_save(
 pub fn open_or_reuse(
     doc_list: &mut SlotList<Doc>,
     path: &Path,
-    line_pool: &mut LinePool,
-    gfx: &mut Gfx,
+    ctx: &mut Ctx,
     time: f32,
 ) -> io::Result<usize> {
     let path = absolute(path)?;
@@ -92,21 +77,15 @@ pub fn open_or_reuse(
         }
     }
 
-    let mut doc = Doc::new(Some(path), line_pool, None, DocKind::MultiLine);
-    doc.load(line_pool, gfx, time)?;
+    let mut doc = Doc::new(Some(path), &mut ctx.buffers.lines, None, DocKind::MultiLine);
+
+    doc.load(ctx, time)?;
 
     Ok(doc_list.add(doc))
 }
 
-pub fn confirm_close_all(
-    doc_list: &mut SlotList<Doc>,
-    reason: &str,
-    config: &Config,
-    line_pool: &mut LinePool,
-    gfx: &mut Gfx,
-    time: f32,
-) {
+pub fn confirm_close_all(doc_list: &mut SlotList<Doc>, reason: &str, ctx: &mut Ctx, time: f32) {
     for doc in doc_list.iter_mut().filter_map(|doc| doc.as_mut()) {
-        confirm_close(doc, reason, false, config, line_pool, gfx, time);
+        confirm_close(doc, reason, false, ctx, time);
     }
 }

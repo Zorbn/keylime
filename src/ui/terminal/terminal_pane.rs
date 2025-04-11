@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use crate::{
-    platform::window::Window,
+    ctx::Ctx,
     text::line_pool::LinePool,
     ui::{pane::Pane, slot_list::SlotList, widget::Widget, Ui},
 };
@@ -30,16 +30,15 @@ impl TerminalPane {
         &mut self,
         widget: &mut Widget,
         ui: &mut Ui,
-        window: &mut Window,
         term_list: &mut SlotList<Term>,
-        line_pool: &mut LinePool,
+        ctx: &mut Ctx,
     ) {
-        let mut action_handler = widget.get_action_handler(ui, window);
+        let mut action_handler = widget.get_action_handler(ui, ctx.window);
 
-        while let Some(action) = action_handler.next(window) {
+        while let Some(action) = action_handler.next(ctx.window) {
             match action {
                 action_name!(NewTab) => {
-                    let term = Self::new_term(line_pool);
+                    let term = Self::new_term(&mut ctx.buffers.lines);
                     let term_index = term_list.add(term);
 
                     self.add_tab(term_index, term_list);
@@ -51,15 +50,15 @@ impl TerminalPane {
                         self.remove_tab(term_list);
 
                         if let Some((mut docs, _)) = term_list.remove(term_index) {
-                            docs.clear(line_pool);
+                            docs.clear(&mut ctx.buffers.lines);
                         }
                     }
                 }
-                _ => action_handler.unprocessed(window, action),
+                _ => action_handler.unprocessed(ctx.window, action),
             }
         }
 
-        self.inner.update(widget, ui, window);
+        self.inner.update(widget, ui, ctx.window);
     }
 
     fn new_term(line_pool: &mut LinePool) -> Term {

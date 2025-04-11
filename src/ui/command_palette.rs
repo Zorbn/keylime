@@ -4,14 +4,13 @@ mod mode;
 pub mod search_mode;
 
 use crate::{
-    config::Config,
-    editor_buffers::EditorBuffers,
+    ctx::Ctx,
     geometry::{
         rect::Rect,
         side::{SIDE_ALL, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     },
     input::action::{action_keybind, action_name},
-    platform::{gfx::Gfx, window::Window},
+    platform::gfx::Gfx,
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
@@ -31,19 +30,6 @@ use file_mode::MODE_OPEN_FILE;
 use go_to_line_mode::MODE_GO_TO_LINE;
 use mode::{CommandPaletteEventArgs, CommandPaletteMode};
 use search_mode::{MODE_SEARCH, MODE_SEARCH_AND_REPLACE_START};
-
-macro_rules! temp_args {
-    ($args:ident) => {
-        CommandPaletteEventArgs {
-            pane: $args.pane,
-            doc_list: $args.doc_list,
-            config: $args.config,
-            line_pool: $args.line_pool,
-            gfx: $args.gfx,
-            time: $args.time,
-        }
-    };
-}
 
 #[derive(Clone, Copy)]
 pub enum CommandPaletteAction {
@@ -136,124 +122,115 @@ impl CommandPalette {
     pub fn update(
         &mut self,
         ui: &mut Ui,
-        window: &mut Window,
         editor: &mut Editor,
-        buffers: &mut EditorBuffers,
-        config: &Config,
-        gfx: &mut Gfx,
+        ctx: &mut Ctx,
         (time, dt): (f32, f32),
     ) {
-        if self.widget.is_visible && !self.widget.is_focused(ui, window) {
-            self.close(ui, &mut buffers.lines);
+        if self.widget.is_visible && !self.widget.is_focused(ui, ctx.window) {
+            self.close(ui, &mut ctx.buffers.lines);
         }
 
-        let args = CommandPaletteEventArgs::new(editor, buffers, config, gfx, time);
+        let mut global_action_handler = ctx.window.get_action_handler();
 
-        let mut global_action_handler = window.get_action_handler();
-
-        while let Some(action) = global_action_handler.next(window) {
-            let args = temp_args!(args);
-
+        while let Some(action) = global_action_handler.next(ctx.window) {
             match action {
                 action_name!(OpenCommandPalette) => {
-                    self.open(ui, MODE_OPEN_FILE, args);
+                    self.open(ui, MODE_OPEN_FILE, editor, ctx, time);
                 }
                 action_name!(OpenSearch) => {
-                    self.open(ui, MODE_SEARCH, args);
+                    self.open(ui, MODE_SEARCH, editor, ctx, time);
                 }
                 action_name!(OpenSearchAndReplace) => {
-                    self.open(ui, MODE_SEARCH_AND_REPLACE_START, args);
+                    self.open(ui, MODE_SEARCH_AND_REPLACE_START, editor, ctx, time);
                 }
                 action_name!(OpenGoToLine) => {
-                    self.open(ui, MODE_GO_TO_LINE, args);
+                    self.open(ui, MODE_GO_TO_LINE, editor, ctx, time);
                 }
-                _ => global_action_handler.unprocessed(window, action),
+                _ => global_action_handler.unprocessed(ctx.window, action),
             }
         }
 
-        let mut action_handler = self.widget.get_action_handler(ui, window);
+        let mut action_handler = self.widget.get_action_handler(ui, ctx.window);
 
-        while let Some(action) = action_handler.next(window) {
+        while let Some(action) = action_handler.next(ctx.window) {
             match action {
                 action_keybind!(key: Backspace) => {
                     let on_backspace = self.mode.on_backspace;
 
-                    if !(on_backspace)(self, temp_args!(args)) {
-                        action_handler.unprocessed(window, action);
+                    if !(on_backspace)(self, CommandPaletteEventArgs::new(editor, ctx, time)) {
+                        action_handler.unprocessed(ctx.window, action);
                     }
                 }
-                _ => action_handler.unprocessed(window, action),
+                _ => action_handler.unprocessed(ctx.window, action),
             }
         }
 
         self.result_list.do_allow_delete = self.doc.cursors_len() == 1
             && self.doc.get_cursor(CursorIndex::Main).position == self.doc.end();
 
-        let result_input = self
-            .result_list
-            .update(&mut self.widget, ui, window, true, true, dt);
+        let result_input =
+            self.result_list
+                .update(&mut self.widget, ui, ctx.window, true, true, dt);
 
         match result_input {
             ResultListInput::None => {}
-            ResultListInput::Complete => self.complete_result(args),
+            ResultListInput::Complete => self.complete_result(editor, ctx, time),
             ResultListInput::Submit { kind } => {
-                self.submit(ui, kind, args);
+                self.submit(ui, kind, editor, ctx, time);
             }
-            ResultListInput::Close => self.close(ui, args.line_pool),
+            ResultListInput::Close => self.close(ui, &mut ctx.buffers.lines),
         }
 
-        self.tab.update(
-            &mut self.widget,
-            ui,
-            window,
-            &mut self.doc,
-            buffers,
-            config,
-            gfx,
-            time,
-        );
+        self.tab
+            .update(&mut self.widget, ui, &mut self.doc, ctx, time);
 
         self.tab
-            .update_camera(&mut self.widget, ui, window, &self.doc, gfx, dt);
+            .update_camera(&mut self.widget, ui, &self.doc, ctx, dt);
 
-        let args = CommandPaletteEventArgs::new(editor, buffers, config, gfx, time);
-        self.update_results(args);
+        self.update_results(editor, ctx, time);
     }
 
-    fn submit(&mut self, ui: &mut Ui, kind: ResultListSubmitKind, args: CommandPaletteEventArgs) {
-        self.complete_result(temp_args!(args));
+    fn submit(
+        &mut self,
+        ui: &mut Ui,
+        kind: ResultListSubmitKind,
+        editor: &mut Editor,
+        ctx: &mut Ctx,
+        time: f32,
+    ) {
+        self.complete_result(editor, ctx, time);
 
         let on_submit = self.mode.on_submit;
-        let action = (on_submit)(self, temp_args!(args), kind);
+        let action = (on_submit)(self, CommandPaletteEventArgs::new(editor, ctx, time), kind);
 
         match action {
             CommandPaletteAction::Stay => {}
             CommandPaletteAction::Close | CommandPaletteAction::Open(_) => {
                 if self.mode.do_passthrough_result {
-                    for line in self.doc.drain(args.line_pool) {
+                    for line in self.doc.drain(&mut ctx.buffers.lines) {
                         self.previous_results.push(line);
                     }
                 } else {
                     self.previous_results.clear();
                 }
 
-                self.close(ui, args.line_pool);
+                self.close(ui, &mut ctx.buffers.lines);
             }
         }
 
         if let CommandPaletteAction::Open(mode) = action {
-            self.open(ui, mode, args);
+            self.open(ui, mode, editor, ctx, time);
         }
     }
 
-    fn complete_result(&mut self, args: CommandPaletteEventArgs) {
+    fn complete_result(&mut self, editor: &mut Editor, ctx: &mut Ctx, time: f32) {
         let on_complete_result = self.mode.on_complete_result;
-        (on_complete_result)(self, args);
+        (on_complete_result)(self, CommandPaletteEventArgs::new(editor, ctx, time));
 
         self.result_list.drain();
     }
 
-    fn update_results(&mut self, args: CommandPaletteEventArgs) {
+    fn update_results(&mut self, editor: &mut Editor, ctx: &mut Ctx, time: f32) {
         if Some(self.doc.version()) == self.last_updated_version {
             return;
         }
@@ -263,67 +240,69 @@ impl CommandPalette {
         self.result_list.drain();
 
         let on_update_results = self.mode.on_update_results;
-        (on_update_results)(self, args);
+        (on_update_results)(self, CommandPaletteEventArgs::new(editor, ctx, time));
     }
 
-    pub fn draw(&mut self, ui: &mut Ui, window: &mut Window, gfx: &mut Gfx, config: &Config) {
+    pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
         if !self.widget.is_visible {
             return;
         }
 
-        let is_focused = self.widget.is_focused(ui, window);
+        let is_focused = self.widget.is_focused(ui, ctx.window);
 
-        gfx.begin(Some(self.widget.bounds()));
+        ctx.gfx.begin(Some(self.widget.bounds()));
 
-        gfx.add_bordered_rect(
+        ctx.gfx.add_bordered_rect(
             self.input_bounds,
             SIDE_ALL,
-            config.theme.background,
-            config.theme.border,
+            ctx.config.theme.background,
+            ctx.config.theme.border,
         );
 
-        gfx.add_bordered_rect(
+        ctx.gfx.add_bordered_rect(
             self.title_bounds,
             SIDE_LEFT | SIDE_RIGHT | SIDE_TOP,
-            config.theme.background,
-            config.theme.border,
+            ctx.config.theme.background,
+            ctx.config.theme.border,
         );
 
-        gfx.add_rect(
-            self.title_bounds.top_border(gfx.border_width()),
-            config.theme.keyword,
+        ctx.gfx.add_rect(
+            self.title_bounds.top_border(ctx.gfx.border_width()),
+            ctx.config.theme.keyword,
         );
 
-        gfx.add_text(
+        ctx.gfx.add_text(
             self.mode.title,
-            gfx.glyph_width(),
-            gfx.border_width() + gfx.tab_padding_y(),
-            config.theme.normal,
+            ctx.gfx.glyph_width(),
+            ctx.gfx.border_width() + ctx.gfx.tab_padding_y(),
+            ctx.config.theme.normal,
         );
 
         let doc_bounds = self.tab.doc_bounds();
 
-        gfx.add_bordered_rect(
+        ctx.gfx.add_bordered_rect(
             doc_bounds
-                .add_margin(gfx.border_width())
+                .add_margin(ctx.gfx.border_width())
                 .unoffset_by(self.widget.bounds()),
             SIDE_ALL,
-            config.theme.background,
-            config.theme.border,
+            ctx.config.theme.background,
+            ctx.config.theme.border,
         );
 
-        gfx.end();
+        ctx.gfx.end();
 
-        self.tab.draw(None, &mut self.doc, config, gfx, is_focused);
+        self.tab.draw(None, &mut self.doc, ctx, is_focused);
 
-        self.result_list.draw(config, gfx, |result| result);
+        self.result_list.draw(ctx, |result| result);
     }
 
     pub fn open(
         &mut self,
         ui: &mut Ui,
         mode: &'static CommandPaletteMode,
-        args: CommandPaletteEventArgs,
+        editor: &mut Editor,
+        ctx: &mut Ctx,
+        time: f32,
     ) {
         self.last_updated_version = None;
         self.mode = mode;
@@ -331,9 +310,9 @@ impl CommandPalette {
         self.widget.is_visible = true;
 
         let on_open = self.mode.on_open;
-        (on_open)(self, temp_args!(args));
+        (on_open)(self, CommandPaletteEventArgs::new(editor, ctx, time));
 
-        self.update_results(temp_args!(args));
+        self.update_results(editor, ctx, time);
     }
 
     fn close(&mut self, ui: &mut Ui, line_pool: &mut LinePool) {

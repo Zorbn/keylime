@@ -33,7 +33,7 @@ fn on_submit_search(
     CommandPaletteEventArgs {
         pane,
         doc_list,
-        gfx,
+        ctx,
         ..
     }: CommandPaletteEventArgs,
     kind: ResultListSubmitKind,
@@ -60,7 +60,7 @@ fn on_submit_search(
         tab,
         doc,
         kind == ResultListSubmitKind::Alternate,
-        gfx,
+        ctx.gfx,
     );
 
     CommandPaletteAction::Stay
@@ -83,8 +83,7 @@ fn on_submit_search_and_replace_end(
     CommandPaletteEventArgs {
         pane,
         doc_list,
-        line_pool,
-        gfx,
+        ctx,
         time,
         ..
     }: CommandPaletteEventArgs,
@@ -122,12 +121,12 @@ fn on_submit_search_and_replace_end(
             }
 
             if has_match {
-                doc.insert_at_cursor(CursorIndex::Main, replace_term, line_pool, gfx, time);
+                doc.insert_at_cursor(CursorIndex::Main, replace_term, ctx, time);
 
-                let end = doc.move_position(start, replace_term.len() as isize, 0, gfx);
+                let end = doc.move_position(start, replace_term.len() as isize, 0, ctx.gfx);
 
-                doc.jump_cursor(CursorIndex::Main, start, false, gfx);
-                doc.jump_cursor(CursorIndex::Main, end, true, gfx);
+                doc.jump_cursor(CursorIndex::Main, start, false, ctx.gfx);
+                doc.jump_cursor(CursorIndex::Main, end, true, ctx.gfx);
 
                 return CommandPaletteAction::Stay;
             }
@@ -139,7 +138,7 @@ fn on_submit_search_and_replace_end(
         tab,
         doc,
         kind == ResultListSubmitKind::Alternate,
-        gfx,
+        ctx.gfx,
     );
 
     CommandPaletteAction::Stay

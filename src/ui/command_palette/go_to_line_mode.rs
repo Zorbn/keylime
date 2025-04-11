@@ -16,7 +16,7 @@ fn on_submit(
     CommandPaletteEventArgs {
         pane,
         doc_list,
-        gfx,
+        ctx,
         ..
     }: CommandPaletteEventArgs,
     kind: ResultListSubmitKind,
@@ -26,7 +26,6 @@ fn on_submit(
     }
 
     let focused_tab_index = pane.focused_tab_index();
-
     let line_text = command_palette.doc.to_string();
 
     let Ok(line) = str::parse::<usize>(&line_text) else {
@@ -37,7 +36,7 @@ fn on_submit(
         return CommandPaletteAction::Close;
     };
 
-    doc.jump_cursors(Position::new(0, line.saturating_sub(1)), false, gfx);
+    doc.jump_cursors(Position::new(0, line.saturating_sub(1)), false, ctx.gfx);
     tab.camera.recenter();
 
     CommandPaletteAction::Close

@@ -1,8 +1,6 @@
 use crate::{
-    config::Config,
-    editor_buffers::EditorBuffers,
-    platform::gfx::Gfx,
-    text::{doc::Doc, line_pool::LinePool},
+    ctx::Ctx,
+    text::doc::Doc,
     ui::{
         editor::{editor_pane::EditorPane, Editor},
         result_list::ResultListSubmitKind,
@@ -12,31 +10,25 @@ use crate::{
 
 use super::{CommandPalette, CommandPaletteAction};
 
-pub struct CommandPaletteEventArgs<'a> {
+pub struct CommandPaletteEventArgs<'a, 'b> {
     pub pane: &'a mut EditorPane,
     pub doc_list: &'a mut SlotList<Doc>,
-    pub config: &'a Config,
-    pub line_pool: &'a mut LinePool,
-    pub gfx: &'a mut Gfx,
+    pub ctx: &'a mut Ctx<'b>,
     pub time: f32,
 }
 
-impl<'a> CommandPaletteEventArgs<'a> {
+impl<'a, 'b> CommandPaletteEventArgs<'a, 'b> {
     pub fn new(
         editor: &'a mut Editor,
-        buffers: &'a mut EditorBuffers,
-        config: &'a Config,
-        gfx: &'a mut Gfx,
+        ctx: &'a mut Ctx<'b>,
         time: f32,
-    ) -> CommandPaletteEventArgs<'a> {
+    ) -> CommandPaletteEventArgs<'a, 'b> {
         let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
 
         CommandPaletteEventArgs {
             pane,
             doc_list,
-            config,
-            line_pool: &mut buffers.lines,
-            gfx,
+            ctx,
             time,
         }
     }

@@ -2,9 +2,10 @@ use std::path::Path;
 
 use crate::{
     config::{Config, ConfigError},
+    ctx::Ctx,
     editor_buffers::EditorBuffers,
     geometry::rect::Rect,
-    platform::{gfx::Gfx, pty::Pty, window::Window},
+    platform::{file_watcher::FileWatcher, gfx::Gfx, pty::Pty, window::Window},
     temp_buffer::{TempBuffer, TempString},
     text::line_pool::LinePool,
     ui::{command_palette::CommandPalette, editor::Editor, terminal::Terminal, Ui},
@@ -53,7 +54,13 @@ impl App {
         }
     }
 
-    pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, timestamp: (f32, f32)) {
+    pub fn update(
+        &mut self,
+        window: &mut Window,
+        gfx: &mut Gfx,
+        file_watcher: &mut FileWatcher,
+        timestamp: (f32, f32),
+    ) {
         if let Some(err) = window
             .was_shown()
             .then(|| self.config_error.take())
@@ -71,33 +78,20 @@ impl App {
             window,
         );
 
-        self.command_palette.update(
-            &mut self.ui,
+        let mut ctx = Ctx {
             window,
-            &mut self.editor,
-            &mut self.buffers,
-            &self.config,
             gfx,
-            timestamp,
-        );
+            config: &self.config,
+            buffers: &mut self.buffers,
+        };
 
-        self.terminal.update(
-            &mut self.ui,
-            window,
-            &mut self.buffers,
-            &self.config,
-            gfx,
-            timestamp,
-        );
+        self.command_palette
+            .update(&mut self.ui, &mut self.editor, &mut ctx, timestamp);
 
-        self.editor.update(
-            &mut self.ui,
-            window,
-            &mut self.buffers,
-            &self.config,
-            gfx,
-            timestamp,
-        );
+        self.terminal.update(&mut self.ui, &mut ctx, timestamp);
+
+        self.editor
+            .update(&mut self.ui, file_watcher, &mut ctx, timestamp);
     }
 
     pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx) {
@@ -112,17 +106,29 @@ impl App {
 
         gfx.begin_frame(self.config.theme.background);
 
-        self.terminal.draw(&mut self.ui, window, gfx, &self.config);
-        self.editor.draw(&mut self.ui, window, gfx, &self.config);
-        self.command_palette
-            .draw(&mut self.ui, window, gfx, &self.config);
+        let mut ctx = Ctx {
+            window,
+            gfx,
+            config: &self.config,
+            buffers: &mut self.buffers,
+        };
+
+        self.terminal.draw(&mut self.ui, &mut ctx);
+        self.editor.draw(&mut self.ui, &mut ctx);
+        self.command_palette.draw(&mut self.ui, &mut ctx);
 
         gfx.end_frame();
     }
 
-    pub fn close(&mut self, gfx: &mut Gfx, time: f32) {
-        self.editor
-            .on_close(&self.config, &mut self.buffers.lines, gfx, time);
+    pub fn close(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
+        let mut ctx = Ctx {
+            window,
+            gfx,
+            config: &self.config,
+            buffers: &mut self.buffers,
+        };
+
+        self.editor.on_close(&mut ctx, time);
     }
 
     pub fn config(&self) -> &Config {

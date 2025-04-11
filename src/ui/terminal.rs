@@ -3,10 +3,10 @@ use terminal_pane::TerminalPane;
 
 use crate::{
     config::Config,
-    editor_buffers::EditorBuffers,
+    ctx::Ctx,
     geometry::rect::Rect,
     input::action::action_name,
-    platform::{gfx::Gfx, pty::Pty, window::Window},
+    platform::{gfx::Gfx, pty::Pty},
     text::{
         doc::{Doc, DocKind},
         line_pool::LinePool,
@@ -79,37 +79,24 @@ impl Terminal {
         self.widget.layout(&[bounds]);
     }
 
-    pub fn update(
-        &mut self,
-        ui: &mut Ui,
-        window: &mut Window,
-        buffers: &mut EditorBuffers,
-        config: &Config,
-        gfx: &mut Gfx,
-        timestamp @ (time, _): (f32, f32),
-    ) {
-        let mut global_action_handler = window.get_action_handler();
+    pub fn update(&mut self, ui: &mut Ui, ctx: &mut Ctx, timestamp @ (time, _): (f32, f32)) {
+        let mut global_action_handler = ctx.window.get_action_handler();
 
-        while let Some(action) = global_action_handler.next(window) {
+        while let Some(action) = global_action_handler.next(ctx.window) {
             match action {
                 action_name!(FocusTerminal) => {
-                    if self.widget.is_focused(ui, window) {
+                    if self.widget.is_focused(ui, ctx.window) {
                         self.widget.release_focus(ui);
                     } else {
                         self.widget.take_focus(ui);
                     }
                 }
-                _ => global_action_handler.unprocessed(window, action),
+                _ => global_action_handler.unprocessed(ctx.window, action),
             }
         }
 
-        self.pane.update(
-            &mut self.widget,
-            ui,
-            window,
-            &mut self.term_list,
-            &mut buffers.lines,
-        );
+        self.pane
+            .update(&mut self.widget, ui, &mut self.term_list, ctx);
 
         let focused_tab_index = self.pane.focused_tab_index();
 
@@ -117,17 +104,7 @@ impl Terminal {
             .pane
             .get_tab_with_data_mut(focused_tab_index, &mut self.term_list)
         {
-            emulator.update_input(
-                &mut self.widget,
-                ui,
-                window,
-                docs,
-                tab,
-                buffers,
-                config,
-                gfx,
-                time,
-            );
+            emulator.update_input(&mut self.widget, ui, docs, tab, ctx, time);
         }
 
         for tab in &mut self.pane.tabs {
@@ -137,28 +114,17 @@ impl Terminal {
                 continue;
             };
 
-            emulator.update_output(
-                &mut self.widget,
-                ui,
-                window,
-                docs,
-                tab,
-                buffers,
-                config,
-                gfx,
-                timestamp,
-            );
+            emulator.update_output(&mut self.widget, ui, docs, tab, ctx, timestamp);
         }
     }
 
-    pub fn draw(&mut self, ui: &mut Ui, window: &mut Window, gfx: &mut Gfx, config: &Config) {
-        let is_focused = self.widget.is_focused(ui, window);
+    pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
+        let is_focused = self.widget.is_focused(ui, ctx.window);
 
         self.pane.draw(
-            Some(config.theme.terminal.background),
+            Some(ctx.config.theme.terminal.background),
             &mut self.term_list,
-            config,
-            gfx,
+            ctx,
             is_focused,
         );
     }

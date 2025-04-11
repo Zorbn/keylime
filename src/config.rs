@@ -211,6 +211,12 @@ impl Config {
             .and_then(|extension| self.get_language(extension))
     }
 
+    pub fn get_indent_width_for_doc(&self, doc: &Doc) -> IndentWidth {
+        self.get_language_for_doc(doc)
+            .map(|language| language.indent_width)
+            .unwrap_or_default()
+    }
+
     fn get_config_directory() -> PathBuf {
         if let Some(exe_dir) = current_exe().as_ref().ok().and_then(|exe| exe.parent()) {
             let mut config_path = exe_dir.to_owned();

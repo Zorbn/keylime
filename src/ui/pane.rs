@@ -1,5 +1,5 @@
 use crate::{
-    config::{theme::Theme, Config},
+    ctx::Ctx,
     geometry::{rect::Rect, visual_position::VisualPosition},
     input::{action::action_name, mouse_button::MouseButton, mousebind::Mousebind},
     platform::{gfx::Gfx, window::Window},
@@ -120,15 +120,14 @@ impl<T> Pane<T> {
         &mut self,
         widget: &mut Widget,
         ui: &mut Ui,
-        window: &mut Window,
         data_list: &mut SlotList<T>,
-        gfx: &mut Gfx,
+        ctx: &mut Ctx,
         dt: f32,
     ) {
         let get_doc = self.get_doc;
 
         if let Some((tab, data)) = self.get_tab_with_data_mut(self.focused_tab_index, data_list) {
-            tab.update_camera(widget, ui, window, get_doc(data), gfx, dt);
+            tab.update_camera(widget, ui, get_doc(data), ctx, dt);
         }
     }
 
@@ -136,26 +135,25 @@ impl<T> Pane<T> {
         &mut self,
         default_background: Option<Color>,
         data_list: &mut SlotList<T>,
-        config: &Config,
-        gfx: &mut Gfx,
+        ctx: &mut Ctx,
         is_focused: bool,
     ) {
-        let tab_height = gfx.tab_height();
+        let tab_height = ctx.gfx.tab_height();
 
-        gfx.begin(Some(self.bounds));
+        ctx.gfx.begin(Some(self.bounds));
 
-        gfx.add_rect(
+        ctx.gfx.add_rect(
             self.bounds
-                .left_border(gfx.border_width())
+                .left_border(ctx.gfx.border_width())
                 .unoffset_by(self.bounds),
-            config.theme.border,
+            ctx.config.theme.border,
         );
 
-        gfx.add_rect(
+        ctx.gfx.add_rect(
             self.bounds
-                .top_border(gfx.border_width())
+                .top_border(ctx.gfx.border_width())
                 .unoffset_by(self.bounds),
-            config.theme.border,
+            ctx.config.theme.border,
         );
 
         for i in 0..self.tabs.len() {
@@ -165,16 +163,16 @@ impl<T> Pane<T> {
                 continue;
             };
 
-            Self::draw_tab(tab, get_doc(data), self.bounds, &config.theme, gfx);
+            Self::draw_tab(tab, get_doc(data), self.bounds, ctx);
         }
 
         let focused_tab_bounds = if let Some(tab) = self.tabs.get(self.focused_tab_index) {
             let tab_bounds = tab.tab_bounds().unoffset_by(self.bounds);
 
             if is_focused {
-                gfx.add_rect(
-                    tab_bounds.top_border(gfx.border_width()),
-                    config.theme.keyword,
+                ctx.gfx.add_rect(
+                    tab_bounds.top_border(ctx.gfx.border_width()),
+                    ctx.config.theme.keyword,
                 );
             }
 
@@ -183,55 +181,58 @@ impl<T> Pane<T> {
             Rect::zero()
         };
 
-        gfx.add_rect(
+        ctx.gfx.add_rect(
             Rect::from_sides(
                 0.0,
-                tab_height - gfx.border_width(),
+                tab_height - ctx.gfx.border_width(),
                 focused_tab_bounds.x,
                 tab_height,
             ),
-            config.theme.border,
+            ctx.config.theme.border,
         );
 
-        gfx.add_rect(
+        ctx.gfx.add_rect(
             Rect::from_sides(
                 focused_tab_bounds.x + focused_tab_bounds.width,
-                tab_height - gfx.border_width(),
+                tab_height - ctx.gfx.border_width(),
                 self.bounds.width,
                 tab_height,
             ),
-            config.theme.border,
+            ctx.config.theme.border,
         );
 
-        gfx.end();
+        ctx.gfx.end();
 
         let get_doc_mut = self.get_doc_mut;
 
         if let Some((tab, data)) = self.get_tab_with_data_mut(self.focused_tab_index, data_list) {
-            tab.draw(
-                default_background,
-                get_doc_mut(data),
-                config,
-                gfx,
-                is_focused,
-            );
+            tab.draw(default_background, get_doc_mut(data), ctx, is_focused);
         }
     }
 
-    fn draw_tab(tab: &Tab, doc: &Doc, bounds: Rect, theme: &Theme, gfx: &mut Gfx) {
+    fn draw_tab(tab: &Tab, doc: &Doc, bounds: Rect, ctx: &mut Ctx) {
         let tab_bounds = tab.tab_bounds().unoffset_by(bounds);
 
-        gfx.add_rect(tab_bounds.left_border(gfx.border_width()), theme.border);
+        ctx.gfx.add_rect(
+            tab_bounds.left_border(ctx.gfx.border_width()),
+            ctx.config.theme.border,
+        );
 
-        let text_x = (tab_bounds.x + gfx.glyph_width() * 2.0).floor();
-        let text_y = gfx.border_width() + gfx.tab_padding_y();
-        let text_width = gfx.add_text(doc.file_name(), text_x, text_y, theme.normal);
+        let text_x = (tab_bounds.x + ctx.gfx.glyph_width() * 2.0).floor();
+        let text_y = ctx.gfx.border_width() + ctx.gfx.tab_padding_y();
+        let text_width = ctx
+            .gfx
+            .add_text(doc.file_name(), text_x, text_y, ctx.config.theme.normal);
 
         if !doc.is_saved() {
-            gfx.add_text("*", text_x + text_width, text_y, theme.symbol);
+            ctx.gfx
+                .add_text("*", text_x + text_width, text_y, ctx.config.theme.symbol);
         }
 
-        gfx.add_rect(tab_bounds.right_border(gfx.border_width()), theme.border);
+        ctx.gfx.add_rect(
+            tab_bounds.right_border(ctx.gfx.border_width()),
+            ctx.config.theme.border,
+        );
     }
 
     pub fn get_tab_with_data_mut<'a>(

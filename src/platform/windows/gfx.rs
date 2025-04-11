@@ -25,11 +25,12 @@ use crate::{
     platform::{
         aliases::AnyText,
         gfx::SpriteKind,
-        text::Text,
         text_cache::{AtlasDimensions, GlyphCacheResult, GlyphSpan, GlyphSpans},
     },
     ui::color::Color,
 };
+
+use super::text::Text;
 
 const SHADER_CODE: &str = r#"
 cbuffer constants : register(b0) {

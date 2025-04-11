@@ -2,9 +2,8 @@ use core::f32;
 use std::{iter::Enumerate, ops::Range};
 
 use crate::{
-    config::{language::Language, theme::Theme, Config},
+    ctx::Ctx,
     digits::get_digits,
-    editor_buffers::EditorBuffers,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
         editing_actions::{handle_action, handle_grapheme, handle_left_click},
@@ -12,7 +11,7 @@ use crate::{
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
-    platform::{gfx::Gfx, window::Window},
+    platform::gfx::Gfx,
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
@@ -95,45 +94,45 @@ impl Tab {
         &mut self,
         widget: &mut Widget,
         ui: &mut Ui,
-        window: &mut Window,
         doc: &mut Doc,
-        buffers: &mut EditorBuffers,
-        config: &Config,
-        gfx: &mut Gfx,
+        ctx: &mut Ctx,
         time: f32,
     ) {
-        let language = config.get_language_for_doc(doc);
-
         self.handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
 
-        let mut grapheme_handler = widget.get_grapheme_handler(ui, window);
+        let mut grapheme_handler = widget.get_grapheme_handler(ui, ctx.window);
 
-        while let Some(grapheme) = grapheme_handler.next(window) {
-            handle_grapheme(grapheme, doc, &mut buffers.lines, gfx, time);
+        while let Some(grapheme) = grapheme_handler.next(ctx.window) {
+            let mut text_buffer = ctx.buffers.text.take_mut();
+            text_buffer.push_str(grapheme);
+
+            handle_grapheme(&text_buffer, doc, ctx, time);
+
+            ctx.buffers.text.replace(text_buffer);
         }
 
-        let mut mousebind_handler = widget.get_mousebind_handler(ui, window);
+        let mut mousebind_handler = widget.get_mousebind_handler(ui, ctx.window);
 
-        while let Some(mousebind) = mousebind_handler.next(window) {
+        while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
 
             if !self
                 .doc_bounds
                 .contains_position(VisualPosition::new(mousebind.x, mousebind.y))
             {
-                mousebind_handler.unprocessed(window, mousebind);
+                mousebind_handler.unprocessed(ctx.window, mousebind);
                 continue;
             }
 
             // The mouse position is shifted over by half
             // a glyph to make the cursor line up with the mouse.
             let visual_position = VisualPosition::new(
-                visual_position.x + gfx.glyph_width() / 2.0,
+                visual_position.x + ctx.gfx.glyph_width() / 2.0,
                 visual_position.y,
             )
             .unoffset_by(self.doc_bounds);
 
-            let position = doc.visual_to_position(visual_position, self.camera.position(), gfx);
+            let position = doc.visual_to_position(visual_position, self.camera.position(), ctx.gfx);
 
             match mousebind {
                 Mousebind {
@@ -143,7 +142,7 @@ impl Tab {
                     is_drag,
                     ..
                 } => {
-                    handle_left_click(doc, position, mousebind.mods, kind, is_drag, gfx);
+                    handle_left_click(doc, position, mousebind.mods, kind, is_drag, ctx.gfx);
                     self.handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
                 }
                 Mousebind {
@@ -152,19 +151,19 @@ impl Tab {
                     is_drag: false,
                     ..
                 } => {
-                    doc.add_cursor(position, gfx);
+                    doc.add_cursor(position, ctx.gfx);
                 }
-                _ => mousebind_handler.unprocessed(window, mousebind),
+                _ => mousebind_handler.unprocessed(ctx.window, mousebind),
             }
         }
 
-        let mut action_handler = widget.get_action_handler(ui, window);
+        let mut action_handler = widget.get_action_handler(ui, ctx.window);
 
-        while let Some(action) = action_handler.next(window) {
-            let was_handled = handle_action(action, window, doc, language, buffers, gfx, time);
+        while let Some(action) = action_handler.next(ctx.window) {
+            let was_handled = handle_action(action, doc, ctx, time);
 
             if !was_handled {
-                action_handler.unprocessed(window, action);
+                action_handler.unprocessed(ctx.window, action);
             }
         }
 
@@ -176,22 +175,21 @@ impl Tab {
         &mut self,
         widget: &mut Widget,
         ui: &mut Ui,
-        window: &mut Window,
         doc: &Doc,
-        gfx: &mut Gfx,
+        ctx: &mut Ctx,
         dt: f32,
     ) {
-        let mut mouse_scroll_handler = widget.get_mouse_scroll_handler(ui, window);
+        let mut mouse_scroll_handler = widget.get_mouse_scroll_handler(ui, ctx.window);
 
-        while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
+        while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
 
             if !self.doc_bounds.contains_position(position) {
-                mouse_scroll_handler.unprocessed(window, mouse_scroll);
+                mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
                 continue;
             }
 
-            let delta = mouse_scroll.delta * gfx.line_height();
+            let delta = mouse_scroll.delta * ctx.gfx.line_height();
 
             if mouse_scroll.is_horizontal {
                 self.camera.vertical.reset_velocity();
@@ -204,8 +202,8 @@ impl Tab {
             }
         }
 
-        self.update_camera_vertical(doc, gfx, dt);
-        self.update_camera_horizontal(doc, gfx, dt);
+        self.update_camera_vertical(doc, ctx.gfx, dt);
+        self.update_camera_horizontal(doc, ctx.gfx, dt);
     }
 
     fn update_camera_vertical(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
@@ -274,22 +272,22 @@ impl Tab {
         &mut self,
         default_background: Option<Color>,
         doc: &mut Doc,
-        config: &Config,
-        gfx: &mut Gfx,
+        ctx: &mut Ctx,
         is_focused: bool,
     ) {
-        let language = config.get_language_for_doc(doc);
+        let language = ctx.config.get_language_for_doc(doc);
 
         if let Some(syntax) = language.and_then(|language| language.syntax.as_ref()) {
-            doc.update_highlights(self.camera.position(), self.doc_bounds, syntax, gfx);
+            doc.update_highlights(self.camera.position(), self.doc_bounds, syntax, ctx.gfx);
         }
 
         let camera_position = self.camera.position().floor();
 
-        let min_y = (camera_position.y / gfx.line_height()) as usize;
-        let sub_line_offset_y = camera_position.y - min_y as f32 * gfx.line_height();
+        let min_y = (camera_position.y / ctx.gfx.line_height()) as usize;
+        let sub_line_offset_y = camera_position.y - min_y as f32 * ctx.gfx.line_height();
 
-        let max_y = ((camera_position.y + self.doc_bounds.height) / gfx.line_height()) as usize + 1;
+        let max_y =
+            ((camera_position.y + self.doc_bounds.height) / ctx.gfx.line_height()) as usize + 1;
         let max_y = max_y.min(doc.lines().len());
 
         let visible_lines = VisibleLines {
@@ -299,57 +297,35 @@ impl Tab {
         };
 
         if doc.kind() == DocKind::MultiLine {
-            gfx.begin(Some(self.gutter_bounds));
+            ctx.gfx.begin(Some(self.gutter_bounds));
 
-            self.draw_gutter(doc, &config.theme, gfx, visible_lines, is_focused);
+            self.draw_gutter(doc, visible_lines, is_focused, ctx);
 
-            gfx.end();
+            ctx.gfx.end();
         }
 
-        gfx.begin(Some(self.doc_bounds));
+        ctx.gfx.begin(Some(self.doc_bounds));
 
         if let Some(default_background) = default_background {
-            gfx.add_rect(
+            ctx.gfx.add_rect(
                 self.doc_bounds.unoffset_by(self.doc_bounds),
                 default_background,
             );
         }
 
-        self.draw_indent_guides(
-            doc,
-            language,
-            &config.theme,
-            gfx,
-            camera_position,
-            visible_lines,
-        );
-        self.draw_lines(
-            default_background,
-            doc,
-            &config.theme,
-            gfx,
-            camera_position,
-            visible_lines,
-        );
-        self.draw_cursors(
-            doc,
-            &config.theme,
-            gfx,
-            is_focused,
-            camera_position,
-            visible_lines,
-        );
+        self.draw_indent_guides(doc, camera_position, visible_lines, ctx);
+        self.draw_lines(default_background, doc, camera_position, visible_lines, ctx);
+        self.draw_cursors(doc, is_focused, camera_position, visible_lines, ctx);
 
-        gfx.end();
+        ctx.gfx.end();
     }
 
     fn draw_gutter(
         &mut self,
         doc: &Doc,
-        theme: &Theme,
-        gfx: &mut Gfx,
         visible_lines: VisibleLines,
         is_focused: bool,
+        ctx: &mut Ctx,
     ) {
         let cursor_y = doc.get_cursor(CursorIndex::Main).position.y;
 
@@ -357,40 +333,39 @@ impl Tab {
 
         for (i, y) in visible_lines.enumerate() {
             let digits = get_digits(y + 1, &mut digits);
-            let visual_y = Self::get_line_foreground_visual_y(i, visible_lines.offset, gfx);
+            let visual_y = Self::get_line_foreground_visual_y(i, visible_lines.offset, ctx.gfx);
 
-            let width = digits.len() as f32 * gfx.glyph_width();
+            let width = digits.len() as f32 * ctx.gfx.glyph_width();
             let visual_x = self.gutter_bounds.width
                 - width
-                - (GUTTER_PADDING_WIDTH + GUTTER_BORDER_WIDTH) * gfx.glyph_width();
+                - (GUTTER_PADDING_WIDTH + GUTTER_BORDER_WIDTH) * ctx.gfx.glyph_width();
 
             let color = if is_focused && y == cursor_y {
-                theme.normal
+                ctx.config.theme.normal
             } else {
-                theme.line_number
+                ctx.config.theme.line_number
             };
 
-            gfx.add_text(digits, visual_x, visual_y, color);
+            ctx.gfx.add_text(digits, visual_x, visual_y, color);
         }
 
-        gfx.add_rect(
+        ctx.gfx.add_rect(
             self.gutter_bounds
                 .unoffset_by(self.gutter_bounds)
-                .right_border(gfx.border_width()),
-            theme.border,
+                .right_border(ctx.gfx.border_width()),
+            ctx.config.theme.border,
         );
     }
 
     fn draw_indent_guides(
         &mut self,
         doc: &Doc,
-        language: Option<&Language>,
-        theme: &Theme,
-        gfx: &mut Gfx,
         camera_position: VisualPosition,
         visible_lines: VisibleLines,
+        ctx: &mut Ctx,
     ) {
-        let indent_width = language.map(|language| language.indent_width.measure(gfx));
+        let language = ctx.config.get_language_for_doc(doc);
+        let indent_width = language.map(|language| language.indent_width.measure(ctx.gfx));
 
         let Some(indent_width) = indent_width else {
             return;
@@ -400,23 +375,23 @@ impl Tab {
 
         for (i, y) in visible_lines.enumerate() {
             let background_visual_y =
-                Self::get_line_background_visual_y(i, visible_lines.offset, gfx);
+                Self::get_line_background_visual_y(i, visible_lines.offset, ctx.gfx);
 
             if !doc.is_line_whitespace(y) {
                 indent_guide_x = doc.get_line_start(y)
             };
 
             for x in (indent_width..indent_guide_x).step_by(indent_width) {
-                let visual_x = gfx.glyph_width() * x as f32 - camera_position.x;
+                let visual_x = ctx.gfx.glyph_width() * x as f32 - camera_position.x;
 
-                gfx.add_rect(
+                ctx.gfx.add_rect(
                     Rect::new(
                         visual_x,
                         background_visual_y,
-                        gfx.border_width(),
-                        gfx.line_height(),
+                        ctx.gfx.border_width(),
+                        ctx.gfx.line_height(),
                     ),
-                    theme.border,
+                    ctx.config.theme.border,
                 );
             }
         }
@@ -426,10 +401,9 @@ impl Tab {
         &mut self,
         default_background: Option<Color>,
         doc: &Doc,
-        theme: &Theme,
-        gfx: &mut Gfx,
         camera_position: VisualPosition,
         visible_lines: VisibleLines,
+        ctx: &mut Ctx,
     ) {
         let lines = doc.lines();
         let highlighted_lines = doc.highlighted_lines();
@@ -437,14 +411,19 @@ impl Tab {
         for (i, y) in visible_lines.enumerate() {
             let line = &lines[y];
             let foreground_visual_y =
-                Self::get_line_foreground_visual_y(i, visible_lines.offset, gfx);
+                Self::get_line_foreground_visual_y(i, visible_lines.offset, ctx.gfx);
             let background_visual_y =
-                Self::get_line_background_visual_y(i, visible_lines.offset, gfx);
+                Self::get_line_background_visual_y(i, visible_lines.offset, ctx.gfx);
 
             if y >= highlighted_lines.len() {
                 let visual_x = -camera_position.x;
 
-                gfx.add_text(&line[..], visual_x, foreground_visual_y, theme.normal);
+                ctx.gfx.add_text(
+                    &line[..],
+                    visual_x,
+                    foreground_visual_y,
+                    ctx.config.theme.normal,
+                );
 
                 continue;
             }
@@ -454,14 +433,20 @@ impl Tab {
 
             for highlight in highlighted_line.highlights() {
                 let visual_x = x - camera_position.x;
-                let foreground = theme.highlight_kind_to_color(highlight.foreground);
+                let foreground = ctx
+                    .config
+                    .theme
+                    .highlight_kind_to_color(highlight.foreground);
                 let highlighted_text = &line[highlight.start..highlight.end];
 
                 if let Some(highlight_background) = highlight.background {
-                    let background = theme.highlight_kind_to_color(highlight_background);
+                    let background = ctx
+                        .config
+                        .theme
+                        .highlight_kind_to_color(highlight_background);
 
                     if Some(background) != default_background {
-                        gfx.add_background(
+                        ctx.gfx.add_background(
                             highlighted_text,
                             visual_x,
                             background_visual_y,
@@ -470,7 +455,9 @@ impl Tab {
                     }
                 }
 
-                x += gfx.add_text(highlighted_text, visual_x, foreground_visual_y, foreground);
+                x += ctx
+                    .gfx
+                    .add_text(highlighted_text, visual_x, foreground_visual_y, foreground);
             }
         }
     }
@@ -478,11 +465,10 @@ impl Tab {
     fn draw_cursors(
         &mut self,
         doc: &Doc,
-        theme: &Theme,
-        gfx: &mut Gfx,
         is_focused: bool,
         camera_position: VisualPosition,
         visible_lines: VisibleLines,
+        ctx: &mut Ctx,
     ) {
         for index in doc.cursor_indices() {
             let Some(selection) = doc.get_cursor(index).get_selection() else {
@@ -494,43 +480,43 @@ impl Tab {
             let mut position = start;
 
             while position < end {
-                let highlight_position = doc.position_to_visual(position, camera_position, gfx);
+                let highlight_position = doc.position_to_visual(position, camera_position, ctx.gfx);
 
                 let grapheme = doc.get_grapheme(position);
-                let grapheme_width = gfx.measure_text(grapheme);
+                let grapheme_width = ctx.gfx.measure_text(grapheme);
 
-                gfx.add_rect(
+                ctx.gfx.add_rect(
                     Rect::new(
                         highlight_position.x,
                         highlight_position.y,
-                        grapheme_width as f32 * gfx.glyph_width(),
-                        gfx.line_height(),
+                        grapheme_width as f32 * ctx.gfx.glyph_width(),
+                        ctx.gfx.line_height(),
                     ),
-                    theme.selection,
+                    ctx.config.theme.selection,
                 );
 
-                position = doc.move_position(position, 1, 0, gfx);
+                position = doc.move_position(position, 1, 0, ctx.gfx);
             }
         }
 
         if is_focused {
-            let cursor_width = (gfx.glyph_width() * 0.25).ceil();
+            let cursor_width = (ctx.gfx.glyph_width() * 0.25).ceil();
 
             for index in doc.cursor_indices() {
                 let cursor_position = doc.position_to_visual(
                     doc.get_cursor(index).position,
                     VisualPosition::new(0.0, camera_position.y),
-                    gfx,
+                    ctx.gfx,
                 );
 
-                gfx.add_rect(
+                ctx.gfx.add_rect(
                     Rect::new(
                         (cursor_position.x - cursor_width / 2.0).max(0.0) - camera_position.x,
                         cursor_position.y,
                         cursor_width,
-                        gfx.line_height(),
+                        ctx.gfx.line_height(),
                     ),
-                    theme.normal,
+                    ctx.config.theme.normal,
                 );
             }
         }

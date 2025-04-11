@@ -52,7 +52,7 @@ use crate::{
         mousebind::{MouseClickKind, Mousebind},
     },
     platform::aliases::{AnyFileWatcher, AnyGfx, AnyPty, AnyWindow},
-    temp_buffer::{TempBuffer, TempString},
+    temp_buffer::TempBuffer,
     text::grapheme::GraphemeCursor,
 };
 
@@ -65,6 +65,7 @@ const DEFAULT_HEIGHT: i32 = 480;
 pub struct WindowRunner {
     window: ManuallyDrop<AnyWindow>,
     gfx: Option<AnyGfx>,
+    file_watcher: AnyFileWatcher,
     app: ManuallyDrop<App>,
 }
 
@@ -77,6 +78,9 @@ impl WindowRunner {
                 inner: Window::new()?,
             }),
             gfx: None,
+            file_watcher: AnyFileWatcher {
+                inner: FileWatcher::new(),
+            },
             app: ManuallyDrop::new(app),
         });
 
@@ -128,29 +132,33 @@ impl WindowRunner {
 
     pub fn run(&mut self) {
         let WindowRunner {
-            window, gfx, app, ..
+            window,
+            gfx,
+            file_watcher,
+            app,
+            ..
         } = self;
 
         while window.inner.is_running() {
             let is_animating = app.is_animating();
 
             let (files, ptys) = app.files_and_ptys();
-            window.inner.update(is_animating, files, ptys);
+            window.inner.update(is_animating, file_watcher, files, ptys);
 
             let Some(gfx) = gfx else {
                 continue;
             };
 
             let timestamp = window.inner.get_time(is_animating);
-            app.update(window, gfx, timestamp);
 
+            app.update(window, gfx, file_watcher, timestamp);
             app.draw(window, gfx);
         }
 
         let time = window.inner.time;
 
         if let Some(gfx) = gfx {
-            app.close(gfx, time);
+            app.close(window, gfx, time);
         }
     }
 
@@ -282,7 +290,6 @@ pub struct Window {
     hwnd: HWND,
 
     wait_handles: Vec<HANDLE>,
-    file_watcher: AnyFileWatcher,
 
     is_running: bool,
     is_focused: bool,
@@ -293,7 +300,6 @@ pub struct Window {
     height: i32,
 
     wide_text_buffer: TempBuffer<u16>,
-    text_buffer: TempString,
 
     // Keep track of which mouse buttons have been pressed since the window was
     // last focused, so that we can skip stray mouse drag events that may happen
@@ -332,9 +338,6 @@ impl Window {
             hwnd: HWND(null_mut()),
 
             wait_handles: Vec::new(),
-            file_watcher: AnyFileWatcher {
-                inner: FileWatcher::new(),
-            },
 
             is_running: true,
             is_focused: false,
@@ -345,7 +348,6 @@ impl Window {
             height: DEFAULT_HEIGHT,
 
             wide_text_buffer: TempBuffer::new(),
-            text_buffer: TempString::new(),
 
             draggable_buttons: HashSet::new(),
             current_click: None,
@@ -398,11 +400,12 @@ impl Window {
     pub fn update<'a>(
         &mut self,
         is_animating: bool,
+        file_watcher: &mut AnyFileWatcher,
         files: impl Iterator<Item = &'a Path>,
         ptys: impl Iterator<Item = &'a mut AnyPty>,
     ) {
         self.clear_inputs();
-        self.file_watcher.inner.update(files).unwrap();
+        file_watcher.inner.update(files).unwrap();
 
         unsafe {
             let mut msg = MSG::default();
@@ -418,7 +421,7 @@ impl Window {
                 let dir_handles_start = self.wait_handles.len();
 
                 self.wait_handles.extend(
-                    self.file_watcher
+                    file_watcher
                         .inner
                         .dir_watch_handles()
                         .iter()
@@ -435,14 +438,14 @@ impl Window {
                 let index = (result.0 - WAIT_OBJECT_0.0) as usize;
 
                 if index >= dir_handles_start && index < self.wait_handles.len() {
-                    self.file_watcher
+                    file_watcher
                         .inner
                         .handle_dir_update(index - dir_handles_start)
                         .unwrap();
                 }
             }
 
-            self.file_watcher.inner.check_dir_updates().unwrap();
+            file_watcher.inner.check_dir_updates().unwrap();
 
             while PeekMessageW(&mut msg, Some(self.hwnd), 0, 0, PM_REMOVE).as_bool() {
                 let _ = TranslateMessage(&msg);
@@ -461,10 +464,6 @@ impl Window {
 
     pub fn hwnd(&self) -> HWND {
         self.hwnd
-    }
-
-    pub fn file_watcher(&mut self) -> &mut AnyFileWatcher {
-        &mut self.file_watcher
     }
 
     pub fn get_grapheme_handler(&self) -> GraphemeHandler {
@@ -528,8 +527,7 @@ impl Window {
         Ok(())
     }
 
-    pub fn get_clipboard(&mut self) -> Result<&str> {
-        let text_buffer = self.text_buffer.get_mut();
+    pub fn get_clipboard(&mut self, text: &mut String) -> Result<()> {
         let wide_text_buffer = self.wide_text_buffer.get_mut();
 
         unsafe {
@@ -566,10 +564,10 @@ impl Window {
                 continue;
             }
 
-            text_buffer.push(c);
+            text.push(c);
         }
 
-        Ok(text_buffer)
+        Ok(())
     }
 
     pub fn was_copy_implicit(&self) -> bool {

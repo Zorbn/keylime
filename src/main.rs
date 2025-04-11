@@ -1,5 +1,6 @@
 mod app;
 mod config;
+mod ctx;
 mod digits;
 mod editor_buffers;
 mod geometry;

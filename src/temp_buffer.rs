@@ -1,33 +1,63 @@
 pub struct TempBuffer<T> {
-    data: Vec<T>,
+    data: Option<Vec<T>>,
 }
 
 impl<T> TempBuffer<T> {
     pub fn new() -> Self {
-        Self { data: Vec::new() }
+        Self {
+            data: Some(Vec::new()),
+        }
     }
 
     pub fn get_mut(&mut self) -> &mut Vec<T> {
-        self.data.clear();
+        let data = self.data.as_mut().unwrap();
+        data.clear();
 
-        &mut self.data
+        data
+    }
+
+    pub fn take_mut(&mut self) -> Vec<T> {
+        let mut data = self.data.take().unwrap();
+        data.clear();
+
+        data
+    }
+
+    pub fn replace(&mut self, data: Vec<T>) {
+        assert!(self.data.is_none());
+
+        self.data = Some(data);
     }
 }
 
 pub struct TempString {
-    data: String,
+    data: Option<String>,
 }
 
 impl TempString {
     pub fn new() -> Self {
         Self {
-            data: String::new(),
+            data: Some(String::new()),
         }
     }
 
     pub fn get_mut(&mut self) -> &mut String {
-        self.data.clear();
+        let data = self.data.as_mut().unwrap();
+        data.clear();
 
-        &mut self.data
+        data
+    }
+
+    pub fn take_mut(&mut self) -> String {
+        let mut data = self.data.take().unwrap();
+        data.clear();
+
+        data
+    }
+
+    pub fn replace(&mut self, data: String) {
+        assert!(self.data.is_none());
+
+        self.data = Some(data);
     }
 }

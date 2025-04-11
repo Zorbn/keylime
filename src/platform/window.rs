@@ -9,7 +9,7 @@ use crate::{
     text::grapheme::GraphemeCursor,
 };
 
-use super::{file_watcher::FileWatcher, platform_impl, result::Result};
+use super::{platform_impl, result::Result};
 
 pub struct WindowRunner {
     inner: Box<platform_impl::window::WindowRunner>,
@@ -42,10 +42,6 @@ impl Window {
 
         #[cfg(target_os = "macos")]
         self.inner.was_shown
-    }
-
-    pub fn file_watcher(&mut self) -> &mut FileWatcher {
-        self.inner.file_watcher()
     }
 
     pub fn get_grapheme_handler(&self) -> GraphemeHandler {
@@ -84,8 +80,8 @@ impl Window {
         self.inner.set_clipboard(text, was_copy_implicit)
     }
 
-    pub fn get_clipboard(&mut self) -> Result<&str> {
-        self.inner.get_clipboard()
+    pub fn get_clipboard(&mut self, text: &mut String) -> Result<()> {
+        self.inner.get_clipboard(text)
     }
 
     pub fn was_copy_implicit(&self) -> bool {

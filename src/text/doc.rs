@@ -8,8 +8,7 @@ use std::{
 };
 
 use crate::{
-    config::language::IndentWidth,
-    editor_buffers::EditorBuffers,
+    ctx::Ctx,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     platform::gfx::Gfx,
     temp_buffer::TempString,
@@ -432,26 +431,12 @@ impl Doc {
         self.get_line_start(y) == self.get_line_len(y)
     }
 
-    pub fn comment_line(
-        &mut self,
-        comment: &str,
-        position: Position,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
-        time: f32,
-    ) {
-        self.insert(position, " ", line_pool, gfx, time);
-        self.insert(position, comment, line_pool, gfx, time);
+    pub fn comment_line(&mut self, comment: &str, position: Position, ctx: &mut Ctx, time: f32) {
+        self.insert(position, " ", ctx, time);
+        self.insert(position, comment, ctx, time);
     }
 
-    pub fn uncomment_line(
-        &mut self,
-        comment: &str,
-        y: usize,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
-        time: f32,
-    ) -> bool {
+    pub fn uncomment_line(&mut self, comment: &str, y: usize, ctx: &mut Ctx, time: f32) -> bool {
         if !self.is_line_commented(comment, y) {
             return false;
         }
@@ -459,12 +444,12 @@ impl Doc {
         let start = Position::new(self.get_line_start(y), y);
         let end = Position::new(start.x + comment.len(), y);
 
-        self.delete(start, end, line_pool, gfx, time);
+        self.delete(start, end, ctx, time);
 
         if self.get_grapheme(start) == " " {
-            let end = self.move_position(start, 1, 0, gfx);
+            let end = self.move_position(start, 1, 0, ctx.gfx);
 
-            self.delete(start, end, line_pool, gfx, time);
+            self.delete(start, end, ctx, time);
         }
 
         true
@@ -499,13 +484,13 @@ impl Doc {
         true
     }
 
-    pub fn toggle_comments_at_cursors(
-        &mut self,
-        comment: &str,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
-        time: f32,
-    ) {
+    pub fn toggle_comments_at_cursors(&mut self, ctx: &mut Ctx, time: f32) {
+        let Some(language) = ctx.config.get_language_for_doc(self) else {
+            return;
+        };
+
+        let comment = &language.comment;
+
         for index in self.cursor_indices() {
             let cursor = self.get_cursor(index);
 
@@ -526,9 +511,7 @@ impl Doc {
                 }
 
                 min_comment_x = min_comment_x.min(self.get_line_start(y));
-
-                did_uncomment =
-                    self.uncomment_line(comment, y, line_pool, gfx, time) || did_uncomment;
+                did_uncomment = self.uncomment_line(comment, y, ctx, time) || did_uncomment;
             }
 
             if did_uncomment {
@@ -540,13 +523,7 @@ impl Doc {
                     continue;
                 }
 
-                self.comment_line(
-                    comment,
-                    Position::new(min_comment_x, y),
-                    line_pool,
-                    gfx,
-                    time,
-                );
+                self.comment_line(comment, Position::new(min_comment_x, y), ctx, time);
             }
         }
     }
@@ -554,10 +531,8 @@ impl Doc {
     pub fn indent_lines_at_cursor(
         &mut self,
         index: CursorIndex,
-        indent_width: IndentWidth,
         do_unindent: bool,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
+        ctx: &mut Ctx,
         time: f32,
     ) {
         let cursor = self.get_cursor(index);
@@ -578,86 +553,48 @@ impl Doc {
             }
 
             if do_unindent {
-                self.unindent_line(y, indent_width, line_pool, gfx, time);
+                self.unindent_line(y, ctx, time);
             } else {
-                self.indent_line(y, indent_width, line_pool, gfx, time);
+                self.indent_line(y, ctx, time);
             }
         }
     }
 
-    pub fn indent_lines_at_cursors(
-        &mut self,
-        indent_width: IndentWidth,
-        do_unindent: bool,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
-        time: f32,
-    ) {
+    pub fn indent_lines_at_cursors(&mut self, do_unindent: bool, ctx: &mut Ctx, time: f32) {
         for index in self.cursor_indices() {
-            self.indent_lines_at_cursor(index, indent_width, do_unindent, line_pool, gfx, time);
+            self.indent_lines_at_cursor(index, do_unindent, ctx, time);
         }
     }
 
-    fn indent_line(
-        &mut self,
-        y: usize,
-        indent_width: IndentWidth,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
-        time: f32,
-    ) {
-        self.indent(Position::new(0, y), indent_width, line_pool, gfx, time);
+    fn indent_line(&mut self, y: usize, ctx: &mut Ctx, time: f32) {
+        self.indent(Position::new(0, y), ctx, time);
     }
 
-    fn unindent_line(
-        &mut self,
-        y: usize,
-        indent_width: IndentWidth,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
-        time: f32,
-    ) {
+    fn unindent_line(&mut self, y: usize, ctx: &mut Ctx, time: f32) {
         let end = Position::new(self.get_line_start(y), y);
 
-        self.unindent(end, indent_width, line_pool, gfx, time);
+        self.unindent(end, ctx, time);
     }
 
-    fn indent(
-        &mut self,
-        mut start: Position,
-        indent_width: IndentWidth,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
-        time: f32,
-    ) {
+    fn indent(&mut self, mut start: Position, ctx: &mut Ctx, time: f32) {
+        let indent_width = ctx.config.get_indent_width_for_doc(self);
         let grapheme = indent_width.grapheme();
 
         for _ in 0..indent_width.grapheme_count() {
-            self.insert(start, grapheme, line_pool, gfx, time);
-            start = self.move_position(start, 1, 0, gfx);
+            self.insert(start, grapheme, ctx, time);
+            start = self.move_position(start, 1, 0, ctx.gfx);
         }
     }
 
-    fn unindent(
-        &mut self,
-        end: Position,
-        indent_width: IndentWidth,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
-        time: f32,
-    ) {
-        let start = self.get_indent_start(end, indent_width, gfx);
-
-        self.delete(start, end, line_pool, gfx, time);
+    fn unindent(&mut self, end: Position, ctx: &mut Ctx, time: f32) {
+        let start = self.get_indent_start(end, ctx);
+        self.delete(start, end, ctx, time);
     }
 
-    pub fn get_indent_start(
-        &mut self,
-        end: Position,
-        indent_width: IndentWidth,
-        gfx: &mut Gfx,
-    ) -> Position {
-        let mut start = self.move_position(end, -1, 0, gfx);
+    pub fn get_indent_start(&mut self, end: Position, ctx: &mut Ctx) -> Position {
+        let indent_width = ctx.config.get_indent_width_for_doc(self);
+
+        let mut start = self.move_position(end, -1, 0, ctx.gfx);
         let start_grapheme = self.get_grapheme(start);
 
         match start_grapheme {
@@ -665,7 +602,7 @@ impl Doc {
                 let indent_width = (end.x - 1) % indent_width.grapheme_count() + 1;
 
                 for _ in 1..indent_width {
-                    let next_start = self.move_position(start, -1, 0, gfx);
+                    let next_start = self.move_position(start, -1, 0, ctx.gfx);
 
                     if self.get_grapheme(next_start) != " " {
                         break;
@@ -681,27 +618,14 @@ impl Doc {
         }
     }
 
-    pub fn indent_at_cursor(
-        &mut self,
-        index: CursorIndex,
-        indent_width: IndentWidth,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
-        time: f32,
-    ) {
+    pub fn indent_at_cursor(&mut self, index: CursorIndex, ctx: &mut Ctx, time: f32) {
         let start = self.get_cursor(index).position;
-        self.indent(start, indent_width, line_pool, gfx, time);
+        self.indent(start, ctx, time);
     }
 
-    pub fn indent_at_cursors(
-        &mut self,
-        indent_width: IndentWidth,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
-        time: f32,
-    ) {
+    pub fn indent_at_cursors(&mut self, ctx: &mut Ctx, time: f32) {
         for index in self.cursor_indices() {
-            self.indent_at_cursor(index, indent_width, line_pool, gfx, time);
+            self.indent_at_cursor(index, ctx, time);
         }
     }
 
@@ -984,7 +908,7 @@ impl Doc {
         }
     }
 
-    pub fn undo(&mut self, line_pool: &mut LinePool, action_kind: ActionKind, gfx: &mut Gfx) {
+    pub fn undo(&mut self, action_kind: ActionKind, ctx: &mut Ctx) {
         let mut last_popped_time = None;
         let mut were_cursors_reset = false;
 
@@ -1013,7 +937,7 @@ impl Doc {
                     cursor.selection_anchor = selection_anchor;
 
                     self.cursors[index] = cursor;
-                    self.update_cursor_desired_visual_x(CursorIndex::Some(index), gfx);
+                    self.update_cursor_desired_visual_x(CursorIndex::Some(index), ctx.gfx);
                 }
                 Action::Insert { start, end } => {
                     were_cursors_reset = false;
@@ -1021,9 +945,8 @@ impl Doc {
                     self.delete_as_action_kind(
                         start,
                         end,
-                        line_pool,
                         reverse_action_kind,
-                        gfx,
+                        ctx,
                         popped_action.time,
                     );
                 }
@@ -1039,9 +962,8 @@ impl Doc {
                     self.insert_as_action_kind(
                         start,
                         undo_buffer,
-                        line_pool,
                         reverse_action_kind,
-                        gfx,
+                        ctx,
                         popped_action.time,
                     );
 
@@ -1083,24 +1005,16 @@ impl Doc {
         self.needs_tokenization = true;
     }
 
-    pub fn delete(
-        &mut self,
-        start: Position,
-        end: Position,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
-        time: f32,
-    ) {
-        self.delete_as_action_kind(start, end, line_pool, ActionKind::Done, gfx, time);
+    pub fn delete(&mut self, start: Position, end: Position, ctx: &mut Ctx, time: f32) {
+        self.delete_as_action_kind(start, end, ActionKind::Done, ctx, time);
     }
 
     pub fn delete_as_action_kind(
         &mut self,
         start: Position,
         end: Position,
-        line_pool: &mut LinePool,
         action_kind: ActionKind,
-        gfx: &mut Gfx,
+        ctx: &mut Ctx,
         time: f32,
     ) {
         if action_kind == ActionKind::Done {
@@ -1143,10 +1057,10 @@ impl Doc {
 
             start_line.truncate(start.x);
             start_line.push_str(&end_line[end.x..]);
-            line_pool.push(self.lines.remove(end.y));
+            ctx.buffers.lines.push(self.lines.remove(end.y));
 
             for removed_line in self.lines.drain(start.y + 1..end.y) {
-                line_pool.push(removed_line);
+                ctx.buffers.lines.push(removed_line);
             }
         }
 
@@ -1161,7 +1075,7 @@ impl Doc {
                     Some(Self::shift_position_by_delete(start, end, selection_anchor));
             }
 
-            self.update_cursor_desired_visual_x(index, gfx);
+            self.update_cursor_desired_visual_x(index, ctx.gfx);
         }
     }
 
@@ -1184,24 +1098,16 @@ impl Doc {
         }
     }
 
-    pub fn insert(
-        &mut self,
-        start: Position,
-        text: &str,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
-        time: f32,
-    ) {
-        self.insert_as_action_kind(start, text, line_pool, ActionKind::Done, gfx, time);
+    pub fn insert(&mut self, start: Position, text: &str, ctx: &mut Ctx, time: f32) {
+        self.insert_as_action_kind(start, text, ActionKind::Done, ctx, time);
     }
 
     pub fn insert_as_action_kind(
         &mut self,
         start: Position,
         text: &str,
-        line_pool: &mut LinePool,
         action_kind: ActionKind,
-        gfx: &mut Gfx,
+        ctx: &mut Ctx,
         time: f32,
     ) {
         if action_kind == ActionKind::Done {
@@ -1230,7 +1136,7 @@ impl Doc {
                     position.y += 1;
                     position.x = 0;
 
-                    self.lines.insert(new_y, line_pool.pop());
+                    self.lines.insert(new_y, ctx.buffers.lines.pop());
 
                     let (old, new) = self.lines.split_at_mut(new_y);
 
@@ -1267,7 +1173,7 @@ impl Doc {
                 ));
             }
 
-            self.update_cursor_desired_visual_x(index, gfx);
+            self.update_cursor_desired_visual_x(index, ctx.gfx);
         }
     }
 
@@ -1281,33 +1187,20 @@ impl Doc {
         }
     }
 
-    pub fn insert_at_cursors(
-        &mut self,
-        text: &str,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
-        time: f32,
-    ) {
+    pub fn insert_at_cursors(&mut self, text: &str, ctx: &mut Ctx, time: f32) {
         for index in self.cursor_indices() {
-            self.insert_at_cursor(index, text, line_pool, gfx, time);
+            self.insert_at_cursor(index, text, ctx, time);
         }
     }
 
-    pub fn insert_at_cursor(
-        &mut self,
-        index: CursorIndex,
-        text: &str,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
-        time: f32,
-    ) {
+    pub fn insert_at_cursor(&mut self, index: CursorIndex, text: &str, ctx: &mut Ctx, time: f32) {
         if let Some(selection) = self.get_cursor(index).get_selection() {
-            self.delete(selection.start, selection.end, line_pool, gfx, time);
+            self.delete(selection.start, selection.end, ctx, time);
             self.end_cursor_selection(index);
         }
 
         let start = self.get_cursor(index).position;
-        self.insert(start, text, line_pool, gfx, time);
+        self.insert(start, text, ctx, time);
     }
 
     pub fn search(
@@ -1480,7 +1373,7 @@ impl Doc {
         position
     }
 
-    pub fn trim_trailing_whitespace(&mut self, line_pool: &mut LinePool, gfx: &mut Gfx, time: f32) {
+    pub fn trim_trailing_whitespace(&mut self, ctx: &mut Ctx, time: f32) {
         for y in 0..self.lines.len() {
             let line = &self.lines[y];
             let mut whitespace_start = 0;
@@ -1505,7 +1398,7 @@ impl Doc {
                 let start = Position::new(whitespace_start, y);
                 let end = Position::new(line.len(), y);
 
-                self.delete(start, end, line_pool, gfx, time);
+                self.delete(start, end, ctx, time);
             }
         }
     }
@@ -1587,8 +1480,8 @@ impl Doc {
         Ok(())
     }
 
-    pub fn load(&mut self, line_pool: &mut LinePool, gfx: &mut Gfx, time: f32) -> io::Result<()> {
-        self.clear(line_pool);
+    pub fn load(&mut self, ctx: &mut Ctx, time: f32) -> io::Result<()> {
+        self.clear(&mut ctx.buffers.lines);
 
         let Some(path) = self.path.some() else {
             return Ok(());
@@ -1598,7 +1491,7 @@ impl Doc {
 
         let (line_ending, len) = self.get_line_ending_and_len(&string);
 
-        self.insert(Position::zero(), &string[..len], line_pool, gfx, time);
+        self.insert(Position::zero(), &string[..len], ctx, time);
         self.reset_edit_state();
         self.line_ending = line_ending;
 
@@ -1613,38 +1506,27 @@ impl Doc {
         Ok(())
     }
 
-    pub fn reload(
-        &mut self,
-        buffers: &mut EditorBuffers,
-        gfx: &mut Gfx,
-        time: f32,
-    ) -> io::Result<()> {
+    pub fn reload(&mut self, ctx: &mut Ctx, time: f32) -> io::Result<()> {
         let Some(path) = self.path.on_drive() else {
             return Ok(());
         };
 
         let string = read_to_string(path)?;
 
-        let cursor_buffer = buffers.cursors.get_mut();
+        let mut cursor_buffer = ctx.buffers.cursors.take_mut();
+        self.backup_cursors(&mut cursor_buffer);
 
-        self.backup_cursors(cursor_buffer);
-
-        self.delete(Position::zero(), self.end(), &mut buffers.lines, gfx, time);
+        self.delete(Position::zero(), self.end(), ctx, time);
 
         let (line_ending, len) = self.get_line_ending_and_len(&string);
 
         self.line_ending = line_ending;
-        self.insert(
-            Position::zero(),
-            &string[..len],
-            &mut buffers.lines,
-            gfx,
-            time,
-        );
+        self.insert(Position::zero(), &string[..len], ctx, time);
 
         self.is_saved = true;
 
-        self.restore_cursors(cursor_buffer);
+        self.restore_cursors(&cursor_buffer);
+        ctx.buffers.cursors.replace(cursor_buffer);
 
         Ok(())
     }
@@ -1780,28 +1662,26 @@ impl Doc {
         index: CursorIndex,
         text: &str,
         was_copy_implicit: bool,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
+        ctx: &mut Ctx,
         time: f32,
     ) {
         let mut start = self.get_cursor(index).position;
 
         if let Some(selection) = self.get_cursor(index).get_selection() {
-            self.delete(selection.start, selection.end, line_pool, gfx, time);
+            self.delete(selection.start, selection.end, ctx, time);
             self.end_cursor_selection(index);
         } else if was_copy_implicit {
             start.x = 0;
         }
 
-        self.insert(start, text, line_pool, gfx, time);
+        self.insert(start, text, ctx, time);
     }
 
     pub fn paste_at_cursors(
         &mut self,
         text: &str,
         was_copy_implicit: bool,
-        line_pool: &mut LinePool,
-        gfx: &mut Gfx,
+        ctx: &mut Ctx,
         time: f32,
     ) {
         let mut line_count = 1;
@@ -1824,33 +1704,19 @@ impl Doc {
                     for grapheme in grapheme_iterator.by_ref() {
                         if grapheme == "\n" {
                             if line_i < lines_per_cursor - 1 {
-                                self.paste_at_cursor(
-                                    index,
-                                    grapheme,
-                                    was_copy_implicit,
-                                    line_pool,
-                                    gfx,
-                                    time,
-                                );
+                                self.paste_at_cursor(index, grapheme, was_copy_implicit, ctx, time);
                             }
 
                             break;
                         }
 
-                        self.paste_at_cursor(
-                            index,
-                            grapheme,
-                            was_copy_implicit,
-                            line_pool,
-                            gfx,
-                            time,
-                        );
+                        self.paste_at_cursor(index, grapheme, was_copy_implicit, ctx, time);
                     }
                 }
             }
         } else {
             for index in self.cursor_indices() {
-                self.paste_at_cursor(index, text, was_copy_implicit, line_pool, gfx, time);
+                self.paste_at_cursor(index, text, was_copy_implicit, ctx, time);
             }
         }
     }
