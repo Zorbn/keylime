@@ -19,7 +19,11 @@ use objc2_quartz_core::{
     CAAutoresizingMask, CALayer, CALayerDelegate, CAMetalDrawable, CAMetalLayer,
 };
 
-use crate::{app::App, platform::aliases::AnyWindow};
+use crate::{
+    app::App,
+    config::Config,
+    platform::aliases::{AnyGfx, AnyWindow},
+};
 
 use super::gfx::PIXEL_FORMAT;
 
@@ -36,6 +40,7 @@ macro_rules! handle_event {
 pub struct ViewIvars {
     app: Rc<RefCell<App>>,
     window: Rc<RefCell<AnyWindow>>,
+    gfx: Rc<RefCell<Option<AnyGfx>>>,
     device: Retained<ProtocolObject<dyn MTLDevice>>,
     metal_layer: OnceCell<Retained<CAMetalLayer>>,
 }
@@ -83,10 +88,14 @@ define_class!(
             let metal_layer = self.ivars().metal_layer.get().unwrap();
 
             let window = &mut *self.ivars().window.borrow_mut();
+            let gfx = &mut *self.ivars().gfx.borrow_mut();
             let app = &*self.ivars().app.borrow();
 
-            let scale = window.inner.ns_window.backingScaleFactor();
-            let new_size = CGSize::new(new_size.width * scale, new_size.height * scale);
+            let last_scale = window.inner.scale;
+            window.inner.resize(new_size.width, new_size.height);
+
+            let scale = window.inner.scale;
+            let new_size = CGSize::new(window.inner.width, window.inner.height);
 
             metal_layer.setContentsScale(scale);
 
@@ -94,7 +103,17 @@ define_class!(
                 metal_layer.setDrawableSize(new_size);
             }
 
-            window.inner.resize(new_size.width, new_size.height, app);
+            if let Some(gfx) = gfx {
+                gfx.inner.resize(new_size.width, new_size.height).unwrap();
+
+                if scale != last_scale {
+                    let Config {
+                        font, font_size, ..
+                    } = app.config();
+
+                    gfx.inner.update_font(font, *font_size, scale as f32);
+                }
+            }
         }
 
         #[unsafe(method(viewWillStartLiveResize))]
@@ -127,8 +146,9 @@ define_class!(
                 self.setFrameSize(size);
             }
 
-            let mut window = self.ivars().window.borrow_mut();
-            let view = window.gfx().inner.view();
+            let mut gfx = self.ivars().gfx.borrow_mut();
+            let gfx = gfx.as_mut().unwrap();
+            let view = gfx.inner.view();
 
             unsafe {
                 view.setNeedsDisplay(true);
@@ -205,20 +225,26 @@ define_class!(
                 return;
             };
 
+            let Ok(mut gfx) = self.ivars().gfx.try_borrow_mut() else {
+                return;
+            };
+
+            let Some(gfx) = gfx.as_mut() else {
+                return;
+            };
+
             let Ok(mut app) = self.ivars().app.try_borrow_mut() else {
                 return;
             };
 
             let window = &mut *window;
 
-            app.draw(window);
+            app.draw(window, gfx);
 
             if !window.inner.was_shown {
                 window.inner.ns_window.makeKeyAndOrderFront(None);
                 window.inner.was_shown = true;
             }
-
-            let gfx = window.gfx();
 
             unsafe {
                 gfx.inner.display_link.setPaused(!app.is_animating());
@@ -231,6 +257,7 @@ impl View {
     pub fn new(
         app: Rc<RefCell<App>>,
         window: Rc<RefCell<AnyWindow>>,
+        gfx: Rc<RefCell<Option<AnyGfx>>>,
         mtm: MainThreadMarker,
         frame_rect: NSRect,
         device: Retained<ProtocolObject<dyn MTLDevice>>,
@@ -239,6 +266,7 @@ impl View {
         let this = this.set_ivars(ViewIvars {
             app,
             window,
+            gfx,
             device,
             metal_layer: OnceCell::new(),
         });
@@ -266,6 +294,14 @@ impl View {
             return;
         };
 
+        let Ok(mut gfx) = self.ivars().gfx.try_borrow_mut() else {
+            return;
+        };
+
+        let Some(gfx) = gfx.as_mut() else {
+            return;
+        };
+
         let Ok(mut app) = self.ivars().app.try_borrow_mut() else {
             return;
         };
@@ -273,7 +309,7 @@ impl View {
         let window = &mut *window;
 
         let timestamp = window.inner.get_time(app.is_animating());
-        app.update(window, timestamp);
+        app.update(window, gfx, timestamp);
 
         let (files, ptys) = app.files_and_ptys();
         window.inner.update(files, ptys);

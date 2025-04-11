@@ -6,7 +6,6 @@ use objc2_foundation::*;
 
 use crate::{
     app::App,
-    config::Config,
     input::{
         action::{Action, ActionName},
         input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
@@ -17,12 +16,14 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::{MouseClickKind, Mousebind},
     },
-    platform::aliases::{AnyFileWatcher, AnyGfx, AnyPty, AnyWindow},
+    platform::aliases::{AnyFileWatcher, AnyPty, AnyWindow},
     temp_buffer::{TempBuffer, TempString},
     text::grapheme::GraphemeCursor,
 };
 
-use super::{delegate::Delegate, file_watcher::FileWatcher, keymaps::new_keymaps, result::Result};
+use super::{
+    delegate::Delegate, file_watcher::FileWatcher, keymaps::new_keymaps, result::Result, view::View,
+};
 
 const DEFAULT_WIDTH: f64 = 768.0;
 const DEFAULT_HEIGHT: f64 = 768.0;
@@ -138,8 +139,10 @@ struct RecordedMouseClick {
 
 pub struct Window {
     pub ns_window: Retained<NSWindow>,
+    pub view: Option<Retained<View>>,
     pub width: f64,
     pub height: f64,
+    pub scale: f64,
 
     pub was_shown: bool,
     pub is_focused: bool,
@@ -147,8 +150,6 @@ pub struct Window {
     pub time: f32,
     last_queried_time: Option<f64>,
 
-    pub gfx: Option<AnyGfx>,
-    scale: f32,
     file_watcher: AnyFileWatcher,
 
     wide_text_buffer: TempBuffer<u16>,
@@ -191,10 +192,11 @@ impl Window {
             }
         };
 
-        let scale = ns_window.backingScaleFactor() as f32;
+        let scale = ns_window.backingScaleFactor();
 
         Self {
             ns_window,
+            view: None,
             width: DEFAULT_WIDTH,
             height: DEFAULT_HEIGHT,
 
@@ -204,7 +206,6 @@ impl Window {
             time: 0.0,
             last_queried_time: None,
 
-            gfx: None,
             scale,
             file_watcher: AnyFileWatcher {
                 inner: FileWatcher::new(),
@@ -227,27 +228,12 @@ impl Window {
         }
     }
 
-    pub fn resize(&mut self, width: f64, height: f64, app: &App) {
-        self.width = width;
-        self.height = height;
+    pub fn resize(&mut self, width: f64, height: f64) {
+        let scale = self.ns_window.backingScaleFactor();
 
-        if let Some(gfx) = &mut self.gfx {
-            gfx.inner.resize(width, height).unwrap();
-        }
-
-        let scale = self.ns_window.backingScaleFactor() as f32;
-
-        if scale != self.scale {
-            self.scale = scale;
-
-            if let Some(gfx) = &mut self.gfx {
-                let Config {
-                    font, font_size, ..
-                } = app.config();
-
-                gfx.inner.update_font(font, *font_size, self.scale);
-            }
-        }
+        self.scale = scale;
+        self.width = width * scale;
+        self.height = height * scale;
     }
 
     pub fn get_time(&mut self, is_animating: bool) -> (f32, f32) {
@@ -274,9 +260,7 @@ impl Window {
     ) {
         self.clear_inputs();
 
-        if let Some(gfx) = &self.gfx {
-            let view = gfx.inner.view();
-
+        if let Some(view) = &self.view {
             for pty in ptys {
                 pty.inner.try_start(view);
             }
@@ -405,10 +389,10 @@ impl Window {
 
     fn event_location_to_xy(&mut self, event: &NSEvent) -> (f32, f32) {
         let position = unsafe { event.locationInWindow() };
-        let x = position.x as f32 * self.scale;
-        let y = self.gfx().height() - (position.y as f32 * self.scale);
+        let x = position.x * self.scale;
+        let y = self.height - (position.y * self.scale);
 
-        (x, y)
+        (x as f32, y as f32)
     }
 
     fn get_event_button(event: &NSEvent) -> Option<MouseButton> {
@@ -453,14 +437,6 @@ impl Window {
 
     pub fn is_focused(&self) -> bool {
         self.is_focused
-    }
-
-    pub fn scale(&self) -> f32 {
-        self.scale
-    }
-
-    pub fn gfx(&mut self) -> &mut AnyGfx {
-        self.gfx.as_mut().unwrap()
     }
 
     pub fn file_watcher(&mut self) -> &mut AnyFileWatcher {

@@ -6,8 +6,7 @@ use std::{
 };
 
 use objc2::{rc::Retained, runtime::ProtocolObject, sel};
-use objc2_app_kit::NSWindow;
-use objc2_foundation::{ns_string, MainThreadMarker, NSDefaultRunLoopMode, NSRunLoop};
+use objc2_foundation::{ns_string, NSDefaultRunLoopMode, NSRunLoop};
 use objc2_metal::*;
 use objc2_quartz_core::{CADisplayLink, CAMetalDrawable};
 
@@ -23,7 +22,7 @@ use crate::{
     ui::color::Color,
 };
 
-use super::{result::Result, view::View};
+use super::{result::Result, text::Text, view::View};
 
 const SHADER_CODE: &str = "
 #include <metal_stdlib>
@@ -129,20 +128,12 @@ impl Gfx {
     pub fn new(
         app: Rc<RefCell<App>>,
         window: Rc<RefCell<AnyWindow>>,
-        ns_window: &NSWindow,
-        mtm: MainThreadMarker,
+        device: Retained<ProtocolObject<dyn MTLDevice>>,
+        view: Retained<View>,
     ) -> Result<Self> {
-        let scale = window.borrow().inner.scale();
-
-        let device = MTLCreateSystemDefaultDevice().expect("Failed to get default system device.");
-
         let command_queue = device
             .newCommandQueue()
             .expect("Failed to create a command queue.");
-
-        let frame_rect = ns_window.frame();
-
-        let view = View::new(app.clone(), window, mtm, frame_rect, device.clone());
 
         let display_link = unsafe {
             let display_link = view.displayLinkWithTarget_selector(&view, sel!(update));
@@ -202,7 +193,11 @@ impl Gfx {
             font, font_size, ..
         } = app.config();
 
-        let text = AnyText::new(font, *font_size, scale)?;
+        let scale = window.borrow().inner.scale as f32;
+
+        let text = AnyText::new(font, |font_name| unsafe {
+            Text::new(font_name, *font_size, scale)
+        })?;
 
         let gfx = Gfx {
             device,
@@ -246,7 +241,11 @@ impl Gfx {
 
     pub fn update_font(&mut self, font_name: &str, font_size: f32, scale: f32) {
         self.scale = scale;
-        self.text = AnyText::new(font_name, font_size, scale).unwrap();
+
+        self.text = AnyText::new(font_name, |font_name| unsafe {
+            Text::new(font_name, font_size, scale)
+        })
+        .unwrap();
     }
 
     pub fn get_glyph_spans(&mut self, text: &str) -> GlyphSpans {

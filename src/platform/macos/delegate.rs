@@ -10,12 +10,16 @@ use objc2_app_kit::{
     NSApplication, NSApplicationDelegate, NSColor, NSMenuItem, NSWindow, NSWindowDelegate,
 };
 use objc2_foundation::{ns_string, NSNotification, NSObject, NSObjectProtocol, NSThread};
+use objc2_metal::MTLCreateSystemDefaultDevice;
 
 use crate::{
     app::App,
     platform::{
         aliases::{AnyGfx, AnyWindow},
-        platform_impl::window::{ENTER_FULL_SCREEN_TITLE, EXIT_FULL_SCREEN_TITLE},
+        platform_impl::{
+            view::View,
+            window::{ENTER_FULL_SCREEN_TITLE, EXIT_FULL_SCREEN_TITLE},
+        },
     },
 };
 
@@ -24,6 +28,7 @@ use super::{gfx::Gfx, window::Window};
 pub struct DelegateIvars {
     app: Rc<RefCell<App>>,
     window: Rc<RefCell<AnyWindow>>,
+    gfx: Rc<RefCell<Option<AnyGfx>>>,
     fullscreen_item: Retained<NSMenuItem>,
 }
 
@@ -41,6 +46,7 @@ define_class!(
         unsafe fn application_did_finish_launching(&self, notification: &NSNotification) {
             let window = self.ivars().window.clone();
             let app = self.ivars().app.clone();
+            let gfx = self.ivars().gfx.clone();
 
             let mtm = MainThreadMarker::from(self);
 
@@ -72,13 +78,29 @@ define_class!(
             let protocol_object = ProtocolObject::from_ref(self);
             ns_window.setDelegate(Some(protocol_object));
 
-            let mut gfx = Gfx::new(app.clone(), window.clone(), &ns_window, mtm).unwrap();
+            let device =
+                MTLCreateSystemDefaultDevice().expect("Failed to get default system device.");
 
-            gfx.resize(width, height).unwrap();
+            let view = View::new(
+                app.clone(),
+                window.clone(),
+                gfx.clone(),
+                mtm,
+                ns_window.frame(),
+                device.clone(),
+            );
 
-            let view = gfx.view().clone();
+            window.borrow_mut().inner.view = Some(view.clone());
 
-            window.borrow_mut().inner.gfx = Some(AnyGfx { inner: gfx });
+            gfx.replace(Some(AnyGfx {
+                inner: {
+                    let mut gfx =
+                        Gfx::new(app.clone(), window.clone(), device, view.clone()).unwrap();
+                    gfx.resize(width, height).unwrap();
+
+                    gfx
+                },
+            }));
 
             ns_window.setContentView(Some(&view));
             ns_window.center();
@@ -167,6 +189,7 @@ impl Delegate {
         let this = mtm.alloc();
         let this = this.set_ivars(DelegateIvars {
             window: Rc::new(RefCell::new(window)),
+            gfx: Rc::new(RefCell::new(None)),
             app,
             fullscreen_item,
         });
@@ -179,9 +202,17 @@ impl Delegate {
             return;
         };
 
+        let Ok(mut gfx) = self.ivars().gfx.try_borrow_mut() else {
+            return;
+        };
+
+        let Some(gfx) = gfx.as_mut() else {
+            return;
+        };
+
         window.inner.is_focused = is_focused;
 
-        let view = window.gfx().inner.view();
+        let view = gfx.inner.view();
 
         unsafe {
             view.setNeedsDisplay(true);
@@ -189,15 +220,21 @@ impl Delegate {
     }
 
     fn on_fullscreen_changed(&self, is_fullscreen: bool) {
-        let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
+        let Ok(mut gfx) = self.ivars().gfx.try_borrow_mut() else {
             return;
         };
 
-        window.gfx().inner.is_fullscreen = is_fullscreen;
+        let Some(gfx) = gfx.as_mut() else {
+            return;
+        };
+
+        gfx.inner.is_fullscreen = is_fullscreen;
     }
 
     fn on_close(&self) {
         let mut window = self.ivars().window.borrow_mut();
+        let mut gfx = self.ivars().gfx.borrow_mut();
+        let gfx = gfx.as_mut().unwrap();
 
         if !window.inner.is_running {
             return;
@@ -209,6 +246,6 @@ impl Delegate {
 
         let time = window.inner.time;
 
-        app.close(time);
+        app.close(gfx, time);
     }
 }

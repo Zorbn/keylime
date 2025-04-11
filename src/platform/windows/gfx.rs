@@ -23,8 +23,9 @@ use windows::{
 use crate::{
     geometry::{matrix::ortho, rect::Rect},
     platform::{
-        aliases::{AnyText, PlatformText},
+        aliases::AnyText,
         gfx::SpriteKind,
+        text::Text,
         text_cache::{AtlasDimensions, GlyphCacheResult, GlyphSpan, GlyphSpans},
     },
     ui::color::Color,
@@ -358,7 +359,7 @@ impl Gfx {
         };
 
         let text = AnyText::new(font_name, |font_name| unsafe {
-            PlatformText::new(font_name, font_size, scale, &device)
+            Text::new(font_name, font_size, scale, &device)
         })?;
 
         let gfx = Self {
@@ -546,7 +547,7 @@ impl Gfx {
         self.scale = scale;
 
         self.text = AnyText::new(font_name, |font_name| unsafe {
-            PlatformText::new(font_name, font_size, scale, &self.device)
+            Text::new(font_name, font_size, scale, &self.device)
         })
         .unwrap();
     }
