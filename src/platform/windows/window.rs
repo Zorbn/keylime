@@ -208,7 +208,7 @@ impl WindowRunner {
                 let scale = (wparam.0 & 0xFFFF) as f32 / DEFAULT_DPI;
                 let rect = *(lparam.0 as *const RECT);
 
-                window_runner.window.inner.on_dpi_changed(scale, rect);
+                window_runner.window.inner.on_dpi_changed(rect);
 
                 if let Some(gfx) = &mut window_runner.gfx {
                     let Config {
@@ -287,7 +287,6 @@ pub struct Window {
     is_running: bool,
     is_focused: bool,
 
-    scale: f32,
     x: i32,
     y: i32,
     width: i32,
@@ -340,7 +339,6 @@ impl Window {
             is_running: true,
             is_focused: false,
 
-            scale: 1.0,
             x: 0,
             y: 0,
             width: DEFAULT_WIDTH,
@@ -602,7 +600,7 @@ impl Window {
         let _ = SetWindowPos(hwnd, None, 0, 0, width, height, SWP_NOMOVE);
     }
 
-    unsafe fn on_dpi_changed(&mut self, scale: f32, rect: RECT) {
+    unsafe fn on_dpi_changed(&mut self, rect: RECT) {
         let _ = SetWindowPos(
             self.hwnd,
             None,
