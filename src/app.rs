@@ -18,6 +18,7 @@ pub struct App {
     editor: Editor,
     terminal: Terminal,
     command_palette: CommandPalette,
+    file_watcher: FileWatcher,
 
     config: Config,
     config_error: Option<ConfigError>,
@@ -40,6 +41,7 @@ impl App {
         let editor = Editor::new(&mut ui, &mut buffers.lines);
         let terminal = Terminal::new(&mut ui, &mut buffers.lines);
         let command_palette = CommandPalette::new(&mut ui, &mut buffers.lines);
+        let file_watcher = FileWatcher::new();
 
         Self {
             buffers,
@@ -48,19 +50,14 @@ impl App {
             editor,
             terminal,
             command_palette,
+            file_watcher,
 
             config,
             config_error,
         }
     }
 
-    pub fn update(
-        &mut self,
-        window: &mut Window,
-        gfx: &mut Gfx,
-        file_watcher: &mut FileWatcher,
-        timestamp: (f32, f32),
-    ) {
+    pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, timestamp: (f32, f32)) {
         if let Some(err) = window
             .was_shown()
             .then(|| self.config_error.take())
@@ -91,7 +88,7 @@ impl App {
         self.terminal.update(&mut self.ui, &mut ctx, timestamp);
 
         self.editor
-            .update(&mut self.ui, file_watcher, &mut ctx, timestamp);
+            .update(&mut self.ui, &mut self.file_watcher, &mut ctx, timestamp);
     }
 
     pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx) {
@@ -147,7 +144,15 @@ impl App {
 
     pub fn files_and_ptys(
         &mut self,
-    ) -> (impl Iterator<Item = &Path>, impl Iterator<Item = &mut Pty>) {
-        (self.editor.files(), self.terminal.ptys())
+    ) -> (
+        &mut FileWatcher,
+        impl Iterator<Item = &Path>,
+        impl Iterator<Item = &mut Pty>,
+    ) {
+        (
+            &mut self.file_watcher,
+            self.editor.files(),
+            self.terminal.ptys(),
+        )
     }
 }

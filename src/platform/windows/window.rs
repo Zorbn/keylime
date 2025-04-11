@@ -56,7 +56,7 @@ use crate::{
     text::grapheme::GraphemeCursor,
 };
 
-use super::{deferred_call::defer, file_watcher::FileWatcher, gfx::Gfx, keymaps::new_keymaps};
+use super::{deferred_call::defer, gfx::Gfx, keymaps::new_keymaps};
 
 const DEFAULT_DPI: f32 = 96.0;
 const DEFAULT_WIDTH: i32 = 640;
@@ -65,7 +65,6 @@ const DEFAULT_HEIGHT: i32 = 480;
 pub struct WindowRunner {
     window: ManuallyDrop<AnyWindow>,
     gfx: Option<AnyGfx>,
-    file_watcher: AnyFileWatcher,
     app: ManuallyDrop<App>,
 }
 
@@ -78,9 +77,6 @@ impl WindowRunner {
                 inner: Window::new()?,
             }),
             gfx: None,
-            file_watcher: AnyFileWatcher {
-                inner: FileWatcher::new(),
-            },
             app: ManuallyDrop::new(app),
         });
 
@@ -132,17 +128,13 @@ impl WindowRunner {
 
     pub fn run(&mut self) {
         let WindowRunner {
-            window,
-            gfx,
-            file_watcher,
-            app,
-            ..
+            window, gfx, app, ..
         } = self;
 
         while window.inner.is_running() {
             let is_animating = app.is_animating();
 
-            let (files, ptys) = app.files_and_ptys();
+            let (file_watcher, files, ptys) = app.files_and_ptys();
             window.inner.update(is_animating, file_watcher, files, ptys);
 
             let Some(gfx) = gfx else {
@@ -151,7 +143,7 @@ impl WindowRunner {
 
             let timestamp = window.inner.get_time(is_animating);
 
-            app.update(window, gfx, file_watcher, timestamp);
+            app.update(window, gfx, timestamp);
             app.draw(window, gfx);
         }
 

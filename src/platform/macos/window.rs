@@ -21,9 +21,7 @@ use crate::{
     text::grapheme::GraphemeCursor,
 };
 
-use super::{
-    delegate::Delegate, file_watcher::FileWatcher, keymaps::new_keymaps, result::Result, view::View,
-};
+use super::{delegate::Delegate, keymaps::new_keymaps, result::Result, view::View};
 
 const DEFAULT_WIDTH: f64 = 768.0;
 const DEFAULT_HEIGHT: f64 = 768.0;
@@ -150,8 +148,6 @@ pub struct Window {
     pub time: f32,
     last_queried_time: Option<f64>,
 
-    file_watcher: AnyFileWatcher,
-
     wide_text_buffer: TempBuffer<u16>,
     text_buffer: TempString,
 
@@ -207,9 +203,6 @@ impl Window {
             last_queried_time: None,
 
             scale,
-            file_watcher: AnyFileWatcher {
-                inner: FileWatcher::new(),
-            },
 
             wide_text_buffer: TempBuffer::new(),
             text_buffer: TempString::new(),
@@ -255,6 +248,7 @@ impl Window {
 
     pub fn update<'a>(
         &mut self,
+        file_watcher: &mut AnyFileWatcher,
         files: impl Iterator<Item = &'a Path>,
         ptys: impl Iterator<Item = &'a mut AnyPty>,
     ) {
@@ -265,10 +259,10 @@ impl Window {
                 pty.inner.try_start(view);
             }
 
-            self.file_watcher.inner.try_start(view);
+            file_watcher.inner.try_start(view);
         }
 
-        self.file_watcher.inner.update(files).unwrap();
+        file_watcher.inner.update(files).unwrap();
     }
 
     fn clear_inputs(&mut self) {
@@ -437,10 +431,6 @@ impl Window {
 
     pub fn is_focused(&self) -> bool {
         self.is_focused
-    }
-
-    pub fn file_watcher(&mut self) -> &mut AnyFileWatcher {
-        &mut self.file_watcher
     }
 
     pub fn get_grapheme_handler(&self) -> GraphemeHandler {
