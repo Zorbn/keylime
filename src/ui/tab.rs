@@ -45,7 +45,7 @@ pub struct Tab {
     data_index: usize,
 
     pub camera: Camera,
-    handled_cursor_position: Position,
+    handled_cursor_position: Option<Position>,
 
     tab_bounds: Rect,
     gutter_bounds: Rect,
@@ -58,7 +58,7 @@ impl Tab {
             data_index,
 
             camera: Camera::new(),
-            handled_cursor_position: Position::zero(),
+            handled_cursor_position: None,
 
             tab_bounds: Rect::zero(),
             gutter_bounds: Rect::zero(),
@@ -91,7 +91,7 @@ impl Tab {
     }
 
     pub fn update(&mut self, widget: &mut Widget, ui: &mut Ui, doc: &mut Doc, ctx: &mut Ctx) {
-        self.handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
+        self.handled_cursor_position = Some(doc.get_cursor(CursorIndex::Main).position);
 
         let mut grapheme_handler = widget.get_grapheme_handler(ui, ctx.window);
 
@@ -136,7 +136,7 @@ impl Tab {
                     ..
                 } => {
                     handle_left_click(doc, position, mousebind.mods, kind, is_drag, ctx.gfx);
-                    self.handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
+                    self.handled_cursor_position = Some(doc.get_cursor(CursorIndex::Main).position);
                 }
                 Mousebind {
                     button: Some(MouseButton::Left),
@@ -204,7 +204,7 @@ impl Tab {
         let new_cursor_visual_position =
             doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
 
-        let can_recenter = self.handled_cursor_position != new_cursor_position;
+        let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
 
         let target_y = new_cursor_visual_position.y + gfx.line_height() / 2.0;
         let max_y = (doc.lines().len() - 1) as f32 * gfx.line_height();
@@ -227,7 +227,7 @@ impl Tab {
         let new_cursor_visual_position =
             doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
 
-        let can_recenter = self.handled_cursor_position != new_cursor_position;
+        let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
 
         let target_x = new_cursor_visual_position.x + gfx.glyph_width() / 2.0;
         let max_x = f32::MAX;
@@ -243,6 +243,10 @@ impl Tab {
             can_recenter,
             dt,
         );
+    }
+
+    pub fn recenter_cursor(&mut self) {
+        self.handled_cursor_position = None;
     }
 
     pub fn tab_bounds(&self) -> Rect {

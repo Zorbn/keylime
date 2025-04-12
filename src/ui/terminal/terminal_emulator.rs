@@ -76,9 +76,9 @@ impl ColoredGridLine {
                 TerminalHighlightKind::Foreground,
                 TerminalHighlightKind::Background,
             ));
-        }
 
-        self.is_dirty = true;
+            self.is_dirty = true;
+        }
     }
 }
 
@@ -272,6 +272,8 @@ impl TerminalEmulator {
 
         if self.maintain_cursor_positions {
             self.restore_doc_cursor_positions(doc, &mut cursor_buffer, backup_doc_len);
+        } else {
+            tab.recenter_cursor();
         }
 
         ctx.buffers.cursors.replace(cursor_buffer);
