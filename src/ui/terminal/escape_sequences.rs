@@ -20,7 +20,6 @@ impl TerminalEmulator {
         input: &mut Vec<u8>,
         mut output: &[u8],
         ctx: &mut Ctx,
-        time: f32,
     ) {
         let mut plain_output = output;
 
@@ -30,11 +29,11 @@ impl TerminalEmulator {
 
             match output[0] {
                 0x1B => {
-                    self.flush_plain_output(plain_output, output, doc, ctx, time);
+                    self.flush_plain_output(plain_output, output, doc, ctx);
 
                     let remaining = match output.get(1) {
                         Some(&b'[') => {
-                            self.handle_escape_sequences_csi(doc, input, &output[2..], ctx, time)
+                            self.handle_escape_sequences_csi(doc, input, &output[2..], ctx)
                         }
                         Some(&b']') => {
                             self.handle_escape_sequences_osc(input, &output[2..], &ctx.config.theme)
@@ -81,13 +80,13 @@ impl TerminalEmulator {
                 }
                 // Bell:
                 0x7 => {
-                    self.flush_plain_output(plain_output, output, doc, ctx, time);
+                    self.flush_plain_output(plain_output, output, doc, ctx);
 
                     output = &output[1..];
                 }
                 // Backspace:
                 0x8 => {
-                    self.flush_plain_output(plain_output, output, doc, ctx, time);
+                    self.flush_plain_output(plain_output, output, doc, ctx);
 
                     self.move_cursor(-1, 0, doc, ctx.gfx);
 
@@ -95,19 +94,19 @@ impl TerminalEmulator {
                 }
                 // Tab:
                 b'\t' => {
-                    self.flush_plain_output(plain_output, output, doc, ctx, time);
+                    self.flush_plain_output(plain_output, output, doc, ctx);
 
                     let next_tab_stop = (self.grid_cursor.x / 8 + 1) * 8;
 
                     while self.grid_cursor.x < next_tab_stop {
-                        self.insert_at_cursor(" ", doc, ctx, time);
+                        self.insert_at_cursor(" ", doc, ctx);
                     }
 
                     output = &output[1..];
                 }
                 // Carriage Return:
                 b'\r' => {
-                    self.flush_plain_output(plain_output, output, doc, ctx, time);
+                    self.flush_plain_output(plain_output, output, doc, ctx);
 
                     self.jump_cursor(Position::new(0, self.grid_cursor.y), doc, ctx.gfx);
 
@@ -115,9 +114,9 @@ impl TerminalEmulator {
                 }
                 // Newline:
                 b'\n' => {
-                    self.flush_plain_output(plain_output, output, doc, ctx, time);
+                    self.flush_plain_output(plain_output, output, doc, ctx);
 
-                    self.newline_cursor(doc, ctx, time);
+                    self.newline_cursor(doc, ctx);
 
                     output = &output[1..];
                 }
@@ -134,7 +133,7 @@ impl TerminalEmulator {
 
         let doc = self.get_doc_mut(docs);
 
-        self.flush_plain_output(plain_output, output, doc, ctx, time);
+        self.flush_plain_output(plain_output, output, doc, ctx);
         self.highlight_lines(doc);
     }
 
@@ -144,7 +143,6 @@ impl TerminalEmulator {
         output: &[u8],
         doc: &mut Doc,
         ctx: &mut Ctx,
-        time: f32,
     ) {
         let plain_len = output.as_ptr() as usize - plain_output.as_ptr() as usize;
 
@@ -154,7 +152,7 @@ impl TerminalEmulator {
 
         let plain_string = Self::get_valid_utf8_range(&plain_output[..plain_len]);
 
-        self.insert_at_cursor(plain_string, doc, ctx, time);
+        self.insert_at_cursor(plain_string, doc, ctx);
     }
 
     fn get_valid_utf8_range(bytes: &[u8]) -> &str {
@@ -170,7 +168,6 @@ impl TerminalEmulator {
         input: &mut Vec<u8>,
         mut output: &'a [u8],
         ctx: &mut Ctx,
-        time: f32,
     ) -> Option<&'a [u8]> {
         let mut parameter_buffer = [0; 16];
 
@@ -252,7 +249,7 @@ impl TerminalEmulator {
                     _ => None,
                 }
             }
-            _ => self.handle_unprefixed_escape_sequences_csi(doc, input, output, ctx, time),
+            _ => self.handle_unprefixed_escape_sequences_csi(doc, input, output, ctx),
         }
     }
 
@@ -262,7 +259,6 @@ impl TerminalEmulator {
         input: &mut Vec<u8>,
         mut output: &'a [u8],
         ctx: &mut Ctx,
-        time: f32,
     ) -> Option<&'a [u8]> {
         let mut parameter_buffer = [0; 16];
 
@@ -444,7 +440,7 @@ impl TerminalEmulator {
                     _ => None,
                 }?;
 
-                self.delete(start, end, doc, ctx, time);
+                self.delete(start, end, doc, ctx);
 
                 Some(&output[1..])
             }
@@ -474,7 +470,7 @@ impl TerminalEmulator {
                     _ => None,
                 }?;
 
-                self.delete(start, end, doc, ctx, time);
+                self.delete(start, end, doc, ctx);
 
                 Some(&output[1..])
             }
@@ -490,7 +486,7 @@ impl TerminalEmulator {
                 }
 
                 for _ in 0..count {
-                    self.scroll_grid_region_down(scroll_top..=scroll_bottom, doc, ctx, time);
+                    self.scroll_grid_region_down(scroll_top..=scroll_bottom, doc, ctx);
                 }
 
                 Some(&output[1..])
@@ -507,7 +503,7 @@ impl TerminalEmulator {
                 }
 
                 for _ in 0..count {
-                    self.scroll_grid_region_up(scroll_top..=scroll_bottom, doc, ctx, time);
+                    self.scroll_grid_region_up(scroll_top..=scroll_bottom, doc, ctx);
                 }
 
                 Some(&output[1..])
@@ -517,12 +513,7 @@ impl TerminalEmulator {
                 let count = Self::get_parameter(parameters, 0, 1);
 
                 for _ in 0..count {
-                    self.scroll_grid_region_up(
-                        self.scroll_top..=self.scroll_bottom,
-                        doc,
-                        ctx,
-                        time,
-                    );
+                    self.scroll_grid_region_up(self.scroll_top..=self.scroll_bottom, doc, ctx);
                 }
 
                 Some(&output[1..])
@@ -532,12 +523,7 @@ impl TerminalEmulator {
                 let count = Self::get_parameter(parameters, 0, 1);
 
                 for _ in 0..count {
-                    self.scroll_grid_region_down(
-                        self.scroll_top..=self.scroll_bottom,
-                        doc,
-                        ctx,
-                        time,
-                    );
+                    self.scroll_grid_region_down(self.scroll_top..=self.scroll_bottom, doc, ctx);
                 }
 
                 Some(&output[1..])
@@ -549,7 +535,7 @@ impl TerminalEmulator {
                 let start = self.grid_cursor;
                 let end = self.move_position(start, distance as isize, 0, doc);
 
-                self.delete(start, end, doc, ctx, time);
+                self.delete(start, end, doc, ctx);
 
                 Some(&output[1..])
             }
@@ -568,8 +554,8 @@ impl TerminalEmulator {
                 }
 
                 for _ in 0..distance {
-                    doc.delete(start, end, ctx, time);
-                    doc.insert(doc.get_line_end(start.y), " ", ctx, time);
+                    doc.delete(start, end, ctx);
+                    doc.insert(doc.get_line_end(start.y), " ", ctx);
                 }
 
                 Some(&output[1..])

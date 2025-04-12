@@ -22,7 +22,7 @@ enum DeleteKind {
     Line,
 }
 
-pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, ctx: &mut Ctx, time: f32) {
+pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, ctx: &mut Ctx) {
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
 
@@ -41,18 +41,18 @@ pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, ctx: &mut Ctx, time: f32) 
             (current_grapheme == *grapheme || grapheme::is_whitespace(current_grapheme))
                 && (*grapheme != "'" || grapheme::is_whitespace(previous_grapheme))
         }) {
-            doc.insert_at_cursor(index, grapheme, ctx, time);
-            doc.insert_at_cursor(index, matching_grapheme, ctx, time);
+            doc.insert_at_cursor(index, grapheme, ctx);
+            doc.insert_at_cursor(index, matching_grapheme, ctx);
             doc.move_cursor(index, -1, 0, false, ctx.gfx);
 
             continue;
         }
 
-        doc.insert_at_cursor(index, grapheme, ctx, time);
+        doc.insert_at_cursor(index, grapheme, ctx);
     }
 }
 
-pub fn handle_action(action: Action, doc: &mut Doc, ctx: &mut Ctx, time: f32) -> bool {
+pub fn handle_action(action: Action, doc: &mut Doc, ctx: &mut Ctx) -> bool {
     match action {
         action_name!(MoveLeft, mods) => handle_move(-1, 0, mods & MOD_SHIFT != 0, doc, ctx.gfx),
         action_name!(MoveRight, mods) => handle_move(1, 0, mods & MOD_SHIFT != 0, doc, ctx.gfx),
@@ -70,27 +70,19 @@ pub fn handle_action(action: Action, doc: &mut Doc, ctx: &mut Ctx, time: f32) ->
         action_name!(MoveDownParagraph, mods) => {
             doc.move_cursors_to_next_paragraph(1, mods & MOD_SHIFT != 0, ctx.gfx)
         }
-        action_name!(ShiftLinesUp) => handle_shift_lines(-1, doc, ctx, time),
-        action_name!(ShiftLinesDown) => handle_shift_lines(1, doc, ctx, time),
+        action_name!(ShiftLinesUp) => handle_shift_lines(-1, doc, ctx),
+        action_name!(ShiftLinesDown) => handle_shift_lines(1, doc, ctx),
         action_name!(UndoCursorPosition) => doc.undo_cursor_position(),
         action_name!(RedoCursorPosition) => doc.redo_cursor_position(),
         action_name!(AddCursorUp) => handle_add_cursor(-1, doc, ctx.gfx),
         action_name!(AddCursorDown) => handle_add_cursor(1, doc, ctx.gfx),
-        action_name!(DeleteBackward) => handle_delete_backward(DeleteKind::Char, doc, ctx, time),
-        action_name!(DeleteBackwardWord) => {
-            handle_delete_backward(DeleteKind::Word, doc, ctx, time)
-        }
-        action_name!(DeleteBackwardLine) => {
-            handle_delete_backward(DeleteKind::Line, doc, ctx, time)
-        }
-        action_name!(DeleteForward) => handle_delete_forward(DeleteKind::Char, doc, ctx, time),
-        action_name!(DeleteForwardWord) => handle_delete_forward(DeleteKind::Word, doc, ctx, time),
-        action_keybind!(key: Enter, mods: 0) => {
-            handle_enter(doc, ctx, time);
-        }
-        action_keybind!(key: Tab, mods) => {
-            handle_tab(mods, doc, ctx, time);
-        }
+        action_name!(DeleteBackward) => handle_delete_backward(DeleteKind::Char, doc, ctx),
+        action_name!(DeleteBackwardWord) => handle_delete_backward(DeleteKind::Word, doc, ctx),
+        action_name!(DeleteBackwardLine) => handle_delete_backward(DeleteKind::Line, doc, ctx),
+        action_name!(DeleteForward) => handle_delete_forward(DeleteKind::Char, doc, ctx),
+        action_name!(DeleteForwardWord) => handle_delete_forward(DeleteKind::Word, doc, ctx),
+        action_keybind!(key: Enter, mods: 0) => handle_enter(doc, ctx),
+        action_keybind!(key: Tab, mods) => handle_tab(mods, doc, ctx),
         action_name!(PageUp, mods) => {
             let height_lines = ctx.gfx.height_lines();
 
@@ -101,12 +93,8 @@ pub fn handle_action(action: Action, doc: &mut Doc, ctx: &mut Ctx, time: f32) ->
 
             doc.move_cursors(0, height_lines, mods & MOD_SHIFT != 0, ctx.gfx);
         }
-        action_name!(Home, mods) => {
-            handle_home(mods & MOD_SHIFT != 0, doc, ctx.gfx);
-        }
-        action_name!(End, mods) => {
-            handle_end(mods & MOD_SHIFT != 0, doc, ctx.gfx);
-        }
+        action_name!(Home, mods) => handle_home(mods & MOD_SHIFT != 0, doc, ctx.gfx),
+        action_name!(End, mods) => handle_end(mods & MOD_SHIFT != 0, doc, ctx.gfx),
         action_name!(GoToStart, mods) => {
             for index in doc.cursor_indices() {
                 doc.jump_cursor(index, Position::zero(), mods & MOD_SHIFT != 0, ctx.gfx);
@@ -128,33 +116,15 @@ pub fn handle_action(action: Action, doc: &mut Doc, ctx: &mut Ctx, time: f32) ->
                 doc.end_cursor_selection(CursorIndex::Main);
             }
         }
-        action_name!(Undo) => {
-            doc.undo(ActionKind::Done, ctx);
-        }
-        action_name!(Redo) => {
-            doc.undo(ActionKind::Undone, ctx);
-        }
-        action_name!(Copy) => {
-            handle_copy(doc, ctx);
-        }
-        action_name!(Cut) => {
-            handle_cut(doc, ctx, time);
-        }
-        action_name!(Paste) => {
-            handle_paste(doc, ctx, time);
-        }
-        action_name!(AddCursorAtNextOccurance) => {
-            doc.add_cursor_at_next_occurance(ctx.gfx);
-        }
-        action_name!(ToggleComments) => {
-            doc.toggle_comments_at_cursors(ctx, time);
-        }
-        action_name!(Indent) => {
-            doc.indent_lines_at_cursors(false, ctx, time);
-        }
-        action_name!(Unindent) => {
-            doc.indent_lines_at_cursors(true, ctx, time);
-        }
+        action_name!(Undo) => doc.undo(ActionKind::Done, ctx),
+        action_name!(Redo) => doc.undo(ActionKind::Undone, ctx),
+        action_name!(Copy) => handle_copy(doc, ctx),
+        action_name!(Cut) => handle_cut(doc, ctx),
+        action_name!(Paste) => handle_paste(doc, ctx),
+        action_name!(AddCursorAtNextOccurance) => doc.add_cursor_at_next_occurance(ctx.gfx),
+        action_name!(ToggleComments) => doc.toggle_comments_at_cursors(ctx),
+        action_name!(Indent) => doc.indent_lines_at_cursors(false, ctx),
+        action_name!(Unindent) => doc.indent_lines_at_cursors(true, ctx),
         _ => return false,
     }
 
@@ -264,7 +234,7 @@ pub fn handle_left_click(
     doc.jump_cursors(end, true, gfx);
 }
 
-fn handle_delete_backward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx, time: f32) {
+fn handle_delete_backward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
 
@@ -297,12 +267,12 @@ fn handle_delete_backward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx, time: 
             (start, end)
         };
 
-        doc.delete(start, end, ctx, time);
+        doc.delete(start, end, ctx);
         doc.end_cursor_selection(index);
     }
 }
 
-fn handle_delete_forward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx, time: f32) {
+fn handle_delete_forward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
 
@@ -320,12 +290,12 @@ fn handle_delete_forward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx, time: f
             (start, end)
         };
 
-        doc.delete(start, end, ctx, time);
+        doc.delete(start, end, ctx);
         doc.end_cursor_selection(index);
     }
 }
 
-fn handle_enter(doc: &mut Doc, ctx: &mut Ctx, time: f32) {
+fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
     let mut text_buffer = ctx.buffers.text.take_mut();
 
     for index in doc.cursor_indices() {
@@ -348,16 +318,16 @@ fn handle_enter(doc: &mut Doc, ctx: &mut Ctx, time: f32) {
         let do_start_block =
             doc.get_grapheme(previous_position) == "{" && doc.get_grapheme(cursor.position) == "}";
 
-        doc.insert_at_cursor(index, "\n", ctx, time);
-        doc.insert_at_cursor(index, &text_buffer, ctx, time);
+        doc.insert_at_cursor(index, "\n", ctx);
+        doc.insert_at_cursor(index, &text_buffer, ctx);
 
         if do_start_block {
-            doc.indent_at_cursor(index, ctx, time);
+            doc.indent_at_cursor(index, ctx);
 
             let cursor_position = doc.get_cursor(index).position;
 
-            doc.insert_at_cursor(index, "\n", ctx, time);
-            doc.insert_at_cursor(index, &text_buffer, ctx, time);
+            doc.insert_at_cursor(index, "\n", ctx);
+            doc.insert_at_cursor(index, &text_buffer, ctx);
 
             doc.jump_cursor(index, cursor_position, false, ctx.gfx);
         }
@@ -366,16 +336,16 @@ fn handle_enter(doc: &mut Doc, ctx: &mut Ctx, time: f32) {
     ctx.buffers.text.replace(text_buffer)
 }
 
-fn handle_tab(mods: u8, doc: &mut Doc, ctx: &mut Ctx, time: f32) {
+fn handle_tab(mods: u8, doc: &mut Doc, ctx: &mut Ctx) {
     let do_unindent = mods & MOD_SHIFT != 0;
 
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
 
         if cursor.get_selection().is_some() || do_unindent {
-            doc.indent_lines_at_cursor(index, do_unindent, ctx, time);
+            doc.indent_lines_at_cursor(index, do_unindent, ctx);
         } else {
-            doc.indent_at_cursors(ctx, time);
+            doc.indent_at_cursors(ctx);
         }
     }
 }
@@ -405,7 +375,7 @@ fn handle_end(should_select: bool, doc: &mut Doc, gfx: &mut Gfx) {
     }
 }
 
-fn handle_cut(doc: &mut Doc, ctx: &mut Ctx, time: f32) {
+fn handle_cut(doc: &mut Doc, ctx: &mut Ctx) {
     let text_buffer = ctx.buffers.text.get_mut();
     let was_copy_implicit = doc.copy_at_cursors(text_buffer);
 
@@ -418,7 +388,7 @@ fn handle_cut(doc: &mut Doc, ctx: &mut Ctx, time: f32) {
             .get_selection()
             .unwrap_or(doc.select_current_line_at_position(cursor.position, ctx.gfx));
 
-        doc.delete(selection.start, selection.end, ctx, time);
+        doc.delete(selection.start, selection.end, ctx);
         doc.end_cursor_selection(index);
     }
 }
@@ -430,18 +400,18 @@ pub fn handle_copy(doc: &mut Doc, ctx: &mut Ctx) {
     let _ = ctx.window.set_clipboard(text_buffer, was_copy_implicit);
 }
 
-fn handle_paste(doc: &mut Doc, ctx: &mut Ctx, time: f32) {
+fn handle_paste(doc: &mut Doc, ctx: &mut Ctx) {
     let was_copy_implicit = ctx.window.was_copy_implicit();
 
     let mut text = ctx.buffers.text.take_mut();
     let _ = ctx.window.get_clipboard(&mut text);
 
-    doc.paste_at_cursors(&text, was_copy_implicit, ctx, time);
+    doc.paste_at_cursors(&text, was_copy_implicit, ctx);
 
     ctx.buffers.text.replace(text);
 }
 
-fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx, time: f32) {
+fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx) {
     let direction = direction.signum();
 
     for index in doc.cursor_indices() {
@@ -492,7 +462,7 @@ fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx, time: f32)
             end = doc.move_position(end, 1, 0, ctx.gfx);
         }
 
-        doc.delete(start, end, ctx, time);
+        doc.delete(start, end, ctx);
 
         let insert_start = if direction < 0 {
             Position::new(0, selection.start.y - 1)
@@ -500,7 +470,7 @@ fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx, time: f32)
             doc.get_line_end(selection.start.y)
         };
 
-        doc.insert(insert_start, &text_buffer, ctx, time);
+        doc.insert(insert_start, &text_buffer, ctx);
 
         ctx.buffers.text.replace(text_buffer);
 

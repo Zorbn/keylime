@@ -79,7 +79,7 @@ impl Terminal {
         self.widget.layout(&[bounds]);
     }
 
-    pub fn update(&mut self, ui: &mut Ui, ctx: &mut Ctx, timestamp @ (time, _): (f32, f32)) {
+    pub fn update(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
         let mut global_action_handler = ctx.window.get_action_handler();
 
         while let Some(action) = global_action_handler.next(ctx.window) {
@@ -104,7 +104,7 @@ impl Terminal {
             .pane
             .get_tab_with_data_mut(focused_tab_index, &mut self.term_list)
         {
-            emulator.update_input(&mut self.widget, ui, docs, tab, ctx, time);
+            emulator.update_input(&mut self.widget, ui, docs, tab, ctx);
         }
 
         for tab in &mut self.pane.tabs {
@@ -114,7 +114,7 @@ impl Terminal {
                 continue;
             };
 
-            emulator.update_output(&mut self.widget, ui, docs, tab, ctx, timestamp);
+            emulator.update_output(&mut self.widget, ui, docs, tab, ctx, dt);
         }
     }
 

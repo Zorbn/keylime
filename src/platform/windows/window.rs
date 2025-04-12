@@ -141,10 +141,10 @@ impl WindowRunner {
                 continue;
             };
 
-            let timestamp = window.inner.get_time(is_animating);
+            let (time, dt) = window.inner.get_time(is_animating);
 
-            app.update(window, gfx, timestamp);
-            app.draw(window, gfx);
+            app.update(window, gfx, time, dt);
+            app.draw(window, gfx, time);
         }
 
         let time = window.inner.time;
@@ -236,8 +236,10 @@ impl WindowRunner {
                     ..
                 } = window_runner
                 {
+                    let time = window.inner.time;
+
                     gfx.inner.resize(width, height).unwrap();
-                    app.draw(window, gfx);
+                    app.draw(window, gfx, time);
                 }
 
                 LRESULT(0)

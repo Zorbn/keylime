@@ -57,7 +57,7 @@ impl App {
         }
     }
 
-    pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, timestamp: (f32, f32)) {
+    pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32, dt: f32) {
         if let Some(err) = window
             .was_shown()
             .then(|| self.config_error.take())
@@ -80,18 +80,19 @@ impl App {
             gfx,
             config: &self.config,
             buffers: &mut self.buffers,
+            time,
         };
 
         self.command_palette
-            .update(&mut self.ui, &mut self.editor, &mut ctx, timestamp);
+            .update(&mut self.ui, &mut self.editor, &mut ctx, dt);
 
-        self.terminal.update(&mut self.ui, &mut ctx, timestamp);
+        self.terminal.update(&mut self.ui, &mut ctx, dt);
 
         self.editor
-            .update(&mut self.ui, &mut self.file_watcher, &mut ctx, timestamp);
+            .update(&mut self.ui, &mut self.file_watcher, &mut ctx, dt);
     }
 
-    pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx) {
+    pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
         let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
 
         self.command_palette.layout(bounds, gfx);
@@ -108,6 +109,7 @@ impl App {
             gfx,
             config: &self.config,
             buffers: &mut self.buffers,
+            time,
         };
 
         self.terminal.draw(&mut self.ui, &mut ctx);
@@ -123,9 +125,10 @@ impl App {
             gfx,
             config: &self.config,
             buffers: &mut self.buffers,
+            time,
         };
 
-        self.editor.on_close(&mut ctx, time);
+        self.editor.on_close(&mut ctx);
     }
 
     pub fn config(&self) -> &Config {

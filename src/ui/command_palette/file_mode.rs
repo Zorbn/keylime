@@ -41,7 +41,6 @@ fn on_open(
         pane,
         doc_list,
         ctx,
-        time,
         ..
     }: CommandPaletteEventArgs,
 ) {
@@ -71,10 +70,10 @@ fn on_open(
             continue;
         };
 
-        command_doc.insert(command_doc.end(), string, ctx, time);
+        command_doc.insert(command_doc.end(), string, ctx);
 
         if !ends_with_path_separator(string) {
-            command_doc.insert(command_doc.end(), PREFERRED_PATH_SEPARATOR, ctx, time);
+            command_doc.insert(command_doc.end(), PREFERRED_PATH_SEPARATOR, ctx);
         }
     }
 }
@@ -100,7 +99,7 @@ fn on_submit(
 
     if kind == ResultListSubmitKind::Delete {
         if path.exists() && recycle(path).is_ok() {
-            delete_last_path_component(true, &mut command_palette.doc, args.ctx, args.time);
+            delete_last_path_component(true, &mut command_palette.doc, args.ctx);
         }
 
         return CommandPaletteAction::Stay;
@@ -122,12 +121,11 @@ fn on_submit(
         pane,
         doc_list,
         ctx,
-        time,
     } = args;
 
     if pane
-        .open_file(path, doc_list, ctx, time)
-        .or_else(|_| pane.new_file(Some(path), doc_list, ctx, time))
+        .open_file(path, doc_list, ctx)
+        .or_else(|_| pane.new_file(Some(path), doc_list, ctx))
         .is_ok()
     {
         CommandPaletteAction::Close
@@ -138,17 +136,17 @@ fn on_submit(
 
 fn on_complete_result(
     command_palette: &mut CommandPalette,
-    CommandPaletteEventArgs { ctx, time, .. }: CommandPaletteEventArgs,
+    CommandPaletteEventArgs { ctx, .. }: CommandPaletteEventArgs,
 ) {
     let Some(result) = command_palette.result_list.get_selected_result() else {
         return;
     };
 
-    delete_last_path_component(false, &mut command_palette.doc, ctx, time);
+    delete_last_path_component(false, &mut command_palette.doc, ctx);
 
     let line_len = command_palette.doc.get_line_len(0);
     let start = Position::new(line_len, 0);
-    command_palette.doc.insert(start, result, ctx, time);
+    command_palette.doc.insert(start, result, ctx);
 }
 
 fn on_update_results(command_palette: &mut CommandPalette, _: CommandPaletteEventArgs) {
@@ -184,7 +182,7 @@ fn on_update_results(command_palette: &mut CommandPalette, _: CommandPaletteEven
 
 fn on_backspace(
     command_palette: &mut CommandPalette,
-    CommandPaletteEventArgs { ctx, time, .. }: CommandPaletteEventArgs,
+    CommandPaletteEventArgs { ctx, .. }: CommandPaletteEventArgs,
 ) -> bool {
     let cursor = command_palette.doc.get_cursor(CursorIndex::Main);
     let end = cursor.position;
@@ -193,7 +191,7 @@ fn on_backspace(
     if is_grapheme_path_separator(command_palette.doc.get_grapheme(start)) {
         start = find_path_component_start(&command_palette.doc, start, ctx.gfx);
 
-        command_palette.doc.delete(start, end, ctx, time);
+        command_palette.doc.delete(start, end, ctx);
 
         true
     } else {
@@ -225,7 +223,7 @@ fn get_command_palette_dir<'a>(
     }
 }
 
-fn delete_last_path_component(can_delete_dirs: bool, doc: &mut Doc, ctx: &mut Ctx, time: f32) {
+fn delete_last_path_component(can_delete_dirs: bool, doc: &mut Doc, ctx: &mut Ctx) {
     let end = doc.get_line_end(0);
 
     let find_start = if can_delete_dirs {
@@ -236,7 +234,7 @@ fn delete_last_path_component(can_delete_dirs: bool, doc: &mut Doc, ctx: &mut Ct
 
     let start = find_path_component_start(doc, find_start, ctx.gfx);
 
-    doc.delete(start, end, ctx, time);
+    doc.delete(start, end, ctx);
 }
 
 fn is_grapheme_path_separator(grapheme: &str) -> bool {

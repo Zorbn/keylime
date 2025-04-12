@@ -119,13 +119,7 @@ impl CommandPalette {
         );
     }
 
-    pub fn update(
-        &mut self,
-        ui: &mut Ui,
-        editor: &mut Editor,
-        ctx: &mut Ctx,
-        (time, dt): (f32, f32),
-    ) {
+    pub fn update(&mut self, ui: &mut Ui, editor: &mut Editor, ctx: &mut Ctx, dt: f32) {
         if self.widget.is_visible && !self.widget.is_focused(ui, ctx.window) {
             self.close(ui, &mut ctx.buffers.lines);
         }
@@ -135,16 +129,16 @@ impl CommandPalette {
         while let Some(action) = global_action_handler.next(ctx.window) {
             match action {
                 action_name!(OpenCommandPalette) => {
-                    self.open(ui, MODE_OPEN_FILE, editor, ctx, time);
+                    self.open(ui, MODE_OPEN_FILE, editor, ctx);
                 }
                 action_name!(OpenSearch) => {
-                    self.open(ui, MODE_SEARCH, editor, ctx, time);
+                    self.open(ui, MODE_SEARCH, editor, ctx);
                 }
                 action_name!(OpenSearchAndReplace) => {
-                    self.open(ui, MODE_SEARCH_AND_REPLACE_START, editor, ctx, time);
+                    self.open(ui, MODE_SEARCH_AND_REPLACE_START, editor, ctx);
                 }
                 action_name!(OpenGoToLine) => {
-                    self.open(ui, MODE_GO_TO_LINE, editor, ctx, time);
+                    self.open(ui, MODE_GO_TO_LINE, editor, ctx);
                 }
                 _ => global_action_handler.unprocessed(ctx.window, action),
             }
@@ -157,7 +151,7 @@ impl CommandPalette {
                 action_keybind!(key: Backspace) => {
                     let on_backspace = self.mode.on_backspace;
 
-                    if !(on_backspace)(self, CommandPaletteEventArgs::new(editor, ctx, time)) {
+                    if !(on_backspace)(self, CommandPaletteEventArgs::new(editor, ctx)) {
                         action_handler.unprocessed(ctx.window, action);
                     }
                 }
@@ -174,20 +168,19 @@ impl CommandPalette {
 
         match result_input {
             ResultListInput::None => {}
-            ResultListInput::Complete => self.complete_result(editor, ctx, time),
+            ResultListInput::Complete => self.complete_result(editor, ctx),
             ResultListInput::Submit { kind } => {
-                self.submit(ui, kind, editor, ctx, time);
+                self.submit(ui, kind, editor, ctx);
             }
             ResultListInput::Close => self.close(ui, &mut ctx.buffers.lines),
         }
 
-        self.tab
-            .update(&mut self.widget, ui, &mut self.doc, ctx, time);
+        self.tab.update(&mut self.widget, ui, &mut self.doc, ctx);
 
         self.tab
             .update_camera(&mut self.widget, ui, &self.doc, ctx, dt);
 
-        self.update_results(editor, ctx, time);
+        self.update_results(editor, ctx);
     }
 
     fn submit(
@@ -196,12 +189,11 @@ impl CommandPalette {
         kind: ResultListSubmitKind,
         editor: &mut Editor,
         ctx: &mut Ctx,
-        time: f32,
     ) {
-        self.complete_result(editor, ctx, time);
+        self.complete_result(editor, ctx);
 
         let on_submit = self.mode.on_submit;
-        let action = (on_submit)(self, CommandPaletteEventArgs::new(editor, ctx, time), kind);
+        let action = (on_submit)(self, CommandPaletteEventArgs::new(editor, ctx), kind);
 
         match action {
             CommandPaletteAction::Stay => {}
@@ -219,18 +211,18 @@ impl CommandPalette {
         }
 
         if let CommandPaletteAction::Open(mode) = action {
-            self.open(ui, mode, editor, ctx, time);
+            self.open(ui, mode, editor, ctx);
         }
     }
 
-    fn complete_result(&mut self, editor: &mut Editor, ctx: &mut Ctx, time: f32) {
+    fn complete_result(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
         let on_complete_result = self.mode.on_complete_result;
-        (on_complete_result)(self, CommandPaletteEventArgs::new(editor, ctx, time));
+        (on_complete_result)(self, CommandPaletteEventArgs::new(editor, ctx));
 
         self.result_list.drain();
     }
 
-    fn update_results(&mut self, editor: &mut Editor, ctx: &mut Ctx, time: f32) {
+    fn update_results(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
         if Some(self.doc.version()) == self.last_updated_version {
             return;
         }
@@ -240,7 +232,7 @@ impl CommandPalette {
         self.result_list.drain();
 
         let on_update_results = self.mode.on_update_results;
-        (on_update_results)(self, CommandPaletteEventArgs::new(editor, ctx, time));
+        (on_update_results)(self, CommandPaletteEventArgs::new(editor, ctx));
     }
 
     pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
@@ -299,7 +291,6 @@ impl CommandPalette {
         mode: &'static CommandPaletteMode,
         editor: &mut Editor,
         ctx: &mut Ctx,
-        time: f32,
     ) {
         self.last_updated_version = None;
         self.mode = mode;
@@ -307,9 +298,9 @@ impl CommandPalette {
         self.widget.is_visible = true;
 
         let on_open = self.mode.on_open;
-        (on_open)(self, CommandPaletteEventArgs::new(editor, ctx, time));
+        (on_open)(self, CommandPaletteEventArgs::new(editor, ctx));
 
-        self.update_results(editor, ctx, time);
+        self.update_results(editor, ctx);
     }
 
     fn close(&mut self, ui: &mut Ui, line_pool: &mut LinePool) {

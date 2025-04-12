@@ -90,14 +90,7 @@ impl Tab {
         self.doc_bounds = doc_bounds.shrink_left_by(self.gutter_bounds);
     }
 
-    pub fn update(
-        &mut self,
-        widget: &mut Widget,
-        ui: &mut Ui,
-        doc: &mut Doc,
-        ctx: &mut Ctx,
-        time: f32,
-    ) {
+    pub fn update(&mut self, widget: &mut Widget, ui: &mut Ui, doc: &mut Doc, ctx: &mut Ctx) {
         self.handled_cursor_position = doc.get_cursor(CursorIndex::Main).position;
 
         let mut grapheme_handler = widget.get_grapheme_handler(ui, ctx.window);
@@ -106,7 +99,7 @@ impl Tab {
             let mut text_buffer = ctx.buffers.text.take_mut();
             text_buffer.push_str(grapheme);
 
-            handle_grapheme(&text_buffer, doc, ctx, time);
+            handle_grapheme(&text_buffer, doc, ctx);
 
             ctx.buffers.text.replace(text_buffer);
         }
@@ -160,7 +153,7 @@ impl Tab {
         let mut action_handler = widget.get_action_handler(ui, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
-            let was_handled = handle_action(action, doc, ctx, time);
+            let was_handled = handle_action(action, doc, ctx);
 
             if !was_handled {
                 action_handler.unprocessed(ctx.window, action);

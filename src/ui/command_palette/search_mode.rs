@@ -84,7 +84,6 @@ fn on_submit_search_and_replace_end(
         pane,
         doc_list,
         ctx,
-        time,
         ..
     }: CommandPaletteEventArgs,
     kind: ResultListSubmitKind,
@@ -121,7 +120,7 @@ fn on_submit_search_and_replace_end(
             }
 
             if has_match {
-                doc.insert_at_cursor(CursorIndex::Main, replace_term, ctx, time);
+                doc.insert_at_cursor(CursorIndex::Main, replace_term, ctx);
 
                 let end = doc.move_position(start, replace_term.len() as isize, 0, ctx.gfx);
 

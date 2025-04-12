@@ -238,8 +238,9 @@ define_class!(
             };
 
             let window = &mut *window;
+            let time = window.inner.time;
 
-            app.draw(window, gfx);
+            app.draw(window, gfx, time);
 
             if !window.inner.was_shown {
                 window.inner.ns_window.makeKeyAndOrderFront(None);
@@ -308,8 +309,8 @@ impl View {
 
         let window = &mut *window;
 
-        let timestamp = window.inner.get_time(app.is_animating());
-        app.update(window, gfx, timestamp);
+        let (time, dt) = window.inner.get_time(app.is_animating());
+        app.update(window, gfx, time, dt);
 
         let (file_watcher, files, ptys) = app.files_and_ptys();
         window.inner.update(file_watcher, files, ptys);

@@ -14,22 +14,16 @@ pub struct CommandPaletteEventArgs<'a, 'b> {
     pub pane: &'a mut EditorPane,
     pub doc_list: &'a mut SlotList<Doc>,
     pub ctx: &'a mut Ctx<'b>,
-    pub time: f32,
 }
 
 impl<'a, 'b> CommandPaletteEventArgs<'a, 'b> {
-    pub fn new(
-        editor: &'a mut Editor,
-        ctx: &'a mut Ctx<'b>,
-        time: f32,
-    ) -> CommandPaletteEventArgs<'a, 'b> {
+    pub fn new(editor: &'a mut Editor, ctx: &'a mut Ctx<'b>) -> CommandPaletteEventArgs<'a, 'b> {
         let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
 
         CommandPaletteEventArgs {
             pane,
             doc_list,
             ctx,
-            time,
         }
     }
 }
