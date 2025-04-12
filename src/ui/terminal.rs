@@ -114,8 +114,11 @@ impl Terminal {
                 continue;
             };
 
-            emulator.update_output(&mut self.widget, ui, docs, tab, ctx, dt);
+            emulator.update_output(docs, tab, ctx);
         }
+
+        self.pane
+            .update_camera(&mut self.widget, ui, &mut self.term_list, ctx, dt);
     }
 
     pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {

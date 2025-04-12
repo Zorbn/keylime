@@ -16,6 +16,7 @@ const SCROLL_FRICTION: f32 = 0.0001;
 
 pub struct CameraAxis {
     pub position: f32,
+    pub is_locked: bool,
     velocity: f32,
     recenter_kind: CameraRecenterKind,
 }
@@ -24,6 +25,7 @@ impl CameraAxis {
     pub fn new() -> Self {
         Self {
             position: 0.0,
+            is_locked: false,
             velocity: 0.0,
             recenter_kind: CameraRecenterKind::None,
         }
@@ -42,6 +44,11 @@ impl CameraAxis {
         can_recenter: bool,
         dt: f32,
     ) {
+        if self.is_locked {
+            self.reset();
+            return;
+        }
+
         let min_scroll_border = *scroll_border.start();
         let max_scroll_border = *scroll_border.end();
 

@@ -244,15 +244,7 @@ impl TerminalEmulator {
         tab.update(widget, ui, doc, ctx);
     }
 
-    pub fn update_output(
-        &mut self,
-        widget: &mut Widget,
-        ui: &mut Ui,
-        docs: &mut TerminalDocs,
-        tab: &mut Tab,
-        ctx: &mut Ctx,
-        dt: f32,
-    ) {
+    pub fn update_output(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
         self.resize_grid(ctx.gfx, tab);
 
         let Some(mut pty) = self.pty.take() else {
@@ -264,6 +256,7 @@ impl TerminalEmulator {
         let doc = self.get_doc_mut(docs);
         let mut cursor_buffer = ctx.buffers.cursors.take_mut();
 
+        let backup_doc_len = doc.lines().len();
         self.backup_doc_cursor_positions(doc, &mut cursor_buffer);
         self.expand_to_grid_size(docs, ctx);
 
@@ -278,25 +271,24 @@ impl TerminalEmulator {
         let doc = self.get_doc_mut(docs);
 
         if self.maintain_cursor_positions {
-            self.restore_doc_cursor_positions(doc, &mut cursor_buffer);
+            self.restore_doc_cursor_positions(doc, &mut cursor_buffer, backup_doc_len);
         }
 
         ctx.buffers.cursors.replace(cursor_buffer);
 
         self.pty = Some(pty);
 
+        tab.camera.horizontal.is_locked = true;
+
         if self.is_in_alternate_buffer {
             // The alternate buffer is always the size of the camera and doesn't need to scroll.
-            tab.camera.reset();
+            tab.camera.vertical.is_locked = true;
         } else {
+            tab.camera.vertical.is_locked = false;
+
             tab.camera.vertical.position -=
                 self.excess_lines_trimmed as f32 * ctx.gfx.line_height();
             self.excess_lines_trimmed = 0;
-
-            tab.camera.horizontal.reset_velocity();
-
-            let doc = self.get_doc(docs);
-            tab.update_camera(widget, ui, doc, ctx, dt);
         }
     }
 
@@ -330,7 +322,7 @@ impl TerminalEmulator {
         }
 
         for y in 0..self.grid_height {
-            let y = self.grid_y_to_doc_y(y as isize, doc) as usize;
+            let y = self.grid_y_to_doc_y(y, doc);
             let line_len = doc.get_line_len(y);
 
             if line_len < self.grid_width {
@@ -405,7 +397,19 @@ impl TerminalEmulator {
         let end = Position::new(0, excess_lines);
 
         doc.delete(start, end, ctx);
-        doc.recycle_highlighted_lines_up_to_y(excess_lines);
+        doc.scroll_highlighted_lines(0..=doc.lines().len() - 1, excess_lines as isize);
+    }
+
+    fn scroll_highlighted_lines(
+        &mut self,
+        region: RangeInclusive<usize>,
+        delta_y: isize,
+        doc: &mut Doc,
+    ) {
+        let start = self.grid_y_to_doc_y(*region.start(), doc);
+        let end = self.grid_y_to_doc_y(*region.end(), doc);
+
+        doc.scroll_highlighted_lines(start..=end, delta_y);
     }
 
     // Scrolls the text in the region down, giving the impression that the camera is panning up.
@@ -421,6 +425,8 @@ impl TerminalEmulator {
 
         let scroll_top = *region.start();
         let scroll_bottom = *region.end();
+
+        self.scroll_highlighted_lines(region, -1, doc);
 
         let delete_start =
             self.grid_position_to_doc_position(self.get_line_end(scroll_bottom - 1, doc), doc);
@@ -442,7 +448,6 @@ impl TerminalEmulator {
 
         self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc);
 
-        self.mark_lines_dirty(region);
         self.highlight_lines(doc);
     }
 
@@ -465,6 +470,8 @@ impl TerminalEmulator {
         let insert_start = if should_use_scrollback {
             self.grid_position_to_doc_position(self.get_line_end(scroll_bottom, doc), doc)
         } else {
+            self.scroll_highlighted_lines(region, 1, doc);
+
             // We need to delete the line that got scrolled out:
             let delete_start =
                 self.grid_position_to_doc_position(Position::new(0, scroll_top), doc);
@@ -490,7 +497,6 @@ impl TerminalEmulator {
         self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc);
 
         self.trim_excess_lines(doc, ctx);
-        self.mark_lines_dirty(region);
         self.highlight_lines(doc);
     }
 
@@ -534,14 +540,14 @@ impl TerminalEmulator {
     }
 
     fn get_line_len(&self, y: usize, doc: &Doc) -> usize {
-        let doc_position = self.grid_position_to_doc_position(Position::new(0, y), doc);
+        let y = self.grid_y_to_doc_y(y, doc);
 
-        doc.get_line_len(doc_position.y)
+        doc.get_line_len(y)
     }
 
     pub fn get_line_end(&self, y: usize, doc: &Doc) -> Position {
-        let doc_position = self.grid_position_to_doc_position(Position::new(0, y), doc);
-        let doc_position = doc.get_line_end(doc_position.y);
+        let doc_y = self.grid_y_to_doc_y(y, doc);
+        let doc_position = doc.get_line_end(doc_y);
 
         self.doc_position_to_grid_position(doc_position, doc)
     }
@@ -619,53 +625,42 @@ impl TerminalEmulator {
     }
 
     pub fn grid_position_to_doc_position(&self, position: Position, doc: &Doc) -> Position {
-        Position::new(
-            position.x,
-            self.grid_y_to_doc_y(position.y as isize, doc) as usize,
-        )
+        Position::new(position.x, self.grid_y_to_doc_y(position.y, doc))
     }
 
     fn doc_position_to_grid_position(&self, position: Position, doc: &Doc) -> Position {
-        Position::new(
-            position.x,
-            self.doc_y_to_grid_y(position.y as isize, doc) as usize,
-        )
+        Position::new(position.x, self.doc_y_to_grid_y(position.y, doc))
     }
 
-    pub fn grid_y_to_doc_y(&self, y: isize, doc: &Doc) -> isize {
-        doc.lines().len().saturating_sub(self.grid_height) as isize + y
+    pub fn grid_y_to_doc_y(&self, y: usize, doc: &Doc) -> usize {
+        doc.lines().len().saturating_sub(self.grid_height) + y
     }
 
-    fn doc_y_to_grid_y(&self, y: isize, doc: &Doc) -> isize {
-        y - doc.lines().len().saturating_sub(self.grid_height) as isize
+    fn doc_y_to_grid_y(&self, y: usize, doc: &Doc) -> usize {
+        y.saturating_sub(doc.lines().len().saturating_sub(self.grid_height))
     }
 
     fn backup_doc_cursor_positions(&mut self, doc: &Doc, cursor_buffer: &mut Vec<Cursor>) {
         doc.backup_cursors(cursor_buffer);
-        self.convert_cursor_backups(doc, cursor_buffer, Self::doc_position_to_grid_position);
     }
 
-    fn restore_doc_cursor_positions(&mut self, doc: &mut Doc, cursor_buffer: &mut [Cursor]) {
-        self.convert_cursor_backups(doc, cursor_buffer, Self::grid_position_to_doc_position);
-        doc.restore_cursors(cursor_buffer);
-    }
-
-    fn convert_cursor_backups(
+    fn restore_doc_cursor_positions(
         &mut self,
-        doc: &Doc,
+        doc: &mut Doc,
         cursor_buffer: &mut [Cursor],
-        convert_fn: fn(&Self, Position, &Doc) -> Position,
+        backup_doc_len: usize,
     ) {
-        for cursor in cursor_buffer {
-            let position = convert_fn(self, cursor.position, doc);
+        let offset_y = doc.lines().len() as isize - backup_doc_len as isize;
 
-            let selection_anchor = cursor
-                .selection_anchor
-                .map(|selection_anchor| convert_fn(self, selection_anchor, doc));
+        for cursor in cursor_buffer.iter_mut() {
+            cursor.position.y = cursor.position.y.saturating_add_signed(offset_y);
 
-            cursor.position = position;
-            cursor.selection_anchor = selection_anchor;
+            if let Some(selection_anchor) = &mut cursor.selection_anchor {
+                selection_anchor.y = selection_anchor.y.saturating_add_signed(offset_y);
+            }
         }
+
+        doc.restore_cursors(cursor_buffer);
     }
 
     pub fn jump_doc_cursors_to_grid_cursor(&mut self, doc: &mut Doc, gfx: &mut Gfx) {
@@ -726,22 +721,16 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn mark_lines_dirty(&mut self, region: RangeInclusive<usize>) {
-        for y in region {
-            self.colored_grid_lines[y].is_dirty = true;
-        }
-    }
-
     pub fn highlight_lines(&mut self, doc: &mut Doc) {
         for y in 0..self.colored_grid_lines.len() {
-            let doc_position = self.grid_position_to_doc_position(Position::new(0, y), doc);
+            let doc_y = self.grid_y_to_doc_y(y, doc);
             let colored_line = &mut self.colored_grid_lines[y];
 
             if !colored_line.is_dirty {
                 continue;
             }
 
-            doc.highlight_line_from_terminal_colors(&colored_line.colors, doc_position.y);
+            doc.highlight_line_from_terminal_colors(&colored_line.colors, doc_y);
 
             colored_line.is_dirty = false;
         }

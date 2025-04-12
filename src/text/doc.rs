@@ -3,6 +3,7 @@ use std::{
     fs::{read_to_string, File},
     io::{self, Write},
     mem::take,
+    ops::RangeInclusive,
     path::{absolute, Path, PathBuf},
     vec::Drain,
 };
@@ -1740,8 +1741,9 @@ impl Doc {
         self.unhighlighted_line_y = end.y + 1;
     }
 
-    pub fn recycle_highlighted_lines_up_to_y(&mut self, y: usize) {
-        self.syntax_highlighter.recycle_highlighted_lines_up_to_y(y);
+    pub fn scroll_highlighted_lines(&mut self, region: RangeInclusive<usize>, delta_y: isize) {
+        self.syntax_highlighter
+            .scroll_highlighted_lines(region, delta_y);
     }
 
     pub fn highlight_line_from_terminal_colors(

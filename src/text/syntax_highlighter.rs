@@ -1,3 +1,5 @@
+use std::ops::RangeInclusive;
+
 use serde::Deserialize;
 
 use crate::ui::color::Color;
@@ -339,11 +341,21 @@ impl SyntaxHighlighter {
         }
     }
 
-    pub fn recycle_highlighted_lines_up_to_y(&mut self, y: usize) {
-        for _ in 0..y.min(self.highlighted_lines.len()) {
-            let mut highlighted_line = self.highlighted_lines.remove(0);
+    pub fn scroll_highlighted_lines(&mut self, region: RangeInclusive<usize>, delta_y: isize) {
+        let start = *region.start();
+        let end = *region.end();
+        let end = end.min(self.highlighted_lines.len().saturating_sub(1));
+
+        let (start, end) = if delta_y < 0 {
+            (end, start)
+        } else {
+            (start, end)
+        };
+
+        for _ in 0..delta_y.abs() {
+            let mut highlighted_line = self.highlighted_lines.remove(start);
             highlighted_line.clear();
-            self.highlighted_lines.push(highlighted_line);
+            self.highlighted_lines.insert(end, highlighted_line);
         }
     }
 
