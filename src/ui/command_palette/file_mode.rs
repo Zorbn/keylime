@@ -80,7 +80,11 @@ fn on_open(
 
 fn on_submit(
     command_palette: &mut CommandPalette,
-    args: CommandPaletteEventArgs,
+    CommandPaletteEventArgs {
+        pane,
+        doc_list,
+        ctx,
+    }: CommandPaletteEventArgs,
     kind: ResultListSubmitKind,
 ) -> CommandPaletteAction {
     if !matches!(
@@ -99,29 +103,25 @@ fn on_submit(
 
     if kind == ResultListSubmitKind::Delete {
         if path.exists() && recycle(path).is_ok() {
-            delete_last_path_component(true, &mut command_palette.doc, args.ctx);
+            delete_last_path_component(true, &mut command_palette.doc, ctx);
         }
 
         return CommandPaletteAction::Stay;
     }
 
+    let is_dir = ends_with_path_separator(string);
+
     if !path.exists() {
-        if ends_with_path_separator(string) {
+        if is_dir {
             let _ = create_dir_all(path);
-
-            on_update_results(command_palette, args);
-
-            return CommandPaletteAction::Stay;
         } else if let Some(parent) = path.parent() {
             let _ = create_dir_all(parent);
         }
     }
 
-    let CommandPaletteEventArgs {
-        pane,
-        doc_list,
-        ctx,
-    } = args;
+    if is_dir {
+        return CommandPaletteAction::Stay;
+    }
 
     if pane
         .open_file(path, doc_list, ctx)
