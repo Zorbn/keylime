@@ -273,7 +273,7 @@ impl TerminalEmulator {
         if self.maintain_cursor_positions {
             self.restore_doc_cursor_positions(doc, &mut cursor_buffer, backup_doc_len);
         } else {
-            tab.recenter_cursor();
+            tab.recenter_camera();
         }
 
         ctx.buffers.cursors.replace(cursor_buffer);

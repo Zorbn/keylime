@@ -9,7 +9,7 @@ pub enum CameraRecenterKind {
     OnCursor,
 }
 
-pub const RECENTER_DISTANCE: usize = 3;
+pub const RECENTER_DISTANCE: usize = 4;
 const SCROLL_SPEED: f32 = 30.0;
 const PRECISE_SCROLL_SPEED: f32 = 0.1;
 const SCROLL_FRICTION: f32 = 0.0001;
