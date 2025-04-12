@@ -32,6 +32,7 @@ macro_rules! define_handler {
             pub fn unprocessed(&mut self, window: &mut Window, t: $t) {
                 window.$buffer().insert(0, t);
                 self.i += 1;
+                self.len += 1;
             }
         }
     };
