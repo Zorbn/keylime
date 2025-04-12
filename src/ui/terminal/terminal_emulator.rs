@@ -92,6 +92,7 @@ pub struct TerminalEmulator {
     pub grid_width: usize,
     pub grid_height: usize,
     colored_grid_lines: Vec<ColoredGridLine>,
+    empty_line_text: String,
 
     maintain_cursor_positions: bool,
 
@@ -121,6 +122,7 @@ impl TerminalEmulator {
             grid_width: 0,
             grid_height: 0,
             colored_grid_lines: Vec::new(),
+            empty_line_text: String::new(),
 
             maintain_cursor_positions: false,
 
@@ -299,6 +301,12 @@ impl TerminalEmulator {
     }
 
     fn expand_to_grid_size(&mut self, docs: &mut TerminalDocs, ctx: &mut Ctx) {
+        self.empty_line_text.truncate(self.grid_width);
+
+        while self.empty_line_text.len() < self.grid_width {
+            self.empty_line_text.push(' ');
+        }
+
         self.expand_doc_to_grid_size(&mut docs.normal, ctx);
         self.expand_doc_to_grid_size(&mut docs.alternate, ctx);
 
@@ -323,9 +331,14 @@ impl TerminalEmulator {
 
         for y in 0..self.grid_height {
             let y = self.grid_y_to_doc_y(y as isize, doc) as usize;
+            let line_len = doc.get_line_len(y);
 
-            while doc.get_line_len(y) < self.grid_width {
-                doc.insert(doc.get_line_end(y), " ", ctx);
+            if line_len < self.grid_width {
+                doc.insert(
+                    doc.get_line_end(y),
+                    &self.empty_line_text[line_len..self.grid_width],
+                    ctx,
+                );
             }
         }
     }
@@ -419,10 +432,7 @@ impl TerminalEmulator {
 
         doc.delete(delete_start, delete_end, ctx);
         doc.insert(insert_start, "\n", ctx);
-
-        for _ in 0..self.grid_width {
-            doc.insert(insert_start, " ", ctx);
-        }
+        doc.insert(insert_start, &self.empty_line_text, ctx);
 
         let mut bottom_grid_line = self.colored_grid_lines.remove(scroll_bottom);
         bottom_grid_line.clear();
@@ -468,10 +478,7 @@ impl TerminalEmulator {
             insert_start
         };
 
-        for _ in 0..self.grid_width {
-            doc.insert(insert_start, " ", ctx);
-        }
-
+        doc.insert(insert_start, &self.empty_line_text, ctx);
         doc.insert(insert_start, "\n", ctx);
 
         let mut top_grid_line = self.colored_grid_lines.remove(scroll_top);
