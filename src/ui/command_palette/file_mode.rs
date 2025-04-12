@@ -252,7 +252,7 @@ fn ends_with_path_separator(text: &str) -> bool {
 fn find_path_component_start(doc: &Doc, position: Position, gfx: &mut Gfx) -> Position {
     let mut start = position;
 
-    while start > Position::zero() {
+    while start > Position::ZERO {
         let next_start = doc.move_position(start, -1, 0, gfx);
 
         if is_grapheme_path_separator(doc.get_grapheme(next_start)) {

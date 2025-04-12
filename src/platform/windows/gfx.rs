@@ -379,7 +379,7 @@ impl Gfx {
             width: 0,
             height: 0,
             scale,
-            bounds: Rect::zero(),
+            bounds: Rect::ZERO,
 
             vertices: Vec::new(),
             vertex_buffer: None,

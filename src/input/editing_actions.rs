@@ -97,7 +97,7 @@ pub fn handle_action(action: Action, doc: &mut Doc, ctx: &mut Ctx) -> bool {
         action_name!(End, mods) => handle_end(mods & MOD_SHIFT != 0, doc, ctx.gfx),
         action_name!(GoToStart, mods) => {
             for index in doc.cursor_indices() {
-                doc.jump_cursor(index, Position::zero(), mods & MOD_SHIFT != 0, ctx.gfx);
+                doc.jump_cursor(index, Position::ZERO, mods & MOD_SHIFT != 0, ctx.gfx);
             }
         }
         action_name!(GoToEnd, mods) => {
@@ -106,7 +106,7 @@ pub fn handle_action(action: Action, doc: &mut Doc, ctx: &mut Ctx) -> bool {
             }
         }
         action_name!(SelectAll) => {
-            doc.jump_cursors(Position::zero(), false, ctx.gfx);
+            doc.jump_cursors(Position::ZERO, false, ctx.gfx);
             doc.jump_cursors(doc.end(), true, ctx.gfx);
         }
         action_keybind!(key: Escape, mods: 0) => {

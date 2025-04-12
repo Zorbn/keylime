@@ -54,8 +54,8 @@ impl<T> ResultList<T> {
             do_allow_delete: false,
 
             max_visible_results,
-            result_bounds: Rect::zero(),
-            results_bounds: Rect::zero(),
+            result_bounds: Rect::ZERO,
+            results_bounds: Rect::ZERO,
 
             camera: Camera::new(),
         }

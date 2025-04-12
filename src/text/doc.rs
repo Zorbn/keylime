@@ -929,7 +929,7 @@ impl Doc {
 
                     if self.cursors.len() <= index {
                         self.cursors
-                            .resize(index + 1, Cursor::new(Position::zero(), 0));
+                            .resize(index + 1, Cursor::new(Position::ZERO, 0));
                     }
 
                     let mut cursor = Cursor::new(position, 0);
@@ -1400,7 +1400,7 @@ impl Doc {
 
     fn reset_cursors(&mut self) {
         self.cursors.clear();
-        self.cursors.push(Cursor::new(Position::zero(), 0));
+        self.cursors.push(Cursor::new(Position::ZERO, 0));
     }
 
     pub fn clear_extra_cursors(&mut self, kept_index: CursorIndex) {
@@ -1486,7 +1486,7 @@ impl Doc {
 
         let (line_ending, len) = self.get_line_ending_and_len(&string);
 
-        self.insert(Position::zero(), &string[..len], ctx);
+        self.insert(Position::ZERO, &string[..len], ctx);
         self.reset_edit_state();
         self.line_ending = line_ending;
 
@@ -1511,12 +1511,12 @@ impl Doc {
         let mut cursor_buffer = ctx.buffers.cursors.take_mut();
         self.backup_cursors(&mut cursor_buffer);
 
-        self.delete(Position::zero(), self.end(), ctx);
+        self.delete(Position::ZERO, self.end(), ctx);
 
         let (line_ending, len) = self.get_line_ending_and_len(&string);
 
         self.line_ending = line_ending;
-        self.insert(Position::zero(), &string[..len], ctx);
+        self.insert(Position::ZERO, &string[..len], ctx);
 
         self.is_saved = true;
 

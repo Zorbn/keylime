@@ -66,8 +66,8 @@ impl CommandPalette {
             result_list: ResultList::new(MAX_VISIBLE_RESULTS),
             previous_results: Vec::new(),
 
-            title_bounds: Rect::zero(),
-            input_bounds: Rect::zero(),
+            title_bounds: Rect::ZERO,
+            input_bounds: Rect::ZERO,
 
             widget: Widget::new(ui, false),
         }
@@ -108,7 +108,7 @@ impl CommandPalette {
         self.result_list.offset_by(self.widget.bounds());
 
         self.tab.layout(
-            Rect::zero(),
+            Rect::ZERO,
             Rect::new(0.0, 0.0, gfx.glyph_width() * 10.0, gfx.line_height())
                 .center_in(self.input_bounds)
                 .expand_width_in(self.input_bounds)

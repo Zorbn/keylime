@@ -17,7 +17,7 @@ pub struct Widget {
 impl Widget {
     pub fn new(ui: &mut Ui, is_visible: bool) -> Self {
         let widget = Self {
-            bounds: vec![Rect::zero()],
+            bounds: vec![Rect::ZERO],
             id: ui.next_widget_id,
             is_visible,
         };
@@ -92,7 +92,7 @@ impl Widget {
         self.bounds.clear();
 
         if bounds.is_empty() {
-            self.bounds.push(Rect::zero());
+            self.bounds.push(Rect::ZERO);
         } else {
             self.bounds.extend_from_slice(bounds);
         }

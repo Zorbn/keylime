@@ -425,14 +425,14 @@ impl TerminalEmulator {
                     }
                     1 => {
                         // Clear from the cursor to the beginning of the screen.
-                        let start = Position::zero();
+                        let start = Position::ZERO;
                         let end = self.grid_cursor;
 
                         Some((start, end))
                     }
                     2 => {
                         // Clear screen.
-                        let start = Position::zero();
+                        let start = Position::ZERO;
                         let end = self.get_line_end(self.grid_height - 1, doc);
 
                         Some((start, end))

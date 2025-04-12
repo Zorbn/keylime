@@ -9,12 +9,10 @@ pub struct Position {
 }
 
 impl Position {
-    pub fn new(x: usize, y: usize) -> Self {
-        Self { x, y }
-    }
+    pub const ZERO: Self = Self::new(0, 0);
 
-    pub fn zero() -> Self {
-        Self { x: 0, y: 0 }
+    pub const fn new(x: usize, y: usize) -> Self {
+        Self { x, y }
     }
 
     pub fn min(self, other: Position) -> Position {

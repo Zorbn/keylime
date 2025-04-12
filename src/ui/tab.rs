@@ -60,9 +60,9 @@ impl Tab {
             camera: Camera::new(),
             handled_cursor_position: None,
 
-            tab_bounds: Rect::zero(),
-            gutter_bounds: Rect::zero(),
-            doc_bounds: Rect::zero(),
+            tab_bounds: Rect::ZERO,
+            gutter_bounds: Rect::ZERO,
+            doc_bounds: Rect::ZERO,
         }
     }
 

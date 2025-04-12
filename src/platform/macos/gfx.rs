@@ -217,7 +217,7 @@ impl Gfx {
             command_buffer: None,
             encoder: None,
 
-            bounds: Rect::zero(),
+            bounds: Rect::ZERO,
 
             text,
             texture: None,

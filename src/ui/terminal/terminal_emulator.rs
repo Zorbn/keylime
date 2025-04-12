@@ -118,7 +118,7 @@ impl TerminalEmulator {
         Self {
             pty: None,
 
-            grid_cursor: Position::zero(),
+            grid_cursor: Position::ZERO,
             grid_width: 0,
             grid_height: 0,
             colored_grid_lines: Vec::new(),
@@ -126,7 +126,7 @@ impl TerminalEmulator {
 
             maintain_cursor_positions: false,
 
-            saved_grid_cursor: Position::zero(),
+            saved_grid_cursor: Position::ZERO,
             saved_colored_grid_lines: Vec::new(),
             saved_maintain_cursor_positions: false,
 
@@ -395,7 +395,7 @@ impl TerminalEmulator {
         let excess_lines = doc.lines().len() - max_lines;
         self.excess_lines_trimmed += excess_lines;
 
-        let start = Position::zero();
+        let start = Position::ZERO;
         let end = Position::new(0, excess_lines);
 
         doc.delete(start, end, ctx);

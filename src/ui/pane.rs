@@ -22,7 +22,7 @@ impl<T> Pane<T> {
         Self {
             tabs: Vec::new(),
             focused_tab_index: 0,
-            bounds: Rect::zero(),
+            bounds: Rect::ZERO,
 
             get_doc,
             get_doc_mut,
@@ -180,7 +180,7 @@ impl<T> Pane<T> {
 
             tab_bounds
         } else {
-            Rect::zero()
+            Rect::ZERO
         };
 
         gfx.add_rect(
