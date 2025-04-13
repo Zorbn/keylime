@@ -26,21 +26,22 @@ pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, ctx: &mut Ctx) {
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
 
-        let current_grapheme = doc.get_grapheme(cursor.position);
+        let next_grapheme = doc.get_grapheme(cursor.position);
 
         let previous_position = doc.move_position(cursor.position, -1, 0, ctx.gfx);
         let previous_grapheme = doc.get_grapheme(previous_position);
 
-        if is_matching_grapheme(grapheme) && current_grapheme == grapheme {
+        if is_matching_grapheme(grapheme) && next_grapheme == grapheme {
             doc.move_cursor(index, 1, 0, false, ctx.gfx);
 
             continue;
         }
 
-        if let Some(matching_grapheme) = get_matching_grapheme(grapheme).filter(|grapheme| {
-            (current_grapheme == *grapheme || grapheme::is_whitespace(current_grapheme))
-                && (*grapheme != "'" || grapheme::is_whitespace(previous_grapheme))
-        }) {
+        if let Some(matching_grapheme) =
+            get_matching_grapheme(grapheme).filter(|matching_grapheme| {
+                should_insert_matching_grapheme(matching_grapheme, next_grapheme, previous_grapheme)
+            })
+        {
             doc.insert_at_cursor(index, grapheme, ctx);
             doc.insert_at_cursor(index, matching_grapheme, ctx);
             doc.move_cursor(index, -1, 0, false, ctx.gfx);
@@ -50,6 +51,18 @@ pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, ctx: &mut Ctx) {
 
         doc.insert_at_cursor(index, grapheme, ctx);
     }
+}
+
+fn should_insert_matching_grapheme(
+    matching_grapheme: &str,
+    next_grapheme: &str,
+    previous_grapheme: &str,
+) -> bool {
+    let is_next_clear =
+        is_matching_grapheme(next_grapheme) || grapheme::is_whitespace(next_grapheme);
+    let is_previous_clear = matching_grapheme != "'" || grapheme::is_whitespace(previous_grapheme);
+
+    is_next_clear && is_previous_clear
 }
 
 pub fn handle_action(action: Action, doc: &mut Doc, ctx: &mut Ctx) -> bool {
