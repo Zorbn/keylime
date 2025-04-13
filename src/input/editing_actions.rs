@@ -31,17 +31,26 @@ pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, ctx: &mut Ctx) {
         let previous_position = doc.move_position(cursor.position, -1, 0, ctx.gfx);
         let previous_grapheme = doc.get_grapheme(previous_position);
 
+        let matching_grapheme = get_matching_grapheme(grapheme);
+
+        if let Some((matching_grapheme, selection)) = matching_grapheme.zip(cursor.get_selection())
+        {
+            doc.insert(selection.end, matching_grapheme, ctx);
+            doc.set_cursor_selection(index, Some(selection));
+            doc.insert(selection.start, grapheme, ctx);
+
+            continue;
+        }
+
         if is_matching_grapheme(grapheme) && next_grapheme == grapheme {
             doc.move_cursor(index, 1, 0, false, ctx.gfx);
 
             continue;
         }
 
-        if let Some(matching_grapheme) =
-            get_matching_grapheme(grapheme).filter(|matching_grapheme| {
-                should_insert_matching_grapheme(matching_grapheme, next_grapheme, previous_grapheme)
-            })
-        {
+        if let Some(matching_grapheme) = matching_grapheme.filter(|matching_grapheme| {
+            should_insert_matching_grapheme(matching_grapheme, next_grapheme, previous_grapheme)
+        }) {
             doc.insert_at_cursor(index, grapheme, ctx);
             doc.insert_at_cursor(index, matching_grapheme, ctx);
             doc.move_cursor(index, -1, 0, false, ctx.gfx);
