@@ -256,7 +256,7 @@ impl TerminalEmulator {
         let doc = self.get_doc_mut(docs);
         let mut cursor_buffer = ctx.buffers.cursors.take_mut();
 
-        let backup_doc_len = doc.lines().len();
+        let backup_doc_len = doc.lines().len().max(self.grid_height);
         self.backup_doc_cursor_positions(doc, &mut cursor_buffer);
         self.expand_to_grid_size(docs, ctx);
 
