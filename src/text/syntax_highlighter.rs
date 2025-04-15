@@ -36,6 +36,7 @@ pub enum TerminalHighlightKind {
 #[derive(Deserialize, PartialEq, Eq, Clone, Copy, Debug)]
 pub enum HighlightKind {
     Normal,
+    Identifier,
     Comment,
     Keyword,
     Function,
@@ -235,6 +236,8 @@ impl SyntaxHighlighter {
             let mut default_end = grapheme_cursor.cur_cursor();
             grapheme_cursor.set_cursor(default_start);
 
+            let mut default_foreground = HighlightKind::Normal;
+
             if !grapheme::is_whitespace(grapheme::at(grapheme_cursor.cur_cursor(), line)) {
                 if let HighlightResult::Token { start, end } =
                     Self::match_identifier(line, grapheme_cursor.cur_cursor())
@@ -254,6 +257,7 @@ impl SyntaxHighlighter {
                     }
 
                     default_end = end;
+                    default_foreground = HighlightKind::Identifier;
                 }
 
                 for (i, range) in syntax.ranges.iter().enumerate() {
@@ -311,7 +315,7 @@ impl SyntaxHighlighter {
             self.highlighted_lines[y].push(Highlight {
                 start: default_start,
                 end: default_end,
-                foreground: HighlightKind::Normal,
+                foreground: default_foreground,
                 background: None,
             });
             grapheme_cursor.set_cursor(default_end);

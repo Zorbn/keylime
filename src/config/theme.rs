@@ -53,6 +53,7 @@ impl Default for TerminalTheme {
 #[derive(Deserialize, Debug)]
 pub struct Theme {
     pub normal: Color,
+    pub identifier: Color,
     pub comment: Color,
     pub keyword: Color,
     pub function: Color,
@@ -73,6 +74,7 @@ impl Theme {
     pub fn highlight_kind_to_color(&self, highlight_kind: HighlightKind) -> Color {
         match highlight_kind {
             HighlightKind::Normal => self.normal,
+            HighlightKind::Identifier => self.identifier,
             HighlightKind::Comment => self.comment,
             HighlightKind::Keyword => self.keyword,
             HighlightKind::Function => self.function,
@@ -115,6 +117,7 @@ impl Default for Theme {
     fn default() -> Self {
         Self {
             normal: Color::from_hex(0xCCCCCCFF),
+            identifier: Color::from_hex(0x9CDCFEFF),
             comment: Color::from_hex(0x6A9955FF),
             keyword: Color::from_hex(0x569CD6FF),
             function: Color::from_hex(0xDCDCAAFF),
