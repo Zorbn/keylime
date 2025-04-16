@@ -1,6 +1,7 @@
 use std::{
     env::current_dir,
     fs::{create_dir_all, read_dir},
+    io,
     path::{Component, Path, PathBuf},
 };
 
@@ -125,7 +126,13 @@ fn on_submit(
 
     if pane
         .open_file(path, doc_list, ctx)
-        .or_else(|_| pane.new_file(Some(path), doc_list, ctx))
+        .or_else(|err| {
+            if err.kind() == io::ErrorKind::NotFound {
+                pane.new_file(Some(path), doc_list, ctx)
+            } else {
+                Err(err)
+            }
+        })
         .is_ok()
     {
         CommandPaletteAction::Close
