@@ -732,7 +732,10 @@ impl TerminalEmulator {
                 continue;
             }
 
-            doc.highlight_line_from_terminal_colors(&colored_line.colors, doc_y);
+            let line_len = doc.get_line_len(doc_y);
+            let colors = &colored_line.colors[..line_len];
+
+            doc.highlight_line_from_terminal_colors(colors, doc_y);
 
             colored_line.is_dirty = false;
         }
