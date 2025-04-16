@@ -36,12 +36,12 @@ impl Trie {
         self.nodes.push(root);
     }
 
-    fn insert_at_node(&mut self, mut index: usize, mut text: &str) {
-        while let Some(c) = text.chars().nth(0) {
-            let remaining = &text[1..];
+    fn insert_at_node(&mut self, mut index: usize, text: &str) {
+        let mut char_cursor = CharCursor::new(0, text.len());
 
+        while let Some(c) = text[char_cursor.cur_cursor()..].chars().nth(0) {
             index = self.get_or_add_child(index, c);
-            text = remaining;
+            char_cursor.next_boundary(text);
         }
 
         self.nodes[index].is_terminal = true;
