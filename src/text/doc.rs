@@ -1083,10 +1083,10 @@ impl Doc {
         }
 
         if influence_end.y == position.y && influence_end.x <= position.x {
-            Position::new(
-                position.x - (influence_end.x - start.x),
-                position.y - (influence_end.y - start.y),
-            )
+            // Use isize to allow for wrapping the position when deleting at the start of a line.
+            let x = (position.x as isize - (influence_end.x as isize - start.x as isize)) as usize;
+
+            Position::new(x, position.y - (influence_end.y - start.y))
         } else if influence_end.y < position.y {
             Position::new(position.x, position.y - (influence_end.y - start.y))
         } else {
