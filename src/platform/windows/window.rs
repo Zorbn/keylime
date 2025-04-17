@@ -70,8 +70,6 @@ pub struct WindowRunner {
 
 impl WindowRunner {
     pub fn new(app: App) -> Result<Box<Self>> {
-        let use_dark_mode = BOOL::from(app.is_dark());
-
         let mut window_runner = Box::new(WindowRunner {
             window: ManuallyDrop::new(AnyWindow {
                 inner: Window::new()?,
@@ -111,12 +109,7 @@ impl WindowRunner {
                 Some(lparam.cast()),
             )?;
 
-            DwmSetWindowAttribute(
-                window_runner.window.inner.hwnd(),
-                DWMWA_USE_IMMERSIVE_DARK_MODE,
-                &use_dark_mode as *const BOOL as _,
-                size_of::<BOOL>() as u32,
-            )?;
+            window_runner.window.set_theme(window_runner.app.is_dark());
 
             AddClipboardFormatListener(window_runner.window.inner.hwnd())?;
 
@@ -358,6 +351,19 @@ impl Window {
             was_copy_implicit: false,
             did_just_copy: false,
         })
+    }
+
+    pub fn set_theme(&mut self, is_dark: bool) {
+        let is_dark = BOOL::from(is_dark);
+
+        unsafe {
+            let _ = DwmSetWindowAttribute(
+                self.hwnd,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                &is_dark as *const BOOL as _,
+                size_of::<BOOL>() as u32,
+            );
+        }
     }
 
     fn clear_inputs(&mut self) {

@@ -5,7 +5,7 @@ use std::{
     collections::{HashMap, HashSet},
     env::current_exe,
     fs::{read_dir, read_to_string},
-    path::{Path, PathBuf},
+    path::{absolute, Path, PathBuf},
 };
 
 use language::{IndentWidth, Language};
@@ -217,16 +217,20 @@ impl Config {
     }
 
     pub fn get_dir() -> PathBuf {
-        if let Some(exe_dir) = current_exe().as_ref().ok().and_then(|exe| exe.parent()) {
-            let mut config_path = exe_dir.to_owned();
-            config_path.push(CONFIG_DIR);
+        let relative_dir = {
+            if let Some(exe_dir) = current_exe().as_ref().ok().and_then(|exe| exe.parent()) {
+                let mut config_path = exe_dir.to_owned();
+                config_path.push(CONFIG_DIR);
 
-            if config_path.exists() {
-                return config_path;
+                if config_path.exists() {
+                    return config_path;
+                }
             }
-        }
 
-        PathBuf::from(CONFIG_DIR)
+            CONFIG_DIR
+        };
+
+        absolute(relative_dir).unwrap()
     }
 }
 

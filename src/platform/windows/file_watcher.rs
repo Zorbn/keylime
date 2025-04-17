@@ -18,9 +18,7 @@ use windows::{
 pub struct DirWatchHandles {
     overlapped: OVERLAPPED,
     dir_handle: HANDLE,
-    // Boxed so that the pointer passed to ReadDirectoryChangesW remains valid
-    // when DirWatchHandles is moved into the dir_watch_handles list or reordered.
-    buffer: Box<[u8; 1024]>,
+    buffer: [u8; 1024],
     are_in_use: bool,
     path: PathBuf,
 }
@@ -29,7 +27,7 @@ impl DirWatchHandles {
     unsafe fn enqueue(&mut self) -> Result<()> {
         ReadDirectoryChangesW(
             self.dir_handle,
-            self.buffer.as_ptr() as _,
+            self.buffer.as_mut_ptr() as _,
             self.buffer.len() as u32,
             true,
             FILE_NOTIFY_CHANGE_LAST_WRITE,
@@ -54,7 +52,10 @@ impl Drop for DirWatchHandles {
 }
 
 pub struct FileWatcher {
-    dir_watch_handles: Vec<DirWatchHandles>,
+    // Boxed so that the buffer and overlapped pointers passed to ReadDirectoryChangesW
+    // remain valid when DirWatchHandles is moved into the dir_watch_handles list or reordered.
+    #[allow(clippy::vec_box)]
+    dir_watch_handles: Vec<Box<DirWatchHandles>>,
     changed_files: Vec<PathBuf>,
 }
 
@@ -147,13 +148,13 @@ impl FileWatcher {
                     None,
                 )?;
 
-                let mut handles = DirWatchHandles {
+                let mut handles = Box::new(DirWatchHandles {
                     overlapped,
                     dir_handle,
-                    buffer: Box::new([0; 1024]),
+                    buffer: [0; 1024],
                     are_in_use: true,
                     path: dir.to_path_buf(),
-                };
+                });
 
                 handles.enqueue()?;
 
@@ -176,7 +177,7 @@ impl FileWatcher {
         &self.changed_files
     }
 
-    pub fn dir_watch_handles(&self) -> &[DirWatchHandles] {
+    pub fn dir_watch_handles(&self) -> &[Box<DirWatchHandles>] {
         &self.dir_watch_handles
     }
 }

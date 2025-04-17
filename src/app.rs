@@ -33,7 +33,7 @@ impl App {
             text: TempString::new(),
         };
 
-        let config_dir = Config::get_dir().canonicalize().unwrap();
+        let config_dir = Config::get_dir();
 
         let (config, config_error) = match Config::load(&config_dir) {
             Ok(config) => (config, None),
