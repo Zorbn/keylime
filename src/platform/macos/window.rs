@@ -6,6 +6,7 @@ use objc2_foundation::*;
 
 use crate::{
     app::App,
+    config::theme::Theme,
     input::{
         action::{Action, ActionName},
         input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
@@ -207,14 +208,25 @@ impl Window {
             implicit_copy_change_count: None,
         };
 
-        window.set_theme(app.is_dark());
+        window.set_theme(&app.config().theme);
 
         window
     }
 
-    pub fn set_theme(&mut self, is_dark: bool) {
+    pub fn set_theme(&mut self, theme: &Theme) {
+        let r = theme.background.r as f64 / 255.0f64;
+        let g = theme.background.g as f64 / 255.0f64;
+        let b = theme.background.b as f64 / 255.0f64;
+        let a = theme.background.a as f64 / 255.0f64;
+
+        // Setting the background color also tints the titlebar to help it match the content.
+        unsafe {
+            self.ns_window
+                .setBackgroundColor(Some(&NSColor::colorWithRed_green_blue_alpha(r, g, b, a)));
+        }
+
         let appearance_name = unsafe {
-            if is_dark {
+            if theme.is_dark() {
                 NSAppearanceNameDarkAqua
             } else {
                 NSAppearanceNameAqua

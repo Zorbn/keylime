@@ -1,5 +1,6 @@
 use crate::{
     app::App,
+    config::theme::Theme,
     input::{
         action::Action,
         input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
@@ -32,8 +33,8 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn set_theme(&mut self, is_dark: bool) {
-        self.inner.set_theme(is_dark);
+    pub fn set_theme(&mut self, theme: &Theme) {
+        self.inner.set_theme(theme);
     }
 
     pub fn is_focused(&self) -> bool {

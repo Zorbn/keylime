@@ -74,7 +74,7 @@ impl App {
                 Err(err) => self.config_error = Some(err),
             }
 
-            window.set_theme(self.is_dark());
+            window.set_theme(&self.config.theme);
             gfx.update_font(&self.config.font, self.config.font_size);
             self.editor.clear_doc_highlights();
         }
@@ -154,10 +154,6 @@ impl App {
 
     pub fn config(&self) -> &Config {
         &self.config
-    }
-
-    pub fn is_dark(&self) -> bool {
-        self.config.theme.is_dark()
     }
 
     pub fn is_animating(&self) -> bool {
