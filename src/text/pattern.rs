@@ -163,6 +163,9 @@ impl Pattern {
         code: &str,
         grapheme_cursor: &mut GraphemeCursor,
     ) -> Result<(Vec<PatternLiteral>, bool), &'static str> {
+        // Skip opening bracket.
+        grapheme_cursor.next_boundary(code);
+
         let mut class = Vec::new();
         let mut is_escaped = false;
         let mut is_positive = true;
@@ -171,12 +174,6 @@ impl Pattern {
         while grapheme_cursor.cur_cursor() < code.len() {
             let index = grapheme_cursor.cur_cursor();
             let grapheme = grapheme::at(index, code);
-
-            if is_first && grapheme == "^" {
-                is_positive = false;
-            }
-
-            is_first = false;
 
             if is_escaped {
                 is_escaped = false;
@@ -189,6 +186,7 @@ impl Pattern {
             }
 
             match grapheme {
+                "^" if is_first => is_positive = false,
                 "%" => is_escaped = true,
                 "]" => {
                     return Ok((class, is_positive));
@@ -196,6 +194,7 @@ impl Pattern {
                 _ => class.push(PatternLiteral::Grapheme(index, index + grapheme.len())),
             }
 
+            is_first = false;
             grapheme_cursor.next_boundary(code);
         }
 
