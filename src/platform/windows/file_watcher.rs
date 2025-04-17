@@ -18,7 +18,9 @@ use windows::{
 pub struct DirWatchHandles {
     overlapped: OVERLAPPED,
     dir_handle: HANDLE,
-    buffer: [u8; 1024],
+    // Boxed so that the pointer passed to ReadDirectoryChangesW remains valid
+    // when DirWatchHandles is moved into the dir_watch_handles list or reordered.
+    buffer: Box<[u8; 1024]>,
     are_in_use: bool,
     path: PathBuf,
 }
@@ -148,7 +150,7 @@ impl FileWatcher {
                 let mut handles = DirWatchHandles {
                     overlapped,
                     dir_handle,
-                    buffer: [0; 1024],
+                    buffer: Box::new([0; 1024]),
                     are_in_use: true,
                     path: dir.to_path_buf(),
                 };
