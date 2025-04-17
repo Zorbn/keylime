@@ -997,6 +997,11 @@ impl Doc {
         }
     }
 
+    pub fn clear_highlights(&mut self) {
+        self.unhighlighted_line_y = 0;
+        self.syntax_highlighter.clear();
+    }
+
     fn mark_line_dirty(&mut self, y: usize) {
         self.unhighlighted_line_y = self.unhighlighted_line_y.min(y);
         self.needs_tokenization = true;

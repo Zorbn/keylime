@@ -117,6 +117,12 @@ impl SyntaxHighlighter {
         }
     }
 
+    pub fn clear(&mut self) {
+        for highlighted_line in &mut self.highlighted_lines {
+            highlighted_line.clear();
+        }
+    }
+
     pub fn match_identifier(line: &str, start: usize) -> HighlightResult {
         let mut grapheme_cursor = GraphemeCursor::new(start, line.len());
 

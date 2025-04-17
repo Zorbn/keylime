@@ -429,18 +429,21 @@ impl Tab {
             let background_visual_y =
                 Self::get_line_background_visual_y(i, visible_lines.offset, gfx);
 
-            if y >= highlighted_lines.len() {
+            let Some(highlights) = highlighted_lines
+                .get(y)
+                .map(|highlighted_line| highlighted_line.highlights())
+                .filter(|highlights| !highlights.is_empty())
+            else {
                 let visual_x = -camera_position.x;
 
                 gfx.add_text(&line[..], visual_x, foreground_visual_y, theme.normal);
 
                 continue;
-            }
+            };
 
             let mut x = 0.0;
-            let highlighted_line = &highlighted_lines[y];
 
-            for highlight in highlighted_line.highlights() {
+            for highlight in highlights {
                 let visual_x = x - camera_position.x;
                 let foreground = ctx
                     .config

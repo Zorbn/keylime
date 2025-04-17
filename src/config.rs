@@ -20,7 +20,8 @@ use crate::{
     },
 };
 
-const CONFIG_PATH: &str = "config.toml";
+const CONFIG_FILE: &str = "config.toml";
+const CONFIG_DIR: &str = "config";
 const DEFAULT_COMMENT: fn() -> &'static str = || "//";
 const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
 const DEFAULT_TERMINAL_HEIGHT: fn() -> f32 = || 12.0;
@@ -99,12 +100,10 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load() -> Result<Config, ConfigError> {
-        let config_dir = Self::get_config_directory();
-
+    pub fn load(dir: &Path) -> Result<Config, ConfigError> {
         let mut path = PathBuf::new();
 
-        path.push(&config_dir);
+        path.push(dir);
         path.push("languages");
 
         let mut languages = Vec::new();
@@ -138,14 +137,14 @@ impl Config {
         }
 
         path.clear();
-        path.push(&config_dir);
-        path.push(CONFIG_PATH);
+        path.push(dir);
+        path.push(CONFIG_FILE);
 
         let config_desc_string = Self::load_file_string(&path)?;
         let config_desc = Self::load_file_data::<ConfigDesc>(&path, &config_desc_string)?;
 
         path.clear();
-        path.push(&config_dir);
+        path.push(dir);
         path.push("themes");
         path.push(config_desc.theme);
         path.set_extension("toml");
@@ -217,17 +216,17 @@ impl Config {
             .unwrap_or_default()
     }
 
-    fn get_config_directory() -> PathBuf {
+    pub fn get_dir() -> PathBuf {
         if let Some(exe_dir) = current_exe().as_ref().ok().and_then(|exe| exe.parent()) {
             let mut config_path = exe_dir.to_owned();
-            config_path.push(CONFIG_PATH);
+            config_path.push(CONFIG_DIR);
 
             if config_path.exists() {
-                return exe_dir.to_owned();
+                return config_path;
             }
         }
 
-        PathBuf::from(".")
+        PathBuf::from(CONFIG_DIR)
     }
 }
 

@@ -32,6 +32,10 @@ pub struct Window {
 }
 
 impl Window {
+    pub fn set_theme(&mut self, is_dark: bool) {
+        self.inner.set_theme(is_dark);
+    }
+
     pub fn is_focused(&self) -> bool {
         self.inner.is_focused()
     }

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::{
     config::{Config, ConfigError},
@@ -20,6 +20,7 @@ pub struct App {
     command_palette: CommandPalette,
     file_watcher: FileWatcher,
 
+    config_dir: PathBuf,
     config: Config,
     config_error: Option<ConfigError>,
 }
@@ -32,7 +33,9 @@ impl App {
             text: TempString::new(),
         };
 
-        let (config, config_error) = match Config::load() {
+        let config_dir = Config::get_dir().canonicalize().unwrap();
+
+        let (config, config_error) = match Config::load(&config_dir) {
             Ok(config) => (config, None),
             Err(err) => (Config::default(), Some(err)),
         };
@@ -52,12 +55,30 @@ impl App {
             command_palette,
             file_watcher,
 
+            config_dir,
             config,
             config_error,
         }
     }
 
     pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32, dt: f32) {
+        let config_changed = self
+            .file_watcher
+            .get_changed_files()
+            .iter()
+            .any(|changed_file| changed_file.starts_with(&self.config_dir));
+
+        if config_changed {
+            match Config::load(&self.config_dir) {
+                Ok(config) => self.config = config,
+                Err(err) => self.config_error = Some(err),
+            }
+
+            window.set_theme(self.is_dark());
+            gfx.update_font(&self.config.font, self.config.font_size);
+            self.editor.clear_doc_highlights();
+        }
+
         if let Some(err) = window
             .was_shown()
             .then(|| self.config_error.take())

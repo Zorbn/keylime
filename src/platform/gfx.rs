@@ -205,6 +205,11 @@ impl Gfx {
         self.inner.add_sprite(src, dst, color, kind);
     }
 
+    pub fn update_font(&mut self, font_name: &str, font_size: f32) {
+        self.inner
+            .update_font(font_name, font_size, self.inner.scale());
+    }
+
     pub fn glyph_width(&self) -> f32 {
         self.inner.atlas_dimensions().glyph_width as f32
     }

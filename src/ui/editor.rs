@@ -259,6 +259,13 @@ impl Editor {
         self.update_completions(should_open_completions, handled_position, ctx.gfx);
     }
 
+    // Necessary when syntax highlighting rules change.
+    pub fn clear_doc_highlights(&mut self) {
+        for doc in self.doc_list.iter_mut().flatten() {
+            doc.clear_highlights();
+        }
+    }
+
     fn reload_changed_files(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
         let changed_files = file_watcher.get_changed_files();
 

@@ -6,9 +6,7 @@ use objc2::{
     define_class, msg_send, rc::Retained, runtime::ProtocolObject, DefinedClass, MainThreadMarker,
     MainThreadOnly,
 };
-use objc2_app_kit::{
-    NSApplication, NSApplicationDelegate, NSColor, NSMenuItem, NSWindow, NSWindowDelegate,
-};
+use objc2_app_kit::{NSApplication, NSApplicationDelegate, NSMenuItem, NSWindow, NSWindowDelegate};
 use objc2_foundation::{ns_string, NSNotification, NSObject, NSObjectProtocol, NSThread};
 use objc2_metal::MTLCreateSystemDefaultDevice;
 
@@ -60,20 +58,7 @@ define_class!(
                 )
             };
 
-            unsafe {
-                let app = app.borrow();
-
-                let theme = &app.config().theme;
-
-                let r = theme.background.r as f64 / 255.0f64;
-                let g = theme.background.g as f64 / 255.0f64;
-                let b = theme.background.b as f64 / 255.0f64;
-                let a = theme.background.a as f64 / 255.0f64;
-
-                ns_window
-                    .setBackgroundColor(Some(&NSColor::colorWithRed_green_blue_alpha(r, g, b, a)));
-                ns_window.setAcceptsMouseMovedEvents(true);
-            }
+            ns_window.setAcceptsMouseMovedEvents(true);
 
             let protocol_object = ProtocolObject::from_ref(self);
             ns_window.setDelegate(Some(protocol_object));
@@ -183,7 +168,7 @@ impl Delegate {
         mtm: MainThreadMarker,
     ) -> Retained<Self> {
         let window = AnyWindow {
-            inner: Window::new(mtm),
+            inner: Window::new(&app.borrow(), mtm),
         };
 
         let this = mtm.alloc();

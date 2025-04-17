@@ -64,19 +64,8 @@ impl WindowRunner {
     pub fn run(&mut self) {
         let mtm = MainThreadMarker::new().unwrap();
 
-        let appearance_name = unsafe {
-            if self.app.borrow().is_dark() {
-                NSAppearanceNameDarkAqua
-            } else {
-                NSAppearanceNameAqua
-            }
-        };
-
-        let appearance = NSAppearance::appearanceNamed(appearance_name);
-
         let app = NSApplication::sharedApplication(mtm);
         app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
-        app.setAppearance(appearance.as_deref());
 
         let menubar = NSMenu::new(mtm);
 
@@ -164,7 +153,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(mtm: MainThreadMarker) -> Self {
+    pub fn new(app: &App, mtm: MainThreadMarker) -> Self {
         let content_rect = NSRect::new(
             NSPoint::new(0.0, 0.0),
             NSSize::new(DEFAULT_WIDTH, DEFAULT_HEIGHT),
@@ -189,7 +178,7 @@ impl Window {
 
         let scale = ns_window.backingScaleFactor();
 
-        Self {
+        let mut window = Self {
             ns_window,
             view: None,
             width: DEFAULT_WIDTH,
@@ -216,6 +205,26 @@ impl Window {
             current_pressed_button: None,
 
             implicit_copy_change_count: None,
+        };
+
+        window.set_theme(app.is_dark());
+
+        window
+    }
+
+    pub fn set_theme(&mut self, is_dark: bool) {
+        let appearance_name = unsafe {
+            if is_dark {
+                NSAppearanceNameDarkAqua
+            } else {
+                NSAppearanceNameAqua
+            }
+        };
+
+        let appearance = NSAppearance::appearanceNamed(appearance_name);
+
+        unsafe {
+            self.ns_window.setAppearance(appearance.as_deref());
         }
     }
 
