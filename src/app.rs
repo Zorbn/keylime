@@ -76,7 +76,9 @@ impl App {
 
             window.set_theme(&self.config.theme);
             gfx.update_font(&self.config.font, self.config.font_size);
+
             self.editor.clear_doc_highlights();
+            self.layout(gfx);
         }
 
         if let Some(err) = window
@@ -114,14 +116,7 @@ impl App {
     }
 
     pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
-        let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
-
-        self.command_palette.layout(bounds, gfx);
-        self.terminal.layout(bounds, &self.config, gfx);
-
-        bounds = bounds.shrink_bottom_by(self.terminal.bounds());
-
-        self.editor.layout(bounds, gfx);
+        self.layout(gfx);
 
         gfx.begin_frame(self.config.theme.background);
 
@@ -138,6 +133,17 @@ impl App {
         self.command_palette.draw(&mut self.ui, &mut ctx);
 
         gfx.end_frame();
+    }
+
+    fn layout(&mut self, gfx: &mut Gfx) {
+        let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
+
+        self.command_palette.layout(bounds, gfx);
+        self.terminal.layout(bounds, &self.config, gfx);
+
+        bounds = bounds.shrink_bottom_by(self.terminal.bounds());
+
+        self.editor.layout(bounds, gfx);
     }
 
     pub fn close(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
