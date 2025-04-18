@@ -40,7 +40,7 @@ use windows_core::BOOL;
 
 use crate::{
     app::App,
-    config::Config,
+    config::{theme::Theme, Config},
     input::{
         action::{Action, ActionName},
         input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
@@ -109,7 +109,9 @@ impl WindowRunner {
                 Some(lparam.cast()),
             )?;
 
-            window_runner.window.set_theme(window_runner.app.is_dark());
+            window_runner
+                .window
+                .set_theme(&window_runner.app.config().theme);
 
             AddClipboardFormatListener(window_runner.window.inner.hwnd())?;
 
@@ -353,8 +355,8 @@ impl Window {
         })
     }
 
-    pub fn set_theme(&mut self, is_dark: bool) {
-        let is_dark = BOOL::from(is_dark);
+    pub fn set_theme(&mut self, theme: &Theme) {
+        let is_dark = BOOL::from(theme.is_dark());
 
         unsafe {
             let _ = DwmSetWindowAttribute(
