@@ -342,8 +342,10 @@ impl TerminalEmulator {
         grid_height: usize,
         colored_grid_lines: &mut Vec<ColoredGridLine>,
     ) {
+        colored_grid_lines.truncate(grid_height);
+
         while colored_grid_lines.len() < grid_height {
-            colored_grid_lines.push(ColoredGridLine::new());
+            colored_grid_lines.insert(0, ColoredGridLine::new());
         }
 
         for colored_grid_line in colored_grid_lines {
@@ -732,7 +734,7 @@ impl TerminalEmulator {
                 continue;
             }
 
-            let line_len = doc.get_line_len(doc_y);
+            let line_len = colored_line.colors.len().min(doc.get_line_len(doc_y));
             let colors = &colored_line.colors[..line_len];
 
             doc.highlight_line_from_terminal_colors(colors, doc_y);
