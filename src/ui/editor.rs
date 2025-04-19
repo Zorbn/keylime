@@ -275,7 +275,7 @@ impl Editor {
     }
 
     pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        let is_focused = ui.is_focused(&self.widget, ctx.window);
+        let is_focused = ui.is_focused(&self.widget);
 
         for (i, pane) in self.panes.iter_mut().enumerate() {
             let is_focused = is_focused && i == self.focused_pane_index;

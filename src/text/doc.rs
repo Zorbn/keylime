@@ -20,7 +20,7 @@ use super::{
     action_history::{Action, ActionHistory, ActionKind},
     cursor::Cursor,
     cursor_index::{CursorIndex, CursorIndices},
-    grapheme::{GraphemeCursor, GraphemeIterator},
+    grapheme::{CharCursor, CharIterator, GraphemeCursor, GraphemeIterator},
     grapheme_category::GraphemeCategory,
     line_pool::LinePool,
     selection::Selection,
@@ -1211,13 +1211,13 @@ impl Doc {
         gfx: &mut Gfx,
     ) -> Option<Position> {
         if is_reverse {
-            self.search_backward(text, start, gfx)
+            self.search_backward(text, start, true, gfx)
         } else {
-            self.search_forward(text, start)
+            self.search_forward(text, start, true)
         }
     }
 
-    pub fn search_forward(&self, text: &str, start: Position) -> Option<Position> {
+    pub fn search_forward(&self, text: &str, start: Position, do_wrap: bool) -> Option<Position> {
         let start = self.clamp_position(start);
 
         if text.is_empty() {
@@ -1227,45 +1227,62 @@ impl Doc {
         let mut y = start.y as isize;
         let mut x = start.x;
 
-        let mut match_cursor = GraphemeCursor::new(0, text.len());
+        let mut match_cursor = CharCursor::new(0, text.len());
 
         loop {
             let line = &self.lines[y as usize];
 
-            for grapheme in GraphemeIterator::with_offset(x, line) {
+            for c in CharIterator::with_offset(x, line) {
                 for _ in 0..2 {
-                    if grapheme::at(match_cursor.cur_cursor(), text) == grapheme {
+                    if grapheme::char_at(match_cursor.cur_cursor(), text) == c {
                         match_cursor.next_boundary(text);
 
                         if match_cursor.cur_cursor() >= text.len() {
                             let match_x =
-                                grapheme.as_ptr() as usize - line.as_ptr() as usize - text.len()
-                                    + 1;
+                                c.as_ptr() as usize - line.as_ptr() as usize - text.len() + 1;
 
                             return Some(Position::new(match_x, y as usize));
                         }
 
                         break;
-                    } else {
+                    } else if match_cursor.cur_cursor() > 0 {
                         match_cursor.set_cursor(0);
 
                         // Now retry matching from the start of the text.
+                        continue;
                     }
+
+                    break;
                 }
             }
 
-            y = (y + 1).rem_euclid(self.lines.len() as isize);
-            x = 0;
+            y += 1;
+
+            if y >= self.lines.len() as isize {
+                if do_wrap {
+                    y = 0;
+                } else {
+                    break;
+                }
+            }
 
             if y == start.y as isize {
                 break;
             }
+
+            x = 0;
         }
 
         None
     }
 
-    pub fn search_backward(&self, text: &str, start: Position, gfx: &mut Gfx) -> Option<Position> {
+    pub fn search_backward(
+        &self,
+        text: &str,
+        start: Position,
+        do_wrap: bool,
+        gfx: &mut Gfx,
+    ) -> Option<Position> {
         let start = self.move_position(start, -1, 0, gfx);
 
         if text.is_empty() {
@@ -1292,20 +1309,32 @@ impl Doc {
                         }
 
                         break;
-                    } else {
-                        match_cursor.set_cursor(text.len());
+                    } else if match_cursor.cur_cursor() > 0 {
+                        match_cursor.set_cursor(0);
 
                         // Now retry matching from the start of the text.
+                        continue;
                     }
+
+                    break;
                 }
             }
 
-            y = (y - 1).rem_euclid(self.lines.len() as isize);
-            x = self.lines[y as usize].len();
+            y -= 1;
+
+            if y < 0 {
+                if do_wrap {
+                    y = self.lines.len() as isize;
+                } else {
+                    break;
+                }
+            }
 
             if y == start.y as isize {
                 break;
             }
+
+            x = self.lines[y as usize].len();
         }
 
         None

@@ -128,8 +128,8 @@ impl Ui {
         widget.is_visible = false;
     }
 
-    pub fn is_focused(&self, widget: &Widget, window: &Window) -> bool {
-        window.is_focused() && self.focused_widget_id() == widget.id && widget.is_visible
+    pub fn is_focused(&self, widget: &Widget) -> bool {
+        self.focused_widget_id() == widget.id && widget.is_visible
     }
 
     pub fn is_hovered(&self, widget: &Widget) -> bool {
@@ -137,7 +137,7 @@ impl Ui {
     }
 
     pub fn get_grapheme_handler(&self, widget: &Widget, window: &Window) -> GraphemeHandler {
-        if self.is_focused(widget, window) {
+        if self.is_focused(widget) {
             window.get_grapheme_handler()
         } else {
             GraphemeHandler::new(GraphemeCursor::new(0, 0))
@@ -145,7 +145,7 @@ impl Ui {
     }
 
     pub fn get_action_handler(&self, widget: &Widget, window: &Window) -> ActionHandler {
-        if self.is_focused(widget, window) {
+        if self.is_focused(widget) {
             window.get_action_handler()
         } else {
             ActionHandler::new(0)
@@ -153,7 +153,7 @@ impl Ui {
     }
 
     pub fn get_mousebind_handler(&self, widget: &Widget, window: &Window) -> MousebindHandler {
-        if self.is_focused(widget, window) {
+        if self.is_focused(widget) {
             window.get_mousebind_handler()
         } else {
             MousebindHandler::new(0)

@@ -182,6 +182,10 @@ impl CharCursor {
         Some(self.offset)
     }
 
+    pub fn set_cursor(&mut self, offset: usize) {
+        self.offset = offset;
+    }
+
     pub fn cur_cursor(&self) -> usize {
         self.offset
     }
@@ -197,6 +201,13 @@ impl<'a> CharIterator<'a> {
         Self {
             text,
             char_cursor: CharCursor::new(0, text.len()),
+        }
+    }
+
+    pub fn with_offset(offset: usize, text: &'a str) -> Self {
+        Self {
+            text,
+            char_cursor: CharCursor::new(offset, text.len()),
         }
     }
 }

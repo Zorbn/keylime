@@ -88,7 +88,7 @@ impl Terminal {
         while let Some(action) = global_action_handler.next(ctx.window) {
             match action {
                 action_name!(FocusTerminal) => {
-                    if ui.is_focused(&self.widget, ctx.window) {
+                    if ui.is_focused(&self.widget) {
                         ui.unfocus(&self.widget);
                     } else {
                         ui.focus(&mut self.widget);
@@ -125,7 +125,7 @@ impl Terminal {
     }
 
     pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        let is_focused = ui.is_focused(&self.widget, ctx.window);
+        let is_focused = ui.is_focused(&self.widget);
 
         self.pane.draw(
             Some(ctx.config.theme.terminal.background),

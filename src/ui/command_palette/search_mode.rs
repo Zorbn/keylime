@@ -47,9 +47,7 @@ fn on_submit_search(
 
     let focused_tab_index = pane.focused_tab_index();
 
-    let Some(search_term) = command_palette.doc.get_line(0) else {
-        return CommandPaletteAction::Stay;
-    };
+    let search_term = command_palette.get_input();
 
     let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
         return CommandPaletteAction::Stay;
@@ -97,13 +95,11 @@ fn on_submit_search_and_replace_end(
 
     let focused_tab_index = pane.focused_tab_index();
 
-    let Some(search_term) = command_palette.previous_results.last() else {
+    let Some(search_term) = command_palette.previous_inputs.last() else {
         return CommandPaletteAction::Stay;
     };
 
-    let Some(replace_term) = command_palette.doc.get_line(0) else {
-        return CommandPaletteAction::Stay;
-    };
+    let replace_term = command_palette.get_input();
 
     let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
         return CommandPaletteAction::Stay;

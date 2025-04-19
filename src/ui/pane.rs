@@ -15,7 +15,7 @@ use super::{
 
 pub struct Pane<T> {
     pub tabs: Vec<Tab>,
-    pub focused_tab_index: usize,
+    focused_tab_index: usize,
     bounds: Rect,
 
     get_doc: fn(&T) -> &Doc,
@@ -317,6 +317,11 @@ impl<T> Pane<T> {
 
     pub fn bounds(&self) -> Rect {
         self.bounds
+    }
+
+    pub fn set_focused_tab_index(&mut self, index: usize) {
+        self.focused_tab_index = index;
+        self.clamp_focused_tab();
     }
 
     pub fn focused_tab_index(&self) -> usize {

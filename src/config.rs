@@ -25,6 +25,13 @@ const CONFIG_DIR: &str = "config";
 const DEFAULT_COMMENT: fn() -> &'static str = || "//";
 const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
 const DEFAULT_TERMINAL_HEIGHT: fn() -> f32 = || 12.0;
+const DEFAULT_IGNORED_DIRS: fn() -> Vec<String> = || {
+    ["target", "build", "out", ".git"]
+        .iter()
+        .copied()
+        .map(str::to_owned)
+        .collect()
+};
 
 #[derive(Deserialize, Debug)]
 struct SyntaxDesc<'a> {
@@ -72,6 +79,8 @@ struct ConfigDesc<'a> {
     #[serde(default = "DEFAULT_TERMINAL_HEIGHT")]
     terminal_height: f32,
     theme: &'a str,
+    #[serde(default = "DEFAULT_IGNORED_DIRS")]
+    ignored_dirs: Vec<String>,
 }
 
 pub struct ConfigError {
@@ -97,6 +106,7 @@ pub struct Config {
     pub theme: Theme,
     pub languages: Vec<Language>,
     pub extension_languages: HashMap<String, usize>,
+    pub ignored_dirs: HashSet<String>,
 }
 
 impl Config {
@@ -152,11 +162,14 @@ impl Config {
         let theme_string = Self::load_file_string(&path)?;
         let theme = Self::load_file_data(&path, &theme_string)?;
 
+        let ignored_dirs = HashSet::from_iter(config_desc.ignored_dirs);
+
         Ok(Config {
             font: config_desc.font.to_owned(),
             font_size: config_desc.font_size,
             trim_trailing_whitespace: config_desc.trim_trailing_whitespace,
             terminal_height: config_desc.terminal_height.max(0.0),
+            ignored_dirs,
             theme,
             languages,
             extension_languages,
@@ -244,6 +257,7 @@ impl Default for Config {
             theme: Theme::default(),
             languages: Vec::new(),
             extension_languages: HashMap::new(),
+            ignored_dirs: HashSet::from_iter(DEFAULT_IGNORED_DIRS()),
         }
     }
 }

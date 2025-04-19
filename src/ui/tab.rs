@@ -511,7 +511,7 @@ impl Tab {
             }
         }
 
-        if is_focused {
+        if is_focused && ctx.window.is_focused() {
             let cursor_width = (gfx.glyph_width() * 0.25).ceil();
 
             for index in doc.cursor_indices() {

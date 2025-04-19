@@ -15,8 +15,8 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
- * Directory-wide search.
  * Unit testing for patterns and text editing functions.
+ * Ensure font is monospaced on Windows.
  */
 
 fn main() {

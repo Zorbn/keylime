@@ -13,7 +13,7 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
                 key: Key::P,
                 mods: MOD_CMD,
             },
-            ActionName::OpenCommandPalette,
+            ActionName::OpenFileFinder,
         ),
         (
             Keybind {
@@ -28,6 +28,13 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
                 mods: MOD_CMD,
             },
             ActionName::OpenSearchAndReplace,
+        ),
+        (
+            Keybind {
+                key: Key::F,
+                mods: MOD_CMD | MOD_SHIFT,
+            },
+            ActionName::OpenFindInFiles,
         ),
         (
             Keybind {

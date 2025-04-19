@@ -31,6 +31,13 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
         ),
         (
             Keybind {
+                key: Key::F,
+                mods: MOD_CTRL | MOD_SHIFT,
+            },
+            ActionName::OpenFindInFiles,
+        ),
+        (
+            Keybind {
                 key: Key::G,
                 mods: MOD_CTRL,
             },

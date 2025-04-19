@@ -1,4 +1,5 @@
-pub mod file_mode;
+pub mod find_file_mode;
+pub mod find_in_files_mode;
 pub mod go_to_line_mode;
 mod mode;
 pub mod search_mode;
@@ -25,7 +26,8 @@ use super::{
     tab::Tab,
 };
 
-use file_mode::MODE_OPEN_FILE;
+use find_file_mode::MODE_FIND_FILE;
+use find_in_files_mode::MODE_FIND_IN_FILES;
 use go_to_line_mode::MODE_GO_TO_LINE;
 use mode::{CommandPaletteEventArgs, CommandPaletteMode};
 use search_mode::{MODE_SEARCH, MODE_SEARCH_AND_REPLACE_START};
@@ -46,7 +48,7 @@ pub struct CommandPalette {
     last_updated_version: Option<usize>,
 
     result_list: ResultList<String>,
-    previous_results: Vec<String>,
+    previous_inputs: Vec<String>,
 
     title_bounds: Rect,
     input_bounds: Rect,
@@ -57,13 +59,13 @@ pub struct CommandPalette {
 impl CommandPalette {
     pub fn new(ui: &mut Ui, line_pool: &mut LinePool) -> Self {
         Self {
-            mode: MODE_OPEN_FILE,
+            mode: MODE_FIND_FILE,
             tab: Tab::new(0),
             doc: Doc::new(None, line_pool, None, DocKind::SingleLine),
             last_updated_version: None,
 
             result_list: ResultList::new(MAX_VISIBLE_RESULTS),
-            previous_results: Vec::new(),
+            previous_inputs: Vec::new(),
 
             title_bounds: Rect::ZERO,
             input_bounds: Rect::ZERO,
@@ -119,7 +121,7 @@ impl CommandPalette {
     }
 
     pub fn update(&mut self, ui: &mut Ui, editor: &mut Editor, ctx: &mut Ctx, dt: f32) {
-        if self.widget.is_visible() && !ui.is_focused(&self.widget, ctx.window) {
+        if self.widget.is_visible() && !ui.is_focused(&self.widget) {
             self.close(ui, &mut ctx.buffers.lines);
         }
 
@@ -127,14 +129,17 @@ impl CommandPalette {
 
         while let Some(action) = global_action_handler.next(ctx.window) {
             match action {
-                action_name!(OpenCommandPalette) => {
-                    self.open(ui, MODE_OPEN_FILE, editor, ctx);
+                action_name!(OpenFileFinder) => {
+                    self.open(ui, MODE_FIND_FILE, editor, ctx);
                 }
                 action_name!(OpenSearch) => {
                     self.open(ui, MODE_SEARCH, editor, ctx);
                 }
                 action_name!(OpenSearchAndReplace) => {
                     self.open(ui, MODE_SEARCH_AND_REPLACE_START, editor, ctx);
+                }
+                action_name!(OpenFindInFiles) => {
+                    self.open(ui, MODE_FIND_IN_FILES, editor, ctx);
                 }
                 action_name!(OpenGoToLine) => {
                     self.open(ui, MODE_GO_TO_LINE, editor, ctx);
@@ -199,10 +204,10 @@ impl CommandPalette {
             CommandPaletteAction::Close | CommandPaletteAction::Open(_) => {
                 if self.mode.do_passthrough_result {
                     for line in self.doc.drain(&mut ctx.buffers.lines) {
-                        self.previous_results.push(line);
+                        self.previous_inputs.push(line);
                     }
                 } else {
-                    self.previous_results.clear();
+                    self.previous_inputs.clear();
                 }
 
                 self.close(ui, &mut ctx.buffers.lines);
@@ -218,7 +223,7 @@ impl CommandPalette {
         let on_complete_result = self.mode.on_complete_result;
         (on_complete_result)(self, CommandPaletteEventArgs::new(editor, ctx));
 
-        self.result_list.drain();
+        self.update_results(editor, ctx);
     }
 
     fn update_results(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
@@ -239,7 +244,7 @@ impl CommandPalette {
             return;
         }
 
-        let is_focused = ui.is_focused(&self.widget, ctx.window);
+        let is_focused = ui.is_focused(&self.widget);
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
@@ -304,5 +309,9 @@ impl CommandPalette {
     fn close(&mut self, ui: &mut Ui, line_pool: &mut LinePool) {
         ui.hide(&mut self.widget);
         self.doc.clear(line_pool);
+    }
+
+    pub fn get_input(&self) -> &str {
+        self.doc.get_line(0).unwrap_or_default()
     }
 }

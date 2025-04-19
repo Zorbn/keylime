@@ -26,7 +26,7 @@ const PATH_SEPARATORS: &[&str] = &["/"];
 
 const PREFERRED_PATH_SEPARATOR: &str = "/";
 
-pub const MODE_OPEN_FILE: &CommandPaletteMode = &CommandPaletteMode {
+pub const MODE_FIND_FILE: &CommandPaletteMode = &CommandPaletteMode {
     title: "Find File",
     on_open,
     on_submit,
@@ -95,12 +95,12 @@ fn on_submit(
         return CommandPaletteAction::Stay;
     }
 
-    let string = command_palette.doc.to_string();
+    let input = command_palette.get_input();
     // Trim trailing whitespace, this allows entering "/path/to/file " to create "file"
     // when just "/path/to/file" could auto-complete to another result like "/path/to/filewithlongername"
-    let string = string.trim_end();
+    let input = input.trim_end();
 
-    let path = Path::new(string);
+    let path = Path::new(input);
 
     if kind == ResultListSubmitKind::Delete {
         if path.exists() && recycle(path).is_ok() {
@@ -110,7 +110,7 @@ fn on_submit(
         return CommandPaletteAction::Stay;
     }
 
-    let is_dir = ends_with_path_separator(string);
+    let is_dir = ends_with_path_separator(input);
 
     if !path.exists() {
         if is_dir {
@@ -210,18 +210,18 @@ fn get_command_palette_dir<'a>(
     command_palette: &CommandPalette,
     path: &'a mut PathBuf,
 ) -> &'a Path {
-    let string = command_palette.doc.to_string();
+    let input = command_palette.get_input();
 
     path.clear();
     path.push(".");
-    path.push(&string);
+    path.push(input);
 
     let ends_with_dir = matches!(
         path.components().last(),
         Some(Component::CurDir | Component::ParentDir)
     );
 
-    let can_path_be_dir = ends_with_dir || string.is_empty() || ends_with_path_separator(&string);
+    let can_path_be_dir = ends_with_dir || input.is_empty() || ends_with_path_separator(input);
 
     if can_path_be_dir && path.is_dir() {
         path.as_path()

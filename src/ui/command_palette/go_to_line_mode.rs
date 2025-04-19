@@ -26,9 +26,9 @@ fn on_submit(
     }
 
     let focused_tab_index = pane.focused_tab_index();
-    let line_text = command_palette.doc.to_string();
+    let input = command_palette.get_input();
 
-    let Ok(line) = str::parse::<usize>(&line_text) else {
+    let Ok(line) = input.parse::<usize>() else {
         return CommandPaletteAction::Close;
     };
 
