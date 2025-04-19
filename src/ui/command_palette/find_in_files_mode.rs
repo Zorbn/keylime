@@ -95,8 +95,6 @@ fn on_update_results(
     let start = Instant::now();
 
     handle_dir(&current_dir, &current_dir, search_term, start, results, ctx);
-
-    println!("find in files took: {:?}", start.elapsed());
 }
 
 fn handle_dir(

@@ -1292,25 +1292,25 @@ impl Doc {
         let mut y = start.y as isize;
         let mut x = start.x;
 
-        let mut match_cursor = GraphemeCursor::new(text.len(), text.len());
+        let mut match_cursor = CharCursor::new(text.len(), text.len());
 
         loop {
             let line = &self.lines[y as usize];
 
-            for grapheme in GraphemeIterator::with_offset(x, line).rev() {
+            for c in CharIterator::with_offset(x, line).rev() {
                 for _ in 0..2 {
-                    if grapheme::ending_at(match_cursor.cur_cursor(), text) == grapheme {
+                    if grapheme::char_ending_at(match_cursor.cur_cursor(), text) == c {
                         match_cursor.previous_boundary(text);
 
                         if match_cursor.cur_cursor() == 0 {
-                            let match_x = grapheme.as_ptr() as usize - line.as_ptr() as usize;
+                            let match_x = c.as_ptr() as usize - line.as_ptr() as usize;
 
                             return Some(Position::new(match_x, y as usize));
                         }
 
                         break;
-                    } else if match_cursor.cur_cursor() > 0 {
-                        match_cursor.set_cursor(0);
+                    } else if match_cursor.cur_cursor() < text.len() {
+                        match_cursor.set_cursor(text.len());
 
                         // Now retry matching from the start of the text.
                         continue;
@@ -1324,7 +1324,7 @@ impl Doc {
 
             if y < 0 {
                 if do_wrap {
-                    y = self.lines.len() as isize;
+                    y = self.lines.len() as isize - 1;
                 } else {
                     break;
                 }

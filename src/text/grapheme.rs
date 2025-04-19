@@ -54,13 +54,6 @@ impl<'a> GraphemeIterator<'a> {
             grapheme_cursor: GraphemeCursor::new(0, text.len()),
         }
     }
-
-    pub fn with_offset(offset: usize, text: &'a str) -> Self {
-        Self {
-            text,
-            grapheme_cursor: GraphemeCursor::new(offset, text.len()),
-        }
-    }
 }
 
 impl<'a> Iterator for GraphemeIterator<'a> {
@@ -76,29 +69,11 @@ impl<'a> Iterator for GraphemeIterator<'a> {
     }
 }
 
-impl DoubleEndedIterator for GraphemeIterator<'_> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        let end = self.grapheme_cursor.cur_cursor();
-
-        match self.grapheme_cursor.previous_boundary(self.text) {
-            Some(start) => Some(&self.text[start..end]),
-            _ => None,
-        }
-    }
-}
-
 pub fn at(index: usize, text: &str) -> &str {
     let mut grapheme_cursor = GraphemeCursor::new(index, text.len());
     grapheme_cursor.next_boundary(text);
 
     &text[index..grapheme_cursor.cur_cursor()]
-}
-
-pub fn ending_at(index: usize, text: &str) -> &str {
-    let mut grapheme_cursor = GraphemeCursor::new(index, text.len());
-    grapheme_cursor.previous_boundary(text);
-
-    &text[grapheme_cursor.cur_cursor()..index]
 }
 
 pub fn get(index: usize, text: &str) -> Option<&str> {
@@ -225,9 +200,27 @@ impl<'a> Iterator for CharIterator<'a> {
     }
 }
 
+impl DoubleEndedIterator for CharIterator<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let end = self.char_cursor.cur_cursor();
+
+        match self.char_cursor.previous_boundary(self.text) {
+            Some(start) => Some(&self.text[start..end]),
+            _ => None,
+        }
+    }
+}
+
 pub fn char_at(index: usize, text: &str) -> &str {
     let mut char_cursor = CharCursor::new(index, text.len());
     char_cursor.next_boundary(text);
 
     &text[index..char_cursor.cur_cursor()]
+}
+
+pub fn char_ending_at(index: usize, text: &str) -> &str {
+    let mut char_cursor = CharCursor::new(index, text.len());
+    char_cursor.previous_boundary(text);
+
+    &text[char_cursor.cur_cursor()..index]
 }
