@@ -35,11 +35,9 @@ impl<T> Pane<T> {
     }
 
     pub fn is_animating(&self) -> bool {
-        if let Some(tab) = self.tabs.get(self.focused_tab_index) {
-            tab.is_animating()
-        } else {
-            false
-        }
+        self.tabs
+            .get(self.focused_tab_index)
+            .is_some_and(|tab| tab.is_animating())
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx, data_list: &mut SlotList<T>) {

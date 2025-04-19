@@ -61,17 +61,8 @@ impl Editor {
     }
 
     pub fn is_animating(&self) -> bool {
-        if self.completion_result_list.is_animating() {
-            return true;
-        }
-
-        for pane in &self.panes {
-            if pane.is_animating() {
-                return true;
-            }
-        }
-
-        false
+        self.completion_result_list.is_animating()
+            || self.panes.iter().any(|pane| pane.is_animating())
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx) {
