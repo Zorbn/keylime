@@ -57,6 +57,12 @@ impl Text {
             return Err("Font not found");
         }
 
+        let symbolic_traits = CTFontGetSymbolicTraits(&font);
+
+        if !symbolic_traits.contains(CTFontSymbolicTraits::TraitMonoSpace) {
+            return Err("Font is not monospaced");
+        }
+
         let advance_glyphs = &[b'M' as u16];
         let mut advances = [CGSize::ZERO; 1];
 
@@ -73,19 +79,6 @@ impl Text {
         let line_height = line_height.ceil() as usize;
 
         let glyph_width = advances[0].width.floor() as usize;
-
-        let attributes =
-            CFDictionaryCreateMutable(kCFAllocatorDefault, 2, null_mut(), null_mut()).unwrap();
-
-        CFDictionaryAddValue(
-            Some(&attributes),
-            kCTFontNameAttribute as *const _ as _,
-            &*font_name as *const _ as _,
-        );
-
-        let descriptor = CTFontDescriptorCreateWithAttributes(&attributes);
-
-        let font = CTFontCreateWithFontDescriptor(&descriptor, font_size, null_mut());
 
         Ok(Self {
             font,
