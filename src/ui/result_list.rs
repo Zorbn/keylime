@@ -14,8 +14,7 @@ use crate::{
 
 use super::{
     camera::{Camera, RECENTER_DISTANCE},
-    widget::Widget,
-    Ui,
+    core::{Ui, Widget},
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -112,7 +111,7 @@ impl<T> ResultList<T> {
         ui: &mut Ui,
         window: &mut Window,
     ) {
-        let mut mouse_handler = widget.get_mousebind_handler(ui, window);
+        let mut mouse_handler = ui.get_mousebind_handler(widget, window);
 
         while let Some(mousebind) = mouse_handler.next(window) {
             let position = VisualPosition::new(mousebind.x, mousebind.y);
@@ -154,7 +153,7 @@ impl<T> ResultList<T> {
             }
         }
 
-        let mut mouse_scroll_handler = widget.get_mouse_scroll_handler(ui, window);
+        let mut mouse_scroll_handler = ui.get_mouse_scroll_handler(widget, window);
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
@@ -176,7 +175,7 @@ impl<T> ResultList<T> {
         ui: &mut Ui,
         window: &mut Window,
     ) {
-        let mut action_handler = widget.get_action_handler(ui, window);
+        let mut action_handler = ui.get_action_handler(widget, window);
 
         while let Some(action) = action_handler.next(window) {
             match action {

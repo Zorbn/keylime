@@ -16,10 +16,9 @@ use crate::{
 };
 
 use super::{
+    core::{Ui, Widget},
     result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     slot_list::SlotList,
-    widget::Widget,
-    Ui,
 };
 
 mod doc_io;
@@ -126,7 +125,7 @@ impl Editor {
     pub fn update(&mut self, ui: &mut Ui, file_watcher: &mut FileWatcher, ctx: &mut Ctx, dt: f32) {
         self.reload_changed_files(file_watcher, ctx);
 
-        let mut grapheme_handler = self.widget.get_grapheme_handler(ui, ctx.window);
+        let mut grapheme_handler = ui.get_grapheme_handler(&self.widget, ctx.window);
 
         let mut should_open_completions = if grapheme_handler.next(ctx.window).is_some() {
             grapheme_handler.unprocessed(ctx.window);
@@ -136,7 +135,7 @@ impl Editor {
             false
         };
 
-        let mut mousebind_handler = self.widget.get_mousebind_handler(ui, ctx.window);
+        let mut mousebind_handler = ui.get_mousebind_handler(&self.widget, ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position =
@@ -165,7 +164,7 @@ impl Editor {
             }
         }
 
-        let mut action_handler = self.widget.get_action_handler(ui, ctx.window);
+        let mut action_handler = ui.get_action_handler(&self.widget, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
@@ -285,7 +284,7 @@ impl Editor {
     }
 
     pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        let is_focused = self.widget.is_focused(ui, ctx.window);
+        let is_focused = ui.is_focused(&self.widget, ctx.window);
 
         for (i, pane) in self.panes.iter_mut().enumerate() {
             let is_focused = is_focused && i == self.focused_pane_index;

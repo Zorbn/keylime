@@ -6,7 +6,12 @@ use crate::{
     text::doc::Doc,
 };
 
-use super::{color::Color, slot_list::SlotList, tab::Tab, widget::Widget, Ui};
+use super::{
+    color::Color,
+    core::{Ui, Widget},
+    slot_list::SlotList,
+    tab::Tab,
+};
 
 pub struct Pane<T> {
     pub tabs: Vec<Tab>,
@@ -65,7 +70,7 @@ impl<T> Pane<T> {
     }
 
     pub fn update(&mut self, widget: &mut Widget, ui: &mut Ui, window: &mut Window) {
-        let mut mousebind_handler = widget.get_mousebind_handler(ui, window);
+        let mut mousebind_handler = ui.get_mousebind_handler(widget, window);
 
         while let Some(mousebind) = mousebind_handler.next(window) {
             let visual_position =
@@ -97,7 +102,7 @@ impl<T> Pane<T> {
             }
         }
 
-        let mut action_handler = widget.get_action_handler(ui, window);
+        let mut action_handler = ui.get_action_handler(widget, window);
 
         while let Some(action) = action_handler.next(window) {
             match action {

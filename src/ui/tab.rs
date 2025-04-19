@@ -21,8 +21,7 @@ use crate::{
 use super::{
     camera::{Camera, RECENTER_DISTANCE},
     color::Color,
-    widget::Widget,
-    Ui,
+    core::{Ui, Widget},
 };
 
 const GUTTER_PADDING_WIDTH: f32 = 1.0;
@@ -93,7 +92,7 @@ impl Tab {
     pub fn update(&mut self, widget: &mut Widget, ui: &mut Ui, doc: &mut Doc, ctx: &mut Ctx) {
         self.handled_cursor_position = Some(doc.get_cursor(CursorIndex::Main).position);
 
-        let mut grapheme_handler = widget.get_grapheme_handler(ui, ctx.window);
+        let mut grapheme_handler = ui.get_grapheme_handler(widget, ctx.window);
 
         while let Some(grapheme) = grapheme_handler.next(ctx.window) {
             let mut text_buffer = ctx.buffers.text.take_mut();
@@ -104,7 +103,7 @@ impl Tab {
             ctx.buffers.text.replace(text_buffer);
         }
 
-        let mut mousebind_handler = widget.get_mousebind_handler(ui, ctx.window);
+        let mut mousebind_handler = ui.get_mousebind_handler(widget, ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
@@ -150,7 +149,7 @@ impl Tab {
             }
         }
 
-        let mut action_handler = widget.get_action_handler(ui, ctx.window);
+        let mut action_handler = ui.get_action_handler(widget, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             let was_handled = handle_action(action, doc, ctx);
@@ -172,7 +171,7 @@ impl Tab {
         ctx: &mut Ctx,
         dt: f32,
     ) {
-        let mut mouse_scroll_handler = widget.get_mouse_scroll_handler(ui, ctx.window);
+        let mut mouse_scroll_handler = ui.get_mouse_scroll_handler(widget, ctx.window);
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);

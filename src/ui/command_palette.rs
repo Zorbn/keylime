@@ -19,11 +19,10 @@ use crate::{
 };
 
 use super::{
+    core::{Ui, Widget},
     editor::Editor,
     result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     tab::Tab,
-    widget::Widget,
-    Ui,
 };
 
 use file_mode::MODE_OPEN_FILE;
@@ -120,7 +119,7 @@ impl CommandPalette {
     }
 
     pub fn update(&mut self, ui: &mut Ui, editor: &mut Editor, ctx: &mut Ctx, dt: f32) {
-        if self.widget.is_visible && !self.widget.is_focused(ui, ctx.window) {
+        if self.widget.is_visible() && !ui.is_focused(&self.widget, ctx.window) {
             self.close(ui, &mut ctx.buffers.lines);
         }
 
@@ -144,7 +143,7 @@ impl CommandPalette {
             }
         }
 
-        let mut action_handler = self.widget.get_action_handler(ui, ctx.window);
+        let mut action_handler = ui.get_action_handler(&self.widget, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
@@ -236,11 +235,11 @@ impl CommandPalette {
     }
 
     pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        if !self.widget.is_visible {
+        if !self.widget.is_visible() {
             return;
         }
 
-        let is_focused = self.widget.is_focused(ui, ctx.window);
+        let is_focused = ui.is_focused(&self.widget, ctx.window);
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
@@ -294,8 +293,7 @@ impl CommandPalette {
     ) {
         self.last_updated_version = None;
         self.mode = mode;
-        self.widget.take_focus(ui);
-        self.widget.is_visible = true;
+        ui.focus(&mut self.widget);
 
         let on_open = self.mode.on_open;
         (on_open)(self, CommandPaletteEventArgs::new(editor, ctx));
@@ -304,8 +302,7 @@ impl CommandPalette {
     }
 
     fn close(&mut self, ui: &mut Ui, line_pool: &mut LinePool) {
-        self.widget.is_visible = false;
-        self.widget.release_focus(ui);
+        ui.hide(&mut self.widget);
         self.doc.clear(line_pool);
     }
 }

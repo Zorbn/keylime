@@ -12,7 +12,11 @@ use crate::{
         doc::{Doc, DocKind},
         line_pool::LinePool,
     },
-    ui::{pane::Pane, slot_list::SlotList, widget::Widget, Ui},
+    ui::{
+        core::{Ui, Widget},
+        pane::Pane,
+        slot_list::SlotList,
+    },
 };
 
 use super::{
@@ -41,7 +45,7 @@ impl EditorPane {
         doc_list: &mut SlotList<Doc>,
         ctx: &mut Ctx,
     ) {
-        let mut action_handler = widget.get_action_handler(ui, ctx.window);
+        let mut action_handler = ui.get_action_handler(widget, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {

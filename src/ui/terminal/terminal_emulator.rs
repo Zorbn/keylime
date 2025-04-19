@@ -20,7 +20,10 @@ use crate::{
         grapheme::{CharCursor, CharIterator},
         syntax_highlighter::TerminalHighlightKind,
     },
-    ui::{tab::Tab, widget::Widget, Ui},
+    ui::{
+        core::{Ui, Widget},
+        tab::Tab,
+    },
 };
 
 use super::TerminalDocs;
@@ -156,7 +159,7 @@ impl TerminalEmulator {
 
         let doc = self.get_doc_mut(docs);
 
-        let mut action_handler = widget.get_action_handler(ui, ctx.window);
+        let mut action_handler = ui.get_action_handler(widget, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
@@ -231,7 +234,7 @@ impl TerminalEmulator {
             }
         }
 
-        let mut grapheme_handler = widget.get_grapheme_handler(ui, ctx.window);
+        let mut grapheme_handler = ui.get_grapheme_handler(widget, ctx.window);
 
         while let Some(grapheme) = grapheme_handler.next(ctx.window) {
             pty.input().extend(grapheme.bytes());

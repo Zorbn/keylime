@@ -8,7 +8,7 @@ use crate::{
     platform::{file_watcher::FileWatcher, gfx::Gfx, pty::Pty, window::Window},
     temp_buffer::{TempBuffer, TempString},
     text::line_pool::LinePool,
-    ui::{command_palette::CommandPalette, editor::Editor, terminal::Terminal, Ui},
+    ui::{command_palette::CommandPalette, core::Ui, editor::Editor, terminal::Terminal},
 };
 
 pub struct App {
@@ -106,10 +106,10 @@ impl App {
             time,
         };
 
+        self.terminal.update(&mut self.ui, &mut ctx, dt);
+
         self.command_palette
             .update(&mut self.ui, &mut self.editor, &mut ctx, dt);
-
-        self.terminal.update(&mut self.ui, &mut ctx, dt);
 
         self.editor
             .update(&mut self.ui, &mut self.file_watcher, &mut ctx, dt);

@@ -13,7 +13,10 @@ use crate::{
     },
 };
 
-use super::{slot_list::SlotList, widget::Widget, Ui};
+use super::{
+    core::{Ui, Widget},
+    slot_list::SlotList,
+};
 
 mod color_table;
 mod escape_sequences;
@@ -85,10 +88,10 @@ impl Terminal {
         while let Some(action) = global_action_handler.next(ctx.window) {
             match action {
                 action_name!(FocusTerminal) => {
-                    if self.widget.is_focused(ui, ctx.window) {
-                        self.widget.release_focus(ui);
+                    if ui.is_focused(&self.widget, ctx.window) {
+                        ui.unfocus(&self.widget);
                     } else {
-                        self.widget.take_focus(ui);
+                        ui.focus(&mut self.widget);
                     }
                 }
                 _ => global_action_handler.unprocessed(ctx.window, action),
@@ -122,7 +125,7 @@ impl Terminal {
     }
 
     pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        let is_focused = self.widget.is_focused(ui, ctx.window);
+        let is_focused = ui.is_focused(&self.widget, ctx.window);
 
         self.pane.draw(
             Some(ctx.config.theme.terminal.background),
