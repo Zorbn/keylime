@@ -5,7 +5,10 @@ use crate::{
     geometry::position::Position,
     platform::gfx::Gfx,
     text::{
-        action_history::ActionKind, cursor_index::CursorIndex, doc::Doc, grapheme,
+        action_history::ActionKind,
+        cursor_index::CursorIndex,
+        doc::{Doc, DocKind},
+        grapheme,
         selection::Selection,
     },
 };
@@ -23,6 +26,14 @@ pub(crate) enum DeleteKind {
 }
 
 pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, ctx: &mut Ctx) {
+    if doc.kind() == DocKind::SingleLine {
+        for index in doc.cursor_indices() {
+            doc.insert_at_cursor(index, grapheme, ctx);
+        }
+
+        return;
+    }
+
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
 
