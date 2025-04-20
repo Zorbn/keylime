@@ -155,3 +155,27 @@ fn match_float() -> Result<(), &'static str> {
 
     Ok(())
 }
+
+#[test]
+fn match_negative_class() -> Result<(), &'static str> {
+    let pattern = Pattern::parse("[^abc]+".into())?;
+
+    assert_eq!(
+        pattern.match_text("def", 0),
+        Some(PatternMatch { start: 0, end: 3 })
+    );
+
+    assert_eq!(
+        pattern.match_text("hello c b a", 0),
+        Some(PatternMatch { start: 0, end: 6 })
+    );
+
+    assert_eq!(
+        pattern.match_text("def^", 0),
+        Some(PatternMatch { start: 0, end: 4 })
+    );
+
+    assert_eq!(pattern.match_text("a", 0), None);
+
+    Ok(())
+}

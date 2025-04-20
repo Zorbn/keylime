@@ -349,6 +349,10 @@ impl Pattern {
                 .match_parts(text, remaining_parts, grapheme_cursor.cur_cursor())
                 .or(pattern_match);
 
+            if grapheme_cursor.cur_cursor() >= text.len() {
+                break;
+            }
+
             if self.match_literal_or_class(text, grapheme_cursor.cur_cursor(), next_part) {
                 grapheme_cursor.next_boundary(text);
             } else {
@@ -375,12 +379,18 @@ impl Pattern {
                 return Some(pattern_match);
             }
 
+            if grapheme_cursor.cur_cursor() >= text.len() {
+                break;
+            }
+
             if self.match_literal_or_class(text, grapheme_cursor.cur_cursor(), next_part) {
                 grapheme_cursor.next_boundary(text);
             } else {
-                return None;
+                break;
             }
         }
+
+        None
     }
 
     fn match_modifier_zero_or_one(
