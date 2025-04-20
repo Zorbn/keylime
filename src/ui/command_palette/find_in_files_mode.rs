@@ -1,7 +1,7 @@
 use std::{
     collections::VecDeque,
     env::current_dir,
-    fs::{read_dir, ReadDir},
+    fs::{read_dir, DirEntry, ReadDir},
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -43,6 +43,43 @@ impl FindInFilesMode {
         }
     }
 
+    fn handle_entry(
+        &mut self,
+        entry: DirEntry,
+        start_time: Instant,
+        command_palette: &mut CommandPalette,
+        ctx: &mut Ctx,
+    ) {
+        let path = entry.path();
+
+        if path.is_dir() {
+            let is_ignored = path
+                .components()
+                .last()
+                .and_then(|dir| dir.as_os_str().to_str())
+                .is_some_and(|dir| ctx.config.ignored_dirs.contains(dir));
+
+            if is_ignored {
+                return;
+            }
+
+            if let Ok(entries) = read_dir(path) {
+                self.pending_dir_entries.push_back(entries);
+            }
+
+            return;
+        }
+
+        let mut doc = Doc::new(Some(path), &mut ctx.buffers.lines, None, DocKind::MultiLine);
+
+        if doc.load(ctx).is_err() {
+            doc.clear(&mut ctx.buffers.lines);
+        } else {
+            self.pending_doc = Some(doc);
+            self.handle_doc(start_time, command_palette, ctx);
+        }
+    }
+
     fn handle_doc(
         &mut self,
         start_time: Instant,
@@ -61,7 +98,7 @@ impl FindInFilesMode {
             // Ignore additional results on the same line.
             doc.jump_cursor(
                 CursorIndex::Main,
-                Position::new(result_position.x, result_position.y + 1),
+                doc.get_line_end(result_position.y),
                 false,
                 ctx.gfx,
             );
@@ -219,7 +256,7 @@ impl CommandPaletteMode for FindInFilesMode {
         command_palette: &mut CommandPalette,
         CommandPaletteEventArgs { ctx, .. }: CommandPaletteEventArgs,
     ) {
-        if self.pending_dir_entries.is_empty() {
+        if !self.needs_new_results {
             return;
         }
 
@@ -237,33 +274,7 @@ impl CommandPaletteMode for FindInFilesMode {
                     continue;
                 };
 
-                let path = entry.path();
-
-                if path.is_dir() {
-                    let is_ignored = path
-                        .components()
-                        .last()
-                        .and_then(|dir| dir.as_os_str().to_str())
-                        .is_some_and(|dir| ctx.config.ignored_dirs.contains(dir));
-
-                    if is_ignored {
-                        continue;
-                    }
-
-                    if let Ok(entries) = read_dir(path) {
-                        self.pending_dir_entries.push_back(entries);
-                    }
-                } else {
-                    let mut doc =
-                        Doc::new(Some(path), &mut ctx.buffers.lines, None, DocKind::MultiLine);
-
-                    if doc.load(ctx).is_err() {
-                        doc.clear(&mut ctx.buffers.lines);
-                    } else {
-                        self.pending_doc = Some(doc);
-                        self.handle_doc(start_time, command_palette, ctx);
-                    }
-                }
+                self.handle_entry(entry, start_time, command_palette, ctx);
 
                 if self.try_finish_finding(start_time, command_palette) {
                     self.pending_dir_entries.push_front(entries);
@@ -276,6 +287,6 @@ impl CommandPaletteMode for FindInFilesMode {
     }
 
     fn is_animating(&self) -> bool {
-        !self.pending_dir_entries.is_empty()
+        self.needs_new_results
     }
 }
