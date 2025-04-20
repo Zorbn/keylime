@@ -71,7 +71,9 @@ impl CommandPalette {
     }
 
     pub fn is_animating(&self) -> bool {
-        self.result_list.is_animating() || self.tab.is_animating()
+        self.result_list.is_animating()
+            || self.tab.is_animating()
+            || self.mode.as_ref().is_some_and(|mode| mode.is_animating())
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx) {
@@ -122,7 +124,7 @@ impl CommandPalette {
 
     pub fn update(&mut self, ui: &mut Ui, editor: &mut Editor, ctx: &mut Ctx, dt: f32) {
         if self.widget.is_visible() && !ui.is_focused(&self.widget) {
-            self.close(ui, &mut ctx.buffers.lines);
+            self.close(ui);
         }
 
         let mut global_action_handler = ctx.window.get_action_handler();
@@ -139,7 +141,7 @@ impl CommandPalette {
                     self.open(ui, Box::new(SearchAndReplaceMode::new()), editor, ctx);
                 }
                 action_name!(OpenFindInFiles) => {
-                    self.open(ui, Box::new(FindInFilesMode), editor, ctx);
+                    self.open(ui, Box::new(FindInFilesMode::new()), editor, ctx);
                 }
                 action_name!(OpenGoToLine) => {
                     self.open(ui, Box::new(GoToLineMode), editor, ctx);
@@ -148,21 +150,22 @@ impl CommandPalette {
             }
         }
 
-        let mut action_handler = ui.get_action_handler(&self.widget, ctx.window);
+        if let Some(mut mode) = self.mode.take() {
+            let mut action_handler = ui.get_action_handler(&self.widget, ctx.window);
 
-        while let Some(action) = action_handler.next(ctx.window) {
-            match action {
-                action_keybind!(key: Backspace) => {
-                    if let Some(mut mode) = self.mode.take() {
+            while let Some(action) = action_handler.next(ctx.window) {
+                match action {
+                    action_keybind!(key: Backspace) => {
                         if !mode.on_backspace(self, CommandPaletteEventArgs::new(editor, ctx)) {
                             action_handler.unprocessed(ctx.window, action);
                         }
-
-                        self.mode = Some(mode);
                     }
+                    _ => action_handler.unprocessed(ctx.window, action),
                 }
-                _ => action_handler.unprocessed(ctx.window, action),
             }
+
+            mode.on_update(self, CommandPaletteEventArgs::new(editor, ctx));
+            self.mode = Some(mode);
         }
 
         self.result_list.do_allow_delete = self.doc.cursors_len() == 1
@@ -178,7 +181,7 @@ impl CommandPalette {
             ResultListInput::Submit { kind } => {
                 self.submit(ui, kind, editor, ctx);
             }
-            ResultListInput::Close => self.close(ui, &mut ctx.buffers.lines),
+            ResultListInput::Close => self.close(ui),
         }
 
         self.tab.update(&mut self.widget, ui, &mut self.doc, ctx);
@@ -207,7 +210,7 @@ impl CommandPalette {
 
         match action {
             CommandPaletteAction::Stay => {}
-            CommandPaletteAction::Close => self.close(ui, &mut ctx.buffers.lines),
+            CommandPaletteAction::Close => self.close(ui),
         }
     }
 
@@ -228,7 +231,6 @@ impl CommandPalette {
         }
 
         self.last_updated_version = Some(self.doc.version());
-        self.result_list.drain();
 
         let Some(mut mode) = self.mode.take() else {
             return;
@@ -299,8 +301,11 @@ impl CommandPalette {
         editor: &mut Editor,
         ctx: &mut Ctx,
     ) {
+        self.doc.clear(&mut ctx.buffers.lines);
+        self.result_list.drain();
         self.last_updated_version = None;
         self.mode = None;
+
         ui.focus(&mut self.widget);
 
         mode.on_open(self, CommandPaletteEventArgs::new(editor, ctx));
@@ -309,9 +314,8 @@ impl CommandPalette {
         self.update_results(editor, ctx);
     }
 
-    fn close(&mut self, ui: &mut Ui, line_pool: &mut LinePool) {
+    fn close(&mut self, ui: &mut Ui) {
         ui.hide(&mut self.widget);
-        self.doc.clear(line_pool);
     }
 
     pub fn get_input(&self) -> &str {

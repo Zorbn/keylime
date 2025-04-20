@@ -48,7 +48,13 @@ pub trait CommandPaletteMode {
 
     fn on_update_results(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
 
+    fn on_update(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
+
     fn on_backspace(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) -> bool {
+        false
+    }
+
+    fn is_animating(&self) -> bool {
         false
     }
 }

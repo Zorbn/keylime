@@ -1,6 +1,7 @@
 use std::{
+    collections::VecDeque,
     env::current_dir,
-    fs::read_dir,
+    fs::{read_dir, ReadDir},
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -8,7 +9,10 @@ use std::{
 use crate::{
     ctx::Ctx,
     geometry::position::Position,
-    text::doc::{Doc, DocKind},
+    text::{
+        cursor_index::CursorIndex,
+        doc::{Doc, DocKind},
+    },
     ui::result_list::ResultListSubmitKind,
 };
 
@@ -18,9 +22,117 @@ use super::{
 };
 
 const MAX_RESULTS: usize = 100;
-const MAX_FIND_TIME: f32 = 0.1;
+const TARGET_FIND_TIME: f32 = 0.005;
 
-pub struct FindInFilesMode;
+pub struct FindInFilesMode {
+    root: PathBuf,
+    needs_new_results: bool,
+    pending_doc: Option<Doc>,
+    pending_dir_entries: VecDeque<ReadDir>,
+    pending_results: Vec<String>,
+}
+
+impl FindInFilesMode {
+    pub fn new() -> Self {
+        Self {
+            root: PathBuf::new(),
+            needs_new_results: false,
+            pending_doc: None,
+            pending_dir_entries: VecDeque::new(),
+            pending_results: Vec::new(),
+        }
+    }
+
+    fn handle_doc(
+        &mut self,
+        start_time: Instant,
+        command_palette: &mut CommandPalette,
+        ctx: &mut Ctx,
+    ) {
+        let Some(mut doc) = self.pending_doc.take() else {
+            return;
+        };
+
+        while let Some(result_position) = doc.search_forward(
+            command_palette.get_input(),
+            doc.get_cursor(CursorIndex::Main).position,
+            false,
+        ) {
+            // Ignore additional results on the same line.
+            doc.jump_cursor(
+                CursorIndex::Main,
+                Position::new(result_position.x, result_position.y + 1),
+                false,
+                ctx.gfx,
+            );
+
+            let Some(line) = doc.get_line(result_position.y) else {
+                continue;
+            };
+
+            let line_start = doc.get_line_start(result_position.y);
+
+            let Some(relative_path) = doc
+                .path()
+                .on_drive()
+                .and_then(|path| path.strip_prefix(&self.root).ok())
+            else {
+                continue;
+            };
+
+            let result = format!(
+                "{}:{}: {}",
+                relative_path.display(),
+                result_position.y + 1,
+                &line[line_start..]
+            );
+
+            self.pending_results.push(result);
+
+            if self.try_finish_finding(start_time, command_palette) {
+                self.pending_doc = Some(doc);
+                return;
+            }
+        }
+
+        doc.clear(&mut ctx.buffers.lines);
+    }
+
+    fn try_finish_finding(
+        &mut self,
+        start_time: Instant,
+        command_palette: &mut CommandPalette,
+    ) -> bool {
+        if self.pending_results.len() >= MAX_RESULTS {
+            self.flush_pending_results(command_palette);
+            return true;
+        }
+
+        start_time.elapsed().as_secs_f32() > TARGET_FIND_TIME
+    }
+
+    fn flush_pending_results(&mut self, command_palette: &mut CommandPalette) {
+        if !self.needs_new_results {
+            return;
+        }
+
+        self.needs_new_results = false;
+
+        command_palette.result_list.drain();
+        command_palette
+            .result_list
+            .results
+            .append(&mut self.pending_results);
+
+        self.clear_pending();
+    }
+
+    fn clear_pending(&mut self) {
+        self.pending_dir_entries.clear();
+        self.pending_doc = None;
+        self.pending_results.clear();
+    }
+}
 
 impl CommandPaletteMode for FindInFilesMode {
     fn title(&self) -> &str {
@@ -80,120 +192,90 @@ impl CommandPaletteMode for FindInFilesMode {
     fn on_update_results(
         &mut self,
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs { ctx, .. }: CommandPaletteEventArgs,
+        _: CommandPaletteEventArgs,
     ) {
+        self.clear_pending();
+        self.needs_new_results = true;
+
+        if command_palette.get_input().is_empty() {
+            self.flush_pending_results(command_palette);
+            return;
+        };
+
         let Ok(current_dir) = current_dir() else {
             return;
         };
 
-        let search_term = command_palette.doc.get_line(0).unwrap_or_default();
+        self.root.clear();
+        self.root.push(current_dir);
 
-        if search_term.is_empty() {
+        if let Ok(entries) = read_dir(&self.root) {
+            self.pending_dir_entries.push_back(entries);
+        }
+    }
+
+    fn on_update(
+        &mut self,
+        command_palette: &mut CommandPalette,
+        CommandPaletteEventArgs { ctx, .. }: CommandPaletteEventArgs,
+    ) {
+        if self.pending_dir_entries.is_empty() {
             return;
-        };
-
-        let results = &mut command_palette.result_list.results;
-
-        let start = Instant::now();
-
-        handle_dir(&current_dir, &current_dir, search_term, start, results, ctx);
-    }
-}
-
-fn handle_dir(
-    root: &Path,
-    path: &Path,
-    search_term: &str,
-    start: Instant,
-    results: &mut Vec<String>,
-    ctx: &mut Ctx,
-) {
-    if path
-        .components()
-        .last()
-        .and_then(|dir| dir.as_os_str().to_str())
-        .is_some_and(|dir| ctx.config.ignored_dirs.contains(dir))
-    {
-        return;
-    }
-
-    let Ok(entries) = read_dir(path) else {
-        return;
-    };
-
-    for entry in entries {
-        let Ok(entry) = entry else {
-            continue;
-        };
-
-        let path = entry.path();
-
-        if path.is_dir() {
-            handle_dir(root, &path, search_term, start, results, ctx);
-        } else {
-            handle_file(root, path, search_term, start, results, ctx);
         }
 
-        if should_stop_finding(start, results) {
-            break;
+        let start_time = Instant::now();
+
+        self.handle_doc(start_time, command_palette, ctx);
+
+        if self.try_finish_finding(start_time, command_palette) {
+            return;
         }
-    }
-}
 
-fn handle_file(
-    root: &Path,
-    path: PathBuf,
-    search_term: &str,
-    start: Instant,
-    results: &mut Vec<String>,
-    ctx: &mut Ctx,
-) {
-    let mut doc = Doc::new(Some(path), &mut ctx.buffers.lines, None, DocKind::MultiLine);
+        while let Some(mut entries) = self.pending_dir_entries.pop_front() {
+            for entry in entries.by_ref() {
+                let Ok(entry) = entry else {
+                    continue;
+                };
 
-    if doc.load(ctx).is_err() {
-        doc.clear(&mut ctx.buffers.lines);
-        return;
-    }
+                let path = entry.path();
 
-    let mut search_start = Position::ZERO;
+                if path.is_dir() {
+                    let is_ignored = path
+                        .components()
+                        .last()
+                        .and_then(|dir| dir.as_os_str().to_str())
+                        .is_some_and(|dir| ctx.config.ignored_dirs.contains(dir));
 
-    while let Some(result_position) = doc.search_forward(search_term, search_start, false) {
-        search_start = result_position;
-        // Ignore additional results on the same line.
-        search_start.y += 1;
+                    if is_ignored {
+                        continue;
+                    }
 
-        let Some(line) = doc.get_line(result_position.y) else {
-            continue;
-        };
+                    if let Ok(entries) = read_dir(path) {
+                        self.pending_dir_entries.push_back(entries);
+                    }
+                } else {
+                    let mut doc =
+                        Doc::new(Some(path), &mut ctx.buffers.lines, None, DocKind::MultiLine);
 
-        let line_start = doc.get_line_start(result_position.y);
+                    if doc.load(ctx).is_err() {
+                        doc.clear(&mut ctx.buffers.lines);
+                    } else {
+                        self.pending_doc = Some(doc);
+                        self.handle_doc(start_time, command_palette, ctx);
+                    }
+                }
 
-        let Some(relative_path) = doc
-            .path()
-            .on_drive()
-            .and_then(|path| path.strip_prefix(root).ok())
-        else {
-            continue;
-        };
-
-        let result = format!(
-            "{}:{}: {}",
-            relative_path.display(),
-            result_position.y + 1,
-            &line[line_start..]
-        );
-
-        results.push(result);
-
-        if should_stop_finding(start, results) {
-            results.push("...".into());
-            break;
+                if self.try_finish_finding(start_time, command_palette) {
+                    self.pending_dir_entries.push_front(entries);
+                    return;
+                }
+            }
         }
+
+        self.flush_pending_results(command_palette);
     }
 
-    doc.clear(&mut ctx.buffers.lines);
-}
-
-fn should_stop_finding(start: Instant, results: &[String]) -> bool {
-    results.len() >= MAX_RESULTS || start.elapsed().as_secs_f32() > MAX_FIND_TIME
+    fn is_animating(&self) -> bool {
+        !self.pending_dir_entries.is_empty()
+    }
 }

@@ -161,6 +161,8 @@ impl CommandPaletteMode for FindFileMode {
         command_palette: &mut CommandPalette,
         _: CommandPaletteEventArgs,
     ) {
+        command_palette.result_list.drain();
+
         let mut path = PathBuf::new();
         let dir = get_command_palette_dir(command_palette, &mut path);
 
