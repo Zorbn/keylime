@@ -84,16 +84,16 @@ impl CameraAxis {
         }
 
         self.velocity *= SCROLL_FRICTION.powf(dt);
+        self.position += self.velocity * dt;
 
         // We want the velocity to eventually be exactly zero so that we can stop animating.
-        if self.velocity.abs() < 0.5 {
+        if self.velocity.abs() < 0.5 || self.position < 0.0 || self.position > max_position {
             self.velocity = 0.0;
 
             // If we're recentering the camera then we must be done at this point.
             self.recenter_kind = CameraRecenterKind::None;
         }
 
-        self.position += self.velocity * dt;
         self.position = self.position.clamp(0.0, max_position);
     }
 

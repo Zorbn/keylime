@@ -1239,7 +1239,7 @@ impl Doc {
 
                         if match_cursor.cur_cursor() >= text.len() {
                             let match_x =
-                                c.as_ptr() as usize - line.as_ptr() as usize - text.len() + 1;
+                                c.as_ptr() as usize + c.len() - line.as_ptr() as usize - text.len();
 
                             return Some(Position::new(match_x, y as usize));
                         }

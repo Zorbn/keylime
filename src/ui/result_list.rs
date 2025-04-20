@@ -81,8 +81,8 @@ impl<T> ResultList<T> {
         widget: &mut Widget,
         ui: &mut Ui,
         window: &mut Window,
-        is_visible: bool,
-        is_focused: bool,
+        can_be_visible: bool,
+        can_be_focused: bool,
         dt: f32,
     ) -> ResultListInput {
         let mut input = ResultListInput::None;
@@ -91,11 +91,11 @@ impl<T> ResultList<T> {
             .selected_result_index
             .clamp(0, self.results.len().saturating_sub(1));
 
-        if is_visible {
+        if can_be_visible && widget.is_visible() {
             self.handle_mouse_inputs(&mut input, widget, ui, window);
         }
 
-        if is_focused {
+        if can_be_focused && ui.is_focused(widget) {
             self.handle_keybinds(&mut input, widget, ui, window);
         }
 
