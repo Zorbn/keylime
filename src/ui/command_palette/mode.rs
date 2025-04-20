@@ -28,30 +28,27 @@ impl<'a, 'b> CommandPaletteEventArgs<'a, 'b> {
     }
 }
 
-pub struct CommandPaletteMode {
-    pub title: &'static str,
-    pub on_open: fn(&mut CommandPalette, CommandPaletteEventArgs),
-    pub on_submit: fn(
-        &mut CommandPalette,
-        CommandPaletteEventArgs,
-        ResultListSubmitKind,
-    ) -> CommandPaletteAction,
-    pub on_complete_result: fn(&mut CommandPalette, CommandPaletteEventArgs),
-    pub on_update_results: fn(&mut CommandPalette, CommandPaletteEventArgs),
-    pub on_backspace: fn(&mut CommandPalette, CommandPaletteEventArgs) -> bool,
-    pub do_passthrough_result: bool,
-}
+pub trait CommandPaletteMode {
+    fn title(&self) -> &str {
+        "Unnamed"
+    }
 
-impl CommandPaletteMode {
-    pub const fn default() -> Self {
-        Self {
-            title: "Unnamed",
-            on_open: |_, _| {},
-            on_submit: |_, _, _| CommandPaletteAction::Stay,
-            on_complete_result: |_, _| {},
-            on_update_results: |_, _| {},
-            on_backspace: |_, _| false,
-            do_passthrough_result: false,
-        }
+    fn on_open(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
+
+    fn on_submit(
+        &mut self,
+        _: &mut CommandPalette,
+        _: CommandPaletteEventArgs,
+        _: ResultListSubmitKind,
+    ) -> CommandPaletteAction {
+        CommandPaletteAction::Stay
+    }
+
+    fn on_complete_result(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
+
+    fn on_update_results(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
+
+    fn on_backspace(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) -> bool {
+        false
     }
 }

@@ -21,6 +21,7 @@ use platform::window::WindowRunner;
 /*
  * TODO:
  * Ensure font is monospaced on Windows.
+ * Use incremental searching for the find in files menu. No more than a certain number of steps/time per frame, check between every search and every dir entry.
  */
 
 fn main() {

@@ -20,81 +20,84 @@ use super::{
 const MAX_RESULTS: usize = 100;
 const MAX_FIND_TIME: f32 = 0.1;
 
-pub const MODE_FIND_IN_FILES: &CommandPaletteMode = &CommandPaletteMode {
-    title: "Find in Files",
-    on_submit,
-    on_update_results,
-    ..CommandPaletteMode::default()
-};
+pub struct FindInFilesMode;
 
-fn on_submit(
-    command_palette: &mut CommandPalette,
-    CommandPaletteEventArgs {
-        pane,
-        doc_list,
-        ctx,
-    }: CommandPaletteEventArgs,
-    kind: ResultListSubmitKind,
-) -> CommandPaletteAction {
-    if !matches!(
-        kind,
-        ResultListSubmitKind::Normal | ResultListSubmitKind::Alternate
+impl CommandPaletteMode for FindInFilesMode {
+    fn title(&self) -> &str {
+        "Find in Files"
+    }
+
+    fn on_submit(
+        &mut self,
+        command_palette: &mut CommandPalette,
+        CommandPaletteEventArgs {
+            pane,
+            doc_list,
+            ctx,
+        }: CommandPaletteEventArgs,
+        kind: ResultListSubmitKind,
+    ) -> CommandPaletteAction {
+        if !matches!(
+            kind,
+            ResultListSubmitKind::Normal | ResultListSubmitKind::Alternate
+        ) {
+            return CommandPaletteAction::Stay;
+        }
+
+        let Some(selected_result) = command_palette.result_list.get_selected_result() else {
+            return CommandPaletteAction::Stay;
+        };
+
+        let mut result_parts = selected_result.split(':');
+
+        let Some(path) = result_parts.next().map(Path::new) else {
+            return CommandPaletteAction::Stay;
+        };
+
+        let Some(line) = result_parts
+            .next()
+            .and_then(|line| line.parse::<usize>().ok())
+        else {
+            return CommandPaletteAction::Stay;
+        };
+
+        if pane.open_file(path, doc_list, ctx).is_err() {
+            return CommandPaletteAction::Stay;
+        }
+
+        let focused_tab_index = pane.focused_tab_index();
+
+        let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
+            return CommandPaletteAction::Close;
+        };
+
+        doc.jump_cursors(Position::new(0, line.saturating_sub(1)), false, ctx.gfx);
+        tab.camera.recenter();
+
+        CommandPaletteAction::Close
+    }
+
+    fn on_update_results(
+        &mut self,
+        command_palette: &mut CommandPalette,
+        CommandPaletteEventArgs { ctx, .. }: CommandPaletteEventArgs,
     ) {
-        return CommandPaletteAction::Stay;
+        let Ok(current_dir) = current_dir() else {
+            return;
+        };
+
+        let search_term = command_palette.doc.get_line(0).unwrap_or_default();
+
+        if search_term.is_empty() {
+            return;
+        };
+
+        let results = &mut command_palette.result_list.results;
+
+        let start = Instant::now();
+
+        handle_dir(&current_dir, &current_dir, search_term, start, results, ctx);
     }
-
-    let Some(selected_result) = command_palette.result_list.get_selected_result() else {
-        return CommandPaletteAction::Stay;
-    };
-
-    let mut result_parts = selected_result.split(':');
-
-    let Some(path) = result_parts.next().map(Path::new) else {
-        return CommandPaletteAction::Stay;
-    };
-
-    let Some(line) = result_parts
-        .next()
-        .and_then(|line| line.parse::<usize>().ok())
-    else {
-        return CommandPaletteAction::Stay;
-    };
-
-    if pane.open_file(path, doc_list, ctx).is_err() {
-        return CommandPaletteAction::Stay;
-    }
-
-    let focused_tab_index = pane.focused_tab_index();
-
-    let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
-        return CommandPaletteAction::Close;
-    };
-
-    doc.jump_cursors(Position::new(0, line.saturating_sub(1)), false, ctx.gfx);
-    tab.camera.recenter();
-
-    CommandPaletteAction::Close
-}
-
-fn on_update_results(
-    command_palette: &mut CommandPalette,
-    CommandPaletteEventArgs { ctx, .. }: CommandPaletteEventArgs,
-) {
-    let Ok(current_dir) = current_dir() else {
-        return;
-    };
-
-    let search_term = command_palette.doc.get_line(0).unwrap_or_default();
-
-    if search_term.is_empty() {
-        return;
-    };
-
-    let results = &mut command_palette.result_list.results;
-
-    let start = Instant::now();
-
-    handle_dir(&current_dir, &current_dir, search_term, start, results, ctx);
 }
 
 fn handle_dir(
