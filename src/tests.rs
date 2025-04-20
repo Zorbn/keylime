@@ -1,4 +1,4 @@
-macro_rules! test_doc {
+macro_rules! test_with_doc {
     ($name:ident, $text:expr, $test:expr) => {
         #[test]
         fn $name() {
@@ -31,7 +31,7 @@ macro_rules! test_doc {
     };
 }
 
-pub(crate) use test_doc;
+pub(crate) use test_with_doc;
 
 pub const HELLO_GOODBYE_TEXT: &str = r"hello world
 goodbye world";

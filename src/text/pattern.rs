@@ -2,7 +2,7 @@ use serde::{de::Error, Deserialize, Deserializer};
 
 use super::grapheme::{self, GraphemeCursor};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PatternMatch {
     pub start: usize,
     pub end: usize,

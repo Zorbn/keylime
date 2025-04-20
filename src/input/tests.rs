@@ -1,12 +1,12 @@
 use crate::{
     geometry::position::Position,
-    tests::{test_doc, HELLO_GOODBYE_TEXT},
+    tests::{test_with_doc, HELLO_GOODBYE_TEXT},
     text::cursor_index::CursorIndex,
 };
 
 use super::editing_actions::{handle_delete_backward, DeleteKind};
 
-test_doc!(
+test_with_doc!(
     delete_backward_wrap_to_previous_line,
     HELLO_GOODBYE_TEXT,
     |ctx, doc| {

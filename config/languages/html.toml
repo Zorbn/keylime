@@ -3,9 +3,9 @@ indent_width = 4
 
 [syntax]
 tokens = [
-    { pattern = "<(%w+)", kind = "Keyword" },
-    { pattern = "</(%w+)", kind = "Keyword" },
-    { pattern = "<!(%w+)", kind = "Keyword" },
+    { pattern = "<(%w+)>", kind = "Keyword" },
+    { pattern = "</(%w+)>", kind = "Keyword" },
+    { pattern = "<!(%w+)>", kind = "Keyword" },
     { pattern = "[<>/!=]", kind = "Symbol" },
 ]
 ranges = [
