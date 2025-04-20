@@ -11,3 +11,6 @@ pub mod syntax;
 pub mod syntax_highlighter;
 pub mod tokenizer;
 mod trie;
+
+#[cfg(test)]
+mod tests;

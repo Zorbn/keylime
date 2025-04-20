@@ -1,3 +1,5 @@
+#![cfg_attr(test, allow(unused_imports))]
+
 pub use super::file_watcher::FileWatcher as AnyFileWatcher;
 pub use super::gfx::Gfx as AnyGfx;
 pub use super::pty::Pty as AnyPty;

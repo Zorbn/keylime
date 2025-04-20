@@ -1,3 +1,5 @@
+#![cfg_attr(test, allow(dead_code))]
+
 mod app;
 mod config;
 mod ctx;
@@ -9,6 +11,9 @@ mod platform;
 mod temp_buffer;
 mod text;
 mod ui;
+
+#[cfg(test)]
+mod tests;
 
 use app::App;
 use platform::window::WindowRunner;

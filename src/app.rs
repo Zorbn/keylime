@@ -6,8 +6,6 @@ use crate::{
     editor_buffers::EditorBuffers,
     geometry::rect::Rect,
     platform::{file_watcher::FileWatcher, gfx::Gfx, pty::Pty, window::Window},
-    temp_buffer::{TempBuffer, TempString},
-    text::line_pool::LinePool,
     ui::{command_palette::CommandPalette, core::Ui, editor::Editor, terminal::Terminal},
 };
 
@@ -27,11 +25,7 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let mut buffers = EditorBuffers {
-            lines: LinePool::new(),
-            cursors: TempBuffer::new(),
-            text: TempString::new(),
-        };
+        let mut buffers = EditorBuffers::new();
 
         let config_dir = Config::get_dir();
 

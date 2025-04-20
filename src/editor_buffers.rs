@@ -8,3 +8,13 @@ pub struct EditorBuffers {
     pub cursors: TempBuffer<Cursor>,
     pub text: TempString,
 }
+
+impl EditorBuffers {
+    pub fn new() -> Self {
+        Self {
+            lines: LinePool::new(),
+            cursors: TempBuffer::new(),
+            text: TempString::new(),
+        }
+    }
+}

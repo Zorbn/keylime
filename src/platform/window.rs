@@ -33,6 +33,13 @@ pub struct Window {
 }
 
 impl Window {
+    #[cfg(test)]
+    pub fn new() -> Self {
+        Self {
+            inner: platform_impl::window::Window::new(),
+        }
+    }
+
     pub fn set_theme(&mut self, theme: &Theme) {
         self.inner.set_theme(theme);
     }

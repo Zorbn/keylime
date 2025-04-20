@@ -16,7 +16,7 @@ use super::{
     mousebind::MouseClickKind,
 };
 
-enum DeleteKind {
+pub(crate) enum DeleteKind {
     Char,
     Word,
     Line,
@@ -256,7 +256,7 @@ pub fn handle_left_click(
     doc.jump_cursors(end, true, gfx);
 }
 
-fn handle_delete_backward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
+pub(crate) fn handle_delete_backward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
 

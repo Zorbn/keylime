@@ -1,9 +1,13 @@
-#[cfg(target_os = "windows")]
+#[cfg(all(target_os = "windows", not(test)))]
 #[path = "platform/windows/mod.rs"]
 mod platform_impl;
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", not(test)))]
 #[path = "platform/macos/mod.rs"]
+mod platform_impl;
+
+#[cfg(test)]
+#[path = "platform/test/mod.rs"]
 mod platform_impl;
 
 mod aliases;

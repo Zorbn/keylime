@@ -7,3 +7,6 @@ pub mod mods;
 pub mod mouse_button;
 pub mod mouse_scroll;
 pub mod mousebind;
+
+#[cfg(test)]
+mod tests;

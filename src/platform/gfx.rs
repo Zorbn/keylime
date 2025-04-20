@@ -25,6 +25,13 @@ pub struct Gfx {
 }
 
 impl Gfx {
+    #[cfg(test)]
+    pub fn new() -> Self {
+        Self {
+            inner: platform_impl::gfx::Gfx,
+        }
+    }
+
     pub fn begin_frame(&mut self, clear_color: Color) {
         self.inner.begin_frame(clear_color);
     }

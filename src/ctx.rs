@@ -6,7 +6,7 @@ use crate::{
 
 macro_rules! ctx_with_time {
     ($ctx:ident, $time:expr) => {
-        &mut Ctx {
+        &mut crate::ctx::Ctx {
             window: $ctx.window,
             gfx: $ctx.gfx,
             config: $ctx.config,
