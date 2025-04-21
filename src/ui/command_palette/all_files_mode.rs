@@ -154,7 +154,7 @@ impl CommandPaletteMode for AllFilesMode {
             let a_score = score_fuzzy_match(&a.text, input);
             let b_score = score_fuzzy_match(&b.text, input);
 
-            b_score.partial_cmp(&a_score).unwrap_or(Ordering::Equal)
+            b_score.total_cmp(&a_score)
         });
     }
 
@@ -207,7 +207,7 @@ fn compare_ignore_ascii_case(a: &str, b: &str) -> Ordering {
         }
     }
 
-    Ordering::Equal
+    a.len().cmp(&b.len())
 }
 
 fn score_fuzzy_match(path: &str, input: &str) -> f32 {
