@@ -13,7 +13,14 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
                 key: Key::P,
                 mods: MOD_CTRL,
             },
-            ActionName::OpenCommandPalette,
+            ActionName::OpenFileFinder,
+        ),
+        (
+            Keybind {
+                key: Key::T,
+                mods: MOD_CTRL,
+            },
+            ActionName::OpenAllFiles,
         ),
         (
             Keybind {

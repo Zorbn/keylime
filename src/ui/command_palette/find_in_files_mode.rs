@@ -2,13 +2,12 @@ use std::{
     collections::VecDeque,
     env::current_dir,
     fs::{read_dir, DirEntry, ReadDir},
-    path::{Path, PathBuf},
+    path::PathBuf,
     time::Instant,
 };
 
 use crate::{
     ctx::Ctx,
-    geometry::position::Position,
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
@@ -18,7 +17,7 @@ use crate::{
 
 use super::{
     mode::{CommandPaletteEventArgs, CommandPaletteMode},
-    CommandPalette, CommandPaletteAction,
+    CommandPalette, CommandPaletteAction, CommandPaletteMetaData, CommandPaletteResult,
 };
 
 const MAX_RESULTS: usize = 100;
@@ -29,7 +28,7 @@ pub struct FindInFilesMode {
     needs_new_results: bool,
     pending_doc: Option<Doc>,
     pending_dir_entries: VecDeque<ReadDir>,
-    pending_results: Vec<String>,
+    pending_results: Vec<CommandPaletteResult>,
 }
 
 impl FindInFilesMode {
@@ -117,14 +116,20 @@ impl FindInFilesMode {
                 continue;
             };
 
-            let result = format!(
+            let result_text = format!(
                 "{}:{}: {}",
                 relative_path.display(),
                 result_position.y + 1,
                 &line[line_start..]
             );
 
-            self.pending_results.push(result);
+            self.pending_results.push(CommandPaletteResult {
+                text: result_text,
+                meta_data: CommandPaletteMetaData::PathWithPosition {
+                    path: relative_path.to_owned(),
+                    position: result_position,
+                },
+            });
 
             if self.try_finish_finding(start_time, command_palette) {
                 self.pending_doc = Some(doc);
@@ -193,19 +198,10 @@ impl CommandPaletteMode for FindInFilesMode {
             return CommandPaletteAction::Stay;
         }
 
-        let Some(selected_result) = command_palette.result_list.get_selected_result() else {
-            return CommandPaletteAction::Stay;
-        };
-
-        let mut result_parts = selected_result.split(':');
-
-        let Some(path) = result_parts.next().map(Path::new) else {
-            return CommandPaletteAction::Stay;
-        };
-
-        let Some(line) = result_parts
-            .next()
-            .and_then(|line| line.parse::<usize>().ok())
+        let Some(CommandPaletteResult {
+            meta_data: CommandPaletteMetaData::PathWithPosition { path, position },
+            ..
+        }) = command_palette.result_list.get_selected_result()
         else {
             return CommandPaletteAction::Stay;
         };
@@ -220,7 +216,7 @@ impl CommandPaletteMode for FindInFilesMode {
             return CommandPaletteAction::Close;
         };
 
-        doc.jump_cursors(Position::new(0, line.saturating_sub(1)), false, ctx.gfx);
+        doc.jump_cursors(*position, false, ctx.gfx);
         tab.camera.recenter();
 
         CommandPaletteAction::Close

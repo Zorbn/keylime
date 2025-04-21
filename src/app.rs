@@ -9,6 +9,18 @@ use crate::{
     ui::{command_palette::CommandPalette, core::Ui, editor::Editor, terminal::Terminal},
 };
 
+macro_rules! ctx_for_app {
+    ($self:ident, $window:expr, $gfx:expr, $time:expr) => {
+        &mut Ctx {
+            window: $window,
+            gfx: $gfx,
+            config: &$self.config,
+            buffers: &mut $self.buffers,
+            time: $time,
+        }
+    };
+}
+
 pub struct App {
     buffers: EditorBuffers,
 
@@ -92,21 +104,21 @@ impl App {
             window,
         );
 
-        let mut ctx = Ctx {
-            window,
-            gfx,
-            config: &self.config,
-            buffers: &mut self.buffers,
-            time,
-        };
+        let ctx = ctx_for_app!(self, window, gfx, time);
 
-        self.terminal.update(&mut self.ui, &mut ctx, dt);
-
+        self.terminal.update(&mut self.ui, ctx);
         self.command_palette
-            .update(&mut self.ui, &mut self.editor, &mut ctx, dt);
-
+            .update(&mut self.ui, &mut self.editor, ctx);
         self.editor
-            .update(&mut self.ui, &mut self.file_watcher, &mut ctx, dt);
+            .update(&mut self.ui, &mut self.file_watcher, ctx);
+
+        self.layout(gfx);
+
+        let ctx = ctx_for_app!(self, window, gfx, time);
+
+        self.terminal.update_camera(&mut self.ui, ctx, dt);
+        self.command_palette.update_camera(&mut self.ui, ctx, dt);
+        self.editor.update_camera(&mut self.ui, ctx, dt);
     }
 
     pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
@@ -114,17 +126,11 @@ impl App {
 
         gfx.begin_frame(self.config.theme.background);
 
-        let mut ctx = Ctx {
-            window,
-            gfx,
-            config: &self.config,
-            buffers: &mut self.buffers,
-            time,
-        };
+        let ctx = ctx_for_app!(self, window, gfx, time);
 
-        self.terminal.draw(&mut self.ui, &mut ctx);
-        self.editor.draw(&mut self.ui, &mut ctx);
-        self.command_palette.draw(&mut self.ui, &mut ctx);
+        self.terminal.draw(&mut self.ui, ctx);
+        self.editor.draw(&mut self.ui, ctx);
+        self.command_palette.draw(&mut self.ui, ctx);
 
         gfx.end_frame();
     }

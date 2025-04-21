@@ -17,6 +17,13 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
         ),
         (
             Keybind {
+                key: Key::T,
+                mods: MOD_CMD,
+            },
+            ActionName::OpenAllFiles,
+        ),
+        (
+            Keybind {
                 key: Key::F,
                 mods: MOD_CMD,
             },

@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     mode::{CommandPaletteEventArgs, CommandPaletteMode},
-    CommandPalette, CommandPaletteAction,
+    CommandPalette, CommandPaletteAction, CommandPaletteMetaData, CommandPaletteResult,
 };
 
 #[cfg(target_os = "windows")]
@@ -153,7 +153,7 @@ impl CommandPaletteMode for FindFileMode {
 
         let line_len = command_palette.doc.get_line_len(0);
         let start = Position::new(line_len, 0);
-        command_palette.doc.insert(start, result, ctx);
+        command_palette.doc.insert(start, &result.text, ctx);
     }
 
     fn on_update_results(
@@ -178,16 +178,22 @@ impl CommandPaletteMode for FindFileMode {
             let entry_path = entry.path();
 
             if does_path_match_prefix(&path, &entry_path) {
-                if let Some(mut result) = entry_path
+                if let Some(mut result_text) = entry_path
                     .file_name()
                     .and_then(|name| name.to_str())
                     .map(|str| str.to_owned())
                 {
                     if entry_path.is_dir() {
-                        result.push_str(PREFERRED_PATH_SEPARATOR);
+                        result_text.push_str(PREFERRED_PATH_SEPARATOR);
                     }
 
-                    command_palette.result_list.results.push(result);
+                    command_palette
+                        .result_list
+                        .results
+                        .push(CommandPaletteResult {
+                            text: result_text,
+                            meta_data: CommandPaletteMetaData::None,
+                        });
                 }
             }
         }

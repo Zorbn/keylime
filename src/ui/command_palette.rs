@@ -1,12 +1,16 @@
-pub mod find_file_mode;
-pub mod find_in_files_mode;
-pub mod go_to_line_mode;
+mod all_files_mode;
+mod find_file_mode;
+mod find_in_files_mode;
+mod go_to_line_mode;
 mod mode;
-pub mod search_mode;
+mod search_mode;
+
+use std::path::PathBuf;
 
 use crate::{
     ctx::Ctx,
     geometry::{
+        position::Position,
         rect::Rect,
         side::{SIDE_ALL, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
     },
@@ -26,13 +30,25 @@ use super::{
     tab::Tab,
 };
 
+use all_files_mode::AllFilesMode;
 use find_file_mode::FindFileMode;
 use find_in_files_mode::FindInFilesMode;
 use go_to_line_mode::GoToLineMode;
 use mode::{CommandPaletteEventArgs, CommandPaletteMode};
 use search_mode::{SearchAndReplaceMode, SearchMode};
 
-pub enum CommandPaletteAction {
+struct CommandPaletteResult {
+    text: String,
+    meta_data: CommandPaletteMetaData,
+}
+
+enum CommandPaletteMetaData {
+    None,
+    Path(PathBuf),
+    PathWithPosition { path: PathBuf, position: Position },
+}
+
+enum CommandPaletteAction {
     Stay,
     Close,
 }
@@ -45,7 +61,7 @@ pub struct CommandPalette {
     doc: Doc,
     last_updated_version: Option<usize>,
 
-    result_list: ResultList<String>,
+    result_list: ResultList<CommandPaletteResult>,
 
     title_bounds: Rect,
     input_bounds: Rect,
@@ -122,7 +138,7 @@ impl CommandPalette {
         );
     }
 
-    pub fn update(&mut self, ui: &mut Ui, editor: &mut Editor, ctx: &mut Ctx, dt: f32) {
+    pub fn update(&mut self, ui: &mut Ui, editor: &mut Editor, ctx: &mut Ctx) {
         if self.widget.is_visible() && !ui.is_focused(&self.widget) {
             self.close(ui);
         }
@@ -142,6 +158,9 @@ impl CommandPalette {
                 }
                 action_name!(OpenFindInFiles) => {
                     self.open(ui, Box::new(FindInFilesMode::new()), editor, ctx);
+                }
+                action_name!(OpenAllFiles) => {
+                    self.open(ui, Box::new(AllFilesMode::new()), editor, ctx);
                 }
                 action_name!(OpenGoToLine) => {
                     self.open(ui, Box::new(GoToLineMode), editor, ctx);
@@ -171,9 +190,9 @@ impl CommandPalette {
         self.result_list.do_allow_delete = self.doc.cursors_len() == 1
             && self.doc.get_cursor(CursorIndex::Main).position == self.doc.end();
 
-        let result_input =
-            self.result_list
-                .update(&mut self.widget, ui, ctx.window, true, true, dt);
+        let result_input = self
+            .result_list
+            .update(&mut self.widget, ui, ctx.window, true, true);
 
         match result_input {
             ResultListInput::None => {}
@@ -185,11 +204,13 @@ impl CommandPalette {
         }
 
         self.tab.update(&mut self.widget, ui, &mut self.doc, ctx);
+        self.update_results(editor, ctx);
+    }
 
+    pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
         self.tab
             .update_camera(&mut self.widget, ui, &self.doc, ctx, dt);
-
-        self.update_results(editor, ctx);
+        self.result_list.update_camera(dt);
     }
 
     fn submit(
@@ -290,8 +311,7 @@ impl CommandPalette {
         gfx.end();
 
         self.tab.draw(None, &mut self.doc, ctx, is_focused);
-
-        self.result_list.draw(ctx, |result| result);
+        self.result_list.draw(ctx, |result| &result.text);
     }
 
     fn open(

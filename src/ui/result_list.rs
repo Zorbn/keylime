@@ -34,7 +34,7 @@ pub enum ResultListInput {
 pub struct ResultList<T> {
     pub results: Vec<T>,
     selected_result_index: usize,
-    handled_selected_result_index: usize,
+    handled_selected_result_index: Option<usize>,
     pub do_allow_delete: bool,
 
     max_visible_results: usize,
@@ -49,7 +49,7 @@ impl<T> ResultList<T> {
         Self {
             results: Vec::new(),
             selected_result_index: 0,
-            handled_selected_result_index: 0,
+            handled_selected_result_index: None,
             do_allow_delete: false,
 
             max_visible_results,
@@ -83,7 +83,6 @@ impl<T> ResultList<T> {
         window: &mut Window,
         can_be_visible: bool,
         can_be_focused: bool,
-        dt: f32,
     ) -> ResultListInput {
         let mut input = ResultListInput::None;
 
@@ -98,8 +97,6 @@ impl<T> ResultList<T> {
         if can_be_focused && ui.is_focused(widget) {
             self.handle_keybinds(&mut input, widget, ui, window);
         }
-
-        self.update_camera(dt);
 
         input
     }
@@ -211,7 +208,7 @@ impl<T> ResultList<T> {
         }
     }
 
-    fn update_camera(&mut self, dt: f32) {
+    pub fn update_camera(&mut self, dt: f32) {
         let target_y =
             (self.selected_result_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
         let max_y = (self.results.len() as f32 * self.result_bounds.height
@@ -221,7 +218,7 @@ impl<T> ResultList<T> {
         let scroll_border_top = self.result_bounds.height * RECENTER_DISTANCE as f32;
         let scroll_border_bottom = self.results_bounds.height - scroll_border_top;
 
-        let can_recenter = self.selected_result_index != self.handled_selected_result_index;
+        let can_recenter = Some(self.selected_result_index) != self.handled_selected_result_index;
         self.mark_selected_result_handled();
 
         self.camera.vertical.update(
@@ -273,8 +270,13 @@ impl<T> ResultList<T> {
         gfx.end();
     }
 
-    pub fn drain(&mut self) -> Drain<T> {
+    pub fn reset_selected_result(&mut self) {
         self.selected_result_index = 0;
+        self.handled_selected_result_index = None;
+    }
+
+    pub fn drain(&mut self) -> Drain<T> {
+        self.reset_selected_result();
         self.camera.reset();
 
         self.results.drain(..)
@@ -285,7 +287,7 @@ impl<T> ResultList<T> {
     }
 
     pub fn mark_selected_result_handled(&mut self) {
-        self.handled_selected_result_index = self.selected_result_index;
+        self.handled_selected_result_index = Some(self.selected_result_index);
     }
 
     pub fn bounds(&self) -> Rect {

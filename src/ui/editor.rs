@@ -113,7 +113,7 @@ impl Editor {
             .layout(&[bounds, self.completion_result_list.bounds()]);
     }
 
-    pub fn update(&mut self, ui: &mut Ui, file_watcher: &mut FileWatcher, ctx: &mut Ctx, dt: f32) {
+    pub fn update(&mut self, ui: &mut Ui, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
         self.reload_changed_files(file_watcher, ctx);
 
         let mut grapheme_handler = ui.get_grapheme_handler(&self.widget, ctx.window);
@@ -199,7 +199,6 @@ impl Editor {
             ctx.window,
             are_results_visible,
             are_results_focused,
-            dt,
         );
 
         match result_input {
@@ -242,11 +241,15 @@ impl Editor {
             self.close_pane(ctx);
         }
 
+        self.update_completions(should_open_completions, handled_position, ctx.gfx);
+    }
+
+    pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
         for pane in &mut self.panes {
             pane.update_camera(&mut self.widget, ui, &mut self.doc_list, ctx, dt);
         }
 
-        self.update_completions(should_open_completions, handled_position, ctx.gfx);
+        self.completion_result_list.update_camera(dt);
     }
 
     // Necessary when syntax highlighting rules change.

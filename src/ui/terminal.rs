@@ -82,7 +82,7 @@ impl Terminal {
         self.widget.layout(&[bounds]);
     }
 
-    pub fn update(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
+    pub fn update(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
         let mut global_action_handler = ctx.window.get_action_handler();
 
         while let Some(action) = global_action_handler.next(ctx.window) {
@@ -119,7 +119,9 @@ impl Terminal {
 
             emulator.update_output(docs, tab, ctx);
         }
+    }
 
+    pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
         self.pane
             .update_camera(&mut self.widget, ui, &mut self.term_list, ctx, dt);
     }

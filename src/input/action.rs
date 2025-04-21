@@ -11,6 +11,7 @@ pub enum ActionName {
     GoToEnd,
     SelectAll,
     OpenFileFinder,
+    OpenAllFiles,
     OpenSearch,
     OpenSearchAndReplace,
     OpenFindInFiles,
