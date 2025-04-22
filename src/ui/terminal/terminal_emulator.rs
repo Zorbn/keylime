@@ -122,8 +122,8 @@ impl TerminalEmulator {
             pty: None,
 
             grid_cursor: Position::ZERO,
-            grid_width: 0,
-            grid_height: 0,
+            grid_width: MIN_GRID_WIDTH,
+            grid_height: MIN_GRID_HEIGHT,
             colored_grid_lines: Vec::new(),
             empty_line_text: String::new(),
 
@@ -313,11 +313,13 @@ impl TerminalEmulator {
         Self::expand_colored_grid_lines_to_grid_size(
             self.grid_width,
             self.grid_height,
+            last_grid_height,
             &mut self.colored_grid_lines,
         );
         Self::expand_colored_grid_lines_to_grid_size(
             self.grid_width,
             self.grid_height,
+            last_grid_height,
             &mut self.saved_colored_grid_lines,
         );
 
@@ -327,24 +329,20 @@ impl TerminalEmulator {
 
     fn expand_doc_to_grid_size(&mut self, doc: &mut Doc, last_grid_height: usize, ctx: &mut Ctx) {
         if self.grid_height < last_grid_height {
-            let grid_cursor_y =
-                doc.lines().len().saturating_sub(last_grid_height) + self.grid_cursor.y;
-
-            let start = doc.get_line_end(grid_cursor_y);
+            let start_y = doc.lines().len().saturating_sub(last_grid_height) + self.grid_cursor.y;
+            let start_y = start_y.max(self.grid_height - 1);
+            let start = doc.get_line_end(start_y);
 
             doc.delete(start, doc.end(), ctx);
         }
 
-        if self.grid_height > last_grid_height && last_grid_height > 0 {
-            self.highlight_lines(doc);
-
+        if self.grid_height > last_grid_height {
             for _ in last_grid_height..self.grid_height {
                 doc.insert(doc.end(), "\n", ctx);
+                doc.insert(doc.end(), &self.empty_line_text, ctx);
             }
-        }
 
-        while doc.lines().len() < self.grid_height {
-            doc.insert(doc.end(), "\n", ctx);
+            self.highlight_lines(doc);
         }
 
         for y in 0..self.grid_height {
@@ -364,12 +362,17 @@ impl TerminalEmulator {
     fn expand_colored_grid_lines_to_grid_size(
         grid_width: usize,
         grid_height: usize,
+        last_grid_height: usize,
         colored_grid_lines: &mut Vec<ColoredGridLine>,
     ) {
-        colored_grid_lines.truncate(grid_height);
+        if last_grid_height > grid_height {
+            colored_grid_lines.truncate(grid_height);
+        }
 
-        while colored_grid_lines.len() < grid_height {
-            colored_grid_lines.insert(0, ColoredGridLine::new());
+        if grid_height > last_grid_height {
+            while colored_grid_lines.len() < grid_height {
+                colored_grid_lines.push(ColoredGridLine::new());
+            }
         }
 
         for colored_grid_line in colored_grid_lines {
