@@ -248,7 +248,8 @@ impl TerminalEmulator {
     }
 
     pub fn update_output(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
-        self.resize_grid(ctx.gfx, tab);
+        let last_grid_height = self.grid_height;
+        self.resize_grid(tab, ctx.gfx);
 
         let Some(mut pty) = self.pty.take() else {
             return;
@@ -261,7 +262,7 @@ impl TerminalEmulator {
 
         let backup_doc_len = doc.lines().len().max(self.grid_height);
         self.backup_doc_cursor_positions(doc, &mut cursor_buffer);
-        self.expand_to_grid_size(docs, ctx);
+        self.expand_to_grid_size(docs, last_grid_height, ctx);
 
         let (input, output) = pty.input_output();
 
@@ -297,15 +298,17 @@ impl TerminalEmulator {
         }
     }
 
-    fn expand_to_grid_size(&mut self, docs: &mut TerminalDocs, ctx: &mut Ctx) {
+    fn expand_to_grid_size(
+        &mut self,
+        docs: &mut TerminalDocs,
+        last_grid_height: usize,
+        ctx: &mut Ctx,
+    ) {
         self.empty_line_text.truncate(self.grid_width);
 
         while self.empty_line_text.len() < self.grid_width {
             self.empty_line_text.push(' ');
         }
-
-        self.expand_doc_to_grid_size(&mut docs.normal, ctx);
-        self.expand_doc_to_grid_size(&mut docs.alternate, ctx);
 
         Self::expand_colored_grid_lines_to_grid_size(
             self.grid_width,
@@ -317,13 +320,31 @@ impl TerminalEmulator {
             self.grid_height,
             &mut self.saved_colored_grid_lines,
         );
+
+        self.expand_doc_to_grid_size(&mut docs.normal, last_grid_height, ctx);
+        self.expand_doc_to_grid_size(&mut docs.alternate, last_grid_height, ctx);
     }
 
-    fn expand_doc_to_grid_size(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
-        while doc.lines().len() < self.grid_height {
-            let start = doc.end();
+    fn expand_doc_to_grid_size(&mut self, doc: &mut Doc, last_grid_height: usize, ctx: &mut Ctx) {
+        if self.grid_height < last_grid_height {
+            let grid_cursor_y =
+                doc.lines().len().saturating_sub(last_grid_height) + self.grid_cursor.y;
 
-            doc.insert(start, "\n", ctx);
+            let start = doc.get_line_end(grid_cursor_y);
+
+            doc.delete(start, doc.end(), ctx);
+        }
+
+        if self.grid_height > last_grid_height && last_grid_height > 0 {
+            self.highlight_lines(doc);
+
+            for _ in last_grid_height..self.grid_height {
+                doc.insert(doc.end(), "\n", ctx);
+            }
+        }
+
+        while doc.lines().len() < self.grid_height {
+            doc.insert(doc.end(), "\n", ctx);
         }
 
         for y in 0..self.grid_height {
@@ -356,22 +377,24 @@ impl TerminalEmulator {
         }
     }
 
-    fn resize_grid(&mut self, gfx: &mut Gfx, tab: &Tab) {
+    fn resize_grid(&mut self, tab: &Tab, gfx: &mut Gfx) {
         let (grid_width, grid_height) = Self::get_grid_size(gfx, tab);
 
-        if grid_width != self.grid_width || grid_height != self.grid_height {
-            if let Some(pty) = self.pty.as_mut() {
-                pty.resize(grid_width, grid_height);
-            } else {
-                self.pty = Pty::new(grid_width, grid_height, SHELLS).ok();
-            }
-
-            self.grid_width = grid_width;
-            self.grid_height = grid_height;
-
-            self.scroll_top = 0;
-            self.scroll_bottom = grid_height - 1;
+        if grid_width == self.grid_width && grid_height == self.grid_height {
+            return;
         }
+
+        if let Some(pty) = self.pty.as_mut() {
+            pty.resize(grid_width, grid_height);
+        } else {
+            self.pty = Pty::new(grid_width, grid_height, SHELLS).ok();
+        }
+
+        self.grid_width = grid_width;
+        self.grid_height = grid_height;
+
+        self.scroll_top = 0;
+        self.scroll_bottom = grid_height - 1;
     }
 
     fn get_grid_size(gfx: &mut Gfx, tab: &Tab) -> (usize, usize) {
