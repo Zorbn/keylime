@@ -1018,6 +1018,13 @@ impl Doc {
         action_kind: ActionKind,
         ctx: &mut Ctx,
     ) {
+        let start = self.clamp_position(start);
+        let end = self.clamp_position(end);
+
+        if start == end {
+            return;
+        }
+
         if action_kind == ActionKind::Done {
             self.redo_history.clear();
         }
@@ -1027,9 +1034,6 @@ impl Doc {
         self.version += 1;
 
         self.add_cursors_to_action_history(action_kind, ctx.time);
-
-        let start = self.clamp_position(start);
-        let end = self.clamp_position(end);
 
         let mut owned_undo_buffer = self.undo_buffer.take().unwrap();
         let undo_buffer = owned_undo_buffer.get_mut();
@@ -1110,6 +1114,10 @@ impl Doc {
         action_kind: ActionKind,
         ctx: &mut Ctx,
     ) {
+        if text.is_empty() {
+            return;
+        }
+
         if action_kind == ActionKind::Done {
             self.redo_history.clear();
         }
