@@ -33,6 +33,12 @@ macro_rules! handle_event {
             window.inner.$handler($event, $($args), *);
         }
 
+        if let Ok(Some(gfx)) = $self.ivars().gfx.try_borrow_mut().as_deref() {
+            if unsafe { !gfx.inner.display_link.isPaused() } {
+                return;
+            }
+        };
+
         $self.update();
     };
 }
