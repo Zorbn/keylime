@@ -53,6 +53,7 @@ enum PatternLiteral {
 
 #[derive(Debug)]
 enum PatternPart {
+    TextStart,    // ^
     CaptureStart, // (
     CaptureEnd,   // )
     Literal(PatternLiteral),
@@ -95,6 +96,7 @@ impl Pattern {
 
             match grapheme {
                 "%" => is_escaped = true,
+                "^" => parts.push(PatternPart::TextStart),
                 "(" => {
                     if has_capture_start {
                         return Err("only one capture is allowed");
@@ -246,6 +248,11 @@ impl Pattern {
             let part = &parts[part_index];
 
             match part {
+                PatternPart::TextStart => {
+                    if grapheme_cursor.cur_cursor() != 0 {
+                        return None;
+                    }
+                }
                 PatternPart::CaptureStart => {
                     capture_start = Some(grapheme_cursor.cur_cursor());
                 }

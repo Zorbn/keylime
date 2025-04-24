@@ -88,6 +88,10 @@ impl HighlightedLine {
     }
 
     fn push(&mut self, highlight: Highlight) {
+        if highlight.start == highlight.end {
+            return;
+        }
+
         if let Some(last_highlight) = self.highlights.last_mut() {
             if last_highlight.end == highlight.start
                 && last_highlight.foreground == highlight.foreground

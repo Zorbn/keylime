@@ -52,11 +52,11 @@ keywords = [
 tokens = [
     { pattern = "//%.*", kind = "Comment" },
     { pattern = "#%.*", kind = "Meta" },
-    { pattern = "([%a_][%w_]*)%(", kind = "Function" },
+    { pattern = "([%a_][%w_]*)%s*%(", kind = "Function" },
     { pattern = "0x%x+", kind = "Number" },
     { pattern = "(%d+.?%d*)[^.]", kind = "Number" },
     { pattern = "%d+", kind = "Number" },
-    { pattern = "[!=&,><./:@^|;{}()%%%*%+%-%?%[%]]", kind = "Symbol" },
+    { pattern = "[!=&,><./:@|;{}()%%%^%*%+%-%?%[%]]", kind = "Symbol" },
 ]
 ranges = [
     { start = '"', end = '"', escape = '\', kind = "String" },

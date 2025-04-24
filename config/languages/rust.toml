@@ -42,9 +42,9 @@ keywords = [
 tokens = [
     { pattern = "//%.*", kind = "Comment" },
     { pattern = "[%a_][%w_]*!", kind = "Meta" },
-    { pattern = "([%a_][%w_]*)%(", kind = "Function" },
-    { pattern = "([%a_][%w_]*)<%.->%(", kind = "Function" },
-    { pattern = "([%a_][%w_]*)::<%.->%(", kind = "Function" },
+    { pattern = "([%a_][%w_]*)%s*%(", kind = "Function" },
+    { pattern = "([%a_][%w_]*)%s*<%.->%s*%(", kind = "Function" },
+    { pattern = "([%a_][%w_]*)%s*::%s*<%.->%s*%(", kind = "Function" },
     { pattern = "0x%x+", kind = "Number" },
     { pattern = "0b[01]+", kind = "Number" },
     { pattern = "(%d[%d_]*.?[%d_]*)[^.]", kind = "Number" },
@@ -52,7 +52,7 @@ tokens = [
     { pattern = "'\\u{%x-}'", kind = "String" },
     { pattern = "'\\?%.'", kind = "String" },
     { pattern = "'%l+", kind = "Meta" },
-    { pattern = "[!=&,><./:@^|;{}()%%%*%+%-%?%[%]]", kind = "Symbol" },
+    { pattern = "[!=&,><./:@|;{}()%%%^%*%+%-%?%[%]]", kind = "Symbol" },
 ]
 ranges = [
     { start = '"', end = '"', escape = '\', kind = "String" },
