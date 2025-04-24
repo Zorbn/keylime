@@ -126,6 +126,10 @@ impl Text {
             )?
             .cast::<IDWriteFont1>()?;
 
+        if !font.IsMonospacedFont().as_bool() {
+            return Err(Error::new(E_FAIL, "Font is not monospaced"));
+        }
+
         let font_face = font.CreateFontFace()?;
 
         let mut font_metrics = DWRITE_FONT_METRICS::default();
