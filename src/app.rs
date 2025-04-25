@@ -147,15 +147,9 @@ impl App {
     }
 
     pub fn close(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
-        let mut ctx = Ctx {
-            window,
-            gfx,
-            config: &self.config,
-            buffers: &mut self.buffers,
-            time,
-        };
+        let ctx = ctx_for_app!(self, window, gfx, time);
 
-        self.editor.on_close(&mut ctx);
+        self.editor.on_close(ctx);
     }
 
     pub fn config(&self) -> &Config {
