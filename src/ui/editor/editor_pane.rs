@@ -183,7 +183,7 @@ impl EditorPane {
     }
 
     pub fn close_all_tabs(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) -> bool {
-        while self.tabs_len() > 0 {
+        while !self.tabs.is_empty() {
             if !self.remove_tab(doc_list, ctx) {
                 return false;
             }

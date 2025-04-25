@@ -18,11 +18,6 @@ mod tests;
 use app::App;
 use platform::window::WindowRunner;
 
-/*
- * TODO:
- * Ensure font is monospaced on Windows.
- */
-
 fn main() {
     println!("Hello, world!");
 

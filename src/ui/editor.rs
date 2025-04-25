@@ -17,6 +17,7 @@ use crate::{
 
 use super::{
     core::{Ui, Widget},
+    focus_list::FocusList,
     result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     slot_list::SlotList,
 };
@@ -29,8 +30,7 @@ const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
 pub struct Editor {
     doc_list: SlotList<Doc>,
     // There should always be at least one pane.
-    panes: Vec<EditorPane>,
-    focused_pane_index: usize,
+    panes: FocusList<EditorPane>,
 
     completion_result_list: ResultList<String>,
     completion_result_pool: LinePool,
@@ -43,8 +43,7 @@ impl Editor {
     pub fn new(ui: &mut Ui, line_pool: &mut LinePool) -> Self {
         let mut editor = Self {
             doc_list: SlotList::new(),
-            panes: Vec::new(),
-            focused_pane_index: 0,
+            panes: FocusList::new(),
 
             completion_result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS),
             completion_result_pool: LinePool::new(),
@@ -53,9 +52,7 @@ impl Editor {
             widget: Widget::new(ui, true),
         };
 
-        editor
-            .panes
-            .push(EditorPane::new(&mut editor.doc_list, line_pool));
+        editor.add_pane(line_pool);
 
         editor
     }
@@ -69,12 +66,12 @@ impl Editor {
         let mut pane_bounds = bounds;
         pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
 
-        for pane in &mut self.panes {
+        for pane in self.panes.iter_mut() {
             pane.layout(pane_bounds, gfx, &mut self.doc_list);
             pane_bounds.x += pane_bounds.width;
         }
 
-        let focused_pane = &self.panes[self.focused_pane_index];
+        let focused_pane = self.panes.get_focused().unwrap();
 
         let Some((tab, doc)) =
             focused_pane.get_tab_with_data(focused_pane.focused_tab_index(), &self.doc_list)
@@ -139,14 +136,13 @@ impl Editor {
                     is_drag: false,
                     ..
                 } => {
-                    if let Some((i, _)) = self
+                    let index = self
                         .panes
                         .iter()
-                        .enumerate()
-                        .filter(|(_, pane)| pane.bounds().contains_position(visual_position))
-                        .nth(0)
-                    {
-                        self.focused_pane_index = i;
+                        .position(|pane| pane.bounds().contains_position(visual_position));
+
+                    if let Some(index) = index {
+                        self.panes.set_focused_index(index);
                     }
 
                     mousebind_handler.unprocessed(ctx.window, mousebind);
@@ -166,22 +162,22 @@ impl Editor {
                 }
                 action_name!(NewPane) => self.add_pane(&mut ctx.buffers.lines),
                 action_name!(ClosePane) => self.close_pane(ctx),
-                action_name!(PreviousPane) => self.previous_pane(),
-                action_name!(NextPane) => self.next_pane(),
+                action_name!(PreviousPane) => self.panes.focus_previous(),
+                action_name!(NextPane) => self.panes.focus_next(),
                 action_name!(PreviousTab) => {
-                    let pane = &self.panes[self.focused_pane_index];
+                    let pane = self.panes.get_focused().unwrap();
 
                     if pane.focused_tab_index() == 0 {
-                        self.previous_pane();
+                        self.panes.focus_previous();
                     } else {
                         action_handler.unprocessed(ctx.window, action);
                     }
                 }
                 action_name!(NextTab) => {
-                    let pane = &self.panes[self.focused_pane_index];
+                    let pane = self.panes.get_focused().unwrap();
 
-                    if pane.focused_tab_index() == pane.tabs_len() - 1 {
-                        self.next_pane();
+                    if pane.focused_tab_index() == pane.tabs.len() - 1 {
+                        self.panes.focus_next();
                     } else {
                         action_handler.unprocessed(ctx.window, action);
                     }
@@ -208,7 +204,7 @@ impl Editor {
                 kind: ResultListSubmitKind::Normal,
             } => {
                 if let Some(result) = self.completion_result_list.get_selected_result() {
-                    let pane = &mut self.panes[self.focused_pane_index];
+                    let pane = self.panes.get_focused_mut().unwrap();
                     let focused_tab_index = pane.focused_tab_index();
 
                     if let Some((_, doc)) =
@@ -233,19 +229,17 @@ impl Editor {
         }
 
         let handled_position = self.get_cursor_position();
-        let pane = &mut self.panes[self.focused_pane_index];
+        let pane = self.panes.get_focused_mut().unwrap();
 
         pane.update(&mut self.widget, ui, &mut self.doc_list, ctx);
 
-        if pane.tabs_len() == 0 {
-            self.close_pane(ctx);
-        }
+        self.panes.remove_excess(|pane| pane.tabs.is_empty());
 
         self.update_completions(should_open_completions, handled_position, ctx.gfx);
     }
 
     pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
-        for pane in &mut self.panes {
+        for pane in self.panes.iter_mut() {
             pane.update_camera(&mut self.widget, ui, &mut self.doc_list, ctx, dt);
         }
 
@@ -279,9 +273,10 @@ impl Editor {
 
     pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
         let is_focused = ui.is_focused(&self.widget);
+        let focused_pane_index = self.panes.focused_index();
 
         for (i, pane) in self.panes.iter_mut().enumerate() {
-            let is_focused = is_focused && i == self.focused_pane_index;
+            let is_focused = is_focused && i == focused_pane_index;
 
             pane.draw(None, &mut self.doc_list, ctx, is_focused);
         }
@@ -348,7 +343,7 @@ impl Editor {
             return;
         }
 
-        let pane = &mut self.panes[self.focused_pane_index];
+        let pane = self.panes.get_focused_mut().unwrap();
 
         let Some((_, doc)) = pane.get_tab_with_data(pane.focused_tab_index(), &self.doc_list)
         else {
@@ -373,14 +368,14 @@ impl Editor {
     }
 
     fn get_cursor_position(&self) -> Option<Position> {
-        let pane = &self.panes[self.focused_pane_index];
+        let pane = self.panes.get_focused().unwrap();
 
         pane.get_tab_with_data(pane.focused_tab_index(), &self.doc_list)
             .map(|(_, doc)| doc.get_cursor(CursorIndex::Main).position)
     }
 
     fn is_cursor_visible(&self, gfx: &mut Gfx) -> bool {
-        let pane = &self.panes[self.focused_pane_index];
+        let pane = self.panes.get_focused().unwrap();
 
         let Some((tab, doc)) = pane.get_tab_with_data(pane.focused_tab_index(), &self.doc_list)
         else {
@@ -396,25 +391,10 @@ impl Editor {
         tab.doc_bounds().contains_position(cursor_visual_position)
     }
 
-    fn clamp_focused_pane(&mut self) {
-        if self.focused_pane_index >= self.panes.len() {
-            if self.panes.is_empty() {
-                self.focused_pane_index = 0;
-            } else {
-                self.focused_pane_index = self.panes.len() - 1;
-            }
-        }
-    }
-
     fn add_pane(&mut self, line_pool: &mut LinePool) {
         let pane = EditorPane::new(&mut self.doc_list, line_pool);
 
-        if self.focused_pane_index >= self.panes.len() {
-            self.panes.push(pane);
-        } else {
-            self.panes.insert(self.focused_pane_index + 1, pane);
-            self.focused_pane_index += 1;
-        }
+        self.panes.add(pane);
     }
 
     fn close_pane(&mut self, ctx: &mut Ctx) {
@@ -422,24 +402,16 @@ impl Editor {
             return;
         }
 
-        if !self.panes[self.focused_pane_index].close_all_tabs(&mut self.doc_list, ctx) {
+        if !self
+            .panes
+            .get_focused_mut()
+            .unwrap()
+            .close_all_tabs(&mut self.doc_list, ctx)
+        {
             return;
         }
 
-        self.panes.remove(self.focused_pane_index);
-        self.clamp_focused_pane();
-    }
-
-    fn previous_pane(&mut self) {
-        if self.focused_pane_index > 0 {
-            self.focused_pane_index -= 1;
-        }
-    }
-
-    fn next_pane(&mut self) {
-        if self.focused_pane_index < self.panes.len() - 1 {
-            self.focused_pane_index += 1;
-        }
+        self.panes.remove();
     }
 
     pub fn on_close(&mut self, ctx: &mut Ctx) {
@@ -447,7 +419,7 @@ impl Editor {
     }
 
     pub fn get_focused_pane_and_doc_list(&mut self) -> (&mut EditorPane, &mut SlotList<Doc>) {
-        (&mut self.panes[self.focused_pane_index], &mut self.doc_list)
+        (self.panes.get_focused_mut().unwrap(), &mut self.doc_list)
     }
 
     pub fn files(&self) -> impl Iterator<Item = &Path> {

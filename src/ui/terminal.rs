@@ -110,7 +110,7 @@ impl Terminal {
             emulator.update_input(&mut self.widget, ui, docs, tab, ctx);
         }
 
-        for tab in &mut self.pane.tabs {
+        for tab in self.pane.tabs.iter_mut() {
             let term_index = tab.data_index();
 
             let Some((docs, emulator)) = self.term_list.get_mut(term_index) else {

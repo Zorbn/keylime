@@ -9,13 +9,13 @@ use crate::{
 use super::{
     color::Color,
     core::{Ui, Widget},
+    focus_list::FocusList,
     slot_list::SlotList,
     tab::Tab,
 };
 
 pub struct Pane<T> {
-    pub tabs: Vec<Tab>,
-    focused_tab_index: usize,
+    pub tabs: FocusList<Tab>,
     bounds: Rect,
 
     get_doc: fn(&T) -> &Doc,
@@ -25,8 +25,7 @@ pub struct Pane<T> {
 impl<T> Pane<T> {
     pub fn new(get_doc: fn(&T) -> &Doc, get_doc_mut: fn(&mut T) -> &mut Doc) -> Self {
         Self {
-            tabs: Vec::new(),
-            focused_tab_index: 0,
+            tabs: FocusList::new(),
             bounds: Rect::ZERO,
 
             get_doc,
@@ -36,7 +35,7 @@ impl<T> Pane<T> {
 
     pub fn is_animating(&self) -> bool {
         self.tabs
-            .get(self.focused_tab_index)
+            .get_focused()
             .is_some_and(|tab| tab.is_animating())
     }
 
@@ -81,19 +80,16 @@ impl<T> Pane<T> {
                     is_drag: false,
                     ..
                 } => {
-                    match self
-                        .tabs
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, tab)| {
-                            tab.tab_bounds()
-                                .unoffset_by(self.bounds)
-                                .contains_position(visual_position)
-                        })
-                        .nth(0)
-                    {
-                        Some((i, _)) => self.focused_tab_index = i,
-                        _ => mousebind_handler.unprocessed(window, mousebind),
+                    let index = self.tabs.iter().position(|tab| {
+                        tab.tab_bounds()
+                            .unoffset_by(self.bounds)
+                            .contains_position(visual_position)
+                    });
+
+                    if let Some(index) = index {
+                        self.tabs.set_focused_index(index);
+                    } else {
+                        mousebind_handler.unprocessed(window, mousebind);
                     }
                 }
                 _ => mousebind_handler.unprocessed(window, mousebind),
@@ -104,16 +100,8 @@ impl<T> Pane<T> {
 
         while let Some(action) = action_handler.next(window) {
             match action {
-                action_name!(PreviousTab) => {
-                    if self.focused_tab_index > 0 {
-                        self.focused_tab_index -= 1;
-                    }
-                }
-                action_name!(NextTab) => {
-                    if self.focused_tab_index < self.tabs.len() - 1 {
-                        self.focused_tab_index += 1;
-                    }
-                }
+                action_name!(PreviousTab) => self.tabs.focus_previous(),
+                action_name!(NextTab) => self.tabs.focus_next(),
                 _ => action_handler.unprocessed(window, action),
             }
         }
@@ -129,7 +117,8 @@ impl<T> Pane<T> {
     ) {
         let get_doc = self.get_doc;
 
-        if let Some((tab, data)) = self.get_tab_with_data_mut(self.focused_tab_index, data_list) {
+        if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
+        {
             tab.update_camera(widget, ui, get_doc(data), ctx, dt);
         }
     }
@@ -174,7 +163,7 @@ impl<T> Pane<T> {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        let focused_tab_bounds = if let Some(tab) = self.tabs.get(self.focused_tab_index) {
+        let focused_tab_bounds = if let Some(tab) = self.tabs.get_focused() {
             let tab_bounds = tab.tab_bounds().unoffset_by(self.bounds);
 
             if is_focused {
@@ -210,7 +199,8 @@ impl<T> Pane<T> {
 
         let get_doc_mut = self.get_doc_mut;
 
-        if let Some((tab, data)) = self.get_tab_with_data_mut(self.focused_tab_index, data_list) {
+        if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
+        {
             tab.draw(default_background, get_doc_mut(data), ctx, is_focused);
         }
     }
@@ -261,16 +251,6 @@ impl<T> Pane<T> {
         None
     }
 
-    fn clamp_focused_tab(&mut self) {
-        if self.focused_tab_index >= self.tabs.len() {
-            if self.tabs.is_empty() {
-                self.focused_tab_index = 0;
-            } else {
-                self.focused_tab_index = self.tabs.len() - 1;
-            }
-        }
-    }
-
     pub fn get_existing_tab_for_data(&self, data_index: usize) -> Option<usize> {
         for (i, tab) in self.tabs.iter().enumerate() {
             if tab.data_index() == data_index {
@@ -290,29 +270,20 @@ impl<T> Pane<T> {
             .expect("tried to add a tab referencing a non-existent data")
             .add_usage();
 
-        if self.focused_tab_index >= self.tabs.len() {
-            self.tabs.push(tab);
-        } else {
-            self.tabs.insert(self.focused_tab_index + 1, tab);
-            self.focused_tab_index += 1;
-        }
+        self.tabs.add(tab);
     }
 
     pub fn remove_tab(&mut self, data_list: &mut SlotList<T>) {
         let get_doc_mut = self.get_doc_mut;
 
-        let Some((_, data)) = self.get_tab_with_data_mut(self.focused_tab_index, data_list) else {
+        let Some((_, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
+        else {
             return;
         };
 
         (get_doc_mut)(data).remove_usage();
 
-        self.tabs.remove(self.focused_tab_index);
-        self.clamp_focused_tab();
-    }
-
-    pub fn tabs_len(&self) -> usize {
-        self.tabs.len()
+        self.tabs.remove();
     }
 
     pub fn bounds(&self) -> Rect {
@@ -320,11 +291,10 @@ impl<T> Pane<T> {
     }
 
     pub fn set_focused_tab_index(&mut self, index: usize) {
-        self.focused_tab_index = index;
-        self.clamp_focused_tab();
+        self.tabs.set_focused_index(index);
     }
 
     pub fn focused_tab_index(&self) -> usize {
-        self.focused_tab_index
+        self.tabs.focused_index()
     }
 }

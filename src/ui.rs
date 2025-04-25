@@ -3,6 +3,7 @@ pub mod color;
 pub mod command_palette;
 pub mod core;
 pub mod editor;
+mod focus_list;
 mod pane;
 mod result_list;
 mod slot_list;
