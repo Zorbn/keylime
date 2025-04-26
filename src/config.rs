@@ -66,6 +66,7 @@ struct LanguageDesc<'a> {
     indent_width: IndentWidth,
     #[serde(default = "DEFAULT_COMMENT")]
     comment: String,
+    lsp_language_id: Option<String>,
     language_server_command: Option<String>,
     #[serde(borrow)]
     syntax: Option<SyntaxDesc<'a>>,
@@ -137,6 +138,7 @@ impl Config {
                     index,
                     indent_width: language_desc.indent_width,
                     comment: language_desc.comment,
+                    lsp_language_id: language_desc.lsp_language_id,
                     language_server_command: language_desc.language_server_command,
                     syntax: language_desc
                         .syntax

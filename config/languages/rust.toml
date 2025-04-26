@@ -1,5 +1,6 @@
 extensions = ["rs"]
 indent_width = 4
+lsp_language_id = "rust"
 language_server_command = "rust-analyzer"
 
 [syntax]

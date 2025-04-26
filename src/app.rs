@@ -88,7 +88,6 @@ impl App {
             window.set_theme(&self.config.theme);
             gfx.update_font(&self.config.font, self.config.font_size);
 
-            self.lsp.clear();
             self.editor.clear_doc_highlights();
             self.layout(gfx);
         }

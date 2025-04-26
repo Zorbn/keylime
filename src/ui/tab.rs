@@ -320,6 +320,7 @@ impl Tab {
 
         self.draw_indent_guides(doc, camera_position, visible_lines, ctx);
         self.draw_lines(default_background, doc, camera_position, visible_lines, ctx);
+        self.draw_diagnostics(doc, camera_position, visible_lines, ctx);
         self.draw_cursors(doc, is_focused, camera_position, visible_lines, ctx);
 
         ctx.gfx.end();
@@ -467,6 +468,61 @@ impl Tab {
                 }
 
                 x += gfx.add_text(highlighted_text, visual_x, foreground_visual_y, foreground);
+            }
+        }
+    }
+
+    fn draw_diagnostics(
+        &mut self,
+        doc: &Doc,
+        camera_position: VisualPosition,
+        visible_lines: VisibleLines,
+        ctx: &mut Ctx,
+    ) {
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
+
+        let Some(path) = doc.path().some() else {
+            return;
+        };
+
+        for language_server in ctx.lsp.iter_servers_mut() {
+            for diagnostic in language_server.get_diagnostics(path) {
+                if diagnostic.severity == 4 {
+                    continue;
+                }
+
+                let range = diagnostic.range;
+
+                let start = Position::from(range.start).max(Position::new(0, visible_lines.min_y));
+                let end = Position::from(range.end).min(Position::new(0, visible_lines.max_y));
+                let mut position = start;
+
+                // TODO: Add diagnostic colors to theme!
+                let color = match diagnostic.severity {
+                    1 => Color::from_rgb(255, 0, 0),
+                    2 => Color::from_rgb(255, 200, 0),
+                    _ => Color::from_rgb(125, 125, 125),
+                };
+
+                while position < end {
+                    let highlight_position = doc.position_to_visual(position, camera_position, gfx);
+
+                    let grapheme = doc.get_grapheme(position);
+                    let grapheme_width = gfx.measure_text(grapheme);
+
+                    gfx.add_rect(
+                        Rect::new(
+                            highlight_position.x,
+                            highlight_position.y + gfx.line_height() - gfx.border_width(),
+                            grapheme_width as f32 * gfx.glyph_width(),
+                            gfx.border_width(),
+                        ),
+                        color,
+                    );
+
+                    position = doc.move_position(position, 1, 0, gfx);
+                }
             }
         }
     }

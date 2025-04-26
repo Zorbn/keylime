@@ -1542,11 +1542,20 @@ impl Doc {
             DocPath::OnDrive(path) => DocPath::OnDrive(path),
         };
 
-        if let Some(language) = ctx.config.get_language_for_doc(self) {
-            ctx.lsp.get_language_server_mut(language);
-        }
+        self.lsp_did_open(ctx);
 
         Ok(())
+    }
+
+    fn lsp_did_open(&mut self, ctx: &mut Ctx) -> Option<()> {
+        let language = ctx.config.get_language_for_doc(self)?;
+        let language_id = language.lsp_language_id.as_ref()?;
+        let language_server = ctx.lsp.get_language_server_mut(language)?;
+        let path = self.path.some()?;
+
+        language_server.did_open(path, language_id, self.version, &self.to_string());
+
+        Some(())
     }
 
     pub fn reload(&mut self, ctx: &mut Ctx) -> io::Result<()> {

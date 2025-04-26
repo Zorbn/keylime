@@ -244,7 +244,9 @@ define_class!(
                 return;
             };
 
-            let app = app.as_mut().unwrap();
+            let Some(app) = app.as_mut() else {
+                return;
+            };
 
             let window = &mut *window;
             let time = window.inner.time;
@@ -316,7 +318,10 @@ impl View {
             return;
         };
 
-        let app = app.as_mut().unwrap();
+        let Some(app) = app.as_mut() else {
+            return;
+        };
+
         let window = &mut *window;
 
         let (time, dt) = window.inner.get_time(app.is_animating());

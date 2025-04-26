@@ -35,5 +35,6 @@ pub struct Language {
     pub indent_width: IndentWidth,
     pub syntax: Option<Syntax>,
     pub comment: String,
+    pub lsp_language_id: Option<String>,
     pub language_server_command: Option<String>,
 }
