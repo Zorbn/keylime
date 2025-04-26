@@ -199,11 +199,14 @@ impl LanguageServer {
                     {
                         "uri": uri_buffer,
                         "name": workspace_name,
-                    }
+                    },
                 ],
                 "capabilities": {
                     "workspace": {
                         "workspaceFolders": true,
+                    },
+                    "general": {
+                        "positionEncodings": ["utf-8"],
                     },
                 },
             }),

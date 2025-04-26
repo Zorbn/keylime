@@ -33,6 +33,7 @@ use platform::window::WindowRunner;
  * - Used instead of the tokenizer solution when a server is active for the current doc's language.
  * Replace TOML config with JSON config (the basic-toml library is unmaintained now anyway).
  * - Add JSON highlighter, keep TOML highlighter for Cargo.toml and stuff.
+ * Language servers may encode positions as utf-16 offsets instead of utf-8.
  */
 
 fn main() {
