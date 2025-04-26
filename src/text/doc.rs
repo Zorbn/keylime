@@ -5,7 +5,6 @@ use std::{
     mem::take,
     ops::RangeInclusive,
     path::{absolute, Path, PathBuf},
-    vec::Drain,
 };
 
 use crate::{
@@ -1466,21 +1465,19 @@ impl Doc {
         self.version = 0;
     }
 
-    pub fn drain(&mut self, line_pool: &mut LinePool) -> Drain<String> {
+    pub fn clear(&mut self, ctx: &mut Ctx) {
         self.line_ending = LineEnding::default();
 
         self.mark_line_dirty(0);
         self.reset_edit_state();
 
-        self.lines.push(line_pool.pop());
+        self.lines.push(ctx.buffers.lines.pop());
 
-        self.lines.drain(..self.lines.len() - 1)
-    }
-
-    pub fn clear(&mut self, line_pool: &mut LinePool) {
-        for line in self.drain(line_pool) {
-            line_pool.push(line);
+        for line in self.lines.drain(..self.lines.len() - 1) {
+            ctx.buffers.lines.push(line);
         }
+
+        self.lsp_text_document_notification("textDocument/didClose", ctx);
     }
 
     pub fn is_change_unexpected(&mut self) -> bool {
@@ -1517,13 +1514,13 @@ impl Doc {
         };
 
         self.is_saved = true;
-        self.lsp_did_save(ctx);
+        self.lsp_text_document_notification("textDocument/didSave", ctx);
 
         Ok(())
     }
 
     pub fn load(&mut self, ctx: &mut Ctx) -> io::Result<()> {
-        self.clear(&mut ctx.buffers.lines);
+        self.clear(ctx);
 
         let Some(path) = self.path.some() else {
             return Ok(());
@@ -1950,7 +1947,7 @@ impl Doc {
         let language = ctx.config.get_language_for_doc(self)?;
         let language_id = language.lsp_language_id.as_ref()?;
         let language_server = ctx.lsp.get_language_server_mut(language)?;
-        let path = self.path.some()?;
+        let path = self.path.on_drive()?;
 
         language_server.did_open(path, language_id, self.version, &self.to_string());
 
@@ -1970,23 +1967,27 @@ impl Doc {
 
         let language = ctx.config.get_language_for_doc(self)?;
         let language_server = ctx.lsp.get_language_server_mut(language)?;
-        let path = self.path.some()?;
+        let path = self.path.on_drive()?;
 
         language_server.did_change(path, self.version, start, end, text);
 
         Some(())
     }
 
-    fn lsp_did_save(&mut self, ctx: &mut Ctx) -> Option<()> {
+    fn lsp_text_document_notification(
+        &mut self,
+        method: &'static str,
+        ctx: &mut Ctx,
+    ) -> Option<()> {
         if self.kind == DocKind::Output {
             return Some(());
         }
 
         let language = ctx.config.get_language_for_doc(self)?;
         let language_server = ctx.lsp.get_language_server_mut(language)?;
-        let path = self.path.some()?;
+        let path = self.path.on_drive()?;
 
-        language_server.did_save(path);
+        language_server.text_document_notification(path, method);
 
         Some(())
     }

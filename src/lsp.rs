@@ -391,13 +391,13 @@ impl LanguageServer {
         self.uri_buffer.replace(uri_buffer);
     }
 
-    pub fn did_save(&mut self, path: &Path) {
+    pub fn text_document_notification(&mut self, path: &Path, method: &'static str) {
         let mut uri_buffer = self.uri_buffer.take_mut();
 
         path_to_uri(path, &mut uri_buffer);
 
         self.send_notification(
-            "textDocument/didSave",
+            method,
             json!({
                 "textDocument": {
                     "uri": uri_buffer,

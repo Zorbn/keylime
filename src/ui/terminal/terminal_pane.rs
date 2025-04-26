@@ -56,7 +56,7 @@ impl TerminalPane {
                         self.remove_tab(term_list);
 
                         if let Some((mut docs, _)) = term_list.remove(term_index) {
-                            docs.clear(&mut ctx.buffers.lines);
+                            docs.clear(ctx);
                         }
                     }
                 }

@@ -69,10 +69,10 @@ impl FindInFilesMode {
             return;
         }
 
-        let mut doc = Doc::new(Some(path), &mut ctx.buffers.lines, None, DocKind::MultiLine);
+        let mut doc = Doc::new(Some(path), &mut ctx.buffers.lines, None, DocKind::Output);
 
         if doc.load(ctx).is_err() {
-            doc.clear(&mut ctx.buffers.lines);
+            doc.clear(ctx);
         } else {
             self.pending_doc = Some(doc);
             self.handle_doc(start_time, command_palette, ctx);
@@ -137,7 +137,7 @@ impl FindInFilesMode {
             }
         }
 
-        doc.clear(&mut ctx.buffers.lines);
+        doc.clear(ctx);
     }
 
     fn try_finish_finding(

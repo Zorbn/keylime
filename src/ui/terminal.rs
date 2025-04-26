@@ -38,9 +38,9 @@ impl TerminalDocs {
         }
     }
 
-    pub fn clear(&mut self, line_pool: &mut LinePool) {
-        self.normal.clear(line_pool);
-        self.alternate.clear(line_pool);
+    pub fn clear(&mut self, ctx: &mut Ctx) {
+        self.normal.clear(ctx);
+        self.alternate.clear(ctx);
     }
 }
 

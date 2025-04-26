@@ -321,7 +321,7 @@ impl CommandPalette {
         editor: &mut Editor,
         ctx: &mut Ctx,
     ) {
-        self.doc.clear(&mut ctx.buffers.lines);
+        self.doc.clear(ctx);
         self.result_list.drain();
         self.last_updated_version = None;
         self.mode = None;

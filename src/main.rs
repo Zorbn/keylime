@@ -22,7 +22,6 @@ use platform::window::WindowRunner;
 /*
  * TODO:
  * Shift existing diagnostics in response to inputs.
- * Send LSP didClose.
  * Convert Pty to Process in Windows platform layer.
  * LSP process will be empty if command fails...
  * Handle what should happen when the user doesn't have a certain LSP installed.

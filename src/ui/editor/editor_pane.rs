@@ -177,7 +177,7 @@ impl EditorPane {
 
         if doc_list.get(doc_index).is_some_and(|doc| doc.usages() == 0) {
             if let Some(mut doc) = doc_list.remove(doc_index) {
-                doc.clear(&mut ctx.buffers.lines)
+                doc.clear(ctx)
             }
         }
 

@@ -93,7 +93,7 @@ impl CommandPaletteMode for SearchAndReplaceMode {
 
         let Some(search_term) = &self.search_term else {
             self.search_term = Some(command_palette.get_input().into());
-            command_palette.doc.clear(&mut ctx.buffers.lines);
+            command_palette.doc.clear(ctx);
 
             return CommandPaletteAction::Stay;
         };
