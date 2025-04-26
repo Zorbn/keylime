@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, value::RawValue, Value};
 
 use crate::{
@@ -51,17 +51,26 @@ fn encode_path_component(component: &str, result: &mut String) {
 
 const DEFAULT_SEVERITY: fn() -> usize = || 1;
 
-#[derive(Debug, Deserialize, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct LspPosition {
     line: usize,
     character: usize,
 }
 
 impl From<LspPosition> for Position {
-    fn from(val: LspPosition) -> Self {
+    fn from(position: LspPosition) -> Self {
         Position {
-            x: val.character,
-            y: val.line,
+            x: position.character,
+            y: position.line,
+        }
+    }
+}
+
+impl From<Position> for LspPosition {
+    fn from(position: Position) -> Self {
+        LspPosition {
+            character: position.x,
+            line: position.y,
         }
     }
 }
@@ -217,111 +226,114 @@ impl LanguageServer {
     }
 
     pub fn update(&mut self) {
-        let (_, output) = self.process.input_output();
+        loop {
+            let (_, output) = self.process.input_output();
 
-        let Ok(mut output) = output.try_lock() else {
-            return;
-        };
+            let Ok(mut output) = output.lock() else {
+                return;
+            };
 
-        match self.parse_state {
-            MessageParseState::Idle => {
-                let mut header_len = None;
+            match self.parse_state {
+                MessageParseState::Idle => {
+                    let mut header_len = None;
 
-                for i in 3..output.len() {
-                    if &output[i - 3..=i] == b"\r\n\r\n" {
-                        header_len = Some(i + 1);
-                        break;
-                    }
-                }
-
-                let Some(header_len) = header_len else {
-                    return;
-                };
-
-                let header = str::from_utf8(&output[..header_len]);
-
-                let Ok(header) = header else {
-                    output.drain(..header_len);
-                    return;
-                };
-
-                let prefix_len = "Content-Length: ".len();
-                let suffix_len = "\r\n\r\n".len();
-
-                if header_len < prefix_len + suffix_len {
-                    output.drain(..header_len);
-                    return;
-                }
-
-                let Ok(content_len) = header[prefix_len..header_len - suffix_len].parse::<usize>()
-                else {
-                    output.drain(..header_len);
-                    return;
-                };
-
-                self.parse_state = MessageParseState::HasContentLen(content_len);
-                output.drain(..header_len);
-            }
-            MessageParseState::HasContentLen(content_len) => {
-                if output.len() < content_len {
-                    return;
-                }
-
-                self.parse_state = MessageParseState::Idle;
-
-                let Ok(message) =
-                    serde_json::from_slice::<LspMessageHeader>(&output[..content_len])
-                else {
-                    output.drain(..content_len);
-                    return;
-                };
-
-                #[cfg(feature = "lsp_debug")]
-                println!("{:?}", message);
-
-                output.drain(..content_len);
-                drop(output);
-
-                let Some(method) = message
-                    .id
-                    .and_then(|id| {
-                        self.pending_requests
-                            .remove_entry(&id)
-                            .map(|(_, method)| method)
-                    })
-                    .or(message.method.as_deref())
-                else {
-                    return;
-                };
-
-                match method {
-                    "initialize" => {
-                        self.send_notification("initialized", json!({}));
-
-                        self.has_initialized = true;
-
-                        self.process.input().extend_from_slice(&self.message_queue);
-                        self.process.flush();
-
-                        self.message_queue.clear();
-                    }
-                    "textDocument/publishDiagnostics" => {
-                        let Some(Ok(mut params)) = message.params.map(|params| {
-                            serde_json::from_str::<LspPublishDiagnosticsParams>(params.get())
-                        }) else {
-                            return;
-                        };
-
-                        if !self.diagnostics.contains_key(&params.uri) {
-                            self.diagnostics.insert(params.uri.clone(), Vec::new());
+                    for i in 3..output.len() {
+                        if &output[i - 3..=i] == b"\r\n\r\n" {
+                            header_len = Some(i + 1);
+                            break;
                         }
-
-                        let diagnostics = self.diagnostics.get_mut(&params.uri).unwrap();
-
-                        diagnostics.clear();
-                        diagnostics.append(&mut params.diagnostics);
                     }
-                    _ => {}
+
+                    let Some(header_len) = header_len else {
+                        return;
+                    };
+
+                    let header = str::from_utf8(&output[..header_len]);
+
+                    let Ok(header) = header else {
+                        output.drain(..header_len);
+                        return;
+                    };
+
+                    let prefix_len = "Content-Length: ".len();
+                    let suffix_len = "\r\n\r\n".len();
+
+                    if header_len < prefix_len + suffix_len {
+                        output.drain(..header_len);
+                        return;
+                    }
+
+                    let Ok(content_len) =
+                        header[prefix_len..header_len - suffix_len].parse::<usize>()
+                    else {
+                        output.drain(..header_len);
+                        return;
+                    };
+
+                    self.parse_state = MessageParseState::HasContentLen(content_len);
+                    output.drain(..header_len);
+                }
+                MessageParseState::HasContentLen(content_len) => {
+                    if output.len() < content_len {
+                        return;
+                    }
+
+                    self.parse_state = MessageParseState::Idle;
+
+                    let Ok(message) =
+                        serde_json::from_slice::<LspMessageHeader>(&output[..content_len])
+                    else {
+                        output.drain(..content_len);
+                        return;
+                    };
+
+                    #[cfg(feature = "lsp_debug")]
+                    println!("{:?}", message);
+
+                    output.drain(..content_len);
+                    drop(output);
+
+                    let Some(method) = message
+                        .id
+                        .and_then(|id| {
+                            self.pending_requests
+                                .remove_entry(&id)
+                                .map(|(_, method)| method)
+                        })
+                        .or(message.method.as_deref())
+                    else {
+                        return;
+                    };
+
+                    match method {
+                        "initialize" => {
+                            self.send_notification("initialized", json!({}));
+
+                            self.has_initialized = true;
+
+                            self.process.input().extend_from_slice(&self.message_queue);
+                            self.process.flush();
+
+                            self.message_queue.clear();
+                        }
+                        "textDocument/publishDiagnostics" => {
+                            let Some(Ok(mut params)) = message.params.map(|params| {
+                                serde_json::from_str::<LspPublishDiagnosticsParams>(params.get())
+                            }) else {
+                                return;
+                            };
+
+                            if !self.diagnostics.contains_key(&params.uri) {
+                                self.diagnostics.insert(params.uri.clone(), Vec::new());
+                            }
+
+                            let diagnostics = self.diagnostics.get_mut(&params.uri).unwrap();
+
+                            diagnostics.clear();
+                            diagnostics.append(&mut params.diagnostics);
+                        }
+                        _ => {}
+                    }
                 }
             }
         }
@@ -341,6 +353,38 @@ impl LanguageServer {
                     "version": version,
                     "text": text,
                 }
+            }),
+        );
+
+        self.uri_buffer.replace(uri_buffer);
+    }
+
+    pub fn did_change(
+        &mut self,
+        path: &Path,
+        version: usize,
+        start: Position,
+        end: Position,
+        text: &str,
+    ) {
+        let mut uri_buffer = self.uri_buffer.take_mut();
+
+        path_to_uri(path, &mut uri_buffer);
+
+        self.send_notification(
+            "textDocument/didChange",
+            json!({
+                "textDocument": {
+                    "uri": uri_buffer,
+                    "version": version,
+                },
+                "contentChanges": [{
+                    "text": text,
+                    "range": {
+                        "start": LspPosition::from(start),
+                        "end": LspPosition::from(end),
+                    }
+                }]
             }),
         );
 

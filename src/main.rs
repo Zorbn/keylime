@@ -21,14 +21,12 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
- * Send LSP didClose and didChange.
+ * Shift existing diagnostics in response to inputs.
+ * Send LSP didClose.
  * Convert Pty to Process in Windows platform layer.
  * LSP process will be empty if command fails...
  * Handle what should happen when the user doesn't have a certain LSP installed.
  * Extend Process to allow supplying arguments to LSPs.
- * LSP handler that can run LSP servers for multiple languages within the current directory.
- * - Try to run a server when a file is opened that has a known language corresponding to a server that isn't running yet.
- * - Close all servers when changing working directory.
  * LSP diagnostics.
  * - Show a pop-up when hovering them or putting the cursor over them.
  * - If there are warnings or errors in a doc highlight it's name in the tab a corresponding color.

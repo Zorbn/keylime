@@ -269,7 +269,7 @@ impl TerminalEmulator {
 
         let (input, output) = pty.input_output();
 
-        if let Ok(mut output) = output.try_lock() {
+        if let Ok(mut output) = output.lock() {
             self.handle_escape_sequences(docs, input, &output, ctx);
 
             output.clear();

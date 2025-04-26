@@ -1034,6 +1034,7 @@ impl Doc {
         self.mark_line_dirty(start.y);
         self.is_saved = false;
         self.version += 1;
+        self.lsp_did_change(start, end, "", ctx);
 
         self.add_cursors_to_action_history(action_kind, ctx.time);
 
@@ -1127,6 +1128,7 @@ impl Doc {
         self.mark_line_dirty(start.y);
         self.is_saved = false;
         self.version += 1;
+        self.lsp_did_change(start, start, text, ctx);
 
         self.add_cursors_to_action_history(action_kind, ctx.time);
 
@@ -1547,17 +1549,6 @@ impl Doc {
         Ok(())
     }
 
-    fn lsp_did_open(&mut self, ctx: &mut Ctx) -> Option<()> {
-        let language = ctx.config.get_language_for_doc(self)?;
-        let language_id = language.lsp_language_id.as_ref()?;
-        let language_server = ctx.lsp.get_language_server_mut(language)?;
-        let path = self.path.some()?;
-
-        language_server.did_open(path, language_id, self.version, &self.to_string());
-
-        Some(())
-    }
-
     pub fn reload(&mut self, ctx: &mut Ctx) -> io::Result<()> {
         let Some(path) = self.path.on_drive() else {
             return Ok(());
@@ -1948,6 +1939,41 @@ impl Doc {
             cursor.selection_anchor = Some(selection.start);
             cursor.position = selection.end;
         }
+    }
+
+    fn lsp_did_open(&mut self, ctx: &mut Ctx) -> Option<()> {
+        if self.kind == DocKind::Output {
+            return Some(());
+        }
+
+        let language = ctx.config.get_language_for_doc(self)?;
+        let language_id = language.lsp_language_id.as_ref()?;
+        let language_server = ctx.lsp.get_language_server_mut(language)?;
+        let path = self.path.some()?;
+
+        language_server.did_open(path, language_id, self.version, &self.to_string());
+
+        Some(())
+    }
+
+    fn lsp_did_change(
+        &mut self,
+        start: Position,
+        end: Position,
+        text: &str,
+        ctx: &mut Ctx,
+    ) -> Option<()> {
+        if self.kind == DocKind::Output {
+            return Some(());
+        }
+
+        let language = ctx.config.get_language_for_doc(self)?;
+        let language_server = ctx.lsp.get_language_server_mut(language)?;
+        let path = self.path.some()?;
+
+        language_server.did_change(path, self.version, start, end, text);
+
+        Some(())
     }
 
     pub fn version(&self) -> usize {

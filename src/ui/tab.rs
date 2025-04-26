@@ -494,16 +494,36 @@ impl Tab {
 
                 let range = diagnostic.range;
 
-                let start = Position::from(range.start).max(Position::new(0, visible_lines.min_y));
-                let end = Position::from(range.end).min(Position::new(0, visible_lines.max_y));
-                let mut position = start;
-
                 // TODO: Add diagnostic colors to theme!
                 let color = match diagnostic.severity {
                     1 => Color::from_rgb(255, 0, 0),
                     2 => Color::from_rgb(255, 200, 0),
                     _ => Color::from_rgb(125, 125, 125),
                 };
+
+                let start = Position::from(range.start);
+                let end = Position::from(range.end);
+
+                if start == end && start.y >= visible_lines.min_y && start.y <= visible_lines.max_y
+                {
+                    let highlight_position = doc.position_to_visual(start, camera_position, gfx);
+
+                    gfx.add_rect(
+                        Rect::new(
+                            highlight_position.x - gfx.glyph_width() / 2.0,
+                            highlight_position.y + gfx.line_height() - gfx.border_width(),
+                            gfx.glyph_width(),
+                            gfx.border_width(),
+                        ),
+                        color,
+                    );
+
+                    continue;
+                }
+
+                let start = start.max(Position::new(0, visible_lines.min_y));
+                let end = end.min(Position::new(0, visible_lines.max_y));
+                let mut position = start;
 
                 while position < end {
                     let highlight_position = doc.position_to_visual(position, camera_position, gfx);
