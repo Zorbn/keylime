@@ -391,6 +391,23 @@ impl LanguageServer {
         self.uri_buffer.replace(uri_buffer);
     }
 
+    pub fn did_save(&mut self, path: &Path) {
+        let mut uri_buffer = self.uri_buffer.take_mut();
+
+        path_to_uri(path, &mut uri_buffer);
+
+        self.send_notification(
+            "textDocument/didSave",
+            json!({
+                "textDocument": {
+                    "uri": uri_buffer,
+                },
+            }),
+        );
+
+        self.uri_buffer.replace(uri_buffer);
+    }
+
     fn send_request(&mut self, method: &'static str, params: Value) {
         let id = self.next_request_id;
         self.next_request_id += 1;

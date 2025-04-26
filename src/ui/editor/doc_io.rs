@@ -49,7 +49,7 @@ pub fn try_save(doc: &mut Doc, ctx: &mut Ctx) -> bool {
         doc.trim_trailing_whitespace(ctx);
     }
 
-    if let Err(err) = doc.save(path) {
+    if let Err(err) = doc.save(path, ctx) {
         message("Failed to Save File", &err.to_string(), MessageKind::Ok);
         false
     } else {

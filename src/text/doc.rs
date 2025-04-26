@@ -1493,7 +1493,7 @@ impl Doc {
         }
     }
 
-    pub fn save(&mut self, path: Option<PathBuf>) -> io::Result<()> {
+    pub fn save(&mut self, path: Option<PathBuf>, ctx: &mut Ctx) -> io::Result<()> {
         let string = self.to_string();
 
         if let Some(path) = path {
@@ -1517,6 +1517,7 @@ impl Doc {
         };
 
         self.is_saved = true;
+        self.lsp_did_save(ctx);
 
         Ok(())
     }
@@ -1972,6 +1973,20 @@ impl Doc {
         let path = self.path.some()?;
 
         language_server.did_change(path, self.version, start, end, text);
+
+        Some(())
+    }
+
+    fn lsp_did_save(&mut self, ctx: &mut Ctx) -> Option<()> {
+        if self.kind == DocKind::Output {
+            return Some(());
+        }
+
+        let language = ctx.config.get_language_for_doc(self)?;
+        let language_server = ctx.lsp.get_language_server_mut(language)?;
+        let path = self.path.some()?;
+
+        language_server.did_save(path);
 
         Some(())
     }
