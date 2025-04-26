@@ -482,12 +482,12 @@ impl Tab {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        let Some(path) = doc.path().some() else {
+        let Some(path) = doc.path().on_drive() else {
             return;
         };
 
         for language_server in ctx.lsp.iter_servers_mut() {
-            for diagnostic in language_server.get_diagnostics(path) {
+            for diagnostic in language_server.get_diagnostics_mut(path) {
                 if diagnostic.severity == 4 {
                     continue;
                 }

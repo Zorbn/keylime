@@ -97,6 +97,7 @@ pub struct Doc {
     expected_change_count: usize,
     version: usize,
     usages: usize,
+    do_skip_shifting: bool,
 
     lines: Vec<String>,
     cursors: Vec<Cursor>,
@@ -140,6 +141,7 @@ impl Doc {
             expected_change_count: 0,
             version: 0,
             usages: 0,
+            do_skip_shifting: false,
 
             lines,
             cursors: Vec::new(),
@@ -1071,18 +1073,35 @@ impl Doc {
             }
         }
 
-        // Shift the cursor:
+        if self.do_shift() {
+            self.shift_positions_by_delete(start, end, ctx);
+        }
+    }
+
+    fn shift_positions_by_delete(&mut self, start: Position, end: Position, ctx: &mut Ctx) {
         for index in self.cursor_indices() {
             let cursor = self.get_cursor_mut(index);
 
             cursor.position = Self::shift_position_by_delete(start, end, cursor.position);
-
-            if let Some(selection_anchor) = cursor.selection_anchor {
-                cursor.selection_anchor =
-                    Some(Self::shift_position_by_delete(start, end, selection_anchor));
-            }
+            cursor.selection_anchor = cursor.selection_anchor.map(|selection_anchor| {
+                Self::shift_position_by_delete(start, end, selection_anchor)
+            });
 
             self.update_cursor_desired_visual_x(index, ctx.gfx);
+        }
+
+        let Some(path) = self.path().on_drive() else {
+            return;
+        };
+
+        for language_server in ctx.lsp.iter_servers_mut() {
+            for diagnostic in language_server.get_diagnostics_mut(path) {
+                diagnostic.range.start =
+                    Self::shift_position_by_delete(start, end, diagnostic.range.start.into())
+                        .into();
+                diagnostic.range.end =
+                    Self::shift_position_by_delete(start, end, diagnostic.range.end.into()).into();
+            }
         }
     }
 
@@ -1170,21 +1189,35 @@ impl Doc {
             action_history!(self, action_kind).push_insert(start, position, ctx.time);
         }
 
-        // Shift the cursor:
+        if self.do_shift() {
+            self.shift_positions_by_insert(start, position, ctx);
+        }
+    }
+
+    fn shift_positions_by_insert(&mut self, start: Position, end: Position, ctx: &mut Ctx) {
         for index in self.cursor_indices() {
             let cursor = self.get_cursor_mut(index);
 
-            cursor.position = Self::shift_position_by_insert(start, position, cursor.position);
-
-            if let Some(selection_anchor) = cursor.selection_anchor {
-                cursor.selection_anchor = Some(Self::shift_position_by_insert(
-                    start,
-                    position,
-                    selection_anchor,
-                ));
-            }
+            cursor.position = Self::shift_position_by_insert(start, end, cursor.position);
+            cursor.selection_anchor = cursor.selection_anchor.map(|selection_anchor| {
+                Self::shift_position_by_insert(start, end, selection_anchor)
+            });
 
             self.update_cursor_desired_visual_x(index, ctx.gfx);
+        }
+
+        let Some(path) = self.path().on_drive() else {
+            return;
+        };
+
+        for language_server in ctx.lsp.iter_servers_mut() {
+            for diagnostic in language_server.get_diagnostics_mut(path) {
+                diagnostic.range.start =
+                    Self::shift_position_by_insert(start, end, diagnostic.range.start.into())
+                        .into();
+                diagnostic.range.end =
+                    Self::shift_position_by_insert(start, end, diagnostic.range.end.into()).into();
+            }
         }
     }
 
@@ -1542,7 +1575,7 @@ impl Doc {
             DocPath::OnDrive(path) => DocPath::OnDrive(path),
         };
 
-        self.lsp_did_open(ctx);
+        self.lsp_did_open(&string, ctx);
 
         Ok(())
     }
@@ -1554,8 +1587,7 @@ impl Doc {
 
         let string = read_to_string(path)?;
 
-        let mut cursor_buffer = ctx.buffers.cursors.take_mut();
-        self.backup_cursors(&mut cursor_buffer);
+        self.do_skip_shifting = true;
 
         self.delete(Position::ZERO, self.end(), ctx);
 
@@ -1564,32 +1596,10 @@ impl Doc {
         self.line_ending = line_ending;
         self.insert(Position::ZERO, &string[..len], ctx);
 
+        self.do_skip_shifting = false;
         self.is_saved = true;
 
-        self.restore_cursors(&cursor_buffer);
-        ctx.buffers.cursors.replace(cursor_buffer);
-
         Ok(())
-    }
-
-    pub fn backup_cursors(&self, buffer: &mut Vec<Cursor>) {
-        buffer.clear();
-        buffer.extend_from_slice(&self.cursors);
-    }
-
-    pub fn restore_cursors(&mut self, buffer: &[Cursor]) {
-        for (index, backup) in self.cursor_indices().zip(buffer) {
-            let position = self.clamp_position(backup.position);
-            let selection_anchor = backup
-                .selection_anchor
-                .map(|selection_anchor| self.clamp_position(selection_anchor));
-
-            *self.get_cursor_mut(index) = Cursor {
-                position,
-                selection_anchor,
-                desired_visual_x: backup.desired_visual_x,
-            };
-        }
     }
 
     fn get_line_ending_and_len(&self, string: &str) -> (LineEnding, usize) {
@@ -1662,6 +1672,10 @@ impl Doc {
         }
 
         false
+    }
+
+    fn do_shift(&self) -> bool {
+        !self.do_skip_shifting && self.kind != DocKind::Output
     }
 
     pub fn kind(&self) -> DocKind {
@@ -1939,7 +1953,7 @@ impl Doc {
         }
     }
 
-    fn lsp_did_open(&mut self, ctx: &mut Ctx) -> Option<()> {
+    fn lsp_did_open(&mut self, text: &str, ctx: &mut Ctx) -> Option<()> {
         if self.kind == DocKind::Output {
             return Some(());
         }
@@ -1949,7 +1963,7 @@ impl Doc {
         let language_server = ctx.lsp.get_language_server_mut(language)?;
         let path = self.path.on_drive()?;
 
-        language_server.did_open(path, language_id, self.version, &self.to_string());
+        language_server.did_open(path, language_id, self.version, text);
 
         Some(())
     }

@@ -214,14 +214,14 @@ impl LanguageServer {
         Some(language_server)
     }
 
-    pub fn get_diagnostics(&mut self, path: &Path) -> &[LspDiagnostic] {
+    pub fn get_diagnostics_mut(&mut self, path: &Path) -> &mut [LspDiagnostic] {
         let uri_buffer = self.uri_buffer.get_mut();
 
         path_to_uri(path, uri_buffer);
 
         self.diagnostics
-            .get(uri_buffer)
-            .map(|diagnostics| diagnostics.as_slice())
+            .get_mut(uri_buffer)
+            .map(|diagnostics| diagnostics.as_mut_slice())
             .unwrap_or_default()
     }
 

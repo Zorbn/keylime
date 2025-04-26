@@ -18,7 +18,6 @@ use crate::{
         process::{Process, ProcessKind},
     },
     text::{
-        cursor::Cursor,
         doc::Doc,
         grapheme::{CharCursor, CharIterator},
         syntax_highlighter::TerminalHighlightKind,
@@ -99,14 +98,12 @@ pub struct TerminalEmulator {
     pub grid_height: usize,
     colored_grid_lines: Vec<ColoredGridLine>,
     empty_line_text: String,
-
-    maintain_cursor_positions: bool,
+    did_doc_cursors_move: bool,
 
     // Data for either the normal buffer or the alternate buffer,
     // depending on which one isn't currently being used.
     saved_grid_cursor: Position,
     saved_colored_grid_lines: Vec<ColoredGridLine>,
-    saved_maintain_cursor_positions: bool,
 
     pub is_cursor_visible: bool,
     pub foreground_color: TerminalHighlightKind,
@@ -129,12 +126,10 @@ impl TerminalEmulator {
             grid_height: MIN_GRID_HEIGHT,
             colored_grid_lines: Vec::new(),
             empty_line_text: String::new(),
-
-            maintain_cursor_positions: false,
+            did_doc_cursors_move: false,
 
             saved_grid_cursor: Position::ZERO,
             saved_colored_grid_lines: Vec::new(),
-            saved_maintain_cursor_positions: false,
 
             is_cursor_visible: true,
             foreground_color: TerminalHighlightKind::Foreground,
@@ -258,13 +253,6 @@ impl TerminalEmulator {
             return;
         };
 
-        self.maintain_cursor_positions = true;
-
-        let doc = self.get_doc_mut(docs);
-        let mut cursor_buffer = ctx.buffers.cursors.take_mut();
-
-        let backup_doc_len = doc.lines().len().max(self.grid_height);
-        self.backup_doc_cursor_positions(doc, &mut cursor_buffer);
         self.expand_to_grid_size(docs, last_grid_height, ctx);
 
         let (input, output) = pty.input_output();
@@ -275,17 +263,12 @@ impl TerminalEmulator {
             output.clear();
         }
 
-        let doc = self.get_doc_mut(docs);
-
-        if self.maintain_cursor_positions {
-            self.restore_doc_cursor_positions(doc, &mut cursor_buffer, backup_doc_len);
-        } else {
-            tab.recenter_camera();
-        }
-
-        ctx.buffers.cursors.replace(cursor_buffer);
-
         self.pty = Some(pty);
+
+        if self.did_doc_cursors_move {
+            tab.recenter_camera();
+            self.did_doc_cursors_move = false;
+        }
 
         tab.camera.horizontal.is_locked = true;
 
@@ -567,10 +550,6 @@ impl TerminalEmulator {
             &mut self.colored_grid_lines,
             &mut self.saved_colored_grid_lines,
         );
-        swap(
-            &mut self.maintain_cursor_positions,
-            &mut self.saved_maintain_cursor_positions,
-        );
 
         self.is_in_alternate_buffer = !self.is_in_alternate_buffer;
     }
@@ -683,35 +662,12 @@ impl TerminalEmulator {
         y.saturating_sub(doc.lines().len().saturating_sub(self.grid_height))
     }
 
-    fn backup_doc_cursor_positions(&mut self, doc: &Doc, cursor_buffer: &mut Vec<Cursor>) {
-        doc.backup_cursors(cursor_buffer);
-    }
-
-    fn restore_doc_cursor_positions(
-        &mut self,
-        doc: &mut Doc,
-        cursor_buffer: &mut [Cursor],
-        backup_doc_len: usize,
-    ) {
-        let offset_y = doc.lines().len() as isize - backup_doc_len as isize;
-
-        for cursor in cursor_buffer.iter_mut() {
-            cursor.position.y = cursor.position.y.saturating_add_signed(offset_y);
-
-            if let Some(selection_anchor) = &mut cursor.selection_anchor {
-                selection_anchor.y = selection_anchor.y.saturating_add_signed(offset_y);
-            }
-        }
-
-        doc.restore_cursors(cursor_buffer);
-    }
-
     pub fn jump_doc_cursors_to_grid_cursor(&mut self, doc: &mut Doc, gfx: &mut Gfx) {
         if !self.is_cursor_visible {
             return;
         }
 
-        self.maintain_cursor_positions = false;
+        self.did_doc_cursors_move = true;
 
         let doc_position =
             self.grid_position_to_doc_position(self.clamp_position(self.grid_cursor, doc), doc);

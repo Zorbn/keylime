@@ -15,19 +15,6 @@ impl<T> TempBuffer<T> {
 
         data
     }
-
-    pub fn take_mut(&mut self) -> Vec<T> {
-        let mut data = self.data.take().unwrap();
-        data.clear();
-
-        data
-    }
-
-    pub fn replace(&mut self, data: Vec<T>) {
-        assert!(self.data.is_none());
-
-        self.data = Some(data);
-    }
 }
 
 pub struct TempString {
