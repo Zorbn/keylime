@@ -22,7 +22,7 @@ use crate::{
 
 const CONFIG_FILE: &str = "config.toml";
 const CONFIG_DIR: &str = "config";
-const DEFAULT_COMMENT: fn() -> &'static str = || "//";
+const DEFAULT_COMMENT: fn() -> String = || "//".to_owned();
 const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
 const DEFAULT_TERMINAL_HEIGHT: fn() -> f32 = || 12.0;
 const DEFAULT_IGNORED_DIRS: fn() -> Vec<String> = || {
@@ -61,18 +61,19 @@ impl SyntaxDesc<'_> {
 
 #[derive(Deserialize, Debug)]
 struct LanguageDesc<'a> {
-    #[serde(borrow)]
-    extensions: Vec<&'a str>,
+    extensions: Vec<String>,
     #[serde(default)]
     indent_width: IndentWidth,
     #[serde(default = "DEFAULT_COMMENT")]
-    comment: &'a str,
+    comment: String,
+    language_server_command: Option<String>,
+    #[serde(borrow)]
     syntax: Option<SyntaxDesc<'a>>,
 }
 
 #[derive(Deserialize, Debug)]
 struct ConfigDesc<'a> {
-    font: &'a str,
+    font: String,
     font_size: f32,
     #[serde(default = "DEFAULT_TRIM_TRAILING_WHITESPACE")]
     trim_trailing_whitespace: bool,
@@ -130,18 +131,20 @@ impl Config {
                 let language_desc =
                     Self::load_file_data::<LanguageDesc>(&path, &language_desc_string)?;
 
-                let language_index = languages.len();
+                let index = languages.len();
 
                 languages.push(Language {
+                    index,
                     indent_width: language_desc.indent_width,
-                    comment: language_desc.comment.to_owned(),
+                    comment: language_desc.comment,
+                    language_server_command: language_desc.language_server_command,
                     syntax: language_desc
                         .syntax
                         .map(|syntax_desc| syntax_desc.get_syntax()),
                 });
 
                 for extension in language_desc.extensions {
-                    extension_languages.insert(extension.to_owned(), language_index);
+                    extension_languages.insert(extension, index);
                 }
             }
         }
@@ -165,7 +168,7 @@ impl Config {
         let ignored_dirs = HashSet::from_iter(config_desc.ignored_dirs);
 
         Ok(Config {
-            font: config_desc.font.to_owned(),
+            font: config_desc.font,
             font_size: config_desc.font_size,
             trim_trailing_whitespace: config_desc.trim_trailing_whitespace,
             terminal_height: config_desc.terminal_height.max(0.0),

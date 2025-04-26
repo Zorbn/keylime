@@ -6,6 +6,7 @@ macro_rules! test_with_doc {
             let mut gfx = crate::platform::gfx::Gfx::new();
             let config = crate::config::Config::default();
             let mut buffers = crate::editor_buffers::EditorBuffers::new();
+            let mut lsp = crate::lsp::Lsp::new();
             let time = 0.0;
 
             let ctx = &mut crate::ctx::Ctx {
@@ -13,6 +14,7 @@ macro_rules! test_with_doc {
                 gfx: &mut gfx,
                 config: &config,
                 buffers: &mut buffers,
+                lsp: &mut lsp,
                 time,
             };
 

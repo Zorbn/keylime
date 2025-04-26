@@ -2,13 +2,18 @@ use std::sync::{Arc, Mutex};
 
 use super::{platform_impl, result::Result};
 
-pub struct Pty {
-    pub(super) inner: platform_impl::pty::Pty,
+pub enum ProcessKind {
+    Normal,
+    Pty { width: usize, height: usize },
 }
 
-impl Pty {
-    pub fn new(width: usize, height: usize, child_paths: &[&str]) -> Result<Self> {
-        let inner = platform_impl::pty::Pty::new(width, height, child_paths)?;
+pub struct Process {
+    pub(super) inner: platform_impl::process::Process,
+}
+
+impl Process {
+    pub fn new(child_paths: &[&str], kind: ProcessKind) -> Result<Self> {
+        let inner = platform_impl::process::Process::new(child_paths, kind)?;
 
         Ok(Self { inner })
     }

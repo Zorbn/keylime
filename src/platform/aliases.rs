@@ -2,7 +2,7 @@
 
 pub use super::file_watcher::FileWatcher as AnyFileWatcher;
 pub use super::gfx::Gfx as AnyGfx;
-pub use super::pty::Pty as AnyPty;
+pub use super::process::Process as AnyProcess;
 pub use super::text::Text as AnyText;
 pub use super::window::Window as AnyWindow;
 

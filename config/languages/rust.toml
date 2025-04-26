@@ -1,5 +1,6 @@
 extensions = ["rs"]
 indent_width = 4
+language_server_command = "rust-analyzer"
 
 [syntax]
 keywords = [

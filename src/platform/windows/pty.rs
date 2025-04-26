@@ -116,7 +116,7 @@ impl Pty {
                 None,
                 None,
                 false,
-                EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
+                EXTENDED_STARTUPINFO_PRESENT,
                 None,
                 None,
                 &startup_info.StartupInfo,
@@ -242,6 +242,8 @@ impl Drop for Pty {
             ClosePseudoConsole(self.hpcon);
         }
 
-        let _ = self.read_thread_join.take().unwrap().join();
+        if let Some(read_thread_join) = self.read_thread_join.take() {
+            let _ = read_thread_join.join();
+        }
     }
 }

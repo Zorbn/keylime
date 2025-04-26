@@ -6,7 +6,7 @@ use crate::{
     ctx::Ctx,
     geometry::rect::Rect,
     input::action::action_name,
-    platform::{gfx::Gfx, pty::Pty},
+    platform::{gfx::Gfx, process::Process},
     text::{
         doc::{Doc, DocKind},
         line_pool::LinePool,
@@ -145,7 +145,7 @@ impl Terminal {
         self.pane.is_animating()
     }
 
-    pub fn ptys(&mut self) -> impl Iterator<Item = &mut Pty> {
+    pub fn ptys(&mut self) -> impl Iterator<Item = &mut Process> {
         self.term_list
             .iter_mut()
             .filter_map(|term| term.as_mut().and_then(|(_, emulator)| emulator.pty()))

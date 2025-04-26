@@ -44,7 +44,7 @@ macro_rules! handle_event {
 }
 
 pub struct ViewIvars {
-    app: Rc<RefCell<App>>,
+    app: Rc<RefCell<Option<App>>>,
     window: Rc<RefCell<AnyWindow>>,
     gfx: Rc<RefCell<Option<AnyGfx>>>,
     device: Retained<ProtocolObject<dyn MTLDevice>>,
@@ -95,7 +95,8 @@ define_class!(
 
             let window = &mut *self.ivars().window.borrow_mut();
             let gfx = &mut *self.ivars().gfx.borrow_mut();
-            let app = &*self.ivars().app.borrow();
+            let app = self.ivars().app.borrow();
+            let app = app.as_ref().unwrap();
 
             let last_scale = window.inner.scale;
             window.inner.resize(new_size.width, new_size.height);
@@ -243,6 +244,8 @@ define_class!(
                 return;
             };
 
+            let app = app.as_mut().unwrap();
+
             let window = &mut *window;
             let time = window.inner.time;
 
@@ -262,7 +265,7 @@ define_class!(
 
 impl View {
     pub fn new(
-        app: Rc<RefCell<App>>,
+        app: Rc<RefCell<Option<App>>>,
         window: Rc<RefCell<AnyWindow>>,
         gfx: Rc<RefCell<Option<AnyGfx>>>,
         mtm: MainThreadMarker,
@@ -313,13 +316,14 @@ impl View {
             return;
         };
 
+        let app = app.as_mut().unwrap();
         let window = &mut *window;
 
         let (time, dt) = window.inner.get_time(app.is_animating());
         app.update(window, gfx, time, dt);
 
-        let (file_watcher, files, ptys) = app.files_and_ptys();
-        window.inner.update(file_watcher, files, ptys);
+        let (file_watcher, files, processes) = app.files_and_processes();
+        window.inner.update(file_watcher, files, processes);
 
         unsafe {
             self.setNeedsDisplay(true);

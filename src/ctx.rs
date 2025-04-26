@@ -1,6 +1,7 @@
 use crate::{
     config::Config,
     editor_buffers::EditorBuffers,
+    lsp::Lsp,
     platform::{gfx::Gfx, window::Window},
 };
 
@@ -11,6 +12,7 @@ macro_rules! ctx_with_time {
             gfx: $ctx.gfx,
             config: $ctx.config,
             buffers: $ctx.buffers,
+            lsp: $ctx.lsp,
             time: $time,
         }
     };
@@ -23,5 +25,6 @@ pub struct Ctx<'a> {
     pub gfx: &'a mut Gfx,
     pub config: &'a Config,
     pub buffers: &'a mut EditorBuffers,
+    pub lsp: &'a mut Lsp,
     pub time: f32,
 }

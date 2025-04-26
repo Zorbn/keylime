@@ -125,6 +125,8 @@ impl Doc {
         display_name: Option<&'static str>,
         kind: DocKind,
     ) -> Self {
+        assert!(path.as_ref().is_none_or(|path| path.is_absolute()));
+
         let lines = vec![line_pool.pop()];
 
         let (path, is_saved) = match path {
@@ -1539,6 +1541,10 @@ impl Doc {
             DocPath::InMemory(path) => DocPath::OnDrive(path),
             DocPath::OnDrive(path) => DocPath::OnDrive(path),
         };
+
+        if let Some(language) = ctx.config.get_language_for_doc(self) {
+            ctx.lsp.get_language_server_mut(language);
+        }
 
         Ok(())
     }

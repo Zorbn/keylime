@@ -24,7 +24,7 @@ use crate::{
 use super::{gfx::Gfx, window::Window};
 
 pub struct DelegateIvars {
-    app: Rc<RefCell<App>>,
+    app: Rc<RefCell<Option<App>>>,
     window: Rc<RefCell<AnyWindow>>,
     gfx: Rc<RefCell<Option<AnyGfx>>>,
     fullscreen_item: Retained<NSMenuItem>,
@@ -79,8 +79,11 @@ define_class!(
 
             gfx.replace(Some(AnyGfx {
                 inner: {
-                    let mut gfx =
-                        Gfx::new(app.clone(), window.clone(), device, view.clone()).unwrap();
+                    let app = app.borrow();
+                    let app = app.as_ref().unwrap();
+                    let window = &*window.borrow();
+
+                    let mut gfx = Gfx::new(app, window, device, view.clone()).unwrap();
                     gfx.resize(width, height).unwrap();
 
                     gfx
@@ -163,12 +166,12 @@ define_class!(
 
 impl Delegate {
     pub fn new(
-        app: Rc<RefCell<App>>,
+        app: Rc<RefCell<Option<App>>>,
         fullscreen_item: Retained<NSMenuItem>,
         mtm: MainThreadMarker,
     ) -> Retained<Self> {
         let window = AnyWindow {
-            inner: Window::new(&app.borrow(), mtm),
+            inner: Window::new(app.borrow().as_ref().unwrap(), mtm),
         };
 
         let this = mtm.alloc();
@@ -229,8 +232,13 @@ impl Delegate {
 
         let mut app = self.ivars().app.borrow_mut();
 
-        let time = window.inner.time;
+        {
+            let app = app.as_mut().unwrap();
+            let time = window.inner.time;
 
-        app.close(window, gfx, time);
+            app.close(window, gfx, time);
+        }
+
+        app.take();
     }
 }

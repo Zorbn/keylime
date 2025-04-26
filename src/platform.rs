@@ -14,7 +14,7 @@ mod aliases;
 pub mod dialog;
 pub mod file_watcher;
 pub mod gfx;
-pub mod pty;
+pub mod process;
 pub mod recycle;
 pub mod result;
 mod text;

@@ -31,7 +31,9 @@ impl IndentWidth {
 }
 
 pub struct Language {
+    pub index: usize,
     pub indent_width: IndentWidth,
     pub syntax: Option<Syntax>,
     pub comment: String,
+    pub language_server_command: Option<String>,
 }

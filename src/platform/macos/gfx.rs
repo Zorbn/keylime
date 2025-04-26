@@ -1,8 +1,6 @@
 use std::{
-    cell::RefCell,
     ffi::c_void,
     ptr::{copy_nonoverlapping, NonNull},
-    rc::Rc,
 };
 
 use objc2::{rc::Retained, runtime::ProtocolObject, sel};
@@ -126,8 +124,8 @@ pub struct Gfx {
 
 impl Gfx {
     pub fn new(
-        app: Rc<RefCell<App>>,
-        window: Rc<RefCell<AnyWindow>>,
+        app: &App,
+        window: &AnyWindow,
         device: Retained<ProtocolObject<dyn MTLDevice>>,
         view: Retained<View>,
     ) -> Result<Self> {
@@ -187,13 +185,11 @@ impl Gfx {
             .newRenderPipelineStateWithDescriptor_error(&pipeline_descriptor)
             .expect("Failed to create a pipeline state.");
 
-        let app = app.borrow();
-
         let Config {
             font, font_size, ..
         } = app.config();
 
-        let scale = window.borrow().inner.scale as f32;
+        let scale = window.inner.scale as f32;
 
         let text = AnyText::new(font, |font_name| unsafe {
             Text::new(font_name, *font_size, scale)

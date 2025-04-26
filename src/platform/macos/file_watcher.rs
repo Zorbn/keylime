@@ -179,6 +179,10 @@ impl FileWatcher {
                     )
                 };
 
+                if event_count != 1 {
+                    break;
+                }
+
                 for i in 0..event_count {
                     let event = event_list[i as usize];
 
@@ -203,6 +207,8 @@ impl Drop for FileWatcher {
             libc::close(self.kq);
         }
 
-        let _ = self.watch_thread_join.take().unwrap().join();
+        if let Some(watch_thread_join) = self.watch_thread_join.take() {
+            let _ = watch_thread_join.join();
+        }
     }
 }

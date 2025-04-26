@@ -5,7 +5,8 @@ use crate::{
     ctx::Ctx,
     editor_buffers::EditorBuffers,
     geometry::rect::Rect,
-    platform::{file_watcher::FileWatcher, gfx::Gfx, pty::Pty, window::Window},
+    lsp::Lsp,
+    platform::{file_watcher::FileWatcher, gfx::Gfx, process::Process, window::Window},
     ui::{command_palette::CommandPalette, core::Ui, editor::Editor, terminal::Terminal},
 };
 
@@ -16,6 +17,7 @@ macro_rules! ctx_for_app {
             gfx: $gfx,
             config: &$self.config,
             buffers: &mut $self.buffers,
+            lsp: &mut $self.lsp,
             time: $time,
         }
     };
@@ -29,6 +31,7 @@ pub struct App {
     terminal: Terminal,
     command_palette: CommandPalette,
     file_watcher: FileWatcher,
+    lsp: Lsp,
 
     config_dir: PathBuf,
     config: Config,
@@ -51,6 +54,7 @@ impl App {
         let terminal = Terminal::new(&mut ui, &mut buffers.lines);
         let command_palette = CommandPalette::new(&mut ui, &mut buffers.lines);
         let file_watcher = FileWatcher::new();
+        let lsp = Lsp::new();
 
         Self {
             buffers,
@@ -60,6 +64,7 @@ impl App {
             terminal,
             command_palette,
             file_watcher,
+            lsp,
 
             config_dir,
             config,
@@ -83,6 +88,7 @@ impl App {
             window.set_theme(&self.config.theme);
             gfx.update_font(&self.config.font, self.config.font_size);
 
+            self.lsp.clear();
             self.editor.clear_doc_highlights();
             self.layout(gfx);
         }
@@ -94,6 +100,8 @@ impl App {
         {
             err.show_message();
         }
+
+        self.lsp.update();
 
         self.ui.update(
             &mut [
@@ -162,17 +170,17 @@ impl App {
             || self.command_palette.is_animating()
     }
 
-    pub fn files_and_ptys(
+    pub fn files_and_processes(
         &mut self,
     ) -> (
         &mut FileWatcher,
         impl Iterator<Item = &Path>,
-        impl Iterator<Item = &mut Pty>,
+        impl Iterator<Item = &mut Process>,
     ) {
         (
             &mut self.file_watcher,
             self.editor.files(),
-            self.terminal.ptys(),
+            self.terminal.ptys().chain(self.lsp.processes()),
         )
     }
 }

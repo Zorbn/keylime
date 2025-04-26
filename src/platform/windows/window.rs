@@ -129,8 +129,10 @@ impl WindowRunner {
         while window.inner.is_running() {
             let is_animating = app.is_animating();
 
-            let (file_watcher, files, ptys) = app.files_and_ptys();
-            window.inner.update(is_animating, file_watcher, files, ptys);
+            let (file_watcher, files, processes) = app.files_and_processes();
+            window
+                .inner
+                .update(is_animating, file_watcher, files, processes);
 
             let Some(gfx) = gfx else {
                 continue;
@@ -404,7 +406,7 @@ impl Window {
         is_animating: bool,
         file_watcher: &mut AnyFileWatcher,
         files: impl Iterator<Item = &'a Path>,
-        ptys: impl Iterator<Item = &'a mut AnyPty>,
+        processes: impl Iterator<Item = &'a mut AnyPty>,
     ) {
         self.clear_inputs();
         file_watcher.inner.update(files).unwrap();
@@ -415,9 +417,9 @@ impl Window {
             if !is_animating {
                 self.wait_handles.clear();
 
-                for pty in ptys {
+                for process in processes {
                     self.wait_handles
-                        .extend_from_slice(&[pty.inner.hprocess, pty.inner.event]);
+                        .extend_from_slice(&[process.inner.hprocess, process.inner.event]);
                 }
 
                 let dir_handles_start = self.wait_handles.len();

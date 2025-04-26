@@ -17,7 +17,7 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::{MouseClickKind, Mousebind},
     },
-    platform::aliases::{AnyFileWatcher, AnyPty, AnyWindow},
+    platform::aliases::{AnyFileWatcher, AnyProcess, AnyWindow},
     temp_buffer::TempBuffer,
     text::grapheme::GraphemeCursor,
 };
@@ -52,13 +52,13 @@ macro_rules! add_menu_item {
 }
 
 pub struct WindowRunner {
-    app: Rc<RefCell<App>>,
+    app: Rc<RefCell<Option<App>>>,
 }
 
 impl WindowRunner {
     pub fn new(app: App) -> Result<Box<Self>> {
         Ok(Box::new(WindowRunner {
-            app: Rc::new(RefCell::new(app)),
+            app: Rc::new(RefCell::new(Some(app))),
         }))
     }
 
@@ -269,13 +269,13 @@ impl Window {
         &mut self,
         file_watcher: &mut AnyFileWatcher,
         files: impl Iterator<Item = &'a Path>,
-        ptys: impl Iterator<Item = &'a mut AnyPty>,
+        processes: impl Iterator<Item = &'a mut AnyProcess>,
     ) {
         self.clear_inputs();
 
         if let Some(view) = &self.view {
-            for pty in ptys {
-                pty.inner.try_start(view);
+            for process in processes {
+                process.inner.try_start(view);
             }
 
             file_watcher.inner.try_start(view);

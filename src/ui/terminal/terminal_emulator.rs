@@ -13,7 +13,10 @@ use crate::{
         key::Key,
         keybind::{MOD_ALT, MOD_CTRL, MOD_SHIFT},
     },
-    platform::{gfx::Gfx, pty::Pty},
+    platform::{
+        gfx::Gfx,
+        process::{Process, ProcessKind},
+    },
     text::{
         cursor::Cursor,
         doc::Doc,
@@ -86,7 +89,7 @@ impl ColoredGridLine {
 }
 
 pub struct TerminalEmulator {
-    pty: Option<Pty>,
+    pty: Option<Process>,
 
     // The position of the terminal's cursor, which follows different rules
     // compared to the document's cursor for compatibility reasons, and may be
@@ -390,7 +393,14 @@ impl TerminalEmulator {
         if let Some(pty) = self.pty.as_mut() {
             pty.resize(grid_width, grid_height);
         } else {
-            self.pty = Pty::new(grid_width, grid_height, SHELLS).ok();
+            self.pty = Process::new(
+                SHELLS,
+                ProcessKind::Pty {
+                    width: grid_width,
+                    height: grid_height,
+                },
+            )
+            .ok();
         }
 
         self.grid_width = grid_width;
@@ -853,7 +863,7 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn pty(&mut self) -> Option<&mut Pty> {
+    pub fn pty(&mut self) -> Option<&mut Process> {
         self.pty.as_mut()
     }
 }

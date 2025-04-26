@@ -60,6 +60,8 @@ impl EditorPane {
                     if let Ok(path) = find_file(FindFileKind::OpenFolder) {
                         if let Err(err) = set_current_dir(path) {
                             message("Error Opening Folder", &err.to_string(), MessageKind::Ok);
+                        } else {
+                            ctx.lsp.update_current_dir();
                         }
                     }
                 }
