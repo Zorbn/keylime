@@ -98,22 +98,23 @@ struct LspPublishDiagnosticsParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LspCompletionItem {
-    pub label: String,
-    pub sort_text: Option<String>,
-    pub filter_text: Option<String>,
+pub struct LspCompletionItem<'a> {
+    pub label: &'a str,
+    pub sort_text: Option<&'a str>,
+    pub filter_text: Option<&'a str>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct LspCompletionList {
-    pub items: Vec<LspCompletionItem>,
+pub struct LspCompletionList<'a> {
+    #[serde(borrow)]
+    pub items: Vec<LspCompletionItem<'a>>,
 }
 
-impl LspCompletionList {
+impl LspCompletionList<'_> {
     pub fn sort(&mut self) {
         self.items.sort_by(|a, b| {
-            let a_sort_text = a.sort_text.as_ref().unwrap_or(&a.label);
-            let b_sort_text = b.sort_text.as_ref().unwrap_or(&b.label);
+            let a_sort_text = a.sort_text.unwrap_or(a.label);
+            let b_sort_text = b.sort_text.unwrap_or(b.label);
 
             a_sort_text.cmp(b_sort_text)
         });
@@ -362,15 +363,17 @@ impl LanguageServer {
                             diagnostics.append(&mut params.diagnostics);
                         }
                         "textDocument/completion" => {
-                            let Some(Ok(mut params)) = message.result.map(|params| {
-                                serde_json::from_str::<LspCompletionList>(params.get())
-                            }) else {
-                                return;
-                            };
+                            let result = message.result.as_ref().map(|result| result.get());
 
-                            params.sort();
+                            let mut result = result
+                                .and_then(|result| {
+                                    serde_json::from_str::<LspCompletionList>(result).ok()
+                                })
+                                .unwrap_or(LspCompletionList { items: Vec::new() });
 
-                            editor.lsp_add_completion_results(&params);
+                            result.sort();
+
+                            editor.lsp_add_completion_results(&result);
                         }
                         _ => {}
                     }

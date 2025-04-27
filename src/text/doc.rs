@@ -1957,7 +1957,7 @@ impl Doc {
 
     fn lsp_did_open(&mut self, text: &str, ctx: &mut Ctx) -> Option<()> {
         if !self.do_use_lsp() {
-            return Some(());
+            return None;
         }
 
         let language = ctx.config.get_language_for_doc(self)?;
@@ -1978,7 +1978,7 @@ impl Doc {
         ctx: &mut Ctx,
     ) -> Option<()> {
         if !self.do_use_lsp() {
-            return Some(());
+            return None;
         }
 
         let language = ctx.config.get_language_for_doc(self)?;
@@ -1992,7 +1992,7 @@ impl Doc {
 
     pub fn lsp_completion(&mut self, position: Position, ctx: &mut Ctx) -> Option<()> {
         if !self.do_use_lsp() {
-            return Some(());
+            return None;
         }
 
         let language = ctx.config.get_language_for_doc(self)?;
@@ -2010,7 +2010,7 @@ impl Doc {
         ctx: &mut Ctx,
     ) -> Option<()> {
         if !self.do_use_lsp() {
-            return Some(());
+            return None;
         }
 
         let language = ctx.config.get_language_for_doc(self)?;

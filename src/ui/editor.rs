@@ -33,7 +33,6 @@ pub struct Editor {
     // There should always be at least one pane.
     panes: FocusList<EditorPane>,
 
-    lsp_completion_result_count: usize,
     completion_result_list: ResultList<String>,
     completion_result_pool: LinePool,
     completion_prefix: String,
@@ -47,7 +46,6 @@ impl Editor {
             doc_list: SlotList::new(),
             panes: FocusList::new(),
 
-            lsp_completion_result_count: 0,
             completion_result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS),
             completion_result_pool: LinePool::new(),
             completion_prefix: String::new(),
@@ -217,10 +215,16 @@ impl Editor {
                     }
                 }
 
-                self.clear_completions();
+                Self::clear_completions(
+                    &mut self.completion_result_list,
+                    &mut self.completion_result_pool,
+                );
             }
             ResultListInput::Close => {
-                self.clear_completions();
+                Self::clear_completions(
+                    &mut self.completion_result_list,
+                    &mut self.completion_result_pool,
+                );
             }
             _ => {}
         }
@@ -244,43 +248,26 @@ impl Editor {
     }
 
     pub fn lsp_add_completion_results(&mut self, completion_list: &LspCompletionList) {
-        self.lsp_clear_completion_results();
+        Self::clear_completions(
+            &mut self.completion_result_list,
+            &mut self.completion_result_pool,
+        );
 
-        let non_lsp_result_count = self.completion_result_list.results.len();
-
-        // TODO: Make the serde LSP structs used borrowed strings and then here we copy them into pool strings.
-        self.completion_result_list.results.splice(
-            0..0,
+        self.completion_result_list.results.extend(
             completion_list
                 .items
                 .iter()
                 .filter(|item| {
                     item.filter_text
-                        .as_ref()
-                        .unwrap_or(&item.label)
+                        .unwrap_or(item.label)
                         .starts_with(&self.completion_prefix)
                 })
                 .map(|item| {
                     let mut result = self.completion_result_pool.pop();
-                    result.push_str(&item.label);
+                    result.push_str(item.label);
                     result
                 }),
         );
-
-        self.lsp_completion_result_count =
-            self.completion_result_list.results.len() - non_lsp_result_count;
-    }
-
-    fn lsp_clear_completion_results(&mut self) {
-        for result in self
-            .completion_result_list
-            .results
-            .drain(..self.lsp_completion_result_count)
-        {
-            self.completion_result_pool.push(result);
-        }
-
-        self.lsp_completion_result_count = 0;
     }
 
     // Necessary when syntax highlighting rules change.
@@ -342,7 +329,9 @@ impl Editor {
                 continue;
             }
 
-            if grapheme::is_whitespace(grapheme) && prefix_start == prefix_end {
+            // These characters aren't included in the completion prefix
+            // but they should still trigger a completion.
+            if !matches!(grapheme, "." | ":") && prefix_start == prefix_end {
                 return None;
             }
 
@@ -353,12 +342,13 @@ impl Editor {
             .map(|line| &line[prefix_start.x..prefix_end.x])
     }
 
-    fn clear_completions(&mut self) {
-        for result in self.completion_result_list.drain() {
-            self.completion_result_pool.push(result);
+    fn clear_completions(
+        completion_result_list: &mut ResultList<String>,
+        completion_result_pool: &mut LinePool,
+    ) {
+        for result in completion_result_list.drain() {
+            completion_result_pool.push(result);
         }
-
-        self.lsp_completion_result_count = 0;
     }
 
     fn update_completions(
@@ -366,44 +356,54 @@ impl Editor {
         should_open_completions: bool,
         handled_position: Option<Position>,
         ctx: &mut Ctx,
-    ) {
+    ) -> Option<()> {
         let position = self.get_cursor_position();
 
         let is_position_different = position != handled_position;
 
         if should_open_completions || is_position_different {
             self.completion_prefix.clear();
-
-            self.clear_completions();
         }
 
         if !should_open_completions {
-            return;
+            if is_position_different {
+                Self::clear_completions(
+                    &mut self.completion_result_list,
+                    &mut self.completion_result_pool,
+                );
+            }
+
+            return None;
         }
+
+        let position = position?;
 
         let pane = self.panes.get_focused_mut().unwrap();
         let focused_tab_index = pane.focused_tab_index();
 
-        let Some((_, doc)) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
-        else {
-            return;
-        };
-
-        let Some(prefix) = Self::get_completion_prefix(doc, ctx.gfx) else {
-            return;
-        };
+        let (_, doc) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)?;
+        let prefix = Self::get_completion_prefix(doc, ctx.gfx)?;
 
         self.completion_prefix.push_str(prefix);
 
-        if !prefix.is_empty() {
+        if doc.lsp_completion(position, ctx).is_some() {
+            return Some(());
+        }
+
+        Self::clear_completions(
+            &mut self.completion_result_list,
+            &mut self.completion_result_pool,
+        );
+
+        if !self.completion_prefix.is_empty() {
             doc.tokens().traverse(
-                prefix,
+                &self.completion_prefix,
                 &mut self.completion_result_list.results,
                 &mut self.completion_result_pool,
             );
         }
 
-        doc.lsp_completion(doc.get_cursor(CursorIndex::Main).position, ctx);
+        Some(())
     }
 
     fn get_cursor_position(&self) -> Option<Position> {
