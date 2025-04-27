@@ -34,6 +34,7 @@ use platform::window::WindowRunner;
  * Replace TOML config with JSON config (the basic-toml library is unmaintained now anyway).
  * - Add JSON highlighter, keep TOML highlighter for Cargo.toml and stuff.
  * Language servers may encode positions as utf-16 offsets instead of utf-8.
+ * Language server completion responses might be a list of completion items instead of a completion list object.
  */
 
 fn main() {

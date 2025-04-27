@@ -13,6 +13,7 @@ use crate::{
     geometry::position::Position,
     platform::process::{Process, ProcessKind},
     temp_buffer::TempString,
+    ui::editor::Editor,
 };
 
 fn path_to_uri(path: &Path, result: &mut String) {
@@ -96,9 +97,34 @@ struct LspPublishDiagnosticsParams {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspCompletionItem {
+    pub label: String,
+    pub sort_text: Option<String>,
+    pub filter_text: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LspCompletionList {
+    pub items: Vec<LspCompletionItem>,
+}
+
+impl LspCompletionList {
+    pub fn sort(&mut self) {
+        self.items.sort_by(|a, b| {
+            let a_sort_text = a.sort_text.as_ref().unwrap_or(&a.label);
+            let b_sort_text = b.sort_text.as_ref().unwrap_or(&b.label);
+
+            a_sort_text.cmp(b_sort_text)
+        });
+    }
+}
+
+#[derive(Debug, Deserialize)]
 struct LspMessageHeader {
     id: Option<u64>,
     method: Option<String>,
+    result: Option<Box<RawValue>>,
     params: Option<Box<RawValue>>,
 }
 
@@ -124,9 +150,9 @@ impl Lsp {
         self.clear();
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, editor: &mut Editor) {
         for server in self.servers.values_mut() {
-            server.update();
+            server.update(editor);
         }
     }
 
@@ -228,7 +254,7 @@ impl LanguageServer {
             .unwrap_or_default()
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, editor: &mut Editor) {
         loop {
             let (_, output) = self.process.input_output();
 
@@ -335,6 +361,17 @@ impl LanguageServer {
                             diagnostics.clear();
                             diagnostics.append(&mut params.diagnostics);
                         }
+                        "textDocument/completion" => {
+                            let Some(Ok(mut params)) = message.result.map(|params| {
+                                serde_json::from_str::<LspCompletionList>(params.get())
+                            }) else {
+                                return;
+                            };
+
+                            params.sort();
+
+                            editor.lsp_add_completion_results(&params);
+                        }
                         _ => {}
                     }
                 }
@@ -388,6 +425,24 @@ impl LanguageServer {
                         "end": LspPosition::from(end),
                     }
                 }]
+            }),
+        );
+
+        self.uri_buffer.replace(uri_buffer);
+    }
+
+    pub fn completion(&mut self, path: &Path, position: Position) {
+        let mut uri_buffer = self.uri_buffer.take_mut();
+
+        path_to_uri(path, &mut uri_buffer);
+
+        self.send_request(
+            "textDocument/completion",
+            json!({
+                "textDocument": {
+                    "uri": uri_buffer,
+                },
+                "position": LspPosition::from(position),
             }),
         );
 

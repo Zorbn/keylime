@@ -11,6 +11,7 @@ use crate::{
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
+    lsp::LspCompletionList,
     platform::{file_watcher::FileWatcher, gfx::Gfx},
     text::{cursor_index::CursorIndex, doc::Doc, grapheme, line_pool::LinePool},
 };
@@ -32,6 +33,7 @@ pub struct Editor {
     // There should always be at least one pane.
     panes: FocusList<EditorPane>,
 
+    lsp_completion_result_count: usize,
     completion_result_list: ResultList<String>,
     completion_result_pool: LinePool,
     completion_prefix: String,
@@ -45,6 +47,7 @@ impl Editor {
             doc_list: SlotList::new(),
             panes: FocusList::new(),
 
+            lsp_completion_result_count: 0,
             completion_result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS),
             completion_result_pool: LinePool::new(),
             completion_prefix: String::new(),
@@ -214,16 +217,10 @@ impl Editor {
                     }
                 }
 
-                Self::clear_completions(
-                    &mut self.completion_result_list,
-                    &mut self.completion_result_pool,
-                );
+                self.clear_completions();
             }
             ResultListInput::Close => {
-                Self::clear_completions(
-                    &mut self.completion_result_list,
-                    &mut self.completion_result_pool,
-                );
+                self.clear_completions();
             }
             _ => {}
         }
@@ -235,7 +232,7 @@ impl Editor {
 
         self.panes.remove_excess(|pane| pane.tabs.is_empty());
 
-        self.update_completions(should_open_completions, handled_position, ctx.gfx);
+        self.update_completions(should_open_completions, handled_position, ctx);
     }
 
     pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
@@ -244,6 +241,46 @@ impl Editor {
         }
 
         self.completion_result_list.update_camera(dt);
+    }
+
+    pub fn lsp_add_completion_results(&mut self, completion_list: &LspCompletionList) {
+        self.lsp_clear_completion_results();
+
+        let non_lsp_result_count = self.completion_result_list.results.len();
+
+        // TODO: Make the serde LSP structs used borrowed strings and then here we copy them into pool strings.
+        self.completion_result_list.results.splice(
+            0..0,
+            completion_list
+                .items
+                .iter()
+                .filter(|item| {
+                    item.filter_text
+                        .as_ref()
+                        .unwrap_or(&item.label)
+                        .starts_with(&self.completion_prefix)
+                })
+                .map(|item| {
+                    let mut result = self.completion_result_pool.pop();
+                    result.push_str(&item.label);
+                    result
+                }),
+        );
+
+        self.lsp_completion_result_count =
+            self.completion_result_list.results.len() - non_lsp_result_count;
+    }
+
+    fn lsp_clear_completion_results(&mut self) {
+        for result in self
+            .completion_result_list
+            .results
+            .drain(..self.lsp_completion_result_count)
+        {
+            self.completion_result_pool.push(result);
+        }
+
+        self.lsp_completion_result_count = 0;
     }
 
     // Necessary when syntax highlighting rules change.
@@ -290,7 +327,7 @@ impl Editor {
         let prefix_end = doc.get_cursor(CursorIndex::Main).position;
 
         if prefix_end.x == 0 {
-            return Some("");
+            return None;
         }
 
         let mut prefix_start = prefix_end;
@@ -300,31 +337,35 @@ impl Editor {
 
             let grapheme = doc.get_grapheme(next_start);
 
-            if !grapheme::is_alphanumeric(grapheme) && grapheme != "_" {
-                break;
+            if grapheme::is_alphanumeric(grapheme) || grapheme == "_" {
+                prefix_start = next_start;
+                continue;
             }
 
-            prefix_start = next_start;
+            if grapheme::is_whitespace(grapheme) && prefix_start == prefix_end {
+                return None;
+            }
+
+            break;
         }
 
         doc.get_line(prefix_end.y)
             .map(|line| &line[prefix_start.x..prefix_end.x])
     }
 
-    fn clear_completions(
-        completion_result_list: &mut ResultList<String>,
-        completion_result_pool: &mut LinePool,
-    ) {
-        for result in completion_result_list.drain() {
-            completion_result_pool.push(result);
+    fn clear_completions(&mut self) {
+        for result in self.completion_result_list.drain() {
+            self.completion_result_pool.push(result);
         }
+
+        self.lsp_completion_result_count = 0;
     }
 
     fn update_completions(
         &mut self,
         should_open_completions: bool,
         handled_position: Option<Position>,
-        gfx: &mut Gfx,
+        ctx: &mut Ctx,
     ) {
         let position = self.get_cursor_position();
 
@@ -333,10 +374,7 @@ impl Editor {
         if should_open_completions || is_position_different {
             self.completion_prefix.clear();
 
-            Self::clear_completions(
-                &mut self.completion_result_list,
-                &mut self.completion_result_pool,
-            );
+            self.clear_completions();
         }
 
         if !should_open_completions {
@@ -344,15 +382,14 @@ impl Editor {
         }
 
         let pane = self.panes.get_focused_mut().unwrap();
+        let focused_tab_index = pane.focused_tab_index();
 
-        let Some((_, doc)) = pane.get_tab_with_data(pane.focused_tab_index(), &self.doc_list)
+        let Some((_, doc)) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
         else {
             return;
         };
 
-        let Some(prefix) = Self::get_completion_prefix(doc, gfx)
-            .filter(|prefix| self.completion_prefix != *prefix)
-        else {
+        let Some(prefix) = Self::get_completion_prefix(doc, ctx.gfx) else {
             return;
         };
 
@@ -365,6 +402,8 @@ impl Editor {
                 &mut self.completion_result_pool,
             );
         }
+
+        doc.lsp_completion(doc.get_cursor(CursorIndex::Main).position, ctx);
     }
 
     fn get_cursor_position(&self) -> Option<Position> {

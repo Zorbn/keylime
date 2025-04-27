@@ -1567,8 +1567,6 @@ impl Doc {
         self.reset_edit_state();
         self.line_ending = line_ending;
 
-        self.is_saved = true;
-
         self.path = match take(&mut self.path) {
             DocPath::None => DocPath::None,
             DocPath::InMemory(path) => DocPath::OnDrive(path),
@@ -1953,8 +1951,12 @@ impl Doc {
         }
     }
 
+    fn do_use_lsp(&self) -> bool {
+        self.kind != DocKind::Output
+    }
+
     fn lsp_did_open(&mut self, text: &str, ctx: &mut Ctx) -> Option<()> {
-        if self.kind == DocKind::Output {
+        if !self.do_use_lsp() {
             return Some(());
         }
 
@@ -1975,7 +1977,7 @@ impl Doc {
         text: &str,
         ctx: &mut Ctx,
     ) -> Option<()> {
-        if self.kind == DocKind::Output {
+        if !self.do_use_lsp() {
             return Some(());
         }
 
@@ -1988,12 +1990,26 @@ impl Doc {
         Some(())
     }
 
+    pub fn lsp_completion(&mut self, position: Position, ctx: &mut Ctx) -> Option<()> {
+        if !self.do_use_lsp() {
+            return Some(());
+        }
+
+        let language = ctx.config.get_language_for_doc(self)?;
+        let language_server = ctx.lsp.get_language_server_mut(language)?;
+        let path = self.path.on_drive()?;
+
+        language_server.completion(path, position);
+
+        Some(())
+    }
+
     fn lsp_text_document_notification(
         &mut self,
         method: &'static str,
         ctx: &mut Ctx,
     ) -> Option<()> {
-        if self.kind == DocKind::Output {
+        if !self.do_use_lsp() {
             return Some(());
         }
 

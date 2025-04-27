@@ -100,7 +100,7 @@ impl App {
             err.show_message();
         }
 
-        self.lsp.update();
+        self.lsp.update(&mut self.editor);
 
         self.ui.update(
             &mut [
