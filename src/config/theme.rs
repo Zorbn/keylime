@@ -65,6 +65,8 @@ pub struct Theme {
     pub line_number: Color,
     pub border: Color,
     pub background: Color,
+    pub warning: Color,
+    pub error: Color,
 
     #[serde(default)]
     pub terminal: TerminalTheme,
@@ -129,6 +131,8 @@ impl Default for Theme {
             line_number: Color::from_hex(0x6E7681FF),
             border: Color::from_hex(0x2B2B2BFF),
             background: Color::from_hex(0x1E1E1EFF),
+            warning: Color::from_hex(0xC5A82DFF),
+            error: Color::from_hex(0xAB311FFF),
 
             terminal: TerminalTheme::default(),
         }

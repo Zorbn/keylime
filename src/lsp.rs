@@ -9,11 +9,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, value::RawValue, Value};
 
 use crate::{
-    config::language::Language,
+    config::{language::Language, theme::Theme},
     geometry::position::Position,
     platform::process::{Process, ProcessKind},
     temp_buffer::TempString,
-    ui::editor::Editor,
+    ui::{color::Color, editor::Editor},
 };
 
 const DEFAULT_SEVERITY: fn() -> usize = || 1;
@@ -59,6 +59,14 @@ pub struct LspDiagnostic {
 impl LspDiagnostic {
     pub fn is_visible(&self) -> bool {
         self.severity != 4
+    }
+
+    pub fn color(&self, theme: &Theme) -> Color {
+        match self.severity {
+            1 => theme.error,
+            2 => theme.warning,
+            _ => theme.normal,
+        }
     }
 }
 

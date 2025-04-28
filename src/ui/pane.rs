@@ -1,4 +1,5 @@
 use crate::{
+    config::theme::Theme,
     ctx::Ctx,
     geometry::{rect::Rect, visual_position::VisualPosition},
     input::{action::action_name, mouse_button::MouseButton, mousebind::Mousebind},
@@ -206,21 +207,42 @@ impl<T> Pane<T> {
     }
 
     fn draw_tab(tab: &Tab, doc: &Doc, bounds: Rect, ctx: &mut Ctx) {
-        let tab_bounds = tab.tab_bounds().unoffset_by(bounds);
-        let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
+
+        let text_color = Self::get_tab_color(doc, theme, ctx);
+        let tab_bounds = tab.tab_bounds().unoffset_by(bounds);
+
+        let gfx = &mut ctx.gfx;
 
         gfx.add_rect(tab_bounds.left_border(gfx.border_width()), theme.border);
 
         let text_x = (tab_bounds.x + gfx.glyph_width() * 2.0).floor();
         let text_y = gfx.border_width() + gfx.tab_padding_y();
-        let text_width = gfx.add_text(doc.file_name(), text_x, text_y, theme.normal);
+        let text_width = gfx.add_text(doc.file_name(), text_x, text_y, text_color);
 
         if !doc.is_saved() {
             gfx.add_text("*", text_x + text_width, text_y, theme.symbol);
         }
 
         gfx.add_rect(tab_bounds.right_border(gfx.border_width()), theme.border);
+    }
+
+    fn get_tab_color(doc: &Doc, theme: &Theme, ctx: &mut Ctx) -> Color {
+        let Some(path) = doc.path().on_drive() else {
+            return theme.normal;
+        };
+
+        for language_server in ctx.lsp.iter_servers_mut() {
+            for diagnostic in language_server.get_diagnostics_mut(path) {
+                if !diagnostic.is_visible() {
+                    continue;
+                }
+
+                return diagnostic.color(theme);
+            }
+        }
+
+        theme.normal
     }
 
     pub fn get_tab_with_data_mut<'a>(

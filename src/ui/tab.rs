@@ -492,15 +492,8 @@ impl Tab {
                     continue;
                 }
 
+                let color = diagnostic.color(theme);
                 let range = diagnostic.range;
-
-                // TODO: Add diagnostic colors to theme!
-                let color = match diagnostic.severity {
-                    1 => Color::from_rgb(255, 0, 0),
-                    2 => Color::from_rgb(255, 200, 0),
-                    _ => Color::from_rgb(125, 125, 125),
-                };
-
                 let start = Position::from(range.start);
                 let end = Position::from(range.end);
 

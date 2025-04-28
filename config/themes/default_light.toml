@@ -11,6 +11,8 @@ selection = "4CADE47F"
 line_number = "6E7681"
 border = "E5E5E5"
 background = "F5F5F5"
+warning = "B58A26"
+error = "EA695D"
 
 [terminal]
 foreground = "2A2C33"
