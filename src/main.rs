@@ -22,8 +22,6 @@ use platform::window::WindowRunner;
 /*
  * TODO:
  * Convert Pty to Process in Windows platform layer.
- * LSP process will be empty if command fails...
- * Handle what should happen when the user doesn't have a certain LSP installed.
  * Extend Process to allow supplying arguments to LSPs.
  * Scroll bar along the right side of each tab that shows the current camera location as well as the location of diagnostics.
  * Language servers may encode positions as utf-16 offsets instead of utf-8.

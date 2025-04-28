@@ -15,6 +15,9 @@ use super::{
     view::{View, ViewRef},
 };
 
+const PIPE_READ: usize = 0;
+const PIPE_WRITE: usize = 1;
+
 pub struct Process {
     pub output: Arc<Mutex<Vec<u8>>>,
     pub input: Vec<u8>,
@@ -30,6 +33,11 @@ pub struct Process {
 impl Process {
     pub fn new(child_paths: &[&str], kind: ProcessKind) -> Result<Self> {
         let kq = unsafe { libc::kqueue() };
+        let mut result_fds = [0, 0];
+
+        if unsafe { libc::pipe(result_fds.as_mut_ptr()) } == -1 {
+            return Err("Failed to create result pipe");
+        }
 
         let (read_fd, write_fd, pid) = unsafe {
             match kind {
@@ -40,27 +48,27 @@ impl Process {
                     if libc::pipe(stdin_fds.as_mut_ptr()) == -1
                         || libc::pipe(stdout_fds.as_mut_ptr()) == -1
                     {
-                        return Err("Failed to create pipes");
+                        return Err("Failed to create stdin/stdout pipes");
                     }
 
                     let pid = libc::fork();
 
                     if pid <= 0 {
                         if pid == 0 {
-                            libc::dup2(stdin_fds[0], libc::STDIN_FILENO);
-                            libc::dup2(stdout_fds[1], libc::STDOUT_FILENO);
+                            libc::dup2(stdin_fds[PIPE_READ], libc::STDIN_FILENO);
+                            libc::dup2(stdout_fds[PIPE_WRITE], libc::STDOUT_FILENO);
                         }
 
-                        libc::close(stdin_fds[0]);
-                        libc::close(stdin_fds[1]);
-                        libc::close(stdout_fds[0]);
-                        libc::close(stdout_fds[1]);
+                        libc::close(stdin_fds[PIPE_READ]);
+                        libc::close(stdin_fds[PIPE_WRITE]);
+                        libc::close(stdout_fds[PIPE_READ]);
+                        libc::close(stdout_fds[PIPE_WRITE]);
                     } else {
-                        libc::close(stdin_fds[0]);
-                        libc::close(stdout_fds[1]);
+                        libc::close(stdin_fds[PIPE_READ]);
+                        libc::close(stdout_fds[PIPE_WRITE]);
                     }
 
-                    (stdout_fds[0], stdin_fds[1], pid)
+                    (stdout_fds[PIPE_READ], stdin_fds[PIPE_WRITE], pid)
                 }
                 ProcessKind::Pty { width, height } => {
                     let mut window_size = libc::winsize {
@@ -83,6 +91,13 @@ impl Process {
         }
 
         if pid == 0 {
+            unsafe {
+                libc::close(result_fds[PIPE_READ]);
+
+                let flags = libc::fcntl(result_fds[PIPE_WRITE], libc::F_GETFD) | libc::FD_CLOEXEC;
+                libc::fcntl(result_fds[PIPE_WRITE], libc::F_SETFD, flags);
+            }
+
             for child_path in child_paths {
                 let child_path = CString::new(*child_path).unwrap();
                 let args = &[child_path.as_ptr(), null()];
@@ -98,8 +113,32 @@ impl Process {
             }
 
             unsafe {
-                libc::exit(1);
+                let status = 1;
+
+                libc::write(
+                    result_fds[PIPE_WRITE],
+                    &status as *const _ as _,
+                    size_of::<i32>(),
+                );
+
+                libc::exit(status);
             }
+        }
+
+        let mut child_status = 0;
+
+        unsafe {
+            libc::close(result_fds[PIPE_WRITE]);
+
+            libc::read(
+                result_fds[PIPE_READ],
+                &mut child_status as *mut _ as _,
+                size_of::<i32>(),
+            );
+        }
+
+        if child_status != 0 {
+            return Err("Failed to start child");
         }
 
         let add_event = kevent {

@@ -118,7 +118,7 @@ struct LspMessageHeader {
 }
 
 pub struct Lsp {
-    servers: HashMap<usize, LanguageServer>,
+    servers: HashMap<usize, Option<LanguageServer>>,
     current_dir: Option<PathBuf>,
 }
 
@@ -140,13 +140,13 @@ impl Lsp {
     }
 
     pub fn update(&mut self, editor: &mut Editor) {
-        for server in self.servers.values_mut() {
+        for server in self.iter_servers_mut() {
             server.update(editor);
         }
     }
 
     pub fn iter_servers_mut(&mut self) -> impl Iterator<Item = &mut LanguageServer> {
-        self.servers.values_mut()
+        self.servers.values_mut().flatten()
     }
 
     pub fn get_language_server_mut(&mut self, language: &Language) -> Option<&mut LanguageServer> {
@@ -154,16 +154,17 @@ impl Lsp {
 
         if let Entry::Vacant(entry) = self.servers.entry(language.index) {
             let language_server_command = language.language_server_command.as_ref()?;
-            let language_server = LanguageServer::new(language_server_command, current_dir)?;
+            let language_server = LanguageServer::new(language_server_command, current_dir);
 
             entry.insert(language_server);
         }
 
-        self.servers.get_mut(&language.index)
+        let server = self.servers.get_mut(&language.index)?;
+        server.as_mut()
     }
 
     pub fn processes(&mut self) -> impl Iterator<Item = &mut Process> {
-        self.servers.values_mut().map(|server| &mut server.process)
+        self.iter_servers_mut().map(|server| &mut server.process)
     }
 }
 
