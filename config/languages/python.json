@@ -1,0 +1,95 @@
+{
+    "comment": "#",
+    "extensions": [
+        "py"
+    ],
+    "indent_width": 4,
+    "syntax": {
+        "keywords": [
+            "False",
+            "class",
+            "from",
+            "or",
+            "None",
+            "continue",
+            "global",
+            "pass",
+            "True",
+            "def",
+            "if",
+            "raise",
+            "and",
+            "del",
+            "import",
+            "return",
+            "as",
+            "elif",
+            "in",
+            "try",
+            "assert",
+            "else",
+            "is",
+            "while",
+            "async",
+            "except",
+            "lambda",
+            "with",
+            "await",
+            "finally",
+            "nonlocal",
+            "yield",
+            "break",
+            "for",
+            "not"
+        ],
+        "ranges": [
+            {
+                "end": "\"\"\"",
+                "kind": "String",
+                "start": "\"\"\""
+            },
+            {
+                "end": "\"",
+                "escape": "\\",
+                "kind": "String",
+                "start": "\""
+            },
+            {
+                "end": "'",
+                "escape": "\\",
+                "kind": "String",
+                "start": "'"
+            }
+        ],
+        "tokens": [
+            {
+                "kind": "Comment",
+                "pattern": "#%.*"
+            },
+            {
+                "kind": "Function",
+                "pattern": "([%a_][%w_]*)%s*%("
+            },
+            {
+                "kind": "Number",
+                "pattern": "0x%x+"
+            },
+            {
+                "kind": "Number",
+                "pattern": "0b[01]+"
+            },
+            {
+                "kind": "Number",
+                "pattern": "(%d[%d_]*.?[%d_]*)[^.]"
+            },
+            {
+                "kind": "Number",
+                "pattern": "%d[%d_]*"
+            },
+            {
+                "kind": "Symbol",
+                "pattern": "[!=&,><./:@|;{}()%%%^%*%+%-%?%[%]]"
+            }
+        ]
+    }
+}

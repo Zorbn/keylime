@@ -1,0 +1,39 @@
+{
+    "extensions": [
+        "html",
+        "xml"
+    ],
+    "indent_width": 4,
+    "syntax": {
+        "ranges": [
+            {
+                "end": "\"",
+                "kind": "String",
+                "start": "\""
+            },
+            {
+                "end": "%-%->",
+                "kind": "Comment",
+                "start": "<!%-%-"
+            }
+        ],
+        "tokens": [
+            {
+                "kind": "Keyword",
+                "pattern": "<(%w+)>"
+            },
+            {
+                "kind": "Keyword",
+                "pattern": "</(%w+)>"
+            },
+            {
+                "kind": "Keyword",
+                "pattern": "<!(%w+)>"
+            },
+            {
+                "kind": "Symbol",
+                "pattern": "[<>/!=]"
+            }
+        ]
+    }
+}

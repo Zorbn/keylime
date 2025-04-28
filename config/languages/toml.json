@@ -1,0 +1,52 @@
+{
+    "comment": "#",
+    "extensions": [
+        "toml"
+    ],
+    "indent_width": 4,
+    "syntax": {
+        "keywords": [
+            "true",
+            "false"
+        ],
+        "ranges": [
+            {
+                "end": "\"",
+                "escape": "\\",
+                "kind": "String",
+                "start": "\""
+            },
+            {
+                "end": "'",
+                "kind": "String",
+                "start": "'"
+            }
+        ],
+        "tokens": [
+            {
+                "kind": "Comment",
+                "pattern": "#%.*"
+            },
+            {
+                "kind": "Number",
+                "pattern": "0x%x+"
+            },
+            {
+                "kind": "Number",
+                "pattern": "0b[01]+"
+            },
+            {
+                "kind": "Number",
+                "pattern": "(%d[%d_]*.?[%d_]*)[^.]"
+            },
+            {
+                "kind": "Number",
+                "pattern": "%d[%d_]*"
+            },
+            {
+                "kind": "Keyword",
+                "pattern": "^%s*%[(%.-)%]"
+            }
+        ]
+    }
+}

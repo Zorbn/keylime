@@ -1,0 +1,110 @@
+{
+    "extensions": [
+        "c"
+    ],
+    "indent_width": 4,
+    "syntax": {
+        "keywords": [
+            "alignas",
+            "alignof",
+            "auto",
+            "bool",
+            "break",
+            "case",
+            "char",
+            "const",
+            "constexpr",
+            "continue",
+            "default",
+            "do",
+            "double",
+            "else",
+            "enum",
+            "extern",
+            "false",
+            "float",
+            "for",
+            "goto",
+            "if",
+            "inline",
+            "int",
+            "long",
+            "nullptr",
+            "register",
+            "restrict",
+            "return",
+            "short",
+            "signed",
+            "sizeof",
+            "static",
+            "static_assert",
+            "struct",
+            "switch",
+            "thread_local",
+            "true",
+            "typedef",
+            "typeof",
+            "typeof_unqual",
+            "union",
+            "unsigned",
+            "void",
+            "volatile",
+            "while"
+        ],
+        "ranges": [
+            {
+                "end": "\"",
+                "escape": "\\",
+                "kind": "String",
+                "start": "\""
+            },
+            {
+                "end": "'",
+                "escape": "\\",
+                "kind": "String",
+                "start": "'"
+            },
+            {
+                "end": "`",
+                "escape": "\\",
+                "kind": "String",
+                "start": "`"
+            },
+            {
+                "end": "%*/",
+                "kind": "Comment",
+                "start": "/%*"
+            }
+        ],
+        "tokens": [
+            {
+                "kind": "Comment",
+                "pattern": "//%.*"
+            },
+            {
+                "kind": "Meta",
+                "pattern": "#%.*"
+            },
+            {
+                "kind": "Function",
+                "pattern": "([%a_][%w_]*)%s*%("
+            },
+            {
+                "kind": "Number",
+                "pattern": "0x%x+"
+            },
+            {
+                "kind": "Number",
+                "pattern": "(%d+.?%d*)[^.]"
+            },
+            {
+                "kind": "Number",
+                "pattern": "%d+"
+            },
+            {
+                "kind": "Symbol",
+                "pattern": "[!=&,><./:@|;{}()%%%^%*%+%-%?%[%]]"
+            }
+        ]
+    }
+}

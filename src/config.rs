@@ -20,7 +20,7 @@ use crate::{
     },
 };
 
-const CONFIG_FILE: &str = "config.toml";
+const CONFIG_FILE: &str = "config.json";
 const CONFIG_DIR: &str = "config";
 const DEFAULT_COMMENT: fn() -> String = || "//".to_owned();
 const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
@@ -162,7 +162,7 @@ impl Config {
         path.push(dir);
         path.push("themes");
         path.push(config_desc.theme);
-        path.set_extension("toml");
+        path.set_extension("json");
 
         let theme_string = Self::load_file_string(&path)?;
         let theme = Self::load_file_data(&path, &theme_string)?;
@@ -205,7 +205,7 @@ impl Config {
             .and_then(|file_name| file_name.to_str())
             .unwrap_or_default();
 
-        match basic_toml::from_str::<T>(string) {
+        match serde_json::from_str::<T>(string) {
             Ok(data) => Ok(data),
             Err(err) => Err(ConfigError::new(
                 "Error Loading Config",

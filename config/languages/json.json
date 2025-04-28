@@ -1,0 +1,47 @@
+{
+    "extensions": [
+        "json"
+    ],
+    "indent_width": 4,
+    "syntax": {
+        "tokens": [
+            {
+                "pattern": "//%.*",
+                "kind": "Comment"
+            },
+            {
+                "pattern": "0x%x+",
+                "kind": "Number"
+            },
+            {
+                "pattern": "0b[01]+",
+                "kind": "Number"
+            },
+            {
+                "pattern": "(%d[%d_]*.?[%d_]*)[^.]",
+                "kind": "Number"
+            },
+            {
+                "pattern": "%d[%d_]*",
+                "kind": "Number"
+            },
+            {
+                "pattern": "[!=&,><./:@|;{}()%%%^%*%+%-%?%[%]]",
+                "kind": "Symbol"
+            }
+        ],
+        "ranges": [
+            {
+                "start": "\"",
+                "end": "\"",
+                "escape": "\\",
+                "kind": "String"
+            },
+            {
+                "start": "/%*",
+                "end": "%*/",
+                "kind": "Comment"
+            }
+        ]
+    }
+}

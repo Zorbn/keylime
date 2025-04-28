@@ -51,6 +51,7 @@ impl Default for TerminalTheme {
 }
 
 #[derive(Deserialize, Debug)]
+#[serde(default)]
 pub struct Theme {
     pub normal: Color,
     pub identifier: Color,
@@ -68,7 +69,6 @@ pub struct Theme {
     pub warning: Color,
     pub error: Color,
 
-    #[serde(default)]
     pub terminal: TerminalTheme,
 }
 

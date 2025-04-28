@@ -1,0 +1,114 @@
+{
+    "extensions": [
+        "js"
+    ],
+    "indent_width": 4,
+    "syntax": {
+        "keywords": [
+            "arguments",
+            "await",
+            "break",
+            "case",
+            "catch",
+            "class",
+            "const",
+            "continue",
+            "debugger",
+            "default",
+            "delete",
+            "do",
+            "else",
+            "enum",
+            "eval",
+            "export",
+            "extends",
+            "false",
+            "finally",
+            "for",
+            "function",
+            "if",
+            "implements",
+            "import",
+            "in",
+            "instanceof",
+            "interface",
+            "let",
+            "new",
+            "null",
+            "of",
+            "package",
+            "private",
+            "protected",
+            "public",
+            "return",
+            "static",
+            "super",
+            "switch",
+            "this",
+            "throw",
+            "true",
+            "try",
+            "typeof",
+            "var",
+            "void",
+            "while",
+            "with",
+            "yield"
+        ],
+        "ranges": [
+            {
+                "end": "\"",
+                "escape": "\\",
+                "kind": "String",
+                "start": "\""
+            },
+            {
+                "end": "'",
+                "escape": "\\",
+                "kind": "String",
+                "start": "'"
+            },
+            {
+                "end": "`",
+                "escape": "\\",
+                "kind": "String",
+                "start": "`"
+            },
+            {
+                "end": "%*/",
+                "kind": "Comment",
+                "start": "/%*"
+            }
+        ],
+        "tokens": [
+            {
+                "kind": "Comment",
+                "pattern": "//%.*"
+            },
+            {
+                "kind": "Function",
+                "pattern": "([%a_][%w_]*)%s*%("
+            },
+            {
+                "kind": "Number",
+                "pattern": "0x%x+"
+            },
+            {
+                "kind": "Number",
+                "pattern": "0b[01]+"
+            },
+            {
+                "kind": "Number",
+                "pattern": "(%d[%d_]*.?[%d_]*)[^.]"
+            },
+            {
+                "kind": "Number",
+                "pattern": "%d[%d_]*"
+            },
+            {
+                "kind": "Symbol",
+                "pattern": "[!=&,><./:@|;{}()%%%^%*%+%-%?%[%]]"
+            }
+        ]
+    }
+}

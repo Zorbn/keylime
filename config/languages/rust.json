@@ -1,0 +1,129 @@
+{
+    "extensions": [
+        "rs"
+    ],
+    "indent_width": 4,
+    "language_server_command": "rust-analyzer",
+    "lsp_language_id": "rust",
+    "syntax": {
+        "keywords": [
+            "as",
+            "break",
+            "const",
+            "continue",
+            "crate",
+            "else",
+            "enum",
+            "extern",
+            "false",
+            "fn",
+            "for",
+            "if",
+            "impl",
+            "in",
+            "let",
+            "loop",
+            "match",
+            "mod",
+            "move",
+            "mut",
+            "pub",
+            "ref",
+            "return",
+            "self",
+            "Self",
+            "static",
+            "struct",
+            "super",
+            "trait",
+            "true",
+            "type",
+            "unsafe",
+            "use",
+            "where",
+            "while"
+        ],
+        "ranges": [
+            {
+                "end": "\"",
+                "escape": "\\",
+                "kind": "String",
+                "start": "\""
+            },
+            {
+                "end": "\"#*",
+                "kind": "String",
+                "start": "r#*\""
+            },
+            {
+                "end": "%]",
+                "kind": "Meta",
+                "start": "#%["
+            },
+            {
+                "end": "%]",
+                "kind": "Meta",
+                "start": "#!%["
+            },
+            {
+                "end": "%*/",
+                "kind": "Comment",
+                "start": "/%*"
+            }
+        ],
+        "tokens": [
+            {
+                "kind": "Comment",
+                "pattern": "//%.*"
+            },
+            {
+                "kind": "Meta",
+                "pattern": "[%a_][%w_]*!"
+            },
+            {
+                "kind": "Function",
+                "pattern": "([%a_][%w_]*)%s*%("
+            },
+            {
+                "kind": "Function",
+                "pattern": "([%a_][%w_]*)%s*<%.->%s*%("
+            },
+            {
+                "kind": "Function",
+                "pattern": "([%a_][%w_]*)%s*::%s*<%.->%s*%("
+            },
+            {
+                "kind": "Number",
+                "pattern": "0x%x+"
+            },
+            {
+                "kind": "Number",
+                "pattern": "0b[01]+"
+            },
+            {
+                "kind": "Number",
+                "pattern": "(%d[%d_]*.?[%d_]*)[^.]"
+            },
+            {
+                "kind": "Number",
+                "pattern": "%d[%d_]*"
+            },
+            {
+                "kind": "String",
+                "pattern": "'\\u{%x-}'"
+            },
+            {
+                "kind": "String",
+                "pattern": "'\\?%.'"
+            },
+            {
+                "kind": "Meta",
+                "pattern": "'%l+"
+            },
+            {
+                "kind": "Symbol",
+                "pattern": "[!=&,><./:@|;{}()%%%^%*%+%-%?%[%]]"
+            }
+        ]
+    }
+}
