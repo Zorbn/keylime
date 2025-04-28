@@ -98,10 +98,19 @@ struct LspPublishDiagnosticsParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LspTextEdit<'a> {
+    pub range: LspRange,
+    pub new_text: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LspCompletionItem<'a> {
     pub label: &'a str,
     sort_text: Option<&'a str>,
     filter_text: Option<&'a str>,
+    pub insert_text: Option<&'a str>,
+    pub text_edit: Option<LspTextEdit<'a>>,
 }
 
 impl LspCompletionItem<'_> {

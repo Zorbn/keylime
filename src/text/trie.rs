@@ -24,8 +24,13 @@ impl Trie {
         self.insert_at_node(0, text);
     }
 
-    pub fn traverse(&self, prefix: &str, results: &mut Vec<String>, result_pool: &mut LinePool) {
-        self.traverse_with_prefix_at_node(0, prefix, prefix, results, result_pool);
+    pub fn traverse(
+        &self,
+        prefix: &str,
+        result_pool: &mut LinePool,
+        mut result_fn: impl FnMut(String),
+    ) {
+        self.traverse_with_prefix_at_node(0, prefix, prefix, result_pool, &mut result_fn);
     }
 
     pub fn clear(&mut self) {
@@ -53,8 +58,8 @@ impl Trie {
         index: usize,
         prefix: &str,
         remaining: &str,
-        results: &mut Vec<String>,
         result_pool: &mut LinePool,
+        result_fn: &mut impl FnMut(String),
     ) {
         let node = &self.nodes[index];
 
@@ -66,7 +71,7 @@ impl Trie {
                 new_prefix.push_str(prefix);
                 new_prefix.push(child.0);
 
-                self.traverse_at_node(child.1, new_prefix, results, result_pool);
+                self.traverse_at_node(child.1, new_prefix, result_pool, result_fn);
             }
 
             return;
@@ -82,7 +87,13 @@ impl Trie {
             let child = &self.data[node.start + i];
 
             if child.0 == c {
-                self.traverse_with_prefix_at_node(child.1, prefix, remaining, results, result_pool);
+                self.traverse_with_prefix_at_node(
+                    child.1,
+                    prefix,
+                    remaining,
+                    result_pool,
+                    result_fn,
+                );
             }
         }
     }
@@ -92,8 +103,8 @@ impl Trie {
         &self,
         index: usize,
         prefix: String,
-        results: &mut Vec<String>,
         result_pool: &mut LinePool,
+        result_fn: &mut impl FnMut(String),
     ) {
         let node = &self.nodes[index];
 
@@ -101,7 +112,7 @@ impl Trie {
             let mut new_prefix = result_pool.pop();
             new_prefix.push_str(&prefix);
 
-            results.push(prefix);
+            result_fn(prefix);
 
             new_prefix
         } else {
@@ -113,7 +124,7 @@ impl Trie {
             new_prefix.push_str(&prefix);
             new_prefix.push(child.0);
 
-            self.traverse_at_node(child.1, new_prefix, results, result_pool);
+            self.traverse_at_node(child.1, new_prefix, result_pool, result_fn);
         }
 
         result_pool.push(prefix);

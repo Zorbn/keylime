@@ -47,12 +47,24 @@ impl LspCompletionState {
     }
 }
 
+struct CompletionResult {
+    label: String,
+    insert_text: Option<String>,
+    range: Option<(Position, Position)>,
+}
+
+impl CompletionResult {
+    fn insert_text(&self) -> &str {
+        self.insert_text.as_ref().unwrap_or(&self.label)
+    }
+}
+
 pub struct Editor {
     doc_list: SlotList<Doc>,
     // There should always be at least one pane.
     panes: FocusList<EditorPane>,
 
-    completion_result_list: ResultList<String>,
+    completion_result_list: ResultList<CompletionResult>,
     completion_result_pool: LinePool,
     completion_prefix: String,
     lsp_completion_state: LspCompletionState,
@@ -113,7 +125,7 @@ impl Editor {
 
         for y in min_y..max_y {
             longest_visible_result =
-                longest_visible_result.max(self.completion_result_list.results[y].len());
+                longest_visible_result.max(self.completion_result_list.results[y].label.len());
         }
 
         self.completion_result_list.layout(
@@ -229,16 +241,7 @@ impl Editor {
             | ResultListInput::Submit {
                 kind: ResultListSubmitKind::Normal,
             } => {
-                if let Some(result) = self.completion_result_list.get_selected_result() {
-                    let pane = self.panes.get_focused_mut().unwrap();
-                    let focused_tab_index = pane.focused_tab_index();
-
-                    if let Some((_, doc)) =
-                        pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
-                    {
-                        doc.insert_at_cursors(&result[self.completion_prefix.len()..], ctx);
-                    }
-                }
+                self.insert_completion_result(ctx);
 
                 Self::clear_completions(
                     &mut self.completion_result_list,
@@ -284,9 +287,29 @@ impl Editor {
         self.completion_result_list
             .results
             .extend(completion_list.iter().map(|item| {
-                let mut result = self.completion_result_pool.pop();
-                result.push_str(item.label);
-                result
+                let (label, insert_text, range) = if let Some(text_edit) = &item.text_edit {
+                    let start = Position::from(text_edit.range.start);
+                    let end = Position::from(text_edit.range.end);
+
+                    (item.label, Some(text_edit.new_text), Some((start, end)))
+                } else {
+                    (item.label, item.insert_text, None)
+                };
+
+                let mut label_string = self.completion_result_pool.pop();
+                label_string.push_str(label);
+
+                let insert_text_string = insert_text.map(|insert_text| {
+                    let mut insert_text_string = self.completion_result_pool.pop();
+                    insert_text_string.push_str(insert_text);
+                    insert_text_string
+                });
+
+                CompletionResult {
+                    label: label_string,
+                    insert_text: insert_text_string,
+                    range,
+                }
             }));
 
         self.lsp_completion_state =
@@ -333,7 +356,8 @@ impl Editor {
         }
 
         if self.is_cursor_visible(ctx.gfx) {
-            self.completion_result_list.draw(ctx, |result| result);
+            self.completion_result_list
+                .draw(ctx, |result| &result.label);
         }
     }
 
@@ -370,11 +394,15 @@ impl Editor {
     }
 
     fn clear_completions(
-        completion_result_list: &mut ResultList<String>,
+        completion_result_list: &mut ResultList<CompletionResult>,
         completion_result_pool: &mut LinePool,
     ) {
         for result in completion_result_list.drain() {
-            completion_result_pool.push(result);
+            completion_result_pool.push(result.label);
+
+            if let Some(insert_text) = result.insert_text {
+                completion_result_pool.push(insert_text);
+            }
         }
     }
 
@@ -440,9 +468,33 @@ impl Editor {
         if !self.completion_prefix.is_empty() {
             doc.tokens().traverse(
                 &self.completion_prefix,
-                &mut self.completion_result_list.results,
                 &mut self.completion_result_pool,
+                |label| {
+                    self.completion_result_list.results.push(CompletionResult {
+                        label,
+                        insert_text: None,
+                        range: None,
+                    });
+                },
             );
+        }
+
+        Some(())
+    }
+
+    fn insert_completion_result(&mut self, ctx: &mut Ctx) -> Option<()> {
+        let result = self.completion_result_list.get_selected_result()?;
+        let pane = self.panes.get_focused_mut().unwrap();
+        let focused_tab_index = pane.focused_tab_index();
+
+        let (_, doc) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)?;
+        let insert_text = result.insert_text();
+
+        if let Some((start, end)) = result.range {
+            doc.delete(start, end, ctx);
+            doc.insert(start, insert_text, ctx);
+        } else {
+            doc.insert_at_cursors(&insert_text[self.completion_prefix.len()..], ctx);
         }
 
         Some(())

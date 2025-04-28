@@ -29,8 +29,6 @@ use platform::window::WindowRunner;
  * - Show a pop-up when hovering them or putting the cursor over them.
  * - If there are warnings or errors in a doc highlight it's name in the tab a corresponding color.
  * Scroll bar along the right side of each tab that shows the current camera location as well as the location of diagnostics.
- * LSP completions.
- * - Used instead of the tokenizer solution when a server is active for the current doc's language.
  * Replace TOML config with JSON config (the basic-toml library is unmaintained now anyway).
  * - Add JSON highlighter, keep TOML highlighter for Cargo.toml and stuff.
  * Language servers may encode positions as utf-16 offsets instead of utf-8.
