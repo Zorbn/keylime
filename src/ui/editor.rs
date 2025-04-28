@@ -401,7 +401,7 @@ impl Editor {
                 let mut visual_start = doc.position_to_visual(start, tab.camera.position(), gfx);
                 visual_start = visual_start.offset_by(tab.doc_bounds());
 
-                popup_bounds.x = visual_start.x;
+                popup_bounds.x += visual_start.x;
                 popup_bounds.y = visual_start.y - popup_bounds.height;
 
                 if popup_bounds.right() > gfx.width() - margin {

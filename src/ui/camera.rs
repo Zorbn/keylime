@@ -15,8 +15,8 @@ const PRECISE_SCROLL_SPEED: f32 = 0.1;
 const SCROLL_FRICTION: f32 = 0.0001;
 
 pub struct CameraAxis {
-    pub position: f32,
     pub is_locked: bool,
+    position: f32,
     velocity: f32,
     recenter_kind: CameraRecenterKind,
 }
@@ -24,8 +24,8 @@ pub struct CameraAxis {
 impl CameraAxis {
     pub fn new() -> Self {
         Self {
-            position: 0.0,
             is_locked: false,
+            position: 0.0,
             velocity: 0.0,
             recenter_kind: CameraRecenterKind::None,
         }

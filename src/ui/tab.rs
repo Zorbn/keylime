@@ -253,10 +253,6 @@ impl Tab {
         }
     }
 
-    pub fn recenter_camera(&mut self) {
-        self.handled_cursor_position = None;
-    }
-
     pub fn tab_bounds(&self) -> Rect {
         self.tab_bounds
     }

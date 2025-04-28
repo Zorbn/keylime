@@ -23,6 +23,7 @@ use crate::{
         syntax_highlighter::TerminalHighlightKind,
     },
     ui::{
+        camera::CameraRecenterKind,
         core::{Ui, Widget},
         tab::Tab,
     },
@@ -266,22 +267,17 @@ impl TerminalEmulator {
         self.pty = Some(pty);
 
         if self.did_doc_cursors_move {
-            tab.recenter_camera();
+            tab.camera
+                .vertical
+                .recenter(CameraRecenterKind::OnScrollBorder);
+
             self.did_doc_cursors_move = false;
         }
 
         tab.camera.horizontal.is_locked = true;
 
-        if self.is_in_alternate_buffer {
-            // The alternate buffer is always the size of the camera and doesn't need to scroll.
-            tab.camera.vertical.is_locked = true;
-        } else {
-            tab.camera.vertical.is_locked = false;
-
-            tab.camera.vertical.position -=
-                self.excess_lines_trimmed as f32 * ctx.gfx.line_height();
-            self.excess_lines_trimmed = 0;
-        }
+        // The alternate buffer is always the size of the camera and doesn't need to scroll.
+        tab.camera.vertical.is_locked = self.is_in_alternate_buffer;
     }
 
     fn expand_to_grid_size(
@@ -681,7 +677,6 @@ impl TerminalEmulator {
 
     pub fn jump_cursor(&mut self, position: Position, doc: &mut Doc, gfx: &mut Gfx) {
         self.grid_cursor = self.clamp_position(position, doc);
-
         self.jump_doc_cursors_to_grid_cursor(doc, gfx);
     }
 
