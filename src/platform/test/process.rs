@@ -10,7 +10,7 @@ pub struct Process {
 }
 
 impl Process {
-    pub fn new(_child_paths: &[&str], _kind: ProcessKind) -> Result<Self> {
+    pub fn new(_commands: &[&str], _kind: ProcessKind) -> Result<Self> {
         Ok(Self {
             input: Vec::new(),
             output: Arc::new(Mutex::new(Vec::new())),

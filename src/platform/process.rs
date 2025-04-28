@@ -12,8 +12,8 @@ pub struct Process {
 }
 
 impl Process {
-    pub fn new(child_paths: &[&str], kind: ProcessKind) -> Result<Self> {
-        let inner = platform_impl::process::Process::new(child_paths, kind)?;
+    pub fn new(commands: &[&str], kind: ProcessKind) -> Result<Self> {
+        let inner = platform_impl::process::Process::new(commands, kind)?;
 
         Ok(Self { inner })
     }

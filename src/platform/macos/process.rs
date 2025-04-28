@@ -31,7 +31,7 @@ pub struct Process {
 }
 
 impl Process {
-    pub fn new(child_paths: &[&str], kind: ProcessKind) -> Result<Self> {
+    pub fn new(commands: &[&str], kind: ProcessKind) -> Result<Self> {
         let kq = unsafe { libc::kqueue() };
         let mut result_fds = [0, 0];
 
@@ -98,9 +98,17 @@ impl Process {
                 libc::fcntl(result_fds[PIPE_WRITE], libc::F_SETFD, flags);
             }
 
-            for child_path in child_paths {
-                let child_path = CString::new(*child_path).unwrap();
-                let args = &[child_path.as_ptr(), null()];
+            for command in commands {
+                let Some(child_path) = command.split(' ').nth(0) else {
+                    continue;
+                };
+
+                let child_path = CString::new(child_path).unwrap();
+                let args: Vec<*const i8> = command
+                    .split(' ')
+                    .map(|arg| arg.as_ptr() as _)
+                    .chain([null()])
+                    .collect();
 
                 unsafe {
                     if matches!(kind, ProcessKind::Pty { .. }) {
