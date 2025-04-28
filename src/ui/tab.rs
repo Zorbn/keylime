@@ -488,7 +488,7 @@ impl Tab {
 
         for language_server in ctx.lsp.iter_servers_mut() {
             for diagnostic in language_server.get_diagnostics_mut(path) {
-                if diagnostic.severity == 4 {
+                if !diagnostic.is_visible() {
                     continue;
                 }
 

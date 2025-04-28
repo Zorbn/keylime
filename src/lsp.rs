@@ -16,40 +16,6 @@ use crate::{
     ui::editor::Editor,
 };
 
-fn path_to_uri(path: &Path, result: &mut String) {
-    assert!(path.is_absolute());
-
-    result.push_str("file://");
-
-    if let Some(parent) = path.parent() {
-        for component in parent {
-            let Some(component) = component.to_str() else {
-                continue;
-            };
-
-            encode_path_component(component, result);
-
-            if component != "/" {
-                result.push('/');
-            }
-        }
-    }
-
-    if let Some(file_name) = path.file_name().and_then(|file_name| file_name.to_str()) {
-        encode_path_component(file_name, result);
-    }
-}
-
-fn encode_path_component(component: &str, result: &mut String) {
-    for c in component.chars() {
-        if c == ' ' {
-            result.push_str("%20");
-        } else {
-            result.push(c);
-        }
-    }
-}
-
 const DEFAULT_SEVERITY: fn() -> usize = || 1;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
@@ -88,6 +54,12 @@ pub struct LspDiagnostic {
     pub range: LspRange,
     #[serde(default = "DEFAULT_SEVERITY")]
     pub severity: usize,
+}
+
+impl LspDiagnostic {
+    pub fn is_visible(&self) -> bool {
+        self.severity != 4
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -525,5 +497,39 @@ impl Drop for LanguageServer {
     fn drop(&mut self) {
         self.send_request("shutdown", json!({}));
         self.send_notification("exit", json!({}));
+    }
+}
+
+fn path_to_uri(path: &Path, result: &mut String) {
+    assert!(path.is_absolute());
+
+    result.push_str("file://");
+
+    if let Some(parent) = path.parent() {
+        for component in parent {
+            let Some(component) = component.to_str() else {
+                continue;
+            };
+
+            encode_path_component(component, result);
+
+            if component != "/" {
+                result.push('/');
+            }
+        }
+    }
+
+    if let Some(file_name) = path.file_name().and_then(|file_name| file_name.to_str()) {
+        encode_path_component(file_name, result);
+    }
+}
+
+fn encode_path_component(component: &str, result: &mut String) {
+    for c in component.chars() {
+        if c == ' ' {
+            result.push_str("%20");
+        } else {
+            result.push(c);
+        }
     }
 }

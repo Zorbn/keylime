@@ -26,13 +26,13 @@ use platform::window::WindowRunner;
  * Handle what should happen when the user doesn't have a certain LSP installed.
  * Extend Process to allow supplying arguments to LSPs.
  * LSP diagnostics.
- * - Show a pop-up when hovering them or putting the cursor over them.
  * - If there are warnings or errors in a doc highlight it's name in the tab a corresponding color.
  * Scroll bar along the right side of each tab that shows the current camera location as well as the location of diagnostics.
  * Replace TOML config with JSON config (the basic-toml library is unmaintained now anyway).
  * - Add JSON highlighter, keep TOML highlighter for Cargo.toml and stuff.
  * Language servers may encode positions as utf-16 offsets instead of utf-8.
  * Language server completion responses might be a list of completion items instead of a completion list object.
+ * Skip adding lsp completion results if by the time they are being added the popup shouldn't be open anymore.
  */
 
 fn main() {

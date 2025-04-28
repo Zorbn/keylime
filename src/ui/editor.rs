@@ -5,7 +5,7 @@ use editor_pane::EditorPane;
 
 use crate::{
     ctx::Ctx,
-    geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
+    geometry::{position::Position, rect::Rect, side::SIDE_ALL, visual_position::VisualPosition},
     input::{
         action::{action_keybind, action_name},
         mouse_button::MouseButton,
@@ -284,33 +284,31 @@ impl Editor {
         completion_list.retain(|item| item.filter_text().starts_with(&self.completion_prefix));
         completion_list.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
 
-        self.completion_result_list
-            .results
-            .extend(completion_list.iter().map(|item| {
-                let (label, insert_text, range) = if let Some(text_edit) = &item.text_edit {
-                    let start = Position::from(text_edit.range.start);
-                    let end = Position::from(text_edit.range.end);
+        for item in completion_list {
+            let (label, insert_text, range) = if let Some(text_edit) = &item.text_edit {
+                let start = Position::from(text_edit.range.start);
+                let end = Position::from(text_edit.range.end);
 
-                    (item.label, Some(text_edit.new_text), Some((start, end)))
-                } else {
-                    (item.label, item.insert_text, None)
-                };
+                (item.label, Some(text_edit.new_text), Some((start, end)))
+            } else {
+                (item.label, item.insert_text, None)
+            };
 
-                let mut label_string = self.completion_result_pool.pop();
-                label_string.push_str(label);
+            let mut label_string = self.completion_result_pool.pop();
+            label_string.push_str(label);
 
-                let insert_text_string = insert_text.map(|insert_text| {
-                    let mut insert_text_string = self.completion_result_pool.pop();
-                    insert_text_string.push_str(insert_text);
-                    insert_text_string
-                });
+            let insert_text_string = insert_text.map(|insert_text| {
+                let mut insert_text_string = self.completion_result_pool.pop();
+                insert_text_string.push_str(insert_text);
+                insert_text_string
+            });
 
-                CompletionResult {
-                    label: label_string,
-                    insert_text: insert_text_string,
-                    range,
-                }
-            }));
+            self.completion_result_list.results.push(CompletionResult {
+                label: label_string,
+                insert_text: insert_text_string,
+                range,
+            });
+        }
 
         self.lsp_completion_state =
             if self.lsp_completion_state == LspCompletionState::MultiplePending {
@@ -358,7 +356,82 @@ impl Editor {
         if self.is_cursor_visible(ctx.gfx) {
             self.completion_result_list
                 .draw(ctx, |result| &result.label);
+
+            self.draw_diagnostic_popup(ctx);
         }
+    }
+
+    fn draw_diagnostic_popup(&self, ctx: &mut Ctx) -> Option<()> {
+        let pane = self.panes.get_focused().unwrap();
+        let focused_tab_index = pane.focused_tab_index();
+
+        let (tab, doc) = pane.get_tab_with_data(focused_tab_index, &self.doc_list)?;
+
+        let position = doc.get_cursor(CursorIndex::Main).position;
+        let path = doc.path().on_drive()?;
+
+        for language_server in ctx.lsp.iter_servers_mut() {
+            for diagnostic in language_server.get_diagnostics_mut(path) {
+                if !diagnostic.is_visible() {
+                    continue;
+                }
+
+                let start = Position::from(diagnostic.range.start);
+                let end = Position::from(diagnostic.range.end);
+
+                if position < start || position > end {
+                    continue;
+                }
+
+                let gfx = &mut ctx.gfx;
+                let theme = &ctx.config.theme;
+
+                let mut popup_bounds = Rect::ZERO;
+
+                for line in diagnostic.message.lines() {
+                    popup_bounds.height += gfx.line_height();
+
+                    let line_width = gfx.measure_text(line) as f32 * gfx.glyph_width();
+                    popup_bounds.width = popup_bounds.width.max(line_width);
+                }
+
+                let margin = gfx.glyph_width();
+                popup_bounds = popup_bounds.add_margin(margin);
+
+                let mut visual_start = doc.position_to_visual(start, tab.camera.position(), gfx);
+                visual_start = visual_start.offset_by(tab.doc_bounds());
+
+                popup_bounds.x = visual_start.x;
+                popup_bounds.y = visual_start.y - popup_bounds.height;
+
+                if popup_bounds.right() > gfx.width() - margin {
+                    popup_bounds.x -= popup_bounds.right() - (gfx.width() - margin);
+                }
+
+                popup_bounds.x = popup_bounds.x.max(margin);
+
+                gfx.begin(Some(popup_bounds));
+
+                gfx.add_bordered_rect(
+                    popup_bounds.unoffset_by(popup_bounds),
+                    SIDE_ALL,
+                    theme.background,
+                    theme.border,
+                );
+
+                for (y, line) in diagnostic.message.lines().enumerate() {
+                    let y = y as f32 * gfx.line_height() + gfx.line_padding() + margin;
+
+                    gfx.add_text(line, margin, y, theme.normal);
+                }
+
+                gfx.end();
+
+                return Some(());
+            }
+        }
+
+        Some(())
     }
 
     fn get_completion_prefix<'a>(doc: &'a Doc, gfx: &mut Gfx) -> Option<&'a str> {
