@@ -100,25 +100,24 @@ struct LspPublishDiagnosticsParams {
 #[serde(rename_all = "camelCase")]
 pub struct LspCompletionItem<'a> {
     pub label: &'a str,
-    pub sort_text: Option<&'a str>,
-    pub filter_text: Option<&'a str>,
+    sort_text: Option<&'a str>,
+    filter_text: Option<&'a str>,
+}
+
+impl LspCompletionItem<'_> {
+    pub fn sort_text(&self) -> &str {
+        self.sort_text.unwrap_or(self.label)
+    }
+
+    pub fn filter_text(&self) -> &str {
+        self.filter_text.unwrap_or(self.label)
+    }
 }
 
 #[derive(Debug, Deserialize)]
 pub struct LspCompletionList<'a> {
     #[serde(borrow)]
     pub items: Vec<LspCompletionItem<'a>>,
-}
-
-impl LspCompletionList<'_> {
-    pub fn sort(&mut self) {
-        self.items.sort_by(|a, b| {
-            let a_sort_text = a.sort_text.unwrap_or(a.label);
-            let b_sort_text = b.sort_text.unwrap_or(b.label);
-
-            a_sort_text.cmp(b_sort_text)
-        });
-    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -369,11 +368,10 @@ impl LanguageServer {
                                 .and_then(|result| {
                                     serde_json::from_str::<LspCompletionList>(result).ok()
                                 })
-                                .unwrap_or(LspCompletionList { items: Vec::new() });
+                                .map(|result| result.items)
+                                .unwrap_or_default();
 
-                            result.sort();
-
-                            editor.lsp_add_completion_results(&result);
+                            editor.lsp_add_completion_results(&mut result);
                         }
                         _ => {}
                     }

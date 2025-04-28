@@ -11,7 +11,7 @@ use crate::{
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
-    lsp::LspCompletionList,
+    lsp::LspCompletionItem,
     platform::{file_watcher::FileWatcher, gfx::Gfx},
     text::{cursor_index::CursorIndex, doc::Doc, grapheme, line_pool::LinePool},
 };
@@ -28,6 +28,25 @@ pub mod editor_pane;
 
 const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum LspCompletionState {
+    Idle,
+    Pending,
+    MultiplePending,
+    ReadyForCompletion,
+}
+
+impl LspCompletionState {
+    pub fn next(&self) -> LspCompletionState {
+        match self {
+            LspCompletionState::Idle => LspCompletionState::Pending,
+            LspCompletionState::Pending => LspCompletionState::MultiplePending,
+            LspCompletionState::MultiplePending => LspCompletionState::MultiplePending,
+            _ => *self,
+        }
+    }
+}
+
 pub struct Editor {
     doc_list: SlotList<Doc>,
     // There should always be at least one pane.
@@ -36,6 +55,7 @@ pub struct Editor {
     completion_result_list: ResultList<String>,
     completion_result_pool: LinePool,
     completion_prefix: String,
+    lsp_completion_state: LspCompletionState,
 
     pub widget: Widget,
 }
@@ -49,6 +69,7 @@ impl Editor {
             completion_result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS),
             completion_result_pool: LinePool::new(),
             completion_prefix: String::new(),
+            lsp_completion_state: LspCompletionState::Idle,
 
             widget: Widget::new(ui, true),
         };
@@ -116,13 +137,17 @@ impl Editor {
 
         let mut grapheme_handler = ui.get_grapheme_handler(&self.widget, ctx.window);
 
-        let mut should_open_completions = if grapheme_handler.next(ctx.window).is_some() {
-            grapheme_handler.unprocessed(ctx.window);
+        let mut should_open_completions = false;
 
-            true
-        } else {
-            false
-        };
+        if grapheme_handler.next(ctx.window).is_some() {
+            should_open_completions = true;
+            grapheme_handler.unprocessed(ctx.window);
+        }
+
+        if self.lsp_completion_state == LspCompletionState::ReadyForCompletion {
+            should_open_completions = true;
+            self.lsp_completion_state = LspCompletionState::Idle;
+        }
 
         let mut mousebind_handler = ui.get_mousebind_handler(&self.widget, ctx.window);
 
@@ -247,27 +272,29 @@ impl Editor {
         self.completion_result_list.update_camera(dt);
     }
 
-    pub fn lsp_add_completion_results(&mut self, completion_list: &LspCompletionList) {
+    pub fn lsp_add_completion_results(&mut self, completion_list: &mut Vec<LspCompletionItem>) {
         Self::clear_completions(
             &mut self.completion_result_list,
             &mut self.completion_result_pool,
         );
 
-        self.completion_result_list.results.extend(
-            completion_list
-                .items
-                .iter()
-                .filter(|item| {
-                    item.filter_text
-                        .unwrap_or(item.label)
-                        .starts_with(&self.completion_prefix)
-                })
-                .map(|item| {
-                    let mut result = self.completion_result_pool.pop();
-                    result.push_str(item.label);
-                    result
-                }),
-        );
+        completion_list.retain(|item| item.filter_text().starts_with(&self.completion_prefix));
+        completion_list.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
+
+        self.completion_result_list
+            .results
+            .extend(completion_list.iter().map(|item| {
+                let mut result = self.completion_result_pool.pop();
+                result.push_str(item.label);
+                result
+            }));
+
+        self.lsp_completion_state =
+            if self.lsp_completion_state == LspCompletionState::MultiplePending {
+                LspCompletionState::ReadyForCompletion
+            } else {
+                LspCompletionState::Idle
+            };
     }
 
     // Necessary when syntax highlighting rules change.
@@ -351,6 +378,7 @@ impl Editor {
         }
     }
 
+    // TODO: Simplify all of the clear_completions calls.
     fn update_completions(
         &mut self,
         should_open_completions: bool,
@@ -382,11 +410,25 @@ impl Editor {
         let focused_tab_index = pane.focused_tab_index();
 
         let (_, doc) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)?;
-        let prefix = Self::get_completion_prefix(doc, ctx.gfx)?;
+
+        let Some(prefix) = Self::get_completion_prefix(doc, ctx.gfx) else {
+            Self::clear_completions(
+                &mut self.completion_result_list,
+                &mut self.completion_result_pool,
+            );
+
+            return None;
+        };
 
         self.completion_prefix.push_str(prefix);
 
-        if doc.lsp_completion(position, ctx).is_some() {
+        if doc.get_language_server_mut(ctx).is_some() {
+            if self.lsp_completion_state == LspCompletionState::Idle {
+                doc.lsp_completion(position, ctx);
+            }
+
+            self.lsp_completion_state = self.lsp_completion_state.next();
+
             return Some(());
         }
 

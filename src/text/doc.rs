@@ -8,8 +8,10 @@ use std::{
 };
 
 use crate::{
+    config::language::Language,
     ctx::{ctx_with_time, Ctx},
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
+    lsp::LanguageServer,
     platform::gfx::Gfx,
     temp_buffer::TempString,
     text::grapheme,
@@ -1951,18 +1953,23 @@ impl Doc {
         }
     }
 
-    fn do_use_lsp(&self) -> bool {
-        self.kind != DocKind::Output
-    }
-
-    fn lsp_did_open(&mut self, text: &str, ctx: &mut Ctx) -> Option<()> {
-        if !self.do_use_lsp() {
+    pub fn get_language_server_mut<'a>(
+        &self,
+        ctx: &'a mut Ctx,
+    ) -> Option<(&'a Language, &'a mut LanguageServer)> {
+        if self.kind == DocKind::Output {
             return None;
         }
 
         let language = ctx.config.get_language_for_doc(self)?;
-        let language_id = language.lsp_language_id.as_ref()?;
         let language_server = ctx.lsp.get_language_server_mut(language)?;
+
+        Some((language, language_server))
+    }
+
+    fn lsp_did_open(&mut self, text: &str, ctx: &mut Ctx) -> Option<()> {
+        let (language, language_server) = self.get_language_server_mut(ctx)?;
+        let language_id = language.lsp_language_id.as_ref()?;
         let path = self.path.on_drive()?;
 
         language_server.did_open(path, language_id, self.version, text);
@@ -1977,12 +1984,7 @@ impl Doc {
         text: &str,
         ctx: &mut Ctx,
     ) -> Option<()> {
-        if !self.do_use_lsp() {
-            return None;
-        }
-
-        let language = ctx.config.get_language_for_doc(self)?;
-        let language_server = ctx.lsp.get_language_server_mut(language)?;
+        let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;
 
         language_server.did_change(path, self.version, start, end, text);
@@ -1991,12 +1993,7 @@ impl Doc {
     }
 
     pub fn lsp_completion(&mut self, position: Position, ctx: &mut Ctx) -> Option<()> {
-        if !self.do_use_lsp() {
-            return None;
-        }
-
-        let language = ctx.config.get_language_for_doc(self)?;
-        let language_server = ctx.lsp.get_language_server_mut(language)?;
+        let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;
 
         language_server.completion(path, position);
@@ -2009,12 +2006,7 @@ impl Doc {
         method: &'static str,
         ctx: &mut Ctx,
     ) -> Option<()> {
-        if !self.do_use_lsp() {
-            return None;
-        }
-
-        let language = ctx.config.get_language_for_doc(self)?;
-        let language_server = ctx.lsp.get_language_server_mut(language)?;
+        let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;
 
         language_server.text_document_notification(path, method);
