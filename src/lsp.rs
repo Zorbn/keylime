@@ -523,8 +523,11 @@ fn uri_to_path(uri: &str, mut result: String) -> Option<PathBuf> {
 
     if let Some(c) = chars.next() {
         if c.is_ascii_alphabetic() && chars.peek() == Some(&':') {
+            // This is a drive letter.
             result.push(c.to_ascii_uppercase());
         } else {
+            // No drive letter, add a root slash instead.
+            result.push('/');
             result.push(c);
         }
     }
