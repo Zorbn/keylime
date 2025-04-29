@@ -11,6 +11,7 @@ use crate::{
         grapheme,
         selection::Selection,
     },
+    ui::tab::Tab,
 };
 
 use super::{
@@ -85,7 +86,7 @@ fn should_insert_matching_grapheme(
     is_next_clear && is_previous_clear
 }
 
-pub fn handle_action(action: Action, doc: &mut Doc, ctx: &mut Ctx) -> bool {
+pub fn handle_action(action: Action, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) -> bool {
     match action {
         action_name!(MoveLeft, mods) => handle_move(-1, 0, mods & MOD_SHIFT != 0, doc, ctx.gfx),
         action_name!(MoveRight, mods) => handle_move(1, 0, mods & MOD_SHIFT != 0, doc, ctx.gfx),
@@ -117,12 +118,12 @@ pub fn handle_action(action: Action, doc: &mut Doc, ctx: &mut Ctx) -> bool {
         action_keybind!(key: Enter, mods: 0) => handle_enter(doc, ctx),
         action_keybind!(key: Tab, mods) => handle_tab(mods, doc, ctx),
         action_name!(PageUp, mods) => {
-            let height_lines = ctx.gfx.height_lines();
+            let height_lines = tab.doc_height_lines(ctx.gfx) as isize;
 
             doc.move_cursors(0, -height_lines, mods & MOD_SHIFT != 0, ctx.gfx);
         }
         action_name!(PageDown, mods) => {
-            let height_lines = ctx.gfx.height_lines();
+            let height_lines = tab.doc_height_lines(ctx.gfx) as isize;
 
             doc.move_cursors(0, height_lines, mods & MOD_SHIFT != 0, ctx.gfx);
         }

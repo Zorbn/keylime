@@ -252,8 +252,4 @@ impl Gfx {
     pub fn tab_padding_y(&self) -> f32 {
         ((self.tab_height() - self.glyph_height()) / 2.0).ceil()
     }
-
-    pub fn height_lines(&self) -> isize {
-        (self.height() / self.line_height()) as isize
-    }
 }

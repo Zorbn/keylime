@@ -152,7 +152,7 @@ impl Tab {
         let mut action_handler = ui.get_action_handler(widget, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
-            let was_handled = handle_action(action, doc, ctx);
+            let was_handled = handle_action(action, self, doc, ctx);
 
             if !was_handled {
                 action_handler.unprocessed(ctx.window, action);
@@ -261,6 +261,10 @@ impl Tab {
         self.doc_bounds
     }
 
+    pub fn doc_height_lines(&self, gfx: &Gfx) -> usize {
+        (self.doc_bounds.height / gfx.line_height()) as usize
+    }
+
     fn get_line_foreground_visual_y(index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
         Self::get_line_background_visual_y(index, sub_line_offset_y, gfx) + gfx.line_padding()
     }
@@ -318,6 +322,7 @@ impl Tab {
         self.draw_lines(default_background, doc, camera_position, visible_lines, ctx);
         self.draw_diagnostics(doc, camera_position, visible_lines, ctx);
         self.draw_cursors(doc, is_focused, camera_position, visible_lines, ctx);
+        self.draw_scroll_bar(doc, visible_lines, ctx);
 
         ctx.gfx.end();
     }
@@ -591,5 +596,73 @@ impl Tab {
                 );
             }
         }
+    }
+
+    fn draw_scroll_bar(&mut self, doc: &Doc, visible_lines: VisibleLines, ctx: &mut Ctx) {
+        if doc.kind() != DocKind::MultiLine {
+            return;
+        }
+
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
+
+        for language_server in ctx.lsp.iter_servers_mut() {
+            for diagnostic in language_server.get_diagnostics_mut(doc) {
+                if !diagnostic.is_visible() {
+                    continue;
+                }
+
+                let color = diagnostic.color(theme);
+                let (start, end) = diagnostic.range;
+
+                gfx.add_rect(
+                    self.doc_range_to_scrollbar_rect(start.y, end.y.max(start.y + 1), doc, gfx),
+                    color,
+                );
+            }
+        }
+
+        for index in doc.cursor_indices() {
+            let cursor_y = doc.get_cursor(index).position.y;
+
+            gfx.add_rect(
+                self.doc_range_to_scrollbar_rect(cursor_y, cursor_y + 1, doc, gfx),
+                theme.normal,
+            );
+        }
+
+        let doc_height_lines = self.doc_height_lines(gfx);
+
+        gfx.add_rect(
+            self.doc_range_to_scrollbar_rect(
+                visible_lines.min_y,
+                visible_lines.max_y.max(doc_height_lines),
+                doc,
+                gfx,
+            ),
+            theme.scroll_bar,
+        );
+    }
+
+    fn doc_range_to_scrollbar_rect(
+        &self,
+        start_y: usize,
+        end_y: usize,
+        doc: &Doc,
+        gfx: &Gfx,
+    ) -> Rect {
+        let doc_height_lines = self.doc_height_lines(gfx);
+        let doc_len = doc.lines().len().max(doc_height_lines);
+
+        let width = gfx.glyph_width() / 2.0;
+        let x = self.doc_bounds.width - width;
+
+        let start_y = (start_y as f32 / doc_len as f32) * self.doc_bounds.height;
+        let end_y = ((end_y + 1) as f32 / doc_len as f32) * self.doc_bounds.height;
+
+        let start_y = start_y.floor();
+        let end_y = end_y.floor();
+
+        Rect::new(x, start_y, width, (end_y - start_y).max(gfx.border_width()))
     }
 }
