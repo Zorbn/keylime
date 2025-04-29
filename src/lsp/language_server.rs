@@ -10,8 +10,8 @@ use crate::{
     geometry::position::Position,
     lsp::{
         types::{
-            CompletionItem, LspCompletionList, LspInitializeResult, LspMessageHeader, LspPosition,
-            LspPublishDiagnosticsParams,
+            CompletionItem, LspCompletionResult, LspInitializeResult, LspMessageHeader,
+            LspPosition, LspPublishDiagnosticsParams,
         },
         uri::uri_to_path,
     },
@@ -254,9 +254,13 @@ impl LanguageServer {
 
                             let result = result
                                 .and_then(|result| {
-                                    serde_json::from_str::<LspCompletionList>(result).ok()
+                                    serde_json::from_str::<LspCompletionResult>(result).ok()
                                 })
-                                .map(|result| result.items)
+                                .and_then(|result| match result {
+                                    LspCompletionResult::None => None,
+                                    LspCompletionResult::Items(items) => Some(items),
+                                    LspCompletionResult::List(list) => Some(list.items),
+                                })
                                 .unwrap_or_default();
 
                             let Some((_, doc)) = editor.get_focused_tab_and_doc() else {

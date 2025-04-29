@@ -147,6 +147,15 @@ pub(super) struct LspCompletionList<'a> {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub(super) enum LspCompletionResult<'a> {
+    List(LspCompletionList<'a>),
+    #[serde(borrow)]
+    Items(Vec<LspCompletionItem<'a>>),
+    None,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct LspServerCapabilities<'a> {
     pub position_encoding: &'a str,
