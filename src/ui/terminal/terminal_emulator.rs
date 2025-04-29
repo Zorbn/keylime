@@ -142,7 +142,7 @@ impl TerminalEmulator {
 
     pub fn update_input(
         &mut self,
-        widget: &mut Widget,
+        widget: &Widget,
         ui: &mut Ui,
         docs: &mut TerminalDocs,
         tab: &mut Tab,

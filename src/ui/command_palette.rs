@@ -192,7 +192,7 @@ impl CommandPalette {
 
         let result_input = self
             .result_list
-            .update(&mut self.widget, ui, ctx.window, true, true);
+            .update(&self.widget, ui, ctx.window, true, true);
 
         match result_input {
             ResultListInput::None => {}
@@ -203,13 +203,12 @@ impl CommandPalette {
             ResultListInput::Close => self.close(ui),
         }
 
-        self.tab.update(&mut self.widget, ui, &mut self.doc, ctx);
+        self.tab.update(&self.widget, ui, &mut self.doc, ctx);
         self.update_results(editor, ctx);
     }
 
     pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
-        self.tab
-            .update_camera(&mut self.widget, ui, &self.doc, ctx, dt);
+        self.tab.update_camera(&self.widget, ui, &self.doc, ctx, dt);
         self.result_list.update_camera(dt);
     }
 

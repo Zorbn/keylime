@@ -78,7 +78,7 @@ impl<T> ResultList<T> {
 
     pub fn update(
         &mut self,
-        widget: &mut Widget,
+        widget: &Widget,
         ui: &mut Ui,
         window: &mut Window,
         can_be_visible: bool,
@@ -104,7 +104,7 @@ impl<T> ResultList<T> {
     fn handle_mouse_inputs(
         &mut self,
         input: &mut ResultListInput,
-        widget: &mut Widget,
+        widget: &Widget,
         ui: &mut Ui,
         window: &mut Window,
     ) {
@@ -168,7 +168,7 @@ impl<T> ResultList<T> {
     fn handle_keybinds(
         &mut self,
         input: &mut ResultListInput,
-        widget: &mut Widget,
+        widget: &Widget,
         ui: &mut Ui,
         window: &mut Window,
     ) {

@@ -1972,7 +1972,7 @@ impl Doc {
         Some(())
     }
 
-    pub fn lsp_completion(&mut self, position: Position, ctx: &mut Ctx) -> Option<()> {
+    pub fn lsp_completion(&self, position: Position, ctx: &mut Ctx) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;
 

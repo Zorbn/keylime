@@ -98,8 +98,7 @@ impl Terminal {
             }
         }
 
-        self.pane
-            .update(&mut self.widget, ui, &mut self.term_list, ctx);
+        self.pane.update(&self.widget, ui, &mut self.term_list, ctx);
 
         let focused_tab_index = self.pane.focused_tab_index();
 
@@ -107,7 +106,7 @@ impl Terminal {
             .pane
             .get_tab_with_data_mut(focused_tab_index, &mut self.term_list)
         {
-            emulator.update_input(&mut self.widget, ui, docs, tab, ctx);
+            emulator.update_input(&self.widget, ui, docs, tab, ctx);
         }
 
         for tab in self.pane.tabs.iter_mut() {
@@ -123,7 +122,7 @@ impl Terminal {
 
     pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
         self.pane
-            .update_camera(&mut self.widget, ui, &mut self.term_list, ctx, dt);
+            .update_camera(&self.widget, ui, &mut self.term_list, ctx, dt);
     }
 
     pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {

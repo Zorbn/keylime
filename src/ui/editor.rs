@@ -1,75 +1,34 @@
 use std::path::Path;
 
+use completion_list::CompletionList;
 use doc_io::confirm_close_all;
 use editor_pane::EditorPane;
 
 use crate::{
     ctx::Ctx,
-    geometry::{position::Position, rect::Rect, side::SIDE_ALL, visual_position::VisualPosition},
-    input::{
-        action::{action_keybind, action_name},
-        mouse_button::MouseButton,
-        mousebind::Mousebind,
-    },
-    lsp::types::CompletionItem,
+    geometry::{rect::Rect, side::SIDE_ALL, visual_position::VisualPosition},
+    input::{action::action_name, mouse_button::MouseButton, mousebind::Mousebind},
     platform::{file_watcher::FileWatcher, gfx::Gfx},
-    text::{cursor_index::CursorIndex, doc::Doc, grapheme, line_pool::LinePool},
+    text::{cursor_index::CursorIndex, doc::Doc, line_pool::LinePool},
 };
 
 use super::{
     core::{Ui, Widget},
     focus_list::FocusList,
-    result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     slot_list::SlotList,
     tab::Tab,
 };
 
+pub mod completion_list;
 mod doc_io;
 pub mod editor_pane;
-
-const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-enum LspCompletionState {
-    Idle,
-    Pending,
-    MultiplePending,
-    ReadyForCompletion,
-}
-
-impl LspCompletionState {
-    pub fn next(&self) -> LspCompletionState {
-        match self {
-            LspCompletionState::Idle => LspCompletionState::Pending,
-            LspCompletionState::Pending => LspCompletionState::MultiplePending,
-            LspCompletionState::MultiplePending => LspCompletionState::MultiplePending,
-            _ => *self,
-        }
-    }
-}
-
-struct CompletionResult {
-    label: String,
-    insert_text: Option<String>,
-    range: Option<(Position, Position)>,
-}
-
-impl CompletionResult {
-    fn insert_text(&self) -> &str {
-        self.insert_text.as_ref().unwrap_or(&self.label)
-    }
-}
 
 pub struct Editor {
     doc_list: SlotList<Doc>,
     // There should always be at least one pane.
     panes: FocusList<EditorPane>,
 
-    completion_result_list: ResultList<CompletionResult>,
-    completion_result_pool: LinePool,
-    completion_prefix: String,
-    lsp_completion_state: LspCompletionState,
-
+    pub completion_list: CompletionList,
     pub widget: Widget,
 }
 
@@ -78,11 +37,7 @@ impl Editor {
         let mut editor = Self {
             doc_list: SlotList::new(),
             panes: FocusList::new(),
-
-            completion_result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS),
-            completion_result_pool: LinePool::new(),
-            completion_prefix: String::new(),
-            lsp_completion_state: LspCompletionState::Idle,
+            completion_list: CompletionList::new(),
 
             widget: Widget::new(ui, true),
         };
@@ -93,8 +48,7 @@ impl Editor {
     }
 
     pub fn is_animating(&self) -> bool {
-        self.completion_result_list.is_animating()
-            || self.panes.iter().any(|pane| pane.is_animating())
+        self.completion_list.is_animating() || self.panes.iter().any(|pane| pane.is_animating())
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx) {
@@ -119,48 +73,12 @@ impl Editor {
             .position_to_visual(cursor_position, tab.camera.position().floor(), gfx)
             .offset_by(tab.doc_bounds());
 
-        let min_y = self.completion_result_list.min_visible_result_index();
-        let max_y =
-            (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.completion_result_list.results.len());
-        let mut longest_visible_result = 0;
-
-        for y in min_y..max_y {
-            longest_visible_result =
-                longest_visible_result.max(self.completion_result_list.results[y].label.len());
-        }
-
-        self.completion_result_list.layout(
-            Rect::new(
-                cursor_visual_position.x
-                    - (self.completion_prefix.len() as f32 + 1.0) * gfx.glyph_width()
-                    + gfx.border_width(),
-                cursor_visual_position.y + gfx.line_height(),
-                (longest_visible_result as f32 + 2.0) * gfx.glyph_width(),
-                0.0,
-            ),
-            gfx,
-        );
-
-        self.widget
-            .layout(&[bounds, self.completion_result_list.bounds()]);
+        self.completion_list.layout(cursor_visual_position, gfx);
+        self.widget.layout(&[bounds, self.completion_list.bounds()]);
     }
 
     pub fn update(&mut self, ui: &mut Ui, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
         self.reload_changed_files(file_watcher, ctx);
-
-        let mut grapheme_handler = ui.get_grapheme_handler(&self.widget, ctx.window);
-
-        let mut should_open_completions = false;
-
-        if grapheme_handler.next(ctx.window).is_some() {
-            should_open_completions = true;
-            grapheme_handler.unprocessed(ctx.window);
-        }
-
-        if self.lsp_completion_state == LspCompletionState::ReadyForCompletion {
-            should_open_completions = true;
-            self.lsp_completion_state = LspCompletionState::Idle;
-        }
 
         let mut mousebind_handler = ui.get_mousebind_handler(&self.widget, ctx.window);
 
@@ -194,11 +112,6 @@ impl Editor {
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
-                action_keybind!(key: Backspace) => {
-                    should_open_completions = true;
-
-                    action_handler.unprocessed(ctx.window, action);
-                }
                 action_name!(NewPane) => self.add_pane(&mut ctx.buffers.lines),
                 action_name!(ClosePane) => self.close_pane(ctx),
                 action_name!(PreviousPane) => self.panes.focus_previous(),
@@ -225,95 +138,44 @@ impl Editor {
             }
         }
 
-        let are_results_visible = self.is_cursor_visible(ctx.gfx);
-        let are_results_focused = !self.completion_result_list.results.is_empty();
+        let is_cursor_visible = self.is_cursor_visible(ctx.gfx);
+        let pane = self.panes.get_focused_mut().unwrap();
+        let focused_tab_index = pane.focused_tab_index();
 
-        let result_input = self.completion_result_list.update(
-            &mut self.widget,
-            ui,
-            ctx.window,
-            are_results_visible,
-            are_results_focused,
-        );
+        let handled_position = if let Some((_, doc)) =
+            pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
+        {
+            self.completion_list
+                .update(ui, &self.widget, doc, is_cursor_visible, ctx);
 
-        match result_input {
-            ResultListInput::None => {}
-            ResultListInput::Complete
-            | ResultListInput::Submit {
-                kind: ResultListSubmitKind::Normal,
-            } => {
-                self.insert_completion_result(ctx);
+            Some(doc.get_cursor(CursorIndex::Main).position)
+        } else {
+            None
+        };
 
-                Self::clear_completions(
-                    &mut self.completion_result_list,
-                    &mut self.completion_result_pool,
-                );
-            }
-            ResultListInput::Close => {
-                Self::clear_completions(
-                    &mut self.completion_result_list,
-                    &mut self.completion_result_pool,
-                );
-            }
-            _ => {}
-        }
-
-        let handled_position = self.get_cursor_position();
         let pane = self.panes.get_focused_mut().unwrap();
 
-        pane.update(&mut self.widget, ui, &mut self.doc_list, ctx);
+        pane.update(&self.widget, ui, &mut self.doc_list, ctx);
 
         self.panes.remove_excess(|pane| pane.tabs.is_empty());
 
-        self.update_completions(should_open_completions, handled_position, ctx);
+        let pane = self.panes.get_focused_mut().unwrap();
+        let focused_tab_index = pane.focused_tab_index();
+
+        if let Some((_, doc)) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list) {
+            self.completion_list
+                .update_results(doc, handled_position, ctx);
+        } else {
+            self.completion_list.clear();
+        }
     }
 
     pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
         for pane in self.panes.iter_mut() {
-            pane.update_camera(&mut self.widget, ui, &mut self.doc_list, ctx, dt);
+            pane.update_camera(&self.widget, ui, &mut self.doc_list, ctx, dt);
         }
 
-        self.completion_result_list.update_camera(dt);
-    }
-
-    pub fn lsp_add_completion_results(&mut self, completion_list: &mut Vec<CompletionItem>) {
-        Self::clear_completions(
-            &mut self.completion_result_list,
-            &mut self.completion_result_pool,
-        );
-
-        completion_list.retain(|item| item.filter_text().starts_with(&self.completion_prefix));
-        completion_list.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
-
-        for item in completion_list {
-            let (label, insert_text, range) = if let Some(text_edit) = &item.text_edit {
-                (item.label, Some(text_edit.new_text), Some(text_edit.range))
-            } else {
-                (item.label, item.insert_text, None)
-            };
-
-            let mut label_string = self.completion_result_pool.pop();
-            label_string.push_str(label);
-
-            let insert_text_string = insert_text.map(|insert_text| {
-                let mut insert_text_string = self.completion_result_pool.pop();
-                insert_text_string.push_str(insert_text);
-                insert_text_string
-            });
-
-            self.completion_result_list.results.push(CompletionResult {
-                label: label_string,
-                insert_text: insert_text_string,
-                range,
-            });
-        }
-
-        self.lsp_completion_state =
-            if self.lsp_completion_state == LspCompletionState::MultiplePending {
-                LspCompletionState::ReadyForCompletion
-            } else {
-                LspCompletionState::Idle
-            };
+        self.completion_list.update_camera(dt);
     }
 
     // Necessary when syntax highlighting rules change.
@@ -352,9 +214,7 @@ impl Editor {
         }
 
         if self.is_cursor_visible(ctx.gfx) {
-            self.completion_result_list
-                .draw(ctx, |result| &result.label);
-
+            self.completion_list.draw(ctx);
             self.draw_diagnostic_popup(ctx);
         }
     }
@@ -427,155 +287,11 @@ impl Editor {
         Some(())
     }
 
-    fn get_completion_prefix<'a>(doc: &'a Doc, gfx: &mut Gfx) -> Option<&'a str> {
-        let prefix_end = doc.get_cursor(CursorIndex::Main).position;
-
-        if prefix_end.x == 0 {
-            return None;
-        }
-
-        let mut prefix_start = prefix_end;
-
-        while prefix_start.x > 0 {
-            let next_start = doc.move_position(prefix_start, -1, 0, gfx);
-
-            let grapheme = doc.get_grapheme(next_start);
-
-            if grapheme::is_alphanumeric(grapheme) || grapheme == "_" {
-                prefix_start = next_start;
-                continue;
-            }
-
-            // These characters aren't included in the completion prefix
-            // but they should still trigger a completion.
-            if !matches!(grapheme, "." | ":") && prefix_start == prefix_end {
-                return None;
-            }
-
-            break;
-        }
-
-        doc.get_line(prefix_end.y)
-            .map(|line| &line[prefix_start.x..prefix_end.x])
-    }
-
-    fn clear_completions(
-        completion_result_list: &mut ResultList<CompletionResult>,
-        completion_result_pool: &mut LinePool,
-    ) {
-        for result in completion_result_list.drain() {
-            completion_result_pool.push(result.label);
-
-            if let Some(insert_text) = result.insert_text {
-                completion_result_pool.push(insert_text);
-            }
-        }
-    }
-
-    // TODO: Simplify all of the clear_completions calls.
-    fn update_completions(
-        &mut self,
-        should_open_completions: bool,
-        handled_position: Option<Position>,
-        ctx: &mut Ctx,
-    ) -> Option<()> {
-        let position = self.get_cursor_position();
-
-        let is_position_different = position != handled_position;
-
-        if should_open_completions || is_position_different {
-            self.completion_prefix.clear();
-        }
-
-        if !should_open_completions {
-            if is_position_different {
-                Self::clear_completions(
-                    &mut self.completion_result_list,
-                    &mut self.completion_result_pool,
-                );
-            }
-
-            return None;
-        }
-
-        let position = position?;
-
-        let pane = self.panes.get_focused_mut().unwrap();
-        let focused_tab_index = pane.focused_tab_index();
-
-        let (_, doc) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)?;
-
-        let Some(prefix) = Self::get_completion_prefix(doc, ctx.gfx) else {
-            Self::clear_completions(
-                &mut self.completion_result_list,
-                &mut self.completion_result_pool,
-            );
-
-            return None;
-        };
-
-        self.completion_prefix.push_str(prefix);
-
-        if doc.get_language_server_mut(ctx).is_some() {
-            if self.lsp_completion_state == LspCompletionState::Idle {
-                doc.lsp_completion(position, ctx);
-            }
-
-            self.lsp_completion_state = self.lsp_completion_state.next();
-
-            return Some(());
-        }
-
-        Self::clear_completions(
-            &mut self.completion_result_list,
-            &mut self.completion_result_pool,
-        );
-
-        if !self.completion_prefix.is_empty() {
-            doc.tokens().traverse(
-                &self.completion_prefix,
-                &mut self.completion_result_pool,
-                |label| {
-                    self.completion_result_list.results.push(CompletionResult {
-                        label,
-                        insert_text: None,
-                        range: None,
-                    });
-                },
-            );
-        }
-
-        Some(())
-    }
-
-    fn insert_completion_result(&mut self, ctx: &mut Ctx) -> Option<()> {
-        let result = self.completion_result_list.get_selected_result()?;
-        let pane = self.panes.get_focused_mut().unwrap();
-        let focused_tab_index = pane.focused_tab_index();
-
-        let (_, doc) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)?;
-        let insert_text = result.insert_text();
-
-        if let Some((start, end)) = result.range {
-            doc.delete(start, end, ctx);
-            doc.insert(start, insert_text, ctx);
-        } else {
-            doc.insert_at_cursors(&insert_text[self.completion_prefix.len()..], ctx);
-        }
-
-        Some(())
-    }
-
     pub fn get_focused_tab_and_doc(&self) -> Option<(&Tab, &Doc)> {
         let pane = self.panes.get_focused().unwrap();
         let focused_tab_index = pane.focused_tab_index();
 
         pane.get_tab_with_data(focused_tab_index, &self.doc_list)
-    }
-
-    fn get_cursor_position(&self) -> Option<Position> {
-        self.get_focused_tab_and_doc()
-            .map(|(_, doc)| doc.get_cursor(CursorIndex::Main).position)
     }
 
     fn is_cursor_visible(&self, gfx: &mut Gfx) -> bool {

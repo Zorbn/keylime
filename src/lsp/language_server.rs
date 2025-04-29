@@ -274,7 +274,7 @@ impl LanguageServer {
                                 .map(|item| item.decode(self.position_encoding, doc))
                                 .collect();
 
-                            editor.lsp_add_completion_results(&mut result);
+                            editor.completion_list.lsp_update_results(&mut result);
                         }
                         _ => {}
                     }

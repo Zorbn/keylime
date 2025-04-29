@@ -32,7 +32,7 @@ impl TerminalPane {
 
     pub fn update(
         &mut self,
-        widget: &mut Widget,
+        widget: &Widget,
         ui: &mut Ui,
         term_list: &mut SlotList<Term>,
         ctx: &mut Ctx,

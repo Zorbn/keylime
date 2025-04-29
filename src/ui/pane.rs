@@ -67,7 +67,7 @@ impl<T> Pane<T> {
         }
     }
 
-    pub fn update(&mut self, widget: &mut Widget, ui: &mut Ui, window: &mut Window) {
+    pub fn update(&mut self, widget: &Widget, ui: &mut Ui, window: &mut Window) {
         let mut mousebind_handler = ui.get_mousebind_handler(widget, window);
 
         while let Some(mousebind) = mousebind_handler.next(window) {
@@ -110,7 +110,7 @@ impl<T> Pane<T> {
 
     pub fn update_camera(
         &mut self,
-        widget: &mut Widget,
+        widget: &Widget,
         ui: &mut Ui,
         data_list: &mut SlotList<T>,
         ctx: &mut Ctx,

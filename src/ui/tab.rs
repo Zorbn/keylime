@@ -89,7 +89,7 @@ impl Tab {
         self.doc_bounds = doc_bounds.shrink_left_by(self.gutter_bounds);
     }
 
-    pub fn update(&mut self, widget: &mut Widget, ui: &mut Ui, doc: &mut Doc, ctx: &mut Ctx) {
+    pub fn update(&mut self, widget: &Widget, ui: &mut Ui, doc: &mut Doc, ctx: &mut Ctx) {
         self.handled_cursor_position = Some(doc.get_cursor(CursorIndex::Main).position);
 
         let mut grapheme_handler = ui.get_grapheme_handler(widget, ctx.window);
@@ -165,7 +165,7 @@ impl Tab {
 
     pub fn update_camera(
         &mut self,
-        widget: &mut Widget,
+        widget: &Widget,
         ui: &mut Ui,
         doc: &Doc,
         ctx: &mut Ctx,
