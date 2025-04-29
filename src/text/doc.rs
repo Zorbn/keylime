@@ -11,7 +11,7 @@ use crate::{
     config::language::Language,
     ctx::{ctx_with_time, Ctx},
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
-    lsp::LanguageServer,
+    lsp::language_server::LanguageServer,
     platform::gfx::Gfx,
     temp_buffer::TempString,
     text::grapheme,
@@ -1111,6 +1111,7 @@ impl Doc {
 
         for grapheme in GraphemeIterator::new(text) {
             match grapheme {
+                "\r" => continue,
                 "\r\n" | "\n" => {
                     if self.kind == DocKind::SingleLine {
                         continue;
@@ -1580,11 +1581,14 @@ impl Doc {
 
     fn get_line_ending_and_len(&self, string: &str) -> (LineEnding, usize) {
         let mut len = 0;
+        let mut grapheme_iterator = GraphemeIterator::new(string);
 
-        for grapheme in GraphemeIterator::new(string) {
+        for grapheme in grapheme_iterator.by_ref() {
             match grapheme {
-                "\r\n" | "\n" => {
-                    let line_ending = if grapheme == "\r\n" {
+                "\r\n" | "\r" | "\n" => {
+                    let line_ending = if grapheme == "\r\n"
+                        || (grapheme == "\r" && grapheme_iterator.next() == Some("\n"))
+                    {
                         LineEnding::CrLf
                     } else {
                         LineEnding::Lf

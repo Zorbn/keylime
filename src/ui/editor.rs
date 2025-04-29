@@ -11,7 +11,7 @@ use crate::{
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
-    lsp::CompletionItem,
+    lsp::types::CompletionItem,
     platform::{file_watcher::FileWatcher, gfx::Gfx},
     text::{cursor_index::CursorIndex, doc::Doc, grapheme, line_pool::LinePool},
 };
