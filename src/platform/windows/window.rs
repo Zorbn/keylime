@@ -51,7 +51,7 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::{MouseClickKind, Mousebind},
     },
-    platform::aliases::{AnyFileWatcher, AnyGfx, AnyPty, AnyWindow},
+    platform::aliases::{AnyFileWatcher, AnyGfx, AnyProcess, AnyWindow},
     temp_buffer::TempBuffer,
     text::grapheme::GraphemeCursor,
 };
@@ -406,7 +406,7 @@ impl Window {
         is_animating: bool,
         file_watcher: &mut AnyFileWatcher,
         files: impl Iterator<Item = &'a Path>,
-        processes: impl Iterator<Item = &'a mut AnyPty>,
+        processes: impl Iterator<Item = &'a mut AnyProcess>,
     ) {
         self.clear_inputs();
         file_watcher.inner.update(files).unwrap();

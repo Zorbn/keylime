@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use super::{platform_impl, result::Result};
 
+#[derive(Debug)]
 pub enum ProcessKind {
     Normal,
     Pty { width: usize, height: usize },

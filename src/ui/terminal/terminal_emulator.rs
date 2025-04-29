@@ -36,11 +36,7 @@ const MIN_GRID_WIDTH: usize = 1;
 const MIN_GRID_HEIGHT: usize = 1;
 
 #[cfg(target_os = "windows")]
-const SHELLS: &[&str] = &[
-    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
-    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-    "C:\\Windows\\system32\\cmd.exe",
-];
+const SHELLS: &[&str] = &["pwsh.exe", "powershell.exe", "cmd.exe"];
 
 #[cfg(target_os = "macos")]
 const SHELLS: &[&str] = &["zsh", "bash", "sh"];

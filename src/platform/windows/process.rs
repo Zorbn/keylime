@@ -8,7 +8,8 @@ use std::{
 use windows::{
     core::{Result, HSTRING, PWSTR},
     Win32::{
-        Foundation::{CloseHandle, HANDLE},
+        Foundation::{CloseHandle, SetHandleInformation, HANDLE, HANDLE_FLAG_INHERIT},
+        Security::SECURITY_ATTRIBUTES,
         Storage::FileSystem::{ReadFile, WriteFile},
         System::{
             Console::{ClosePseudoConsole, CreatePseudoConsole, ResizePseudoConsole, COORD, HPCON},
@@ -18,52 +19,90 @@ use windows::{
         },
     },
 };
+use windows_core::BOOL;
 
-pub struct Pty {
+use crate::platform::process::ProcessKind;
+
+pub struct Process {
     pub output: Arc<Mutex<Vec<u8>>>,
     pub input: Vec<u8>,
 
     read_thread_join: Option<JoinHandle<()>>,
 
-    hpcon: HPCON,
+    hconsole: Option<HPCON>,
     pub(super) hprocess: HANDLE,
     pub(super) event: HANDLE,
 
     stdin: HANDLE,
+    stdout: HANDLE,
 }
 
-impl Pty {
-    pub fn new(width: usize, height: usize, child_paths: &[&str]) -> Result<Self> {
+impl Process {
+    pub fn new(commands: &[&str], kind: ProcessKind) -> Result<Self> {
         // Used to communicate with the child process.
         let mut output_read = HANDLE::default();
         let mut input_write = HANDLE::default();
 
-        let hpcon;
+        let hconsole;
         let event;
         let process_info;
 
         unsafe {
+            let security_attributes = SECURITY_ATTRIBUTES {
+                nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
+                bInheritHandle: BOOL::from(matches!(kind, ProcessKind::Normal)),
+                ..Default::default()
+            };
+
             // Closed after creating the child process.
             let mut input_read = HANDLE::default();
             let mut output_write = HANDLE::default();
 
-            CreatePipe(&mut input_read, &mut input_write, None, 0)?;
-            CreatePipe(&mut output_read, &mut output_write, None, 0)?;
-
-            hpcon = CreatePseudoConsole(
-                COORD {
-                    X: width as i16,
-                    Y: height as i16,
-                },
-                input_read,
-                output_write,
+            CreatePipe(
+                &mut input_read,
+                &mut input_write,
+                Some(&security_attributes),
                 0,
             )?;
 
+            CreatePipe(
+                &mut output_read,
+                &mut output_write,
+                Some(&security_attributes),
+                0,
+            )?;
+
+            SetHandleInformation(output_read, 0, HANDLE_FLAG_INHERIT)?;
+            SetHandleInformation(input_write, 0, HANDLE_FLAG_INHERIT)?;
+
+            hconsole = if let ProcessKind::Pty { width, height } = kind {
+                Some(CreatePseudoConsole(
+                    COORD {
+                        X: width as i16,
+                        Y: height as i16,
+                    },
+                    input_read,
+                    output_write,
+                    0,
+                )?)
+            } else {
+                None
+            };
+
+            process_info = Self::create_process(hconsole, input_read, output_write, commands)
+                .inspect_err(|_| {
+                    let _ = CloseHandle(input_read);
+                    let _ = CloseHandle(input_write);
+                    let _ = CloseHandle(output_read);
+                    let _ = CloseHandle(output_write);
+
+                    if let Some(hconsole) = hconsole {
+                        ClosePseudoConsole(hconsole);
+                    }
+                })?;
+
             CloseHandle(input_read)?;
             CloseHandle(output_write)?;
-
-            process_info = Self::create_process(hpcon, child_paths)?;
 
             event = CreateEventW(None, false, false, None)?;
         }
@@ -79,43 +118,45 @@ impl Pty {
 
             read_thread_join: Some(read_thread_join),
 
-            hpcon,
+            hconsole,
             hprocess: process_info.hProcess,
             event,
 
             stdin: input_write,
+            stdout: output_read,
         })
     }
 
-    unsafe fn create_process(hpcon: HPCON, child_paths: &[&str]) -> Result<PROCESS_INFORMATION> {
+    unsafe fn create_process(
+        hconsole: Option<HPCON>,
+        input_read: HANDLE,
+        output_write: HANDLE,
+        commands: &[&str],
+    ) -> Result<PROCESS_INFORMATION> {
         let mut process_info = PROCESS_INFORMATION::default();
-        let mut child_result = Ok(());
+        let mut result = Ok(());
 
         let process_heap = GetProcessHeap()?;
-        let startup_info = Self::create_process_startup_info(hpcon)?;
+        let startup_info = Self::create_process_startup_info(hconsole, input_read, output_write)?;
 
-        for child_path in child_paths {
-            let child_application = HSTRING::from(*child_path);
-            let child_application_len = child_application.len() + 1;
+        for command in commands {
+            let wide_command = HSTRING::from(*command);
+            let wide_command_len = wide_command.len() + 1;
 
             let command = HeapAlloc(
                 process_heap,
                 HEAP_FLAGS(0),
-                size_of::<u16>() * child_application_len,
+                size_of::<u16>() * wide_command_len,
             );
 
-            copy_nonoverlapping(
-                child_application.as_ptr(),
-                command as _,
-                child_application_len,
-            );
+            copy_nonoverlapping(wide_command.as_ptr(), command as _, wide_command_len);
 
-            child_result = CreateProcessW(
+            result = CreateProcessW(
                 None,
                 Some(PWSTR(command as _)),
                 None,
                 None,
-                false,
+                hconsole.is_none(),
                 EXTENDED_STARTUPINFO_PRESENT,
                 None,
                 None,
@@ -123,14 +164,14 @@ impl Pty {
                 &mut process_info,
             );
 
-            if child_result.is_err() {
+            if result.is_err() {
                 let _ = HeapFree(process_heap, HEAP_FLAGS(0), Some(command));
             } else {
                 break;
             }
         }
 
-        child_result
+        result
             .inspect_err(|_| {
                 let _ = HeapFree(
                     process_heap,
@@ -141,36 +182,56 @@ impl Pty {
             .map(|_| process_info)
     }
 
-    unsafe fn create_process_startup_info(hpcon: HPCON) -> Result<STARTUPINFOEXW> {
+    unsafe fn create_process_startup_info(
+        hconsole: Option<HPCON>,
+        input_read: HANDLE,
+        output_write: HANDLE,
+    ) -> Result<STARTUPINFOEXW> {
+        let attribute_count = if hconsole.is_some() { 1 } else { 0 };
+
         let process_heap = GetProcessHeap()?;
 
         let mut bytes_required = 0;
-        let _ = InitializeProcThreadAttributeList(None, 1, None, &mut bytes_required);
+        let _ = InitializeProcThreadAttributeList(None, attribute_count, None, &mut bytes_required);
 
         let attribute_list =
             LPPROC_THREAD_ATTRIBUTE_LIST(HeapAlloc(process_heap, HEAP_FLAGS(0), bytes_required));
 
-        InitializeProcThreadAttributeList(Some(attribute_list), 1, None, &mut bytes_required)
-            .inspect_err(|_| {
-                let _ = HeapFree(process_heap, HEAP_FLAGS(0), Some(attribute_list.0));
-            })?;
-
-        UpdateProcThreadAttribute(
-            attribute_list,
-            0,
-            PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE as usize,
-            Some(hpcon.0 as *mut _),
-            size_of::<HPCON>(),
+        InitializeProcThreadAttributeList(
+            Some(attribute_list),
+            attribute_count,
             None,
-            None,
+            &mut bytes_required,
         )
         .inspect_err(|_| {
             let _ = HeapFree(process_heap, HEAP_FLAGS(0), Some(attribute_list.0));
         })?;
 
+        if let Some(hpcon) = hconsole {
+            UpdateProcThreadAttribute(
+                attribute_list,
+                0,
+                PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE as usize,
+                Some(hpcon.0 as *mut _),
+                size_of::<HPCON>(),
+                None,
+                None,
+            )
+            .inspect_err(|_| {
+                let _ = HeapFree(process_heap, HEAP_FLAGS(0), Some(attribute_list.0));
+            })?;
+        }
+
         let mut startup_info = STARTUPINFOEXW::default();
         startup_info.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
         startup_info.lpAttributeList = attribute_list;
+
+        if hconsole.is_none() {
+            startup_info.StartupInfo.hStdOutput = output_write;
+            startup_info.StartupInfo.hStdError = output_write;
+            startup_info.StartupInfo.hStdInput = input_read;
+            startup_info.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
+        }
 
         Ok(startup_info)
     }
@@ -188,9 +249,13 @@ impl Pty {
     }
 
     pub fn resize(&mut self, width: usize, height: usize) {
+        let Some(hpcon) = self.hconsole else {
+            return;
+        };
+
         unsafe {
             ResizePseudoConsole(
-                self.hpcon,
+                hpcon,
                 COORD {
                     X: width as i16,
                     Y: height as i16,
@@ -235,11 +300,19 @@ impl Pty {
     }
 }
 
-impl Drop for Pty {
+impl Drop for Process {
     fn drop(&mut self) {
         unsafe {
             let _ = CloseHandle(self.event);
-            ClosePseudoConsole(self.hpcon);
+
+            if let Some(hconsole) = self.hconsole {
+                ClosePseudoConsole(hconsole);
+            } else {
+                let _ = TerminateProcess(self.hprocess, 0);
+            }
+
+            let _ = CloseHandle(self.stdin);
+            let _ = CloseHandle(self.stdout);
         }
 
         if let Some(read_thread_join) = self.read_thread_join.take() {

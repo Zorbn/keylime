@@ -2,7 +2,9 @@ use core::str;
 use std::{
     collections::{hash_map::Entry, HashMap},
     env::current_dir,
+    iter::Peekable,
     path::{Path, PathBuf},
+    str::Chars,
 };
 
 use serde::{Deserialize, Serialize};
@@ -181,7 +183,7 @@ pub struct LanguageServer {
     message_queue: Vec<u8>,
     has_initialized: bool,
     uri_buffer: TempString,
-    diagnostics: HashMap<String, Vec<LspDiagnostic>>,
+    diagnostics: HashMap<PathBuf, Vec<LspDiagnostic>>,
 }
 
 impl LanguageServer {
@@ -234,12 +236,8 @@ impl LanguageServer {
     }
 
     pub fn get_diagnostics_mut(&mut self, path: &Path) -> &mut [LspDiagnostic] {
-        let uri_buffer = self.uri_buffer.get_mut();
-
-        path_to_uri(path, uri_buffer);
-
         self.diagnostics
-            .get_mut(uri_buffer)
+            .get_mut(path)
             .map(|diagnostics| diagnostics.as_mut_slice())
             .unwrap_or_default()
     }
@@ -342,12 +340,17 @@ impl LanguageServer {
                                 return;
                             };
 
-                            if !self.diagnostics.contains_key(&params.uri) {
-                                self.diagnostics.insert(params.uri.clone(), Vec::new());
-                            }
+                            let uri = self.uri_buffer.get_mut();
+                            uri.push_str(&params.uri);
 
-                            let diagnostics = self.diagnostics.get_mut(&params.uri).unwrap();
+                            let mut path = params.uri;
+                            path.clear();
 
+                            let Some(path) = uri_to_path(uri, path) else {
+                                return;
+                            };
+
+                            let diagnostics = self.diagnostics.entry(path).or_default();
                             diagnostics.clear();
                             diagnostics.append(&mut params.diagnostics);
                         }
@@ -509,10 +512,55 @@ impl Drop for LanguageServer {
     }
 }
 
+fn uri_to_path(uri: &str, mut result: String) -> Option<PathBuf> {
+    const SCHEME: &str = "file:///";
+
+    if !uri.starts_with(SCHEME) {
+        return None;
+    }
+
+    let mut chars = uri[SCHEME.len()..].chars().peekable();
+
+    if let Some(c) = chars.next() {
+        if c.is_ascii_alphabetic() && chars.peek() == Some(&':') {
+            result.push(c.to_ascii_uppercase());
+        } else {
+            result.push(c);
+        }
+    }
+
+    while let Some(c) = chars.next() {
+        if c == '%' {
+            result.push(decode_uri_char(&mut chars)?);
+            continue;
+        }
+
+        result.push(c);
+    }
+
+    Some(PathBuf::from(result))
+}
+
+fn decode_uri_char(chars: &mut Peekable<Chars>) -> Option<char> {
+    let first_digit = chars.next()?;
+    let second_digit = chars.next()?;
+
+    if !first_digit.is_ascii_hexdigit() || !second_digit.is_ascii_hexdigit() {
+        return None;
+    }
+
+    let digits = &[first_digit as u8, second_digit as u8];
+    let hex_string = str::from_utf8(digits).ok()?;
+
+    u8::from_str_radix(hex_string, 16)
+        .ok()
+        .map(|value| value as char)
+}
+
 fn path_to_uri(path: &Path, result: &mut String) {
     assert!(path.is_absolute());
 
-    result.push_str("file://");
+    result.push_str("file:///");
 
     if let Some(parent) = path.parent() {
         for component in parent {
@@ -520,11 +568,12 @@ fn path_to_uri(path: &Path, result: &mut String) {
                 continue;
             };
 
-            encode_path_component(component, result);
-
-            if component != "/" {
-                result.push('/');
+            if matches!(component, "/" | "\\") {
+                continue;
             }
+
+            encode_path_component(component, result);
+            result.push('/');
         }
     }
 
@@ -535,10 +584,10 @@ fn path_to_uri(path: &Path, result: &mut String) {
 
 fn encode_path_component(component: &str, result: &mut String) {
     for c in component.chars() {
-        if c == ' ' {
-            result.push_str("%20");
-        } else {
-            result.push(c);
+        match c {
+            ' ' => result.push_str("%20"),
+            '\\' => result.push('/'),
+            _ => result.push(c),
         }
     }
 }
