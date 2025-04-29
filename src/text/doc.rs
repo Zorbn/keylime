@@ -1981,6 +1981,15 @@ impl Doc {
         Some(())
     }
 
+    pub fn lsp_definition(&self, position: Position, ctx: &mut Ctx) -> Option<()> {
+        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let path = self.path.on_drive()?;
+
+        language_server.definition(path, position, self);
+
+        Some(())
+    }
+
     fn lsp_text_document_notification(
         &mut self,
         method: &'static str,

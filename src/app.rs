@@ -100,8 +100,6 @@ impl App {
             err.show_message();
         }
 
-        self.lsp.update(&mut self.editor);
-
         self.ui.update(
             &mut [
                 &mut self.terminal.widget,

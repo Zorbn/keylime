@@ -169,7 +169,7 @@ impl CompletionList {
             .draw(ctx, |result| &result.label);
     }
 
-    fn lsp_add_results(&mut self, completion_list: &mut Vec<CompletionItem>) {
+    fn lsp_add_results(&mut self, mut completion_list: Vec<CompletionItem>) {
         completion_list.retain(|item| item.filter_text().starts_with(&self.completion_prefix));
         completion_list.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
 
@@ -197,7 +197,7 @@ impl CompletionList {
         }
     }
 
-    pub fn lsp_update_results(&mut self, completion_list: &mut Vec<CompletionItem>) {
+    pub fn lsp_update_results(&mut self, completion_list: Vec<CompletionItem>) {
         self.clear();
 
         if self.lsp_are_pending_results_valid {

@@ -7,7 +7,7 @@ use crate::{
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
         editing_actions::{handle_action, handle_grapheme, handle_left_click},
-        keybind::{MOD_CMD, MOD_CTRL, MOD_SHIFT},
+        keybind::{MOD_ALT, MOD_CMD, MOD_CTRL, MOD_SHIFT},
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
@@ -139,11 +139,15 @@ impl Tab {
                 }
                 Mousebind {
                     button: Some(MouseButton::Left),
-                    mods: MOD_CTRL | MOD_CMD,
+                    mods,
                     is_drag: false,
                     ..
-                } => {
-                    doc.add_cursor(position, ctx.gfx);
+                } if mods & MOD_CTRL != 0 || mods & MOD_CMD != 0 => {
+                    if mods & MOD_ALT != 0 {
+                        doc.add_cursor(position, ctx.gfx);
+                    } else {
+                        doc.lsp_definition(position, ctx);
+                    }
                 }
                 _ => mousebind_handler.unprocessed(ctx.window, mousebind),
             }

@@ -9,9 +9,11 @@ use std::{
     path::PathBuf,
 };
 
-use language_server::LanguageServer;
+use language_server::{LanguageServer, LanguageServerResult};
+use position_encoding::PositionEncoding;
+use types::LspMessage;
 
-use crate::{config::language::Language, platform::process::Process, ui::editor::Editor};
+use crate::{config::language::Language, platform::process::Process};
 
 pub struct Lsp {
     servers: HashMap<usize, Option<LanguageServer>>,
@@ -35,10 +37,30 @@ impl Lsp {
         self.clear();
     }
 
-    pub fn update(&mut self, editor: &mut Editor) {
-        for server in self.iter_servers_mut() {
-            server.update(editor);
+    pub fn poll(&mut self) -> Option<(usize, LspMessage)> {
+        for (index, server) in self.servers.iter_mut() {
+            let Some(server) = server else {
+                continue;
+            };
+
+            if let Some(result) = server.poll() {
+                return Some((*index, result));
+            }
         }
+
+        None
+    }
+
+    pub fn handle_message<'a>(
+        &mut self,
+        language_index: usize,
+        message: &'a LspMessage,
+    ) -> Option<(PositionEncoding, LanguageServerResult<'a>)> {
+        let server = self.servers.get_mut(&language_index)?.as_mut()?;
+
+        server
+            .handle_message(message)
+            .map(|result| (server.position_encoding(), result))
     }
 
     pub fn iter_servers_mut(&mut self) -> impl Iterator<Item = &mut LanguageServer> {

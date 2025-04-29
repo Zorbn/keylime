@@ -62,13 +62,13 @@ impl LspPosition {
 }
 
 #[derive(Debug, Deserialize, Clone, Copy)]
-struct LspRange {
+pub struct LspRange {
     start: LspPosition,
     end: LspPosition,
 }
 
 impl LspRange {
-    fn decode(self, encoding: PositionEncoding, doc: &Doc) -> (Position, Position) {
+    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> (Position, Position) {
         let start = self.start.decode(encoding, doc);
         let end = self.end.decode(encoding, doc);
 
@@ -118,7 +118,7 @@ impl<'a> LspTextEdit<'a> {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct LspCompletionItem<'a> {
+pub struct LspCompletionItem<'a> {
     label: &'a str,
     sort_text: Option<&'a str>,
     filter_text: Option<&'a str>,
@@ -156,6 +156,29 @@ pub(super) enum LspCompletionResult<'a> {
 }
 
 #[derive(Debug, Deserialize)]
+pub(super) struct LspLocation<'a> {
+    pub uri: &'a str,
+    pub range: LspRange,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct LspLocationLink<'a> {
+    pub target_uri: &'a str,
+    pub target_range: LspRange,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub(super) enum LspDefinitionResult<'a> {
+    #[serde(borrow)]
+    Location(LspLocation<'a>),
+    Locations(Vec<LspLocation<'a>>),
+    Links(Vec<LspLocationLink<'a>>),
+    None,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct LspServerCapabilities<'a> {
     pub position_encoding: &'a str,
@@ -168,11 +191,11 @@ pub(super) struct LspInitializeResult<'a> {
 }
 
 #[derive(Debug, Deserialize)]
-pub(super) struct LspMessageHeader {
-    pub id: Option<u64>,
-    pub method: Option<String>,
-    pub result: Option<Box<RawValue>>,
-    pub params: Option<Box<RawValue>>,
+pub struct LspMessage {
+    pub(super) id: Option<u64>,
+    pub(super) method: Option<String>,
+    pub(super) result: Option<Box<RawValue>>,
+    pub(super) params: Option<Box<RawValue>>,
 }
 
 #[derive(Debug)]

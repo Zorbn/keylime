@@ -10,7 +10,7 @@ use crate::{
     geometry::position::Position,
     lsp::{
         types::{
-            CompletionItem, LspCompletionResult, LspInitializeResult, LspMessageHeader,
+            LspCompletionResult, LspDefinitionResult, LspInitializeResult, LspLocation, LspMessage,
             LspPosition, LspPublishDiagnosticsParams,
         },
         uri::uri_to_path,
@@ -18,12 +18,11 @@ use crate::{
     platform::process::{Process, ProcessKind},
     temp_buffer::TempString,
     text::doc::Doc,
-    ui::editor::Editor,
 };
 
 use super::{
     position_encoding::PositionEncoding,
-    types::{Diagnostic, LspDiagnostic},
+    types::{Diagnostic, LspCompletionItem, LspDiagnostic, LspRange},
     uri::path_to_uri,
 };
 
@@ -53,6 +52,11 @@ impl Diagnostics {
 enum MessageParseState {
     Idle,
     HasContentLen(usize),
+}
+
+pub enum LanguageServerResult<'a> {
+    Completion(Vec<LspCompletionItem<'a>>),
+    Definition { path: PathBuf, range: LspRange },
 }
 
 pub struct LanguageServer {
@@ -130,13 +134,10 @@ impl LanguageServer {
             .unwrap_or_default()
     }
 
-    pub fn update(&mut self, editor: &mut Editor) {
+    pub fn poll(&mut self) -> Option<LspMessage> {
         loop {
             let (_, output) = self.process.input_output();
-
-            let Ok(mut output) = output.lock() else {
-                return;
-            };
+            let mut output = output.lock().ok()?;
 
             match self.parse_state {
                 MessageParseState::Idle => {
@@ -149,15 +150,12 @@ impl LanguageServer {
                         }
                     }
 
-                    let Some(header_len) = header_len else {
-                        return;
-                    };
-
+                    let header_len = header_len?;
                     let header = str::from_utf8(&output[..header_len]);
 
                     let Ok(header) = header else {
                         output.drain(..header_len);
-                        return;
+                        return None;
                     };
 
                     let prefix_len = "Content-Length: ".len();
@@ -165,14 +163,14 @@ impl LanguageServer {
 
                     if header_len < prefix_len + suffix_len {
                         output.drain(..header_len);
-                        return;
+                        return None;
                     }
 
                     let Ok(content_len) =
                         header[prefix_len..header_len - suffix_len].parse::<usize>()
                     else {
                         output.drain(..header_len);
-                        return;
+                        return None;
                     };
 
                     self.parse_state = MessageParseState::HasContentLen(content_len);
@@ -180,106 +178,116 @@ impl LanguageServer {
                 }
                 MessageParseState::HasContentLen(content_len) => {
                     if output.len() < content_len {
-                        return;
+                        return None;
                     }
 
                     self.parse_state = MessageParseState::Idle;
 
-                    let Ok(message) =
-                        serde_json::from_slice::<LspMessageHeader>(&output[..content_len])
-                    else {
-                        output.drain(..content_len);
-                        return;
-                    };
+                    let message = serde_json::from_slice::<LspMessage>(&output[..content_len]);
 
                     #[cfg(feature = "lsp_debug")]
                     println!("{:?}", message);
 
                     output.drain(..content_len);
-                    drop(output);
 
-                    let Some(method) = message
-                        .id
-                        .and_then(|id| {
-                            self.pending_requests
-                                .remove_entry(&id)
-                                .map(|(_, method)| method)
-                        })
-                        .or(message.method.as_deref())
-                    else {
-                        return;
-                    };
-
-                    match method {
-                        "initialize" => {
-                            if let Some(Ok(result)) = message.result.as_ref().map(|result| {
-                                serde_json::from_str::<LspInitializeResult>(result.get())
-                            }) {
-                                if result.capabilities.position_encoding == "utf-8" {
-                                    self.position_encoding = PositionEncoding::Utf8;
-                                }
-                            }
-
-                            self.send_notification("initialized", json!({}));
-
-                            self.has_initialized = true;
-
-                            self.process.input().extend_from_slice(&self.message_queue);
-                            self.process.flush();
-
-                            self.message_queue.clear();
-                        }
-                        "textDocument/publishDiagnostics" => {
-                            let Some(Ok(mut params)) = message.params.map(|params| {
-                                serde_json::from_str::<LspPublishDiagnosticsParams>(params.get())
-                            }) else {
-                                return;
-                            };
-
-                            let uri = self.uri_buffer.get_mut();
-                            uri.push_str(&params.uri);
-
-                            let mut path = params.uri;
-                            path.clear();
-
-                            let Some(path) = uri_to_path(uri, path) else {
-                                return;
-                            };
-
-                            let diagnostics = self.diagnostics.entry(path).or_default();
-                            diagnostics.replace(&mut params.diagnostics);
-                        }
-                        "textDocument/completion" => {
-                            let result = message.result.as_ref().map(|result| result.get());
-
-                            let result = result
-                                .and_then(|result| {
-                                    serde_json::from_str::<LspCompletionResult>(result).ok()
-                                })
-                                .and_then(|result| match result {
-                                    LspCompletionResult::None => None,
-                                    LspCompletionResult::Items(items) => Some(items),
-                                    LspCompletionResult::List(list) => Some(list.items),
-                                })
-                                .unwrap_or_default();
-
-                            let Some((_, doc)) = editor.get_focused_tab_and_doc() else {
-                                return;
-                            };
-
-                            // The compiler should perform an in-place collect here because
-                            // LspCompletionItem and CompletionItem have the same size and alignment.
-                            let mut result: Vec<CompletionItem> = result
-                                .into_iter()
-                                .map(|item| item.decode(self.position_encoding, doc))
-                                .collect();
-
-                            editor.completion_list.lsp_update_results(&mut result);
-                        }
-                        _ => {}
-                    }
+                    return message.ok();
                 }
             }
+        }
+    }
+
+    pub fn handle_message<'a>(
+        &mut self,
+        message: &'a LspMessage,
+    ) -> Option<LanguageServerResult<'a>> {
+        let method = message
+            .id
+            .and_then(|id| {
+                self.pending_requests
+                    .remove_entry(&id)
+                    .map(|(_, method)| method)
+            })
+            .or(message.method.as_deref())?;
+
+        match method {
+            "initialize" => {
+                let result = message.result.as_ref()?;
+
+                if let Ok(result) = serde_json::from_str::<LspInitializeResult>(result.get()) {
+                    if result.capabilities.position_encoding == "utf-8" {
+                        self.position_encoding = PositionEncoding::Utf8;
+                    }
+                }
+
+                self.send_notification("initialized", json!({}));
+
+                self.has_initialized = true;
+
+                self.process.input().extend_from_slice(&self.message_queue);
+                self.process.flush();
+
+                self.message_queue.clear();
+
+                None
+            }
+            "textDocument/publishDiagnostics" => {
+                let params = message.params.as_ref()?;
+
+                let mut params =
+                    serde_json::from_str::<LspPublishDiagnosticsParams>(params.get()).ok()?;
+
+                let uri = self.uri_buffer.get_mut();
+                uri.push_str(&params.uri);
+
+                let mut path = params.uri;
+                path.clear();
+
+                let path = uri_to_path(uri, path)?;
+
+                let diagnostics = self.diagnostics.entry(path).or_default();
+                diagnostics.replace(&mut params.diagnostics);
+
+                None
+            }
+            "textDocument/completion" => {
+                let result = message.result.as_ref()?;
+
+                let result = serde_json::from_str::<LspCompletionResult>(result.get())
+                    .ok()
+                    .and_then(|result| match result {
+                        LspCompletionResult::None => None,
+                        LspCompletionResult::Items(items) => Some(items),
+                        LspCompletionResult::List(list) => Some(list.items),
+                    })
+                    .unwrap_or_default();
+
+                Some(LanguageServerResult::Completion(result))
+            }
+            "textDocument/definition" => {
+                let result = message.result.as_ref()?;
+
+                let result = serde_json::from_str::<LspDefinitionResult>(result.get())
+                    .ok()
+                    .and_then(|result| match result {
+                        LspDefinitionResult::None => None,
+                        LspDefinitionResult::Location(location) => Some(location),
+                        LspDefinitionResult::Locations(locations) => locations.into_iter().nth(0),
+                        LspDefinitionResult::Links(links) => {
+                            links.into_iter().nth(0).map(|link| LspLocation {
+                                uri: link.target_uri,
+                                range: link.target_range,
+                            })
+                        }
+                    })?;
+
+                let path = uri_to_path(result.uri, String::new())?;
+
+                Some(LanguageServerResult::Definition {
+                    path,
+                    range: result.range,
+                })
+            }
+            _ => None,
         }
     }
 
@@ -354,6 +362,24 @@ impl LanguageServer {
         self.uri_buffer.replace(uri_buffer);
     }
 
+    pub fn definition(&mut self, path: &Path, position: Position, doc: &Doc) {
+        let mut uri_buffer = self.uri_buffer.take_mut();
+
+        path_to_uri(path, &mut uri_buffer);
+
+        self.send_request(
+            "textDocument/definition",
+            json!({
+                "textDocument": {
+                    "uri": uri_buffer,
+                },
+                "position": LspPosition::encode(position, self.position_encoding, doc),
+            }),
+        );
+
+        self.uri_buffer.replace(uri_buffer);
+    }
+
     pub fn text_document_notification(&mut self, path: &Path, method: &'static str) {
         let mut uri_buffer = self.uri_buffer.take_mut();
 
@@ -413,6 +439,10 @@ impl LanguageServer {
         if do_enqueue {
             self.process.flush();
         }
+    }
+
+    pub fn position_encoding(&self) -> PositionEncoding {
+        self.position_encoding
     }
 }
 
