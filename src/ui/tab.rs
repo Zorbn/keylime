@@ -478,20 +478,14 @@ impl Tab {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        let Some(path) = doc.path().on_drive() else {
-            return;
-        };
-
         for language_server in ctx.lsp.iter_servers_mut() {
-            for diagnostic in language_server.get_diagnostics_mut(path) {
+            for diagnostic in language_server.get_diagnostics_mut(doc) {
                 if !diagnostic.is_visible() {
                     continue;
                 }
 
                 let color = diagnostic.color(theme);
-                let range = diagnostic.range;
-                let start = Position::from(range.start);
-                let end = Position::from(range.end);
+                let (start, end) = diagnostic.range;
 
                 if start == end && start.y >= visible_lines.min_y && start.y <= visible_lines.max_y
                 {

@@ -11,7 +11,7 @@ use crate::{
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
-    lsp::LspCompletionItem,
+    lsp::CompletionItem,
     platform::{file_watcher::FileWatcher, gfx::Gfx},
     text::{cursor_index::CursorIndex, doc::Doc, grapheme, line_pool::LinePool},
 };
@@ -21,6 +21,7 @@ use super::{
     focus_list::FocusList,
     result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     slot_list::SlotList,
+    tab::Tab,
 };
 
 mod doc_io;
@@ -275,7 +276,7 @@ impl Editor {
         self.completion_result_list.update_camera(dt);
     }
 
-    pub fn lsp_add_completion_results(&mut self, completion_list: &mut Vec<LspCompletionItem>) {
+    pub fn lsp_add_completion_results(&mut self, completion_list: &mut Vec<CompletionItem>) {
         Self::clear_completions(
             &mut self.completion_result_list,
             &mut self.completion_result_pool,
@@ -286,10 +287,7 @@ impl Editor {
 
         for item in completion_list {
             let (label, insert_text, range) = if let Some(text_edit) = &item.text_edit {
-                let start = Position::from(text_edit.range.start);
-                let end = Position::from(text_edit.range.end);
-
-                (item.label, Some(text_edit.new_text), Some((start, end)))
+                (item.label, Some(text_edit.new_text), Some(text_edit.range))
             } else {
                 (item.label, item.insert_text, None)
             };
@@ -362,22 +360,17 @@ impl Editor {
     }
 
     fn draw_diagnostic_popup(&self, ctx: &mut Ctx) -> Option<()> {
-        let pane = self.panes.get_focused().unwrap();
-        let focused_tab_index = pane.focused_tab_index();
-
-        let (tab, doc) = pane.get_tab_with_data(focused_tab_index, &self.doc_list)?;
+        let (tab, doc) = self.get_focused_tab_and_doc()?;
 
         let position = doc.get_cursor(CursorIndex::Main).position;
-        let path = doc.path().on_drive()?;
 
         for language_server in ctx.lsp.iter_servers_mut() {
-            for diagnostic in language_server.get_diagnostics_mut(path) {
+            for diagnostic in language_server.get_diagnostics_mut(doc) {
                 if !diagnostic.is_visible() {
                     continue;
                 }
 
-                let start = Position::from(diagnostic.range.start);
-                let end = Position::from(diagnostic.range.end);
+                let (start, end) = diagnostic.range;
 
                 if position < start || position > end {
                     continue;
@@ -573,10 +566,15 @@ impl Editor {
         Some(())
     }
 
-    fn get_cursor_position(&self) -> Option<Position> {
+    pub fn get_focused_tab_and_doc(&self) -> Option<(&Tab, &Doc)> {
         let pane = self.panes.get_focused().unwrap();
+        let focused_tab_index = pane.focused_tab_index();
 
-        pane.get_tab_with_data(pane.focused_tab_index(), &self.doc_list)
+        pane.get_tab_with_data(focused_tab_index, &self.doc_list)
+    }
+
+    fn get_cursor_position(&self) -> Option<Position> {
+        self.get_focused_tab_and_doc()
             .map(|(_, doc)| doc.get_cursor(CursorIndex::Main).position)
     }
 

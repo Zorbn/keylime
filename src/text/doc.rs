@@ -1076,53 +1076,7 @@ impl Doc {
         }
 
         if self.do_shift() {
-            self.shift_positions_by_delete(start, end, ctx);
-        }
-    }
-
-    fn shift_positions_by_delete(&mut self, start: Position, end: Position, ctx: &mut Ctx) {
-        for index in self.cursor_indices() {
-            let cursor = self.get_cursor_mut(index);
-
-            cursor.position = Self::shift_position_by_delete(start, end, cursor.position);
-            cursor.selection_anchor = cursor.selection_anchor.map(|selection_anchor| {
-                Self::shift_position_by_delete(start, end, selection_anchor)
-            });
-
-            self.update_cursor_desired_visual_x(index, ctx.gfx);
-        }
-
-        let Some(path) = self.path().on_drive() else {
-            return;
-        };
-
-        for language_server in ctx.lsp.iter_servers_mut() {
-            for diagnostic in language_server.get_diagnostics_mut(path) {
-                diagnostic.range.start =
-                    Self::shift_position_by_delete(start, end, diagnostic.range.start.into())
-                        .into();
-                diagnostic.range.end =
-                    Self::shift_position_by_delete(start, end, diagnostic.range.end.into()).into();
-            }
-        }
-    }
-
-    fn shift_position_by_delete(start: Position, end: Position, position: Position) -> Position {
-        let influence_end = end.min(position);
-
-        if influence_end <= start {
-            return position;
-        }
-
-        if influence_end.y == position.y && influence_end.x <= position.x {
-            // Use isize to allow for wrapping the position when deleting at the start of a line.
-            let x = (position.x as isize - (influence_end.x as isize - start.x as isize)) as usize;
-
-            Position::new(x, position.y - (influence_end.y - start.y))
-        } else if influence_end.y < position.y {
-            Position::new(position.x, position.y - (influence_end.y - start.y))
-        } else {
-            position
+            self.shift_positions(start, end, Self::shift_position_by_delete, ctx);
         }
     }
 
@@ -1192,33 +1146,36 @@ impl Doc {
         }
 
         if self.do_shift() {
-            self.shift_positions_by_insert(start, position, ctx);
+            self.shift_positions(start, position, Self::shift_position_by_insert, ctx);
         }
     }
 
-    fn shift_positions_by_insert(&mut self, start: Position, end: Position, ctx: &mut Ctx) {
+    fn shift_positions(
+        &mut self,
+        start: Position,
+        end: Position,
+        shift_fn: fn(Position, Position, Position) -> Position,
+        ctx: &mut Ctx,
+    ) {
         for index in self.cursor_indices() {
             let cursor = self.get_cursor_mut(index);
 
-            cursor.position = Self::shift_position_by_insert(start, end, cursor.position);
-            cursor.selection_anchor = cursor.selection_anchor.map(|selection_anchor| {
-                Self::shift_position_by_insert(start, end, selection_anchor)
-            });
+            cursor.position = shift_fn(start, end, cursor.position);
+            cursor.selection_anchor = cursor
+                .selection_anchor
+                .map(|selection_anchor| shift_fn(start, end, selection_anchor));
 
             self.update_cursor_desired_visual_x(index, ctx.gfx);
         }
 
-        let Some(path) = self.path().on_drive() else {
-            return;
-        };
-
         for language_server in ctx.lsp.iter_servers_mut() {
-            for diagnostic in language_server.get_diagnostics_mut(path) {
-                diagnostic.range.start =
-                    Self::shift_position_by_insert(start, end, diagnostic.range.start.into())
-                        .into();
-                diagnostic.range.end =
-                    Self::shift_position_by_insert(start, end, diagnostic.range.end.into()).into();
+            for diagnostic in language_server.get_diagnostics_mut(self) {
+                let (diagnostic_start, diagnostic_end) = diagnostic.range;
+
+                let diagnostic_start = shift_fn(start, end, diagnostic_start);
+                let diagnostic_end = shift_fn(start, end, diagnostic_end);
+
+                diagnostic.range = (diagnostic_start, diagnostic_end);
             }
         }
     }
@@ -1228,6 +1185,25 @@ impl Doc {
             Position::new(position.x + end.x - start.x, position.y + end.y - start.y)
         } else if start.y < position.y {
             Position::new(position.x, position.y + end.y - start.y)
+        } else {
+            position
+        }
+    }
+
+    fn shift_position_by_delete(start: Position, end: Position, position: Position) -> Position {
+        let influence_end = end.min(position);
+
+        if influence_end <= start {
+            return position;
+        }
+
+        if influence_end.y == position.y && influence_end.x <= position.x {
+            // Use isize to allow for wrapping the position when deleting at the start of a line.
+            let x = (position.x as isize - (influence_end.x as isize - start.x as isize)) as usize;
+
+            Position::new(x, position.y - (influence_end.y - start.y))
+        } else if influence_end.y < position.y {
+            Position::new(position.x, position.y - (influence_end.y - start.y))
         } else {
             position
         }
@@ -1987,7 +1963,7 @@ impl Doc {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;
 
-        language_server.did_change(path, self.version, start, end, text);
+        language_server.did_change(path, self.version, start, end, text, self);
 
         Some(())
     }
@@ -1996,7 +1972,7 @@ impl Doc {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;
 
-        language_server.completion(path, position);
+        language_server.completion(path, position, self);
 
         Some(())
     }

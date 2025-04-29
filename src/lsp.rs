@@ -15,6 +15,7 @@ use crate::{
     geometry::position::Position,
     platform::process::{Process, ProcessKind},
     temp_buffer::TempString,
+    text::doc::Doc,
     ui::{color::Color, editor::Editor},
 };
 
@@ -22,44 +23,172 @@ const DEFAULT_SEVERITY: fn() -> usize = || 1;
 const URI_SCHEME: &str = "file:///";
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-pub struct LspPosition {
+struct LspPosition {
     line: usize,
     character: usize,
 }
 
-impl From<LspPosition> for Position {
-    fn from(position: LspPosition) -> Self {
-        Position {
-            x: position.character,
-            y: position.line,
+impl LspPosition {
+    fn encode(position: Position, encoding: PositionEncoding, doc: &Doc) -> LspPosition {
+        let line = doc.get_line(position.y).unwrap_or_default();
+
+        match encoding {
+            PositionEncoding::Utf8 => LspPosition {
+                line: position.y,
+                character: position.x,
+            },
+            PositionEncoding::Utf16 => LspPosition {
+                line: position.y,
+                character: line[..position.x].encode_utf16().count(),
+            },
         }
     }
-}
 
-impl From<Position> for LspPosition {
-    fn from(position: Position) -> Self {
-        LspPosition {
-            character: position.x,
-            line: position.y,
+    fn decode(self, encoding: PositionEncoding, doc: &Doc) -> Position {
+        let line = doc.get_line(self.line).unwrap_or_default();
+
+        match encoding {
+            PositionEncoding::Utf8 => Position {
+                x: self.character,
+                y: self.line,
+            },
+            PositionEncoding::Utf16 => {
+                let mut wide_index = 0;
+                let mut result = Position {
+                    x: line.len(),
+                    y: self.line,
+                };
+
+                for (index, c) in line.char_indices() {
+                    let mut dst = [0; 2];
+
+                    wide_index += c.encode_utf16(&mut dst).iter().count();
+
+                    if wide_index >= self.character {
+                        result.x = index;
+                        break;
+                    }
+                }
+
+                result
+            }
         }
     }
 }
 
 #[derive(Debug, Deserialize, Clone, Copy)]
-pub struct LspRange {
-    pub start: LspPosition,
-    pub end: LspPosition,
+struct LspRange {
+    start: LspPosition,
+    end: LspPosition,
+}
+
+impl LspRange {
+    fn decode(self, encoding: PositionEncoding, doc: &Doc) -> (Position, Position) {
+        let start = self.start.decode(encoding, doc);
+        let end = self.end.decode(encoding, doc);
+
+        (start, end)
+    }
 }
 
 #[derive(Debug, Deserialize)]
-pub struct LspDiagnostic {
-    pub message: String,
-    pub range: LspRange,
+struct LspDiagnostic {
+    message: String,
+    range: LspRange,
     #[serde(default = "DEFAULT_SEVERITY")]
-    pub severity: usize,
+    severity: usize,
 }
 
 impl LspDiagnostic {
+    fn decode(self, encoding: PositionEncoding, doc: &Doc) -> Diagnostic {
+        Diagnostic {
+            message: self.message,
+            range: self.range.decode(encoding, doc),
+            severity: self.severity,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct LspPublishDiagnosticsParams {
+    uri: String,
+    diagnostics: Vec<LspDiagnostic>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LspTextEdit<'a> {
+    range: LspRange,
+    new_text: &'a str,
+}
+
+impl<'a> LspTextEdit<'a> {
+    fn decode(self, encoding: PositionEncoding, doc: &Doc) -> TextEdit<'a> {
+        TextEdit {
+            range: self.range.decode(encoding, doc),
+            new_text: self.new_text,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LspCompletionItem<'a> {
+    label: &'a str,
+    sort_text: Option<&'a str>,
+    filter_text: Option<&'a str>,
+    insert_text: Option<&'a str>,
+    text_edit: Option<LspTextEdit<'a>>,
+}
+
+impl<'a> LspCompletionItem<'a> {
+    fn decode(self, encoding: PositionEncoding, doc: &Doc) -> CompletionItem<'a> {
+        CompletionItem {
+            label: self.label,
+            sort_text: self.sort_text,
+            filter_text: self.filter_text,
+            insert_text: self.insert_text,
+            text_edit: self
+                .text_edit
+                .map(|text_edit| text_edit.decode(encoding, doc)),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct LspCompletionList<'a> {
+    #[serde(borrow)]
+    items: Vec<LspCompletionItem<'a>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LspServerCapabilities<'a> {
+    position_encoding: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+struct LspInitializeResult<'a> {
+    #[serde(borrow)]
+    capabilities: LspServerCapabilities<'a>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LspMessageHeader {
+    id: Option<u64>,
+    method: Option<String>,
+    result: Option<Box<RawValue>>,
+    params: Option<Box<RawValue>>,
+}
+
+#[derive(Debug)]
+pub struct Diagnostic {
+    pub message: String,
+    pub range: (Position, Position),
+    pub severity: usize,
+}
+
+impl Diagnostic {
     pub fn is_visible(&self) -> bool {
         self.severity != 4
     }
@@ -73,30 +202,22 @@ impl LspDiagnostic {
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct LspPublishDiagnosticsParams {
-    uri: String,
-    diagnostics: Vec<LspDiagnostic>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LspTextEdit<'a> {
-    pub range: LspRange,
+#[derive(Debug)]
+pub struct TextEdit<'a> {
+    pub range: (Position, Position),
     pub new_text: &'a str,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LspCompletionItem<'a> {
+#[derive(Debug)]
+pub struct CompletionItem<'a> {
     pub label: &'a str,
     sort_text: Option<&'a str>,
     filter_text: Option<&'a str>,
     pub insert_text: Option<&'a str>,
-    pub text_edit: Option<LspTextEdit<'a>>,
+    pub text_edit: Option<TextEdit<'a>>,
 }
 
-impl LspCompletionItem<'_> {
+impl CompletionItem<'_> {
     pub fn sort_text(&self) -> &str {
         self.sort_text.unwrap_or(self.label)
     }
@@ -104,20 +225,6 @@ impl LspCompletionItem<'_> {
     pub fn filter_text(&self) -> &str {
         self.filter_text.unwrap_or(self.label)
     }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct LspCompletionList<'a> {
-    #[serde(borrow)]
-    pub items: Vec<LspCompletionItem<'a>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct LspMessageHeader {
-    id: Option<u64>,
-    method: Option<String>,
-    result: Option<Box<RawValue>>,
-    params: Option<Box<RawValue>>,
 }
 
 pub struct Lsp {
@@ -171,6 +278,35 @@ impl Lsp {
     }
 }
 
+#[derive(Debug, Default)]
+struct Diagnostics {
+    encoded: Vec<LspDiagnostic>,
+    decoded: Vec<Diagnostic>,
+}
+
+impl Diagnostics {
+    pub fn replace(&mut self, encoded: &mut Vec<LspDiagnostic>) {
+        self.decoded.clear();
+        self.encoded.clear();
+
+        self.encoded.append(encoded);
+    }
+
+    pub fn decode(&mut self, encoding: PositionEncoding, doc: &Doc) {
+        self.decoded.extend(
+            self.encoded
+                .drain(..)
+                .map(|diagnostic| diagnostic.decode(encoding, doc)),
+        );
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum PositionEncoding {
+    Utf8,
+    Utf16,
+}
+
 enum MessageParseState {
     Idle,
     HasContentLen(usize),
@@ -184,7 +320,8 @@ pub struct LanguageServer {
     message_queue: Vec<u8>,
     has_initialized: bool,
     uri_buffer: TempString,
-    diagnostics: HashMap<PathBuf, Vec<LspDiagnostic>>,
+    diagnostics: HashMap<PathBuf, Diagnostics>,
+    position_encoding: PositionEncoding,
 }
 
 impl LanguageServer {
@@ -200,6 +337,7 @@ impl LanguageServer {
             has_initialized: false,
             uri_buffer: TempString::new(),
             diagnostics: HashMap::new(),
+            position_encoding: PositionEncoding::Utf16,
         };
 
         let workspace_name = current_dir
@@ -225,7 +363,7 @@ impl LanguageServer {
                         "workspaceFolders": true,
                     },
                     "general": {
-                        "positionEncodings": ["utf-8"],
+                        "positionEncodings": ["utf-8", "utf-16"],
                     },
                 },
             }),
@@ -236,10 +374,17 @@ impl LanguageServer {
         Some(language_server)
     }
 
-    pub fn get_diagnostics_mut(&mut self, path: &Path) -> &mut [LspDiagnostic] {
+    pub fn get_diagnostics_mut(&mut self, doc: &Doc) -> &mut [Diagnostic] {
+        let Some(path) = doc.path().on_drive() else {
+            return &mut [];
+        };
+
         self.diagnostics
             .get_mut(path)
-            .map(|diagnostics| diagnostics.as_mut_slice())
+            .map(|diagnostics| {
+                diagnostics.decode(self.position_encoding, doc);
+                diagnostics.decoded.as_mut_slice()
+            })
             .unwrap_or_default()
     }
 
@@ -325,6 +470,14 @@ impl LanguageServer {
 
                     match method {
                         "initialize" => {
+                            if let Some(Ok(result)) = message.result.as_ref().map(|result| {
+                                serde_json::from_str::<LspInitializeResult>(result.get())
+                            }) {
+                                if result.capabilities.position_encoding == "utf-8" {
+                                    self.position_encoding = PositionEncoding::Utf8;
+                                }
+                            }
+
                             self.send_notification("initialized", json!({}));
 
                             self.has_initialized = true;
@@ -352,18 +505,28 @@ impl LanguageServer {
                             };
 
                             let diagnostics = self.diagnostics.entry(path).or_default();
-                            diagnostics.clear();
-                            diagnostics.append(&mut params.diagnostics);
+                            diagnostics.replace(&mut params.diagnostics);
                         }
                         "textDocument/completion" => {
                             let result = message.result.as_ref().map(|result| result.get());
 
-                            let mut result = result
+                            let result = result
                                 .and_then(|result| {
                                     serde_json::from_str::<LspCompletionList>(result).ok()
                                 })
                                 .map(|result| result.items)
                                 .unwrap_or_default();
+
+                            let Some((_, doc)) = editor.get_focused_tab_and_doc() else {
+                                return;
+                            };
+
+                            // The compiler should perform an in-place collect here because
+                            // LspCompletionItem and CompletionItem have the same size and alignment.
+                            let mut result: Vec<CompletionItem> = result
+                                .into_iter()
+                                .map(|item| item.decode(self.position_encoding, doc))
+                                .collect();
 
                             editor.lsp_add_completion_results(&mut result);
                         }
@@ -401,6 +564,7 @@ impl LanguageServer {
         start: Position,
         end: Position,
         text: &str,
+        doc: &Doc,
     ) {
         let mut uri_buffer = self.uri_buffer.take_mut();
 
@@ -416,8 +580,8 @@ impl LanguageServer {
                 "contentChanges": [{
                     "text": text,
                     "range": {
-                        "start": LspPosition::from(start),
-                        "end": LspPosition::from(end),
+                        "start": LspPosition::encode(start, self.position_encoding, doc),
+                        "end": LspPosition::encode(end, self.position_encoding, doc),
                     }
                 }]
             }),
@@ -426,7 +590,7 @@ impl LanguageServer {
         self.uri_buffer.replace(uri_buffer);
     }
 
-    pub fn completion(&mut self, path: &Path, position: Position) {
+    pub fn completion(&mut self, path: &Path, position: Position, doc: &Doc) {
         let mut uri_buffer = self.uri_buffer.take_mut();
 
         path_to_uri(path, &mut uri_buffer);
@@ -437,7 +601,7 @@ impl LanguageServer {
                 "textDocument": {
                     "uri": uri_buffer,
                 },
-                "position": LspPosition::from(position),
+                "position": LspPosition::encode(position, self.position_encoding, doc),
             }),
         );
 

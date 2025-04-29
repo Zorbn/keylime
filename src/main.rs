@@ -22,9 +22,8 @@ use platform::window::WindowRunner;
 /*
  * TODO:
  * Scroll bar along the right side of each tab that shows the current camera location as well as the location of diagnostics.
- * Language servers may encode positions as utf-16 offsets instead of utf-8.
  * Language server completion responses might be a list of completion items instead of a completion list object.
- * Skip adding lsp completion results if by the time they are being added the popup shouldn't be open anymore.
+ * Skip adding lsp completion results if by the time they are being added the popup shouldn't be open anymore or the current doc was changed.
  */
 
 fn main() {
