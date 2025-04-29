@@ -19,6 +19,7 @@ use crate::{
 };
 
 const DEFAULT_SEVERITY: fn() -> usize = || 1;
+const URI_SCHEME: &str = "file:///";
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct LspPosition {
@@ -513,32 +514,31 @@ impl Drop for LanguageServer {
 }
 
 fn uri_to_path(uri: &str, mut result: String) -> Option<PathBuf> {
-    const SCHEME: &str = "file:///";
-
-    if !uri.starts_with(SCHEME) {
+    if !uri.starts_with(URI_SCHEME) {
         return None;
     }
 
-    let mut chars = uri[SCHEME.len()..].chars().peekable();
+    let mut chars = uri[URI_SCHEME.len()..].chars().peekable();
+    let mut c = chars.next();
 
-    if let Some(c) = chars.next() {
-        if c.is_ascii_alphabetic() && chars.peek() == Some(&':') {
+    if let Some(first_char) = c {
+        if first_char.is_ascii_alphabetic() && chars.peek() == Some(&':') {
             // This is a drive letter.
-            result.push(c.to_ascii_uppercase());
+            result.push(first_char.to_ascii_uppercase());
+            c = chars.next();
         } else {
             // No drive letter, add a root slash instead.
             result.push('/');
-            result.push(c);
         }
     }
 
-    while let Some(c) = chars.next() {
-        if c == '%' {
-            result.push(decode_uri_char(&mut chars)?);
-            continue;
-        }
+    while let Some(next_char) = c {
+        result.push(match next_char {
+            '%' => decode_uri_char(&mut chars)?,
+            _ => next_char,
+        });
 
-        result.push(c);
+        c = chars.next()
     }
 
     Some(PathBuf::from(result))
@@ -563,7 +563,7 @@ fn decode_uri_char(chars: &mut Peekable<Chars>) -> Option<char> {
 fn path_to_uri(path: &Path, result: &mut String) {
     assert!(path.is_absolute());
 
-    result.push_str("file:///");
+    result.push_str(URI_SCHEME);
 
     if let Some(parent) = path.parent() {
         for component in parent {
