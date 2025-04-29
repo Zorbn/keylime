@@ -38,16 +38,16 @@ impl Text {
         let font_name = CFString::from_str(font_name);
         let font_size = (font_size * scale).floor() as f64;
 
-        let font = CTFontCreateWithNameAndOptions(
+        let font = CTFont::with_name_and_options(
             &font_name,
             font_size,
             null_mut(),
             CTFontOptions::Default,
         );
 
-        let loaded_font_name = CTFontCopyFamilyName(&font);
+        let loaded_font_name = CTFont::family_name(&font);
 
-        let did_load_requested_font = CFStringCompare(
+        let did_load_requested_font = CFString::compare(
             &font_name,
             Some(&loaded_font_name),
             CFStringCompareFlags::empty(),
@@ -57,7 +57,7 @@ impl Text {
             return Err("Font not found");
         }
 
-        let symbolic_traits = CTFontGetSymbolicTraits(&font);
+        let symbolic_traits = CTFont::symbolic_traits(&font);
 
         if !symbolic_traits.contains(CTFontSymbolicTraits::TraitMonoSpace) {
             return Err("Font is not monospaced");
@@ -66,7 +66,7 @@ impl Text {
         let advance_glyphs = &[b'M' as u16];
         let mut advances = [CGSize::ZERO; 1];
 
-        CTFontGetAdvancesForGlyphs(
+        CTFont::advances_for_glyphs(
             &font,
             CTFontOrientation::Horizontal,
             NonNull::from(&advance_glyphs[0]),
@@ -74,8 +74,7 @@ impl Text {
             1,
         );
 
-        let line_height =
-            CTFontGetAscent(&font) + CTFontGetDescent(&font) + CTFontGetLeading(&font);
+        let line_height = CTFont::ascent(&font) + CTFont::descent(&font) + CTFont::leading(&font);
         let line_height = line_height.ceil() as usize;
 
         let glyph_width = advances[0].width.floor() as usize;
@@ -95,7 +94,7 @@ impl Text {
         let mut glyphs = [glyph.index];
         let glyphs = NonNull::new(glyphs.as_mut_ptr()).unwrap();
 
-        let rect = CTFontGetBoundingRectsForGlyphs(
+        let rect = CTFont::bounding_rects_for_glyphs(
             glyph.font,
             CTFontOrientation::Horizontal,
             glyphs,
@@ -124,7 +123,7 @@ impl Text {
         let bitmap_info =
             CGBitmapInfo(CGBitmapInfo::ByteOrder32Big.0 | CGImageAlphaInfo::PremultipliedLast.0);
 
-        let rgb_color_space = CGColorSpaceCreateDeviceRGB();
+        let rgb_color_space = CGColorSpace::new_device_rgb();
 
         let context = CGBitmapContextCreateWithData(
             raw_data.as_mut_ptr() as _,
@@ -142,7 +141,7 @@ impl Text {
         let mut positions = [CGPoint::new(-origin.x + 1.0, -origin.y + 1.0)];
         let positions = NonNull::new(positions.as_mut_ptr()).unwrap();
 
-        CTFontDrawGlyphs(glyph.font, glyphs, positions, 1, &context);
+        CTFont::draw_glyphs(glyph.font, glyphs, positions, 1, &context);
 
         Ok(Atlas {
             data: raw_data,
@@ -183,34 +182,34 @@ impl Text {
 
         attributed_string.endEditing();
 
-        let line = CTLineCreateWithAttributedString(
+        let line = CTLine::with_attributed_string(
             (attributed_string.deref() as *const _ as *const CFAttributedString)
                 .as_ref()
                 .unwrap(),
         );
 
-        let runs = CTLineGetGlyphRuns(&line);
-        let count = CFArrayGetCount(&runs);
+        let runs = CTLine::glyph_runs(&line);
+        let count = CFArray::count(&runs);
 
         for i in 0..count {
-            let run = (CFArrayGetValueAtIndex(&runs, i) as *const CTRun)
+            let run = (CFArray::value_at_index(&runs, i) as *const CTRun)
                 .as_ref()
                 .unwrap();
 
-            let attributes = CTRunGetAttributes(run);
-            let font = (CFDictionaryGetValue(&attributes, kCTFontAttributeName as *const _ as _)
+            let attributes = CTRun::attributes(run);
+            let font = (CFDictionary::value(&attributes, kCTFontAttributeName as *const _ as _)
                 as *const CTFont)
                 .as_ref()
                 .unwrap();
 
-            let traits = CTFontGetSymbolicTraits(font);
+            let traits = CTFont::symbolic_traits(font);
             let has_color = traits.contains(CTFontSymbolicTraits::ColorGlyphsTrait);
 
-            let glyph_count = CTRunGetGlyphCount(run) as usize;
+            let glyph_count = CTRun::glyph_count(run) as usize;
 
             self.glyph_indices.resize(glyph_count, 0);
 
-            CTRunGetGlyphs(
+            CTRun::glyphs(
                 run,
                 CFRange {
                     location: 0,
@@ -221,7 +220,7 @@ impl Text {
 
             self.glyph_advances.resize(glyph_count, CGSize::ZERO);
 
-            CTRunGetAdvances(
+            CTRun::advances(
                 run,
                 CFRange {
                     location: 0,
