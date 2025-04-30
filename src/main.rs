@@ -22,6 +22,7 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
+ * Update Windows platform with input changes.
  * Add LSP code actions.
  * Add LSP rename.
  * Add LSP find all references.

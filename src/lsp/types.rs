@@ -81,7 +81,7 @@ pub(super) struct LspDiagnostic {
     message: String,
     range: LspRange,
     #[serde(default = "DEFAULT_SEVERITY")]
-    severity: usize,
+    pub severity: usize,
 }
 
 impl LspDiagnostic {
@@ -206,10 +206,6 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn is_visible(&self) -> bool {
-        self.severity != 4
-    }
-
     pub fn color(&self, theme: &Theme) -> Color {
         match self.severity {
             1 => theme.error,

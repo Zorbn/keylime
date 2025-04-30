@@ -229,11 +229,7 @@ impl<T> Pane<T> {
 
     fn get_tab_color(doc: &Doc, theme: &Theme, ctx: &mut Ctx) -> Color {
         for language_server in ctx.lsp.iter_servers_mut() {
-            for diagnostic in language_server.get_diagnostics_mut(doc) {
-                if !diagnostic.is_visible() {
-                    continue;
-                }
-
+            if let Some(diagnostic) = language_server.get_diagnostics_mut(doc).first() {
                 return diagnostic.color(theme);
             }
         }

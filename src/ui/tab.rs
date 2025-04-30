@@ -490,11 +490,8 @@ impl Tab {
         let theme = &ctx.config.theme;
 
         for language_server in ctx.lsp.iter_servers_mut() {
-            for diagnostic in language_server.get_diagnostics_mut(doc) {
-                if !diagnostic.is_visible() {
-                    continue;
-                }
-
+            // Reversed so that more severe diagnostics are drawn on top.
+            for diagnostic in language_server.get_diagnostics_mut(doc).iter().rev() {
                 let color = diagnostic.color(theme);
                 let (start, end) = diagnostic.range;
 
@@ -656,11 +653,8 @@ impl Tab {
         let theme = &ctx.config.theme;
 
         for language_server in ctx.lsp.iter_servers_mut() {
-            for diagnostic in language_server.get_diagnostics_mut(doc) {
-                if !diagnostic.is_visible() {
-                    continue;
-                }
-
+            // Reversed so that more severe diagnostics are drawn on top.
+            for diagnostic in language_server.get_diagnostics_mut(doc).iter().rev() {
                 let color = diagnostic.color(theme);
                 let (start, end) = diagnostic.range;
 

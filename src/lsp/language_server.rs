@@ -38,6 +38,7 @@ impl Diagnostics {
         self.encoded.clear();
 
         self.encoded.append(encoded);
+        self.encoded.sort_by(|a, b| a.severity.cmp(&b.severity));
     }
 
     pub fn decode(&mut self, encoding: PositionEncoding, doc: &Doc) {
