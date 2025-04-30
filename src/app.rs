@@ -111,6 +111,8 @@ impl App {
 
         let ctx = ctx_for_app!(self, window, gfx, time);
 
+        Lsp::update(&mut self.editor, ctx);
+
         self.terminal.update(&mut self.ui, ctx);
         self.command_palette
             .update(&mut self.ui, &mut self.editor, ctx);

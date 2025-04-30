@@ -54,7 +54,7 @@ enum MessageParseState {
     HasContentLen(usize),
 }
 
-pub enum LanguageServerResult<'a> {
+pub(super) enum LanguageServerResult<'a> {
     Completion(Vec<LspCompletionItem<'a>>),
     Definition { path: PathBuf, range: LspRange },
 }
@@ -134,7 +134,7 @@ impl LanguageServer {
             .unwrap_or_default()
     }
 
-    pub fn poll(&mut self) -> Option<LspMessage> {
+    pub(super) fn poll(&mut self) -> Option<LspMessage> {
         loop {
             let (_, output) = self.process.input_output();
             let mut output = output.lock().ok()?;
@@ -196,7 +196,7 @@ impl LanguageServer {
         }
     }
 
-    pub fn handle_message<'a>(
+    pub(super) fn handle_message<'a>(
         &mut self,
         message: &'a LspMessage,
     ) -> Option<LanguageServerResult<'a>> {

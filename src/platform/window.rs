@@ -1,9 +1,11 @@
 use crate::{
     app::App,
     config::theme::Theme,
+    geometry::visual_position::VisualPosition,
     input::{
         action::Action,
         input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
+        mods::Mods,
         mouse_scroll::MouseScroll,
         mousebind::Mousebind,
     },
@@ -86,6 +88,14 @@ impl Window {
 
     pub fn mouse_scrolls(&mut self) -> &mut Vec<MouseScroll> {
         &mut self.inner.mouse_scrolls
+    }
+
+    pub fn mouse_position(&self) -> VisualPosition {
+        self.inner.mouse_position()
+    }
+
+    pub fn mods(&self) -> Mods {
+        self.inner.mods()
     }
 
     pub fn set_clipboard(&mut self, text: &str, was_copy_implicit: bool) -> Result<()> {

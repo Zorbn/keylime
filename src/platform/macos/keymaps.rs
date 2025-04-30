@@ -1,402 +1,398 @@
 use std::collections::HashMap;
 
-use crate::input::{
-    action::ActionName,
-    key::Key,
-    keybind::{Keybind, MOD_ALT, MOD_CMD, MOD_CTRL, MOD_SHIFT},
-};
+use crate::input::{action::ActionName, key::Key, keybind::Keybind, mods::Mods};
 
 pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
     [
         (
             Keybind {
                 key: Key::P,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::OpenFileFinder,
         ),
         (
             Keybind {
                 key: Key::T,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::OpenAllFiles,
         ),
         (
             Keybind {
                 key: Key::F,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::OpenSearch,
         ),
         (
             Keybind {
                 key: Key::H,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::OpenSearchAndReplace,
         ),
         (
             Keybind {
                 key: Key::F,
-                mods: MOD_CMD | MOD_SHIFT,
+                mods: Mods::CMD | Mods::SHIFT,
             },
             ActionName::OpenFindInFiles,
         ),
         (
             Keybind {
                 key: Key::G,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::OpenGoToLine,
         ),
         (
             Keybind {
                 key: Key::Grave,
-                mods: MOD_CTRL,
+                mods: Mods::CTRL,
             },
             ActionName::FocusTerminal,
         ),
         (
             Keybind {
                 key: Key::O,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::OpenFile,
         ),
         (
             Keybind {
                 key: Key::O,
-                mods: MOD_CMD | MOD_SHIFT,
+                mods: Mods::CMD | Mods::SHIFT,
             },
             ActionName::OpenFolder,
         ),
         (
             Keybind {
                 key: Key::S,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::SaveFile,
         ),
         (
             Keybind {
                 key: Key::N,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::NewTab,
         ),
         (
             Keybind {
                 key: Key::W,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::CloseTab,
         ),
         (
             Keybind {
                 key: Key::N,
-                mods: MOD_CMD | MOD_ALT,
+                mods: Mods::CMD | Mods::ALT,
             },
             ActionName::NewPane,
         ),
         (
             Keybind {
                 key: Key::W,
-                mods: MOD_CMD | MOD_ALT,
+                mods: Mods::CMD | Mods::ALT,
             },
             ActionName::ClosePane,
         ),
         (
             Keybind {
                 key: Key::Left,
-                mods: MOD_CMD | MOD_ALT,
+                mods: Mods::CMD | Mods::ALT,
             },
             ActionName::PreviousTab,
         ),
         (
             Keybind {
                 key: Key::Right,
-                mods: MOD_CMD | MOD_ALT,
+                mods: Mods::CMD | Mods::ALT,
             },
             ActionName::NextTab,
         ),
         (
             Keybind {
                 key: Key::Left,
-                mods: MOD_CMD | MOD_SHIFT | MOD_ALT,
+                mods: Mods::CMD | Mods::SHIFT | Mods::ALT,
             },
             ActionName::PreviousPane,
         ),
         (
             Keybind {
                 key: Key::Right,
-                mods: MOD_CMD | MOD_SHIFT | MOD_ALT,
+                mods: Mods::CMD | Mods::SHIFT | Mods::ALT,
             },
             ActionName::NextPane,
         ),
         (
             Keybind {
                 key: Key::R,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::ReloadFile,
         ),
         (
             Keybind {
                 key: Key::Home,
-                mods: 0,
+                mods: Mods::NONE,
             },
             ActionName::Home,
         ),
         (
             Keybind {
                 key: Key::End,
-                mods: 0,
+                mods: Mods::NONE,
             },
             ActionName::End,
         ),
         (
             Keybind {
                 key: Key::Home,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::GoToStart,
         ),
         (
             Keybind {
                 key: Key::End,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::GoToEnd,
         ),
         (
             Keybind {
                 key: Key::Left,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::Home,
         ),
         (
             Keybind {
                 key: Key::Right,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::End,
         ),
         (
             Keybind {
                 key: Key::Up,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::GoToStart,
         ),
         (
             Keybind {
                 key: Key::Down,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::GoToEnd,
         ),
         (
             Keybind {
                 key: Key::PageUp,
-                mods: 0,
+                mods: Mods::NONE,
             },
             ActionName::PageUp,
         ),
         (
             Keybind {
                 key: Key::PageDown,
-                mods: 0,
+                mods: Mods::NONE,
             },
             ActionName::PageDown,
         ),
         (
             Keybind {
                 key: Key::A,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::SelectAll,
         ),
         (
             Keybind {
                 key: Key::Z,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::Undo,
         ),
         (
             Keybind {
                 key: Key::Z,
-                mods: MOD_CMD | MOD_SHIFT,
+                mods: Mods::CMD | Mods::SHIFT,
             },
             ActionName::Redo,
         ),
         (
             Keybind {
                 key: Key::C,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::Copy,
         ),
         (
             Keybind {
                 key: Key::X,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::Cut,
         ),
         (
             Keybind {
                 key: Key::V,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::Paste,
         ),
         (
             Keybind {
                 key: Key::D,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::AddCursorAtNextOccurance,
         ),
         (
             Keybind {
                 key: Key::ForwardSlash,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::ToggleComments,
         ),
         (
             Keybind {
                 key: Key::LBracket,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::Unindent,
         ),
         (
             Keybind {
                 key: Key::RBracket,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::Indent,
         ),
         (
             Keybind {
                 key: Key::Left,
-                mods: 0,
+                mods: Mods::NONE,
             },
             ActionName::MoveLeft,
         ),
         (
             Keybind {
                 key: Key::Right,
-                mods: 0,
+                mods: Mods::NONE,
             },
             ActionName::MoveRight,
         ),
         (
             Keybind {
                 key: Key::Left,
-                mods: MOD_ALT,
+                mods: Mods::ALT,
             },
             ActionName::MoveLeftWord,
         ),
         (
             Keybind {
                 key: Key::Right,
-                mods: MOD_ALT,
+                mods: Mods::ALT,
             },
             ActionName::MoveRightWord,
         ),
         (
             Keybind {
                 key: Key::Up,
-                mods: 0,
+                mods: Mods::NONE,
             },
             ActionName::MoveUp,
         ),
         (
             Keybind {
                 key: Key::Down,
-                mods: 0,
+                mods: Mods::NONE,
             },
             ActionName::MoveDown,
         ),
         (
             Keybind {
                 key: Key::Up,
-                mods: MOD_ALT,
+                mods: Mods::ALT,
             },
             ActionName::ShiftLinesUp,
         ),
         (
             Keybind {
                 key: Key::Down,
-                mods: MOD_ALT,
+                mods: Mods::ALT,
             },
             ActionName::ShiftLinesDown,
         ),
         (
             Keybind {
                 key: Key::Minus,
-                mods: MOD_CTRL,
+                mods: Mods::CTRL,
             },
             ActionName::UndoCursorPosition,
         ),
         (
             Keybind {
                 key: Key::Minus,
-                mods: MOD_CTRL | MOD_SHIFT,
+                mods: Mods::CTRL | Mods::SHIFT,
             },
             ActionName::RedoCursorPosition,
         ),
         (
             Keybind {
                 key: Key::Up,
-                mods: MOD_CMD | MOD_ALT,
+                mods: Mods::CMD | Mods::ALT,
             },
             ActionName::AddCursorUp,
         ),
         (
             Keybind {
                 key: Key::Down,
-                mods: MOD_CMD | MOD_ALT,
+                mods: Mods::CMD | Mods::ALT,
             },
             ActionName::AddCursorDown,
         ),
         (
             Keybind {
                 key: Key::Backspace,
-                mods: 0,
+                mods: Mods::NONE,
             },
             ActionName::DeleteBackward,
         ),
         (
             Keybind {
                 key: Key::Backspace,
-                mods: MOD_ALT,
+                mods: Mods::ALT,
             },
             ActionName::DeleteBackwardWord,
         ),
         (
             Keybind {
                 key: Key::Backspace,
-                mods: MOD_CMD,
+                mods: Mods::CMD,
             },
             ActionName::DeleteBackwardLine,
         ),
         (
             Keybind {
                 key: Key::Delete,
-                mods: 0,
+                mods: Mods::NONE,
             },
             ActionName::DeleteForward,
         ),
         (
             Keybind {
                 key: Key::Delete,
-                mods: MOD_ALT,
+                mods: Mods::ALT,
             },
             ActionName::DeleteForwardWord,
         ),

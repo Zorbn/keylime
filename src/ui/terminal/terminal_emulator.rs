@@ -11,7 +11,7 @@ use crate::{
         action::{action_keybind, action_name, ActionName},
         editing_actions::handle_copy,
         key::Key,
-        keybind::{MOD_ALT, MOD_CTRL, MOD_SHIFT},
+        mods::{Mod, Mods},
     },
     platform::{
         gfx::Gfx,
@@ -168,7 +168,7 @@ impl TerminalEmulator {
                     pty.input().push(b'\t');
                 }
                 action_keybind!(key: Backspace, mods) => {
-                    let key_byte = if mods & MOD_CTRL != 0 { 0x8 } else { 0x7F };
+                    let key_byte = if mods.contains(Mod::Ctrl) { 0x8 } else { 0x7F };
 
                     pty.input().extend_from_slice(&[key_byte]);
                 }
@@ -186,19 +186,19 @@ impl TerminalEmulator {
 
                     pty.input().extend_from_slice(&[0x1B, b'[']);
 
-                    if mods != 0 {
+                    if mods != Mods::NONE {
                         pty.input().extend_from_slice(b"1;");
                     }
 
-                    if mods & MOD_SHIFT != 0 && mods & MOD_CTRL != 0 {
+                    if mods.contains(Mod::Shift) && mods.contains(Mod::Ctrl) {
                         pty.input().push(b'6');
-                    } else if mods & MOD_SHIFT != 0 && mods & MOD_ALT != 0 {
+                    } else if mods.contains(Mod::Shift) && mods.contains(Mod::Alt) {
                         pty.input().push(b'4');
-                    } else if mods & MOD_SHIFT != 0 {
+                    } else if mods.contains(Mod::Shift) {
                         pty.input().push(b'2');
-                    } else if mods & MOD_CTRL != 0 {
+                    } else if mods.contains(Mod::Ctrl) {
                         pty.input().push(b'5');
-                    } else if mods & MOD_ALT != 0 {
+                    } else if mods.contains(Mod::Alt) {
                         pty.input().push(b'3');
                     }
 
@@ -215,7 +215,7 @@ impl TerminalEmulator {
 
                     pty.input().extend(text.bytes());
                 }
-                action_keybind!(key, mods: MOD_CTRL) => {
+                action_keybind!(key, mods: Mods::CTRL) => {
                     const KEY_A: u8 = Key::A as u8;
                     const KEY_Z: u8 = Key::Z as u8;
 

@@ -6,9 +6,8 @@ use editor_pane::EditorPane;
 
 use crate::{
     ctx::Ctx,
-    geometry::{rect::Rect, side::SIDE_ALL, visual_position::VisualPosition},
-    input::{action::action_name, mouse_button::MouseButton, mousebind::Mousebind},
-    lsp::{language_server::LanguageServerResult, types::CompletionItem},
+    geometry::{rect::Rect, sides::Sides, visual_position::VisualPosition},
+    input::{action::action_name, mods::Mods, mouse_button::MouseButton, mousebind::Mousebind},
     platform::{file_watcher::FileWatcher, gfx::Gfx},
     text::{cursor_index::CursorIndex, doc::Doc, line_pool::LinePool},
 };
@@ -79,7 +78,6 @@ impl Editor {
     }
 
     pub fn update(&mut self, ui: &mut Ui, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
-        self.update_lsp(ctx);
         self.reload_changed_files(file_watcher, ctx);
 
         let mut mousebind_handler = ui.get_mousebind_handler(&self.widget, ctx.window);
@@ -91,7 +89,7 @@ impl Editor {
             match mousebind {
                 Mousebind {
                     button: Some(MouseButton::Left),
-                    mods: 0,
+                    mods: Mods::NONE,
                     is_drag: false,
                     ..
                 } => {
@@ -169,49 +167,6 @@ impl Editor {
                 .update_results(doc, handled_position, ctx);
         } else {
             self.completion_list.clear();
-        }
-    }
-
-    fn update_lsp(&mut self, ctx: &mut Ctx) {
-        while let Some((language_index, message)) = ctx.lsp.poll() {
-            let Some((encoding, result)) = ctx.lsp.handle_message(language_index, &message) else {
-                continue;
-            };
-
-            match result {
-                LanguageServerResult::Completion(completion_items) => {
-                    let Some((_, doc)) = self.get_focused_tab_and_doc() else {
-                        continue;
-                    };
-
-                    // The compiler should perform an in-place collect here because
-                    // LspCompletionItem and CompletionItem have the same size and alignment.
-                    let completion_items: Vec<CompletionItem> = completion_items
-                        .into_iter()
-                        .map(|item| item.decode(encoding, doc))
-                        .collect();
-
-                    self.completion_list.lsp_update_results(completion_items);
-                }
-                LanguageServerResult::Definition { path, range } => {
-                    let (pane, doc_list) = self.get_focused_pane_and_doc_list();
-
-                    if pane.open_file(&path, doc_list, ctx).is_err() {
-                        continue;
-                    }
-
-                    let focused_tab_index = pane.focused_tab_index();
-                    let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list)
-                    else {
-                        continue;
-                    };
-
-                    let (position, _) = range.decode(encoding, doc);
-
-                    doc.jump_cursors(position, false, ctx.gfx);
-                    tab.camera.recenter();
-                }
-            }
         }
     }
 
@@ -312,7 +267,7 @@ impl Editor {
 
                 gfx.add_bordered_rect(
                     popup_bounds.unoffset_by(popup_bounds),
-                    SIDE_ALL,
+                    Sides::ALL,
                     theme.background,
                     theme.border,
                 );

@@ -7,7 +7,7 @@ use crate::{
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
         editing_actions::{handle_action, handle_grapheme, handle_left_click},
-        keybind::{MOD_ALT, MOD_CMD, MOD_CTRL, MOD_SHIFT},
+        mods::{Mod, Mods},
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
@@ -15,6 +15,7 @@ use crate::{
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
+        grapheme,
     },
 };
 
@@ -129,7 +130,7 @@ impl Tab {
             match mousebind {
                 Mousebind {
                     button: Some(MouseButton::Left),
-                    mods: 0 | MOD_SHIFT,
+                    mods: Mods::NONE | Mods::SHIFT,
                     kind,
                     is_drag,
                     ..
@@ -142,8 +143,8 @@ impl Tab {
                     mods,
                     is_drag: false,
                     ..
-                } if mods & MOD_CTRL != 0 || mods & MOD_CMD != 0 => {
-                    if mods & MOD_ALT != 0 {
+                } if mods.contains(Mod::Ctrl) || mods.contains(Mod::Cmd) => {
+                    if mods.contains(Mod::Alt) {
                         doc.add_cursor(position, ctx.gfx);
                     } else {
                         doc.lsp_definition(position, ctx);
@@ -325,6 +326,7 @@ impl Tab {
         self.draw_indent_guides(doc, camera_position, visible_lines, ctx);
         self.draw_lines(default_background, doc, camera_position, visible_lines, ctx);
         self.draw_diagnostics(doc, camera_position, visible_lines, ctx);
+        self.draw_go_to_definition_hint(doc, camera_position, ctx);
         self.draw_cursors(doc, is_focused, camera_position, visible_lines, ctx);
         self.draw_scroll_bar(doc, visible_lines, ctx);
 
@@ -537,6 +539,49 @@ impl Tab {
                 }
             }
         }
+    }
+
+    fn draw_go_to_definition_hint(
+        &mut self,
+        doc: &Doc,
+        camera_position: VisualPosition,
+        ctx: &mut Ctx,
+    ) {
+        if doc.get_language_server_mut(ctx).is_none() {
+            return;
+        }
+
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
+
+        if !ctx.window.mods().contains(Mod::Ctrl) && !ctx.window.mods().contains(Mod::Cmd) {
+            return;
+        }
+
+        let position = doc.visual_to_position(
+            ctx.window.mouse_position().unoffset_by(self.doc_bounds),
+            camera_position,
+            gfx,
+        );
+
+        if grapheme::is_whitespace(doc.get_grapheme(position)) {
+            return;
+        }
+
+        let selection = doc.select_current_word_at_position(position, gfx);
+
+        let start = doc.position_to_visual(selection.start, camera_position, gfx);
+        let end = doc.position_to_visual(selection.end, camera_position, gfx);
+
+        gfx.add_rect(
+            Rect::new(
+                start.x,
+                start.y + gfx.line_height() - gfx.border_width(),
+                end.x - start.x,
+                gfx.border_width(),
+            ),
+            theme.normal,
+        );
     }
 
     fn draw_cursors(

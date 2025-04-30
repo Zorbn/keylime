@@ -62,7 +62,7 @@ impl LspPosition {
 }
 
 #[derive(Debug, Deserialize, Clone, Copy)]
-pub struct LspRange {
+pub(super) struct LspRange {
     start: LspPosition,
     end: LspPosition,
 }
@@ -118,7 +118,7 @@ impl<'a> LspTextEdit<'a> {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LspCompletionItem<'a> {
+pub(super) struct LspCompletionItem<'a> {
     label: &'a str,
     sort_text: Option<&'a str>,
     filter_text: Option<&'a str>,
@@ -191,7 +191,7 @@ pub(super) struct LspInitializeResult<'a> {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct LspMessage {
+pub(super) struct LspMessage {
     pub(super) id: Option<u64>,
     pub(super) method: Option<String>,
     pub(super) result: Option<Box<RawValue>>,

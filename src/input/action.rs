@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::keybind::{Keybind, MOD_SHIFT};
+use super::{keybind::Keybind, mods::Mod};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
@@ -138,8 +138,6 @@ pub struct Action {
 
 impl Action {
     pub fn from_keybind(keybind: Keybind, keymaps: &HashMap<Keybind, ActionName>) -> Self {
-        let has_shift = keybind.mods & MOD_SHIFT != 0;
-
         if let Some(action_name) = keymaps.get(&keybind) {
             return Self {
                 keybind,
@@ -147,10 +145,10 @@ impl Action {
             };
         }
 
-        if has_shift {
+        if keybind.mods.contains(Mod::Shift) {
             if let Some(action_name) = keymaps.get(&Keybind {
                 key: keybind.key,
-                mods: keybind.mods & !MOD_SHIFT,
+                mods: keybind.mods.without(Mod::Shift),
             }) {
                 return Self {
                     keybind,

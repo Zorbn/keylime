@@ -1,6 +1,7 @@
 #![cfg_attr(test, allow(dead_code))]
 
 mod app;
+mod bit_field;
 mod config;
 mod ctx;
 mod digits;
@@ -21,6 +22,9 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
+ * Add LSP code actions.
+ * Add LSP rename.
+ * Add LSP find all references.
  */
 
 fn main() {

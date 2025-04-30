@@ -16,7 +16,7 @@ use crate::{
 
 use super::{
     action::{action_keybind, action_name, Action},
-    keybind::MOD_SHIFT,
+    mods::{Mod, Mods},
     mousebind::MouseClickKind,
 };
 
@@ -88,21 +88,21 @@ fn should_insert_matching_grapheme(
 
 pub fn handle_action(action: Action, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) -> bool {
     match action {
-        action_name!(MoveLeft, mods) => handle_move(-1, 0, mods & MOD_SHIFT != 0, doc, ctx.gfx),
-        action_name!(MoveRight, mods) => handle_move(1, 0, mods & MOD_SHIFT != 0, doc, ctx.gfx),
-        action_name!(MoveUp, mods) => handle_move(0, -1, mods & MOD_SHIFT != 0, doc, ctx.gfx),
-        action_name!(MoveDown, mods) => handle_move(0, 1, mods & MOD_SHIFT != 0, doc, ctx.gfx),
+        action_name!(MoveLeft, mods) => handle_move(-1, 0, mods.contains(Mod::Shift), doc, ctx.gfx),
+        action_name!(MoveRight, mods) => handle_move(1, 0, mods.contains(Mod::Shift), doc, ctx.gfx),
+        action_name!(MoveUp, mods) => handle_move(0, -1, mods.contains(Mod::Shift), doc, ctx.gfx),
+        action_name!(MoveDown, mods) => handle_move(0, 1, mods.contains(Mod::Shift), doc, ctx.gfx),
         action_name!(MoveLeftWord, mods) => {
-            doc.move_cursors_to_next_word(-1, mods & MOD_SHIFT != 0, ctx.gfx)
+            doc.move_cursors_to_next_word(-1, mods.contains(Mod::Shift), ctx.gfx)
         }
         action_name!(MoveRightWord, mods) => {
-            doc.move_cursors_to_next_word(1, mods & MOD_SHIFT != 0, ctx.gfx)
+            doc.move_cursors_to_next_word(1, mods.contains(Mod::Shift), ctx.gfx)
         }
         action_name!(MoveUpParagraph, mods) => {
-            doc.move_cursors_to_next_paragraph(-1, mods & MOD_SHIFT != 0, ctx.gfx)
+            doc.move_cursors_to_next_paragraph(-1, mods.contains(Mod::Shift), ctx.gfx)
         }
         action_name!(MoveDownParagraph, mods) => {
-            doc.move_cursors_to_next_paragraph(1, mods & MOD_SHIFT != 0, ctx.gfx)
+            doc.move_cursors_to_next_paragraph(1, mods.contains(Mod::Shift), ctx.gfx)
         }
         action_name!(ShiftLinesUp) => handle_shift_lines(-1, doc, ctx),
         action_name!(ShiftLinesDown) => handle_shift_lines(1, doc, ctx),
@@ -115,35 +115,35 @@ pub fn handle_action(action: Action, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) ->
         action_name!(DeleteBackwardLine) => handle_delete_backward(DeleteKind::Line, doc, ctx),
         action_name!(DeleteForward) => handle_delete_forward(DeleteKind::Char, doc, ctx),
         action_name!(DeleteForwardWord) => handle_delete_forward(DeleteKind::Word, doc, ctx),
-        action_keybind!(key: Enter, mods: 0) => handle_enter(doc, ctx),
+        action_keybind!(key: Enter, mods: Mods::NONE) => handle_enter(doc, ctx),
         action_keybind!(key: Tab, mods) => handle_tab(mods, doc, ctx),
         action_name!(PageUp, mods) => {
             let height_lines = tab.doc_height_lines(ctx.gfx) as isize;
 
-            doc.move_cursors(0, -height_lines, mods & MOD_SHIFT != 0, ctx.gfx);
+            doc.move_cursors(0, -height_lines, mods.contains(Mod::Shift), ctx.gfx);
         }
         action_name!(PageDown, mods) => {
             let height_lines = tab.doc_height_lines(ctx.gfx) as isize;
 
-            doc.move_cursors(0, height_lines, mods & MOD_SHIFT != 0, ctx.gfx);
+            doc.move_cursors(0, height_lines, mods.contains(Mod::Shift), ctx.gfx);
         }
-        action_name!(Home, mods) => handle_home(mods & MOD_SHIFT != 0, doc, ctx.gfx),
-        action_name!(End, mods) => handle_end(mods & MOD_SHIFT != 0, doc, ctx.gfx),
+        action_name!(Home, mods) => handle_home(mods.contains(Mod::Shift), doc, ctx.gfx),
+        action_name!(End, mods) => handle_end(mods.contains(Mod::Shift), doc, ctx.gfx),
         action_name!(GoToStart, mods) => {
             for index in doc.cursor_indices() {
-                doc.jump_cursor(index, Position::ZERO, mods & MOD_SHIFT != 0, ctx.gfx);
+                doc.jump_cursor(index, Position::ZERO, mods.contains(Mod::Shift), ctx.gfx);
             }
         }
         action_name!(GoToEnd, mods) => {
             for index in doc.cursor_indices() {
-                doc.jump_cursor(index, doc.end(), mods & MOD_SHIFT != 0, ctx.gfx);
+                doc.jump_cursor(index, doc.end(), mods.contains(Mod::Shift), ctx.gfx);
             }
         }
         action_name!(SelectAll) => {
             doc.jump_cursors(Position::ZERO, false, ctx.gfx);
             doc.jump_cursors(doc.end(), true, ctx.gfx);
         }
-        action_keybind!(key: Escape, mods: 0) => {
+        action_keybind!(key: Escape, mods: Mods::NONE) => {
             if doc.cursors_len() > 1 {
                 doc.clear_extra_cursors(CursorIndex::Some(0));
             } else {
@@ -209,12 +209,12 @@ fn handle_add_cursor(direction_y: isize, doc: &mut Doc, gfx: &mut Gfx) {
 pub fn handle_left_click(
     doc: &mut Doc,
     position: Position,
-    mods: u8,
+    mods: Mods,
     kind: MouseClickKind,
     is_drag: bool,
     gfx: &mut Gfx,
 ) {
-    let do_extend_selection = is_drag || (mods & MOD_SHIFT != 0);
+    let do_extend_selection = is_drag || mods.contains(Mod::Shift);
 
     if kind == MouseClickKind::Single {
         doc.jump_cursors(position, do_extend_selection, gfx);
@@ -370,8 +370,8 @@ fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
     ctx.buffers.text.replace(text_buffer)
 }
 
-fn handle_tab(mods: u8, doc: &mut Doc, ctx: &mut Ctx) {
-    let do_unindent = mods & MOD_SHIFT != 0;
+fn handle_tab(mods: Mods, doc: &mut Doc, ctx: &mut Ctx) {
+    let do_unindent = mods.contains(Mod::Shift);
 
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);

@@ -1,7 +1,7 @@
 use crate::{
     geometry::{
         rect::Rect,
-        side::{SIDE_BOTTOM, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
+        sides::{Side, Sides},
     },
     text::grapheme::GraphemeIterator,
     ui::color::Color,
@@ -163,34 +163,40 @@ impl Gfx {
         (advance as f32 / self.glyph_width()).round() as usize
     }
 
-    pub fn add_bordered_rect(&mut self, rect: Rect, sides: u8, color: Color, border_color: Color) {
+    pub fn add_bordered_rect(
+        &mut self,
+        rect: Rect,
+        sides: Sides,
+        color: Color,
+        border_color: Color,
+    ) {
         let border_width = self.border_width();
 
         self.add_rect(rect, border_color);
 
         let left = rect.x
-            + if sides & SIDE_LEFT != 0 {
+            + if sides.contains(Side::Left) {
                 border_width
             } else {
                 0.0
             };
 
         let right = rect.x + rect.width
-            - if sides & SIDE_RIGHT != 0 {
+            - if sides.contains(Side::Right) {
                 border_width
             } else {
                 0.0
             };
 
         let top = rect.y
-            + if sides & SIDE_TOP != 0 {
+            + if sides.contains(Side::Top) {
                 border_width
             } else {
                 0.0
             };
 
         let bottom = rect.y + rect.height
-            - if sides & SIDE_BOTTOM != 0 {
+            - if sides.contains(Side::Bottom) {
                 border_width
             } else {
                 0.0

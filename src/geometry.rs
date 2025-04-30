@@ -1,5 +1,5 @@
 pub mod matrix;
 pub mod position;
 pub mod rect;
-pub mod side;
+pub mod sides;
 pub mod visual_position;

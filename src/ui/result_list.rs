@@ -2,10 +2,10 @@ use std::vec::Drain;
 
 use crate::{
     ctx::Ctx,
-    geometry::{rect::Rect, side::SIDE_ALL, visual_position::VisualPosition},
+    geometry::{rect::Rect, sides::Sides, visual_position::VisualPosition},
     input::{
         action::{action_keybind, action_name},
-        keybind::MOD_SHIFT,
+        mods::{Mod, Mods},
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
@@ -140,7 +140,7 @@ impl<T> ResultList<T> {
             self.mark_selected_result_handled();
 
             if mousebind.button.is_some() {
-                let kind = if mods & MOD_SHIFT != 0 {
+                let kind = if mods.contains(Mod::Shift) {
                     ResultListSubmitKind::Alternate
                 } else {
                     ResultListSubmitKind::Normal
@@ -176,13 +176,13 @@ impl<T> ResultList<T> {
 
         while let Some(action) = action_handler.next(window) {
             match action {
-                action_keybind!(key: Escape, mods: 0) => *input = ResultListInput::Close,
-                action_keybind!(key: Enter, mods: 0) => {
+                action_keybind!(key: Escape, mods: Mods::NONE) => *input = ResultListInput::Close,
+                action_keybind!(key: Enter, mods: Mods::NONE) => {
                     *input = ResultListInput::Submit {
                         kind: ResultListSubmitKind::Normal,
                     }
                 }
-                action_keybind!(key: Enter, mods: MOD_SHIFT) => {
+                action_keybind!(key: Enter, mods: Mods::SHIFT) => {
                     *input = ResultListInput::Submit {
                         kind: ResultListSubmitKind::Alternate,
                     }
@@ -192,13 +192,13 @@ impl<T> ResultList<T> {
                         kind: ResultListSubmitKind::Delete,
                     }
                 }
-                action_keybind!(key: Tab, mods: 0) => *input = ResultListInput::Complete,
-                action_keybind!(key: Up, mods: 0) => {
+                action_keybind!(key: Tab, mods: Mods::NONE) => *input = ResultListInput::Complete,
+                action_keybind!(key: Up, mods: Mods::NONE) => {
                     if self.selected_result_index > 0 {
                         self.selected_result_index -= 1;
                     }
                 }
-                action_keybind!(key: Down, mods: 0) => {
+                action_keybind!(key: Down, mods: Mods::NONE) => {
                     if self.selected_result_index < self.results.len() - 1 {
                         self.selected_result_index += 1;
                     }
@@ -239,7 +239,7 @@ impl<T> ResultList<T> {
 
         gfx.add_bordered_rect(
             self.results_bounds.unoffset_by(self.results_bounds),
-            SIDE_ALL,
+            Sides::ALL,
             theme.background,
             theme.border,
         );

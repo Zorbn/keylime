@@ -7,12 +7,13 @@ use objc2_foundation::*;
 use crate::{
     app::App,
     config::theme::Theme,
+    geometry::visual_position::VisualPosition,
     input::{
         action::{Action, ActionName},
         input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
         key::Key,
         keybind::Keybind,
-        mods::Mods,
+        mods::{Mod, Mods},
         mouse_button::MouseButton,
         mouse_scroll::MouseScroll,
         mousebind::{MouseClickKind, Mousebind},
@@ -146,6 +147,8 @@ pub struct Window {
     pub actions_typed: Vec<Action>,
     pub mousebinds_pressed: Vec<Mousebind>,
     pub mouse_scrolls: Vec<MouseScroll>,
+    mouse_position: VisualPosition,
+    mods: Mods,
 
     was_last_scroll_horizontal: bool,
     current_pressed_button: Option<RecordedMouseClick>,
@@ -201,6 +204,8 @@ impl Window {
             actions_typed: Vec::new(),
             mousebinds_pressed: Vec::new(),
             mouse_scrolls: Vec::new(),
+            mouse_position: VisualPosition::new(0.0, 0.0),
+            mods: Mods::NONE,
 
             was_last_scroll_horizontal: false,
             current_pressed_button: None,
@@ -312,29 +317,26 @@ impl Window {
         let key_code = unsafe { event.keyCode() };
 
         if let Some(key) = Self::key_from_keycode(key_code) {
-            let mods = Mods {
-                has_shift: modifier_flags.contains(NSShiftKeyMask),
-                has_ctrl: modifier_flags.contains(NSControlKeyMask),
-                has_alt: modifier_flags.contains(NSAlternateKeyMask),
-                has_cmd: modifier_flags.contains(NSCommandKeyMask),
-            };
-
+            let mods = Self::modifier_flags_to_mods(modifier_flags);
             let action = Action::from_keybind(Keybind::new(key, mods), &self.keymaps);
 
             self.actions_typed.push(action);
         }
     }
 
+    pub fn handle_flags_changed(&mut self, event: &NSEvent) {
+        let modifier_flags = unsafe { event.modifierFlags() };
+        let mods = Self::modifier_flags_to_mods(modifier_flags);
+
+        self.mods = mods;
+    }
+
     pub fn handle_mouse_down(&mut self, event: &NSEvent, is_drag: bool) {
         let (x, y) = self.event_location_to_xy(event);
+        self.mouse_position = VisualPosition::new(x, y);
 
         let modifier_flags = unsafe { event.modifierFlags() };
-        let mods = Mods {
-            has_shift: modifier_flags.contains(NSShiftKeyMask),
-            has_ctrl: false,
-            has_alt: modifier_flags.contains(NSAlternateKeyMask),
-            has_cmd: modifier_flags.contains(NSCommandKeyMask),
-        };
+        let mods = Self::modifier_flags_to_mods(modifier_flags);
 
         let (button, kind) = if is_drag {
             self.current_pressed_button
@@ -364,11 +366,36 @@ impl Window {
     }
 
     pub fn handle_mouse_up(&mut self, event: &NSEvent) {
+        let (x, y) = self.event_location_to_xy(event);
+        self.mouse_position = VisualPosition::new(x, y);
+
         let button = Self::get_event_button(event);
 
         if button == self.current_pressed_button.map(|click| click.button) {
             self.current_pressed_button = None;
         }
+    }
+
+    fn modifier_flags_to_mods(modifier_flags: NSEventModifierFlags) -> Mods {
+        let mut mods = Mods::NONE;
+
+        if modifier_flags.contains(NSShiftKeyMask) {
+            mods = mods.with(Mod::Shift);
+        }
+
+        if modifier_flags.contains(NSControlKeyMask) {
+            mods = mods.with(Mod::Ctrl);
+        }
+
+        if modifier_flags.contains(NSAlternateKeyMask) {
+            mods = mods.with(Mod::Alt);
+        }
+
+        if modifier_flags.contains(NSCommandKeyMask) {
+            mods = mods.with(Mod::Cmd);
+        }
+
+        mods
     }
 
     pub fn handle_scroll_wheel(&mut self, event: &NSEvent) {
@@ -466,6 +493,14 @@ impl Window {
 
     pub fn get_mouse_scroll_handler(&self) -> MouseScrollHandler {
         MouseScrollHandler::new(self.mouse_scrolls.len())
+    }
+
+    pub fn mouse_position(&self) -> VisualPosition {
+        self.mouse_position
+    }
+
+    pub fn mods(&self) -> Mods {
+        self.mods
     }
 
     pub fn set_clipboard(&mut self, text: &str, was_copy_implicit: bool) -> Result<()> {

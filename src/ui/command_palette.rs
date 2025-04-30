@@ -12,7 +12,7 @@ use crate::{
     geometry::{
         position::Position,
         rect::Rect,
-        side::{SIDE_ALL, SIDE_LEFT, SIDE_RIGHT, SIDE_TOP},
+        sides::{Side, Sides},
     },
     input::action::{action_keybind, action_name},
     platform::gfx::Gfx,
@@ -275,11 +275,16 @@ impl CommandPalette {
 
         gfx.begin(Some(self.widget.bounds()));
 
-        gfx.add_bordered_rect(self.input_bounds, SIDE_ALL, theme.background, theme.border);
+        gfx.add_bordered_rect(
+            self.input_bounds,
+            Sides::ALL,
+            theme.background,
+            theme.border,
+        );
 
         gfx.add_bordered_rect(
             self.title_bounds,
-            SIDE_LEFT | SIDE_RIGHT | SIDE_TOP,
+            Sides::ALL.without(Side::Bottom),
             theme.background,
             theme.border,
         );
@@ -302,7 +307,7 @@ impl CommandPalette {
             doc_bounds
                 .add_margin(gfx.border_width())
                 .unoffset_by(self.widget.bounds()),
-            SIDE_ALL,
+            Sides::ALL,
             theme.background,
             theme.border,
         );

@@ -1,32 +1,18 @@
-use super::keybind::{MOD_ALT, MOD_CMD, MOD_CTRL, MOD_SHIFT};
+use crate::bit_field::define_bit_field;
 
-pub struct Mods {
-    pub has_shift: bool,
-    pub has_ctrl: bool,
-    pub has_alt: bool,
-    pub has_cmd: bool,
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub enum Mod {
+    Shift,
+    Ctrl,
+    Alt,
+    Cmd,
 }
 
+define_bit_field!(Mods, Mod);
+
 impl Mods {
-    pub fn to_bits(&self) -> u8 {
-        let mut mods = 0u8;
-
-        if self.has_shift {
-            mods |= MOD_SHIFT;
-        }
-
-        if self.has_ctrl {
-            mods |= MOD_CTRL;
-        }
-
-        if self.has_alt {
-            mods |= MOD_ALT;
-        }
-
-        if self.has_cmd {
-            mods |= MOD_CMD;
-        }
-
-        mods
-    }
+    pub const SHIFT: Self = Self::from(Mod::Shift);
+    pub const CTRL: Self = Self::from(Mod::Ctrl);
+    pub const ALT: Self = Self::from(Mod::Alt);
+    pub const CMD: Self = Self::from(Mod::Cmd);
 }

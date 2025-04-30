@@ -2,7 +2,7 @@ use crate::{
     config::theme::Theme,
     ctx::Ctx,
     geometry::{rect::Rect, visual_position::VisualPosition},
-    input::{action::action_name, mouse_button::MouseButton, mousebind::Mousebind},
+    input::{action::action_name, mods::Mods, mouse_button::MouseButton, mousebind::Mousebind},
     platform::{gfx::Gfx, window::Window},
     text::doc::Doc,
 };
@@ -77,7 +77,7 @@ impl<T> Pane<T> {
             match mousebind {
                 Mousebind {
                     button: Some(MouseButton::Left),
-                    mods: 0,
+                    mods: Mods::NONE,
                     is_drag: false,
                     ..
                 } => {

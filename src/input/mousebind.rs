@@ -12,7 +12,7 @@ pub struct Mousebind {
     pub button: Option<MouseButton>,
     pub x: f32,
     pub y: f32,
-    pub mods: u8,
+    pub mods: Mods,
     pub kind: MouseClickKind,
     pub is_drag: bool,
 }
@@ -26,8 +26,6 @@ impl Mousebind {
         kind: MouseClickKind,
         is_drag: bool,
     ) -> Self {
-        let mods = mods.to_bits();
-
         Self {
             button,
             x,

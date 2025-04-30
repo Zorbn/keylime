@@ -172,6 +172,11 @@ define_class!(
             handle_event!(handle_key_down, self, event);
         }
 
+        #[unsafe(method(flagsChanged:))]
+        unsafe fn flags_changed(&self, event: &NSEvent) {
+            handle_event!(handle_flags_changed, self, event);
+        }
+
         #[unsafe(method(mouseDown:))]
         unsafe fn mouse_down(&self, event: &NSEvent) {
             handle_event!(handle_mouse_down, self, event, false);
