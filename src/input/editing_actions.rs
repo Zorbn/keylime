@@ -159,6 +159,9 @@ pub fn handle_action(action: Action, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) ->
         action_name!(ToggleComments) => doc.toggle_comments_at_cursors(ctx),
         action_name!(Indent) => doc.indent_lines_at_cursors(false, ctx),
         action_name!(Unindent) => doc.indent_lines_at_cursors(true, ctx),
+        action_name!(RequestCodeAction) => {
+            doc.lsp_code_action(ctx);
+        }
         _ => return false,
     }
 

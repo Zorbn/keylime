@@ -632,6 +632,7 @@ impl Window {
             0x2C => Some(Key::ForwardSlash),
             0x2D => Some(Key::N),
             0x2E => Some(Key::M),
+            0x2F => Some(Key::Period),
             0x32 => Some(Key::Grave),
             0x24 => Some(Key::Enter),
             0x30 => Some(Key::Tab),

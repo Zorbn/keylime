@@ -1,9 +1,11 @@
+use std::{borrow::Cow, collections::HashMap};
+
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
 use crate::{config::theme::Theme, geometry::position::Position, text::doc::Doc, ui::color::Color};
 
-use super::position_encoding::PositionEncoding;
+use super::{position_encoding::PositionEncoding, uri::uri_to_path};
 
 const DEFAULT_SEVERITY: fn() -> usize = || 1;
 
@@ -61,7 +63,7 @@ impl LspPosition {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub(super) struct LspRange {
     start: LspPosition,
     end: LspPosition,
@@ -76,7 +78,7 @@ impl LspRange {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub(super) struct LspDiagnostic {
     message: String,
     range: LspRange,
@@ -104,7 +106,7 @@ pub(super) struct LspPublishDiagnosticsParams {
 #[serde(rename_all = "camelCase")]
 struct LspTextEdit<'a> {
     range: LspRange,
-    new_text: &'a str,
+    new_text: Cow<'a, str>,
 }
 
 impl<'a> LspTextEdit<'a> {
@@ -122,7 +124,7 @@ pub(super) struct LspCompletionItem<'a> {
     label: &'a str,
     sort_text: Option<&'a str>,
     filter_text: Option<&'a str>,
-    insert_text: Option<&'a str>,
+    insert_text: Option<Cow<'a, str>>,
     text_edit: Option<LspTextEdit<'a>>,
 }
 
@@ -198,7 +200,7 @@ pub(super) struct LspMessage {
     pub(super) params: Option<Box<RawValue>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Diagnostic {
     pub message: String,
     pub range: (Position, Position),
@@ -213,12 +215,25 @@ impl Diagnostic {
             _ => theme.normal,
         }
     }
+
+    pub fn encode(self, encoding: PositionEncoding, doc: &Doc) -> LspDiagnostic {
+        let (start, end) = self.range;
+
+        LspDiagnostic {
+            message: self.message,
+            range: LspRange {
+                start: LspPosition::encode(start, encoding, doc),
+                end: LspPosition::encode(end, encoding, doc),
+            },
+            severity: self.severity,
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct TextEdit<'a> {
     pub range: (Position, Position),
-    pub new_text: &'a str,
+    pub new_text: Cow<'a, str>,
 }
 
 #[derive(Debug)]
@@ -226,7 +241,7 @@ pub struct CompletionItem<'a> {
     pub label: &'a str,
     sort_text: Option<&'a str>,
     filter_text: Option<&'a str>,
-    pub insert_text: Option<&'a str>,
+    pub insert_text: Option<Cow<'a, str>>,
     pub text_edit: Option<TextEdit<'a>>,
 }
 
@@ -238,4 +253,109 @@ impl CompletionItem<'_> {
     pub fn filter_text(&self) -> &str {
         self.filter_text.unwrap_or(self.label)
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub(super) struct LspTextDocumentIdentifier<'a> {
+    pub uri: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct LspTextDocumentEdit<'a> {
+    #[serde(borrow)]
+    pub text_document: LspTextDocumentIdentifier<'a>,
+    pub edits: Vec<LspTextEdit<'a>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct LspWorkspaceEdit<'a> {
+    #[serde(borrow)]
+    pub changes: Option<HashMap<&'a str, Vec<LspTextEdit<'a>>>>,
+    pub document_changes: Option<Vec<LspTextDocumentEdit<'a>>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Command<'a> {
+    pub title: &'a str,
+    pub command: &'a str,
+    #[serde(default)]
+    pub arguments: Vec<Box<RawValue>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(super) struct LspCodeAction<'a> {
+    pub title: &'a str,
+    pub edit: Option<LspWorkspaceEdit<'a>>,
+    pub command: Option<Command<'a>>,
+}
+
+impl<'a> LspCodeAction<'a> {
+    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> CodeAction<'a> {
+        let mut edit = Vec::new();
+
+        if let Some(lsp_edit) = self.edit {
+            if let Some(changes) = lsp_edit.document_changes {
+                for change in changes {
+                    let edits: Vec<TextEdit<'a>> = change
+                        .edits
+                        .into_iter()
+                        .map(|text_edit| text_edit.decode(encoding, doc))
+                        .collect();
+
+                    edit.push((change.text_document.uri, edits));
+                }
+            } else if let Some(changes) = lsp_edit.changes {
+                for (uri, edits) in changes {
+                    let edits: Vec<TextEdit<'a>> = edits
+                        .into_iter()
+                        .map(|text_edit| text_edit.decode(encoding, doc))
+                        .collect();
+
+                    edit.push((uri, edits));
+                }
+            }
+        }
+
+        CodeAction {
+            title: self.title,
+            edit,
+            command: self.command,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub(super) enum LspCodeActionResult<'a> {
+    #[serde(borrow)]
+    Command(Command<'a>),
+    CodeAction(LspCodeAction<'a>),
+    None,
+}
+
+impl<'a> LspCodeActionResult<'a> {
+    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> CodeActionResult<'a> {
+        match self {
+            LspCodeActionResult::Command(command) => CodeActionResult::Command(command),
+            LspCodeActionResult::CodeAction(code_action) => {
+                CodeActionResult::CodeAction(code_action.decode(encoding, doc))
+            }
+            LspCodeActionResult::None => panic!(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct CodeAction<'a> {
+    pub title: &'a str,
+    pub edit: Vec<(&'a str, Vec<TextEdit<'a>>)>,
+    pub command: Option<Command<'a>>,
+}
+
+#[derive(Debug)]
+pub enum CodeActionResult<'a> {
+    Command(Command<'a>),
+    CodeAction(CodeAction<'a>),
 }

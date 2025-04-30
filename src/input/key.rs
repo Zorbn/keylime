@@ -98,4 +98,5 @@ pub enum Key {
     LBracket,
     RBracket,
     Minus,
+    Period,
 }

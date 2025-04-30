@@ -379,6 +379,13 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
             },
             ActionName::DeleteForwardWord,
         ),
+        (
+            Keybind {
+                key: Key::Period,
+                mods: MOD_CTRL,
+            },
+            ActionName::RequestCodeAction,
+        ),
     ]
     .iter()
     .copied()

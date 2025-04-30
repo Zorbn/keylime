@@ -59,6 +59,7 @@ pub enum ActionName {
     DeleteBackwardLine,
     DeleteForward,
     DeleteForwardWord,
+    RequestCodeAction,
 }
 
 macro_rules! action_name {

@@ -555,6 +555,12 @@ impl Tab {
             return;
         }
 
+        let position = ctx.window.mouse_position();
+
+        if !self.doc_bounds.contains_position(position) {
+            return;
+        }
+
         let position = doc.visual_to_position(
             ctx.window.mouse_position().unoffset_by(self.doc_bounds),
             camera_position,
@@ -659,7 +665,7 @@ impl Tab {
                 let (start, end) = diagnostic.range;
 
                 gfx.add_rect(
-                    self.doc_range_to_scrollbar_rect(start.y, end.y.max(start.y + 1), doc, gfx),
+                    self.doc_range_to_scrollbar_rect(start.y, end.y, doc, gfx),
                     color,
                 );
             }
@@ -669,7 +675,7 @@ impl Tab {
             let cursor_y = doc.get_cursor(index).position.y;
 
             gfx.add_rect(
-                self.doc_range_to_scrollbar_rect(cursor_y, cursor_y + 1, doc, gfx),
+                self.doc_range_to_scrollbar_rect(cursor_y, cursor_y, doc, gfx),
                 theme.normal,
             );
         }

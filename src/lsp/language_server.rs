@@ -4,14 +4,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use serde_json::{json, Value};
+use serde_json::{json, value::RawValue, Value};
 
 use crate::{
     geometry::position::Position,
     lsp::{
         types::{
-            LspCompletionResult, LspDefinitionResult, LspInitializeResult, LspLocation, LspMessage,
-            LspPosition, LspPublishDiagnosticsParams,
+            LspCodeAction, LspCompletionResult, LspDefinitionResult, LspInitializeResult,
+            LspLocation, LspMessage, LspPosition, LspPublishDiagnosticsParams,
         },
         uri::uri_to_path,
     },
@@ -22,7 +22,7 @@ use crate::{
 
 use super::{
     position_encoding::PositionEncoding,
-    types::{Diagnostic, LspCompletionItem, LspDiagnostic, LspRange},
+    types::{Command, Diagnostic, LspCodeActionResult, LspCompletionItem, LspDiagnostic, LspRange},
     uri::path_to_uri,
 };
 
@@ -57,6 +57,7 @@ enum MessageParseState {
 
 pub(super) enum LanguageServerResult<'a> {
     Completion(Vec<LspCompletionItem<'a>>),
+    CodeAction(Vec<LspCodeAction<'a>>),
     Definition { path: PathBuf, range: LspRange },
 }
 
@@ -111,6 +112,15 @@ impl LanguageServer {
                     },
                     "general": {
                         "positionEncodings": ["utf-8", "utf-16"],
+                    },
+                    "textDocument": {
+                        "codeAction": {
+                            "codeActionLiteralSupport": {
+                                "codeActionKind": {
+                                    "valueSet": ["", "quickfix", "refactor", "source"],
+                                }
+                            },
+                        },
                     },
                 },
             }),
@@ -264,6 +274,14 @@ impl LanguageServer {
 
                 Some(LanguageServerResult::Completion(result))
             }
+            "textDocument/codeAction" => {
+                println!("received code action results");
+                let result = message.result.as_ref()?;
+                let result =
+                    serde_json::from_str::<Vec<LspCodeAction>>(result.get()).unwrap_or_default();
+
+                Some(LanguageServerResult::CodeAction(result))
+            }
             "textDocument/definition" => {
                 let result = message.result.as_ref()?;
 
@@ -361,6 +379,52 @@ impl LanguageServer {
         );
 
         self.uri_buffer.replace(uri_buffer);
+    }
+
+    pub fn code_action(&mut self, path: &Path, start: Position, end: Position, doc: &Doc) {
+        let mut uri_buffer = self.uri_buffer.take_mut();
+
+        path_to_uri(path, &mut uri_buffer);
+
+        let encoding = self.position_encoding;
+
+        let mut diagnostics = Vec::new();
+
+        for diagnostic in self.get_diagnostics_mut(doc) {
+            let (range_start, range_end) = diagnostic.range;
+
+            if range_end >= start && range_start <= end {
+                diagnostics.push(diagnostic.clone().encode(encoding, doc));
+            }
+        }
+
+        self.send_request(
+            "textDocument/codeAction",
+            json!({
+                "textDocument": {
+                    "uri": uri_buffer,
+                },
+                "range": {
+                    "start": LspPosition::encode(start, encoding, doc),
+                    "end": LspPosition::encode(end, encoding, doc),
+                },
+                "context": {
+                    "diagnostics": diagnostics,
+                },
+            }),
+        );
+
+        self.uri_buffer.replace(uri_buffer);
+    }
+
+    pub fn execute_command(&mut self, command: &str, arguments: &[Box<RawValue>]) {
+        self.send_request(
+            "workspace/executeCommand",
+            json!({
+                "command": command,
+                "arguments": arguments,
+            }),
+        );
     }
 
     pub fn definition(&mut self, path: &Path, position: Position, doc: &Doc) {

@@ -1,7 +1,7 @@
 pub mod language_server;
 mod position_encoding;
 pub mod types;
-mod uri;
+pub mod uri;
 
 use std::{
     collections::{hash_map::Entry, HashMap},
@@ -11,7 +11,7 @@ use std::{
 
 use language_server::{LanguageServer, LanguageServerResult};
 use position_encoding::PositionEncoding;
-use types::{CompletionItem, LspMessage};
+use types::{CodeActionResult, CompletionItem, LspMessage};
 
 use crate::{config::language::Language, ctx::Ctx, platform::process::Process, ui::editor::Editor};
 
@@ -56,7 +56,23 @@ impl Lsp {
                         .map(|item| item.decode(encoding, doc))
                         .collect();
 
-                    editor.completion_list.lsp_update_results(completion_items);
+                    editor
+                        .completion_list
+                        .lsp_update_completion_results(completion_items);
+                }
+                LanguageServerResult::CodeAction(results) => {
+                    let Some((_, doc)) = editor.get_focused_tab_and_doc() else {
+                        continue;
+                    };
+
+                    let results: Vec<CodeActionResult> = results
+                        .into_iter()
+                        .map(|result| CodeActionResult::CodeAction(result.decode(encoding, doc)))
+                        .collect();
+
+                    editor
+                        .completion_list
+                        .lsp_update_code_action_results(results);
                 }
                 LanguageServerResult::Definition { path, range } => {
                     let (pane, doc_list) = editor.get_focused_pane_and_doc_list();

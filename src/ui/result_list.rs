@@ -286,6 +286,14 @@ impl<T> ResultList<T> {
         self.results.get(self.selected_result_index)
     }
 
+    pub fn remove_selected_result(&mut self) -> Option<T> {
+        if self.selected_result_index < self.results.len() {
+            Some(self.results.remove(self.selected_result_index))
+        } else {
+            None
+        }
+    }
+
     pub fn mark_selected_result_handled(&mut self) {
         self.handled_selected_result_index = Some(self.selected_result_index);
     }

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use completion_list::CompletionList;
+use completion_list::{CompletionList, CompletionListResult};
 use doc_io::confirm_close_all;
 use editor_pane::EditorPane;
 
@@ -8,8 +8,13 @@ use crate::{
     ctx::Ctx,
     geometry::{rect::Rect, sides::Sides, visual_position::VisualPosition},
     input::{action::action_name, mods::Mods, mouse_button::MouseButton, mousebind::Mousebind},
+    lsp::uri::uri_to_path,
     platform::{file_watcher::FileWatcher, gfx::Gfx},
-    text::{cursor_index::CursorIndex, doc::Doc, line_pool::LinePool},
+    text::{
+        cursor_index::CursorIndex,
+        doc::{Doc, DocKind},
+        line_pool::LinePool,
+    },
 };
 
 use super::{
@@ -145,10 +150,15 @@ impl Editor {
         let handled_position = if let Some((_, doc)) =
             pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
         {
-            self.completion_list
+            let handled_position = doc.get_cursor(CursorIndex::Main).position;
+
+            let result = self
+                .completion_list
                 .update(ui, &self.widget, doc, is_cursor_visible, ctx);
 
-            Some(doc.get_cursor(CursorIndex::Main).position)
+            self.handle_completion_list_result(result, ctx);
+
+            Some(handled_position)
         } else {
             None
         };
@@ -168,6 +178,89 @@ impl Editor {
         } else {
             self.completion_list.clear();
         }
+    }
+
+    pub fn handle_completion_list_result(
+        &mut self,
+        result: Option<CompletionListResult>,
+        ctx: &mut Ctx,
+    ) -> Option<()> {
+        // TODO: The completion list result stores uris so we have to convert them in this functions... is that ok?
+        let result = result?;
+        println!("handling completion result: {:?}", result);
+
+        for (result_uri, mut edits) in result.edit {
+            let mut uri = ctx.buffers.text.take_mut();
+            uri.push_str(&result_uri);
+
+            let mut path = result_uri;
+            path.clear();
+
+            let path = uri_to_path(&uri, path)?;
+
+            let doc = self
+                .doc_list
+                .iter_mut()
+                .flatten()
+                .find(|doc| doc.path().on_drive() == Some(&path));
+
+            let mut loaded_doc = None;
+
+            let doc = doc.or_else(|| {
+                loaded_doc = Some(Doc::new(
+                    Some(path),
+                    &mut ctx.buffers.lines,
+                    None,
+                    DocKind::Output,
+                ));
+
+                let doc = loaded_doc.as_mut()?;
+
+                if doc.load(ctx).is_err() {
+                    doc.clear(ctx);
+                    return None;
+                }
+
+                Some(doc)
+            });
+
+            let Some(doc) = doc else {
+                continue;
+            };
+
+            for i in 0..edits.len() {
+                let (start, end) = edits[i].range;
+
+                doc.delete(start, end, ctx);
+                doc.insert(start, &edits[i].new_text, ctx);
+
+                // TODO: Get the version for documentChanges and pass it through to CompletionTextEdit as an optional.
+                // only shift future edit position is their version is not greater than the current edit's version.
+                for future_edit in edits.iter_mut().skip(i + 1) {
+                    let (future_start, future_end) = future_edit.range;
+
+                    let future_start = doc.shift_position_by_delete(start, end, future_start);
+                    let future_end = doc.shift_position_by_delete(start, end, future_end);
+
+                    future_edit.range = (future_start, future_end);
+                }
+            }
+
+            if let Some(mut doc) = loaded_doc {
+                let _ = doc.save(None, ctx);
+                doc.clear(ctx);
+            }
+
+            ctx.buffers.text.replace(uri);
+        }
+
+        // TODO: Handle command.
+        // let command = result.command?;
+
+        // let (_, language_server) = doc.get_language_server_mut(ctx)?;
+        // language_server.execute_command(&command.command, &command.arguments);
+
+        Some(())
     }
 
     pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {

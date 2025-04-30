@@ -1039,7 +1039,9 @@ impl Doc {
         self.version += 1;
         self.lsp_did_change(start, end, "", ctx);
 
-        self.add_cursors_to_action_history(action_kind, ctx.time);
+        if self.do_shift() {
+            self.add_cursors_to_action_history(action_kind, ctx.time);
+        }
 
         let mut owned_undo_buffer = self.undo_buffer.take().unwrap();
         let undo_buffer = owned_undo_buffer.get_mut();
@@ -1104,7 +1106,9 @@ impl Doc {
         self.version += 1;
         self.lsp_did_change(start, start, text, ctx);
 
-        self.add_cursors_to_action_history(action_kind, ctx.time);
+        if self.do_shift() {
+            self.add_cursors_to_action_history(action_kind, ctx.time);
+        }
 
         let start = self.clamp_position(start);
         let mut position = self.clamp_position(start);
@@ -1155,16 +1159,21 @@ impl Doc {
         &mut self,
         start: Position,
         end: Position,
-        shift_fn: fn(Position, Position, Position) -> Position,
+        shift_fn: fn(&Self, Position, Position, Position) -> Position,
         ctx: &mut Ctx,
     ) {
         for index in self.cursor_indices() {
+            let cursor = self.get_cursor(index);
+
+            let position = shift_fn(self, start, end, cursor.position);
+            let selection_anchor = cursor
+                .selection_anchor
+                .map(|selection_anchor| shift_fn(self, start, end, selection_anchor));
+
             let cursor = self.get_cursor_mut(index);
 
-            cursor.position = shift_fn(start, end, cursor.position);
-            cursor.selection_anchor = cursor
-                .selection_anchor
-                .map(|selection_anchor| shift_fn(start, end, selection_anchor));
+            cursor.position = position;
+            cursor.selection_anchor = selection_anchor;
 
             self.update_cursor_desired_visual_x(index, ctx.gfx);
         }
@@ -1173,15 +1182,20 @@ impl Doc {
             for diagnostic in language_server.get_diagnostics_mut(self) {
                 let (diagnostic_start, diagnostic_end) = diagnostic.range;
 
-                let diagnostic_start = shift_fn(start, end, diagnostic_start);
-                let diagnostic_end = shift_fn(start, end, diagnostic_end);
+                let diagnostic_start = shift_fn(self, start, end, diagnostic_start);
+                let diagnostic_end = shift_fn(self, start, end, diagnostic_end);
 
                 diagnostic.range = (diagnostic_start, diagnostic_end);
             }
         }
     }
 
-    fn shift_position_by_insert(start: Position, end: Position, position: Position) -> Position {
+    pub fn shift_position_by_insert(
+        &self,
+        start: Position,
+        end: Position,
+        position: Position,
+    ) -> Position {
         if start.y == position.y && start.x <= position.x {
             Position::new(position.x + end.x - start.x, position.y + end.y - start.y)
         } else if start.y < position.y {
@@ -1191,7 +1205,12 @@ impl Doc {
         }
     }
 
-    fn shift_position_by_delete(start: Position, end: Position, position: Position) -> Position {
+    pub fn shift_position_by_delete(
+        &self,
+        start: Position,
+        end: Position,
+        position: Position,
+    ) -> Position {
         let influence_end = end.min(position);
 
         if influence_end <= start {
@@ -1574,6 +1593,14 @@ impl Doc {
         self.insert(Position::ZERO, &string[..len], ctx);
 
         self.do_skip_shifting = false;
+
+        self.shift_positions(
+            Position::ZERO,
+            Position::ZERO,
+            |doc, _, _, position| doc.clamp_position(position),
+            ctx,
+        );
+
         self.is_saved = true;
 
         Ok(())
@@ -1972,11 +1999,31 @@ impl Doc {
         Some(())
     }
 
-    pub fn lsp_completion(&self, position: Position, ctx: &mut Ctx) -> Option<()> {
+    pub fn lsp_completion(&self, ctx: &mut Ctx) -> Option<()> {
+        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let path = self.path.on_drive()?;
+        let position = self.get_cursor(CursorIndex::Main).position;
+
+        language_server.completion(path, position, self);
+
+        Some(())
+    }
+
+    pub fn lsp_code_action(&self, ctx: &mut Ctx) -> Option<()> {
+        println!("code action");
+
         let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;
 
-        language_server.completion(path, position, self);
+        let cursor = self.get_cursor(CursorIndex::Main);
+
+        let (start, end) = if let Some(selection) = cursor.get_selection() {
+            (selection.start, selection.end)
+        } else {
+            (cursor.position, cursor.position)
+        };
+
+        language_server.code_action(path, start, end, self);
 
         Some(())
     }
