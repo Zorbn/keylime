@@ -3,6 +3,7 @@ mod find_file_mode;
 mod find_in_files_mode;
 mod go_to_line_mode;
 mod mode;
+pub mod rename_mode;
 mod search_mode;
 
 use std::path::PathBuf;
@@ -48,7 +49,7 @@ enum CommandPaletteMetaData {
     PathWithPosition { path: PathBuf, position: Position },
 }
 
-enum CommandPaletteAction {
+pub enum CommandPaletteAction {
     Stay,
     Close,
 }
@@ -318,7 +319,7 @@ impl CommandPalette {
         self.result_list.draw(ctx, |result| &result.text);
     }
 
-    fn open(
+    pub fn open(
         &mut self,
         ui: &mut Ui,
         mut mode: Box<dyn CommandPaletteMode>,

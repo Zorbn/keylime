@@ -135,6 +135,13 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
                 key: Key::R,
                 mods: Mods::CMD,
             },
+            ActionName::Rename,
+        ),
+        (
+            Keybind {
+                key: Key::R,
+                mods: Mods::CMD | Mods::SHIFT,
+            },
             ActionName::ReloadFile,
         ),
         (

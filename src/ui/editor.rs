@@ -8,7 +8,7 @@ use crate::{
     ctx::Ctx,
     geometry::{rect::Rect, sides::Sides, visual_position::VisualPosition},
     input::{action::action_name, mods::Mods, mouse_button::MouseButton, mousebind::Mousebind},
-    lsp::uri::uri_to_path,
+    lsp::{types::CodeActionDocumentEdit, uri::uri_to_path},
     platform::{file_watcher::FileWatcher, gfx::Gfx},
     text::{
         cursor_index::CursorIndex,
@@ -197,6 +197,8 @@ impl Editor {
 
             let path = uri_to_path(&uri, path)?;
 
+            ctx.buffers.text.replace(uri);
+
             let doc = self
                 .doc_list
                 .iter_mut()
@@ -249,8 +251,6 @@ impl Editor {
                 let _ = doc.save(None, ctx);
                 doc.clear(ctx);
             }
-
-            ctx.buffers.text.replace(uri);
         }
 
         let command = result.command?;
@@ -258,6 +258,73 @@ impl Editor {
         let (_, language_server) = doc.get_language_server_mut(ctx)?;
 
         language_server.execute_command(&command.command, &command.arguments);
+
+        Some(())
+    }
+
+    // TODO: Unify with handle_completion_list_result.
+    // TODO: CodeActionDocumentEdit isn't a good name, considering it's also used for rename.
+    pub fn handle_workspace_edit(
+        &mut self,
+        edits: Vec<CodeActionDocumentEdit>,
+        ctx: &mut Ctx,
+    ) -> Option<()> {
+        for mut edit in edits {
+            let path = uri_to_path(edit.uri, String::new())?;
+
+            let doc = self
+                .doc_list
+                .iter_mut()
+                .flatten()
+                .find(|doc| doc.path().on_drive() == Some(&path));
+
+            let mut loaded_doc = None;
+
+            let doc = doc.or_else(|| {
+                loaded_doc = Some(Doc::new(
+                    Some(path),
+                    &mut ctx.buffers.lines,
+                    None,
+                    DocKind::Output,
+                ));
+
+                let doc = loaded_doc.as_mut()?;
+
+                if doc.load(ctx).is_err() {
+                    doc.clear(ctx);
+                    return None;
+                }
+
+                Some(doc)
+            });
+
+            let Some(doc) = doc else {
+                continue;
+            };
+
+            for i in 0..edit.edits.len() {
+                let current_edit = &edit.edits[i];
+
+                let (start, end) = current_edit.range;
+
+                doc.delete(start, end, ctx);
+                doc.insert(start, &current_edit.new_text, ctx);
+
+                for future_edit in edit.edits.iter_mut().skip(i + 1) {
+                    let (future_start, future_end) = future_edit.range;
+
+                    let future_start = doc.shift_position_by_delete(start, end, future_start);
+                    let future_end = doc.shift_position_by_delete(start, end, future_end);
+
+                    future_edit.range = (future_start, future_end);
+                }
+            }
+
+            if let Some(mut doc) = loaded_doc {
+                let _ = doc.save(None, ctx);
+                doc.clear(ctx);
+            }
+        }
 
         Some(())
     }

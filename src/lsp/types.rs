@@ -263,6 +263,50 @@ pub(super) struct LspWorkspaceEdit<'a> {
     document_changes: Option<Vec<LspTextDocumentEdit<'a>>>,
 }
 
+impl<'a> LspWorkspaceEdit<'a> {
+    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> Vec<CodeActionDocumentEdit<'a>> {
+        let mut edit = Vec::new();
+
+        if let Some(changes) = self.document_changes {
+            for change in changes {
+                let edits = change
+                    .edits
+                    .into_iter()
+                    .map(|text_edit| text_edit.decode(encoding, doc))
+                    .collect();
+
+                edit.push(CodeActionDocumentEdit {
+                    uri: change.text_document.uri,
+                    edits,
+                });
+            }
+        } else if let Some(changes) = self.changes {
+            for (uri, edits) in changes {
+                let edits = edits
+                    .into_iter()
+                    .map(|text_edit| text_edit.decode(encoding, doc))
+                    .collect();
+
+                edit.push(CodeActionDocumentEdit { uri, edits });
+            }
+        }
+
+        edit
+    }
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(untagged)]
+pub(super) enum LspPrepareRenameResult<'a> {
+    Range(LspRange),
+    RangeWithPlaceholder {
+        range: LspRange,
+        placeholder: Cow<'a, str>,
+    },
+    #[default]
+    Invalid,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Command<'a> {
     pub title: &'a str,
@@ -283,33 +327,10 @@ pub(super) struct LspCodeAction<'a> {
 
 impl<'a> LspCodeAction<'a> {
     pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> CodeAction<'a> {
-        let mut edit = Vec::new();
-
-        if let Some(lsp_edit) = self.edit {
-            if let Some(changes) = lsp_edit.document_changes {
-                for change in changes {
-                    let edits = change
-                        .edits
-                        .into_iter()
-                        .map(|text_edit| text_edit.decode(encoding, doc))
-                        .collect();
-
-                    edit.push(CodeActionDocumentEdit {
-                        uri: change.text_document.uri,
-                        edits,
-                    });
-                }
-            } else if let Some(changes) = lsp_edit.changes {
-                for (uri, edits) in changes {
-                    let edits = edits
-                        .into_iter()
-                        .map(|text_edit| text_edit.decode(encoding, doc))
-                        .collect();
-
-                    edit.push(CodeActionDocumentEdit { uri, edits });
-                }
-            }
-        }
+        let edit = self
+            .edit
+            .map(|edit| edit.decode(encoding, doc))
+            .unwrap_or_default();
 
         CodeAction {
             title: self.title,

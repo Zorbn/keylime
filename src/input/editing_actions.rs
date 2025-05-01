@@ -162,6 +162,9 @@ pub fn handle_action(action: Action, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) ->
         action_name!(RequestCodeAction) => {
             doc.lsp_code_action(ctx);
         }
+        action_name!(Rename) => {
+            doc.lsp_prepare_rename(ctx);
+        }
         _ => return false,
     }
 

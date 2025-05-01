@@ -22,7 +22,10 @@ use crate::{
 
 use super::{
     position_encoding::PositionEncoding,
-    types::{Diagnostic, LspCompletionItem, LspDiagnostic, LspRange},
+    types::{
+        Diagnostic, LspCompletionItem, LspDiagnostic, LspPrepareRenameResult, LspRange,
+        LspWorkspaceEdit,
+    },
     uri::path_to_uri,
 };
 
@@ -58,6 +61,8 @@ enum MessageParseState {
 pub(super) enum LanguageServerResult<'a> {
     Completion(Vec<LspCompletionItem<'a>>),
     CodeAction(Vec<LspCodeActionResult<'a>>),
+    PrepareRename,
+    Rename(LspWorkspaceEdit<'a>),
     Definition { path: PathBuf, range: LspRange },
 }
 
@@ -121,6 +126,9 @@ impl LanguageServer {
                                 }
                             },
                             "isPreferredSupport": true,
+                        },
+                        "rename": {
+                            "prepareSupport": true,
                         },
                     },
                 },
@@ -282,6 +290,30 @@ impl LanguageServer {
 
                 Some(LanguageServerResult::CodeAction(result))
             }
+            "textDocument/prepareRename" => {
+                let result = message.result.as_ref()?;
+
+                let result = serde_json::from_str::<LspPrepareRenameResult>(result.get())
+                    .ok()
+                    .unwrap_or_default();
+
+                // TODO: Use the placeholder or range to get some text to put in the command palette rename mode.
+                match result {
+                    LspPrepareRenameResult::Range(lsp_range) => {
+                        Some(LanguageServerResult::PrepareRename)
+                    }
+                    LspPrepareRenameResult::RangeWithPlaceholder { range, placeholder } => {
+                        Some(LanguageServerResult::PrepareRename)
+                    }
+                    LspPrepareRenameResult::Invalid => None,
+                }
+            }
+            "textDocument/rename" => {
+                let result = message.result.as_ref()?;
+                let result = serde_json::from_str::<LspWorkspaceEdit>(result.get()).ok();
+
+                result.map(LanguageServerResult::Rename)
+            }
             "textDocument/definition" => {
                 let result = message.result.as_ref()?;
 
@@ -401,6 +433,43 @@ impl LanguageServer {
                 "context": {
                     "diagnostics": [],
                 },
+            }),
+        );
+
+        self.uri_buffer.replace(uri_buffer);
+    }
+
+    pub fn prepare_rename(&mut self, path: &Path, position: Position, doc: &Doc) {
+        let mut uri_buffer = self.uri_buffer.take_mut();
+
+        path_to_uri(path, &mut uri_buffer);
+
+        self.send_request(
+            "textDocument/prepareRename",
+            json!({
+                "textDocument": {
+                    "uri": uri_buffer,
+                },
+                "position": LspPosition::encode(position, self.position_encoding, doc),
+            }),
+        );
+
+        self.uri_buffer.replace(uri_buffer);
+    }
+
+    pub fn rename(&mut self, new_name: &str, path: &Path, position: Position, doc: &Doc) {
+        let mut uri_buffer = self.uri_buffer.take_mut();
+
+        path_to_uri(path, &mut uri_buffer);
+
+        self.send_request(
+            "textDocument/rename",
+            json!({
+                "textDocument": {
+                    "uri": uri_buffer,
+                },
+                "position": LspPosition::encode(position, self.position_encoding, doc),
+                "newName": new_name,
             }),
         );
 

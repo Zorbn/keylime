@@ -2028,6 +2028,26 @@ impl Doc {
         Some(())
     }
 
+    pub fn lsp_prepare_rename(&self, ctx: &mut Ctx) -> Option<()> {
+        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let path = self.path.on_drive()?;
+        let position = self.get_cursor(CursorIndex::Main).position;
+
+        language_server.prepare_rename(path, position, self);
+
+        Some(())
+    }
+
+    pub fn lsp_rename(&self, new_name: &str, ctx: &mut Ctx) -> Option<()> {
+        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let path = self.path.on_drive()?;
+        let position = self.get_cursor(CursorIndex::Main).position;
+
+        language_server.rename(new_name, path, position, self);
+
+        Some(())
+    }
+
     pub fn lsp_definition(&self, position: Position, ctx: &mut Ctx) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;

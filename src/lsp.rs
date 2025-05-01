@@ -13,7 +13,16 @@ use language_server::{LanguageServer, LanguageServerResult};
 use position_encoding::PositionEncoding;
 use types::LspMessage;
 
-use crate::{config::language::Language, ctx::Ctx, platform::process::Process, ui::editor::Editor};
+use crate::{
+    config::language::Language,
+    ctx::Ctx,
+    platform::process::Process,
+    ui::{
+        command_palette::{rename_mode::RenameMode, CommandPalette},
+        core::Ui,
+        editor::Editor,
+    },
+};
 
 pub struct Lsp {
     servers: HashMap<usize, Option<LanguageServer>>,
@@ -37,7 +46,12 @@ impl Lsp {
         self.clear();
     }
 
-    pub fn update(editor: &mut Editor, ctx: &mut Ctx) {
+    pub fn update(
+        editor: &mut Editor,
+        command_palette: &mut CommandPalette,
+        ui: &mut Ui,
+        ctx: &mut Ctx,
+    ) {
         while let Some((language_index, message)) = ctx.lsp.poll() {
             let Some((encoding, result)) = ctx.lsp.handle_message(language_index, &message) else {
                 continue;
@@ -73,6 +87,18 @@ impl Lsp {
                     editor
                         .completion_list
                         .lsp_update_code_action_results(results);
+                }
+                LanguageServerResult::PrepareRename => {
+                    command_palette.open(ui, Box::new(RenameMode), editor, ctx);
+                }
+                LanguageServerResult::Rename(workspace_edit) => {
+                    let Some((_, doc)) = editor.get_focused_tab_and_doc() else {
+                        continue;
+                    };
+
+                    let workspace_edit = workspace_edit.decode(encoding, doc);
+
+                    editor.handle_workspace_edit(workspace_edit, ctx);
                 }
                 LanguageServerResult::Definition { path, range } => {
                     let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
