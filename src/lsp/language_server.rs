@@ -61,10 +61,16 @@ enum MessageParseState {
 pub(super) enum LanguageServerResult<'a> {
     Completion(Vec<LspCompletionItem<'a>>),
     CodeAction(Vec<LspCodeActionResult<'a>>),
-    PrepareRename,
+    PrepareRename {
+        range: LspRange,
+        placeholder: Option<String>,
+    },
     Rename(LspWorkspaceEdit<'a>),
     References(Vec<LspLocation<'a>>),
-    Definition { path: PathBuf, range: LspRange },
+    Definition {
+        path: PathBuf,
+        range: LspRange,
+    },
 }
 
 pub struct LanguageServer {
@@ -298,13 +304,18 @@ impl LanguageServer {
                     .ok()
                     .unwrap_or_default();
 
-                // TODO: Use the placeholder or range to get some text to put in the command palette rename mode.
                 match result {
-                    LspPrepareRenameResult::Range(lsp_range) => {
-                        Some(LanguageServerResult::PrepareRename)
+                    LspPrepareRenameResult::Range(range) => {
+                        Some(LanguageServerResult::PrepareRename {
+                            range,
+                            placeholder: None,
+                        })
                     }
                     LspPrepareRenameResult::RangeWithPlaceholder { range, placeholder } => {
-                        Some(LanguageServerResult::PrepareRename)
+                        Some(LanguageServerResult::PrepareRename {
+                            range,
+                            placeholder: Some(placeholder),
+                        })
                     }
                     LspPrepareRenameResult::Invalid => None,
                 }

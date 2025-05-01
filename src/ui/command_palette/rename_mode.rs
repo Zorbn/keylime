@@ -5,11 +5,29 @@ use super::{
     CommandPalette, CommandPaletteAction,
 };
 
-pub struct RenameMode;
+pub struct RenameMode {
+    placeholder: String,
+}
+
+impl RenameMode {
+    pub fn new(placeholder: String) -> Self {
+        Self { placeholder }
+    }
+}
 
 impl CommandPaletteMode for RenameMode {
     fn title(&self) -> &str {
         "Rename"
+    }
+
+    fn on_open(
+        &mut self,
+        command_palette: &mut CommandPalette,
+        CommandPaletteEventArgs { ctx, .. }: CommandPaletteEventArgs,
+    ) {
+        let command_doc = &mut command_palette.doc;
+
+        command_doc.insert(command_doc.end(), &self.placeholder, ctx);
     }
 
     fn on_submit(

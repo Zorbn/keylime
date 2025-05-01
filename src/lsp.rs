@@ -92,8 +92,22 @@ impl Lsp {
                         .completion_list
                         .lsp_update_code_action_results(results);
                 }
-                LanguageServerResult::PrepareRename => {
-                    command_palette.open(ui, Box::new(RenameMode), editor, ctx);
+                LanguageServerResult::PrepareRename { range, placeholder } => {
+                    let Some((_, doc)) = editor.get_focused_tab_and_doc() else {
+                        continue;
+                    };
+
+                    let (start, end) = range.decode(encoding, doc);
+
+                    let placeholder = placeholder.unwrap_or_else(|| {
+                        let mut placeholder = String::new();
+
+                        doc.collect_string(start, end, &mut placeholder);
+
+                        placeholder
+                    });
+
+                    command_palette.open(ui, Box::new(RenameMode::new(placeholder)), editor, ctx);
                 }
                 LanguageServerResult::Rename(workspace_edit) => {
                     let Some((_, doc)) = editor.get_focused_tab_and_doc() else {
