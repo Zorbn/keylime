@@ -5,7 +5,7 @@ use serde_json::value::RawValue;
 
 use crate::{config::theme::Theme, geometry::position::Position, text::doc::Doc, ui::color::Color};
 
-use super::{position_encoding::PositionEncoding, uri::uri_to_path};
+use super::position_encoding::PositionEncoding;
 
 const DEFAULT_SEVERITY: fn() -> usize = || 1;
 
@@ -194,10 +194,10 @@ pub(super) struct LspInitializeResult<'a> {
 
 #[derive(Debug, Deserialize)]
 pub(super) struct LspMessage {
-    pub(super) id: Option<u64>,
-    pub(super) method: Option<String>,
-    pub(super) result: Option<Box<RawValue>>,
-    pub(super) params: Option<Box<RawValue>>,
+    pub id: Option<u64>,
+    pub method: Option<String>,
+    pub result: Option<Box<RawValue>>,
+    pub params: Option<Box<RawValue>>,
 }
 
 #[derive(Debug, Clone)]
@@ -212,20 +212,7 @@ impl Diagnostic {
         match self.severity {
             1 => theme.error,
             2 => theme.warning,
-            _ => theme.normal,
-        }
-    }
-
-    pub fn encode(self, encoding: PositionEncoding, doc: &Doc) -> LspDiagnostic {
-        let (start, end) = self.range;
-
-        LspDiagnostic {
-            message: self.message,
-            range: LspRange {
-                start: LspPosition::encode(start, encoding, doc),
-                end: LspPosition::encode(end, encoding, doc),
-            },
-            severity: self.severity,
+            _ => theme.info,
         }
     }
 }
@@ -256,24 +243,24 @@ impl CompletionItem<'_> {
 }
 
 #[derive(Debug, Deserialize)]
-pub(super) struct LspTextDocumentIdentifier<'a> {
+struct LspTextDocumentIdentifier<'a> {
     pub uri: &'a str,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct LspTextDocumentEdit<'a> {
+struct LspTextDocumentEdit<'a> {
     #[serde(borrow)]
-    pub text_document: LspTextDocumentIdentifier<'a>,
-    pub edits: Vec<LspTextEdit<'a>>,
+    text_document: LspTextDocumentIdentifier<'a>,
+    edits: Vec<LspTextEdit<'a>>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct LspWorkspaceEdit<'a> {
     #[serde(borrow)]
-    pub changes: Option<HashMap<&'a str, Vec<LspTextEdit<'a>>>>,
-    pub document_changes: Option<Vec<LspTextDocumentEdit<'a>>>,
+    changes: Option<HashMap<&'a str, Vec<LspTextEdit<'a>>>>,
+    document_changes: Option<Vec<LspTextDocumentEdit<'a>>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -285,10 +272,13 @@ pub struct Command<'a> {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct LspCodeAction<'a> {
-    pub title: &'a str,
-    pub edit: Option<LspWorkspaceEdit<'a>>,
-    pub command: Option<Command<'a>>,
+    title: &'a str,
+    edit: Option<LspWorkspaceEdit<'a>>,
+    command: Option<Command<'a>>,
+    #[serde(default)]
+    is_preferred: bool,
 }
 
 impl<'a> LspCodeAction<'a> {
@@ -322,6 +312,7 @@ impl<'a> LspCodeAction<'a> {
             title: self.title,
             edit,
             command: self.command,
+            is_preferred: self.is_preferred,
         }
     }
 }
@@ -352,6 +343,7 @@ pub struct CodeAction<'a> {
     pub title: &'a str,
     pub edit: Vec<(&'a str, Vec<TextEdit<'a>>)>,
     pub command: Option<Command<'a>>,
+    pub is_preferred: bool,
 }
 
 #[derive(Debug)]

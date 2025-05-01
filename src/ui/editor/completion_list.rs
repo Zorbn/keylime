@@ -6,7 +6,7 @@ use crate::{
     ctx::Ctx,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::action::action_keybind,
-    lsp::types::{CodeAction, CodeActionResult, Command, CompletionItem},
+    lsp::types::{CodeActionResult, CompletionItem},
     platform::gfx::Gfx,
     text::{cursor_index::CursorIndex, doc::Doc, grapheme, line_pool::LinePool},
     ui::{
@@ -331,13 +331,22 @@ impl CompletionList {
                         completion_edit.push((uri_string, edits));
                     }
 
-                    self.completion_result_list.results.push(CompletionResult {
-                        label,
-                        action: CompletionResultAction::CodeAction {
-                            edit: completion_edit,
-                            command,
+                    let index = if code_action.is_preferred {
+                        0
+                    } else {
+                        self.completion_result_list.results.len()
+                    };
+
+                    self.completion_result_list.results.insert(
+                        index,
+                        CompletionResult {
+                            label,
+                            action: CompletionResultAction::CodeAction {
+                                edit: completion_edit,
+                                command,
+                            },
                         },
-                    });
+                    );
                 }
             }
         }

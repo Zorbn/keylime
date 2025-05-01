@@ -67,6 +67,7 @@ pub struct Theme {
     pub scroll_bar: Color,
     pub border: Color,
     pub background: Color,
+    pub info: Color,
     pub warning: Color,
     pub error: Color,
 
@@ -133,6 +134,7 @@ impl Default for Theme {
             scroll_bar: Color::from_hex(0x6E76817F),
             border: Color::from_hex(0x2B2B2BFF),
             background: Color::from_hex(0x1E1E1EFF),
+            info: Color::from_hex(0x6E7681FF),
             warning: Color::from_hex(0xC5A82DFF),
             error: Color::from_hex(0xAB311FFF),
 

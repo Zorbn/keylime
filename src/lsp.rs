@@ -67,7 +67,7 @@ impl Lsp {
 
                     let results: Vec<CodeActionResult> = results
                         .into_iter()
-                        .map(|result| CodeActionResult::CodeAction(result.decode(encoding, doc)))
+                        .map(|result| result.decode(encoding, doc))
                         .collect();
 
                     editor

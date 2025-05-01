@@ -10,7 +10,7 @@ use crate::{
     geometry::position::Position,
     lsp::{
         types::{
-            LspCodeAction, LspCompletionResult, LspDefinitionResult, LspInitializeResult,
+            LspCodeActionResult, LspCompletionResult, LspDefinitionResult, LspInitializeResult,
             LspLocation, LspMessage, LspPosition, LspPublishDiagnosticsParams,
         },
         uri::uri_to_path,
@@ -22,7 +22,7 @@ use crate::{
 
 use super::{
     position_encoding::PositionEncoding,
-    types::{Command, Diagnostic, LspCodeActionResult, LspCompletionItem, LspDiagnostic, LspRange},
+    types::{Diagnostic, LspCompletionItem, LspDiagnostic, LspRange},
     uri::path_to_uri,
 };
 
@@ -57,7 +57,7 @@ enum MessageParseState {
 
 pub(super) enum LanguageServerResult<'a> {
     Completion(Vec<LspCompletionItem<'a>>),
-    CodeAction(Vec<LspCodeAction<'a>>),
+    CodeAction(Vec<LspCodeActionResult<'a>>),
     Definition { path: PathBuf, range: LspRange },
 }
 
@@ -120,6 +120,7 @@ impl LanguageServer {
                                     "valueSet": ["", "quickfix", "refactor", "source"],
                                 }
                             },
+                            "isPreferredSupport": true,
                         },
                     },
                 },
@@ -277,8 +278,8 @@ impl LanguageServer {
             "textDocument/codeAction" => {
                 println!("received code action results");
                 let result = message.result.as_ref()?;
-                let result =
-                    serde_json::from_str::<Vec<LspCodeAction>>(result.get()).unwrap_or_default();
+                let result = serde_json::from_str::<Vec<LspCodeActionResult>>(result.get())
+                    .unwrap_or_default();
 
                 Some(LanguageServerResult::CodeAction(result))
             }
@@ -388,16 +389,6 @@ impl LanguageServer {
 
         let encoding = self.position_encoding;
 
-        let mut diagnostics = Vec::new();
-
-        for diagnostic in self.get_diagnostics_mut(doc) {
-            let (range_start, range_end) = diagnostic.range;
-
-            if range_end >= start && range_start <= end {
-                diagnostics.push(diagnostic.clone().encode(encoding, doc));
-            }
-        }
-
         self.send_request(
             "textDocument/codeAction",
             json!({
@@ -409,7 +400,7 @@ impl LanguageServer {
                     "end": LspPosition::encode(end, encoding, doc),
                 },
                 "context": {
-                    "diagnostics": diagnostics,
+                    "diagnostics": [],
                 },
             }),
         );
