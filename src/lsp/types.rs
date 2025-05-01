@@ -200,48 +200,6 @@ pub(super) struct LspMessage {
     pub params: Option<Box<RawValue>>,
 }
 
-#[derive(Debug, Clone)]
-pub struct Diagnostic {
-    pub message: String,
-    pub range: (Position, Position),
-    pub severity: usize,
-}
-
-impl Diagnostic {
-    pub fn color(&self, theme: &Theme) -> Color {
-        match self.severity {
-            1 => theme.error,
-            2 => theme.warning,
-            _ => theme.info,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct TextEdit {
-    pub range: (Position, Position),
-    pub new_text: String,
-}
-
-#[derive(Debug)]
-pub struct CompletionItem<'a> {
-    pub label: &'a str,
-    sort_text: Option<&'a str>,
-    filter_text: Option<&'a str>,
-    pub insert_text: Option<String>,
-    pub text_edit: Option<TextEdit>,
-}
-
-impl CompletionItem<'_> {
-    pub fn sort_text(&self) -> &str {
-        self.sort_text.unwrap_or(self.label)
-    }
-
-    pub fn filter_text(&self) -> &str {
-        self.filter_text.unwrap_or(self.label)
-    }
-}
-
 #[derive(Debug, Deserialize)]
 struct LspTextDocumentIdentifier<'a> {
     uri: &'a str,
@@ -264,7 +222,7 @@ pub(super) struct LspWorkspaceEdit<'a> {
 }
 
 impl LspWorkspaceEdit<'_> {
-    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> Vec<CodeActionDocumentEdit> {
+    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> Vec<EditList> {
         let mut edit = Vec::new();
 
         if let Some(changes) = self.document_changes {
@@ -275,7 +233,7 @@ impl LspWorkspaceEdit<'_> {
                     .map(|text_edit| text_edit.decode(encoding, doc))
                     .collect();
 
-                edit.push(CodeActionDocumentEdit {
+                edit.push(EditList {
                     uri: change.text_document.uri.to_string(),
                     edits,
                 });
@@ -287,7 +245,7 @@ impl LspWorkspaceEdit<'_> {
                     .map(|text_edit| text_edit.decode(encoding, doc))
                     .collect();
 
-                edit.push(CodeActionDocumentEdit {
+                edit.push(EditList {
                     uri: uri.to_string(),
                     edits,
                 });
@@ -330,14 +288,14 @@ pub(super) struct LspCodeAction<'a> {
 
 impl<'a> LspCodeAction<'a> {
     pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> CodeAction<'a> {
-        let edit = self
+        let edit_lists = self
             .edit
             .map(|edit| edit.decode(encoding, doc))
             .unwrap_or_default();
 
         CodeAction {
             title: self.title,
-            edit,
+            edit_lists,
             command: self.command,
             is_preferred: self.is_preferred,
         }
@@ -365,8 +323,50 @@ impl<'a> LspCodeActionResult<'a> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Diagnostic {
+    pub message: String,
+    pub range: (Position, Position),
+    pub severity: usize,
+}
+
+impl Diagnostic {
+    pub fn color(&self, theme: &Theme) -> Color {
+        match self.severity {
+            1 => theme.error,
+            2 => theme.warning,
+            _ => theme.info,
+        }
+    }
+}
+
 #[derive(Debug)]
-pub struct CodeActionDocumentEdit {
+pub struct TextEdit {
+    pub range: (Position, Position),
+    pub new_text: String,
+}
+
+#[derive(Debug)]
+pub struct CompletionItem<'a> {
+    pub label: &'a str,
+    sort_text: Option<&'a str>,
+    filter_text: Option<&'a str>,
+    pub insert_text: Option<String>,
+    pub text_edit: Option<TextEdit>,
+}
+
+impl CompletionItem<'_> {
+    pub fn sort_text(&self) -> &str {
+        self.sort_text.unwrap_or(self.label)
+    }
+
+    pub fn filter_text(&self) -> &str {
+        self.filter_text.unwrap_or(self.label)
+    }
+}
+
+#[derive(Debug)]
+pub struct EditList {
     pub uri: String,
     pub edits: Vec<TextEdit>,
 }
@@ -374,7 +374,7 @@ pub struct CodeActionDocumentEdit {
 #[derive(Debug)]
 pub struct CodeAction<'a> {
     pub title: &'a str,
-    pub edit: Vec<CodeActionDocumentEdit>,
+    pub edit_lists: Vec<EditList>,
     pub command: Option<Command<'a>>,
     pub is_preferred: bool,
 }

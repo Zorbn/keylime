@@ -2,7 +2,7 @@ use serde_json::value::RawValue;
 
 use crate::{
     geometry::position::Position,
-    lsp::types::{CodeAction, CodeActionDocumentEdit, Command, CompletionItem},
+    lsp::types::{CodeAction, Command, CompletionItem, EditList},
     text::line_pool::LinePool,
 };
 
@@ -31,7 +31,7 @@ pub enum CompletionResultAction {
     },
     Command(CompletionCommand),
     CodeAction {
-        edits: Vec<CodeActionDocumentEdit>,
+        edit_lists: Vec<EditList>,
         command: Option<CompletionCommand>,
     },
 }
@@ -52,11 +52,14 @@ impl CompletionResult {
                 }
             }
             CompletionResultAction::Command(command) => pool.push(command.command),
-            CompletionResultAction::CodeAction { edits, command } => {
-                for edit in edits {
-                    pool.push(edit.uri);
+            CompletionResultAction::CodeAction {
+                edit_lists,
+                command,
+            } => {
+                for edit_list in edit_lists {
+                    pool.push(edit_list.uri);
 
-                    for edit in edit.edits {
+                    for edit in edit_list.edits {
                         pool.push(edit.new_text);
                     }
                 }
@@ -121,7 +124,7 @@ impl CompletionResult {
             Self {
                 label,
                 action: CompletionResultAction::CodeAction {
-                    edits: code_action.edit,
+                    edit_lists: code_action.edit_lists,
                     command,
                 },
             },

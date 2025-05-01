@@ -8,7 +8,7 @@ use crate::{
     ctx::Ctx,
     geometry::{rect::Rect, sides::Sides, visual_position::VisualPosition},
     input::{action::action_name, mods::Mods, mouse_button::MouseButton, mousebind::Mousebind},
-    lsp::{types::CodeActionDocumentEdit, uri::uri_to_path},
+    lsp::{types::EditList, uri::uri_to_path},
     platform::{file_watcher::FileWatcher, gfx::Gfx},
     text::{
         cursor_index::CursorIndex,
@@ -188,7 +188,7 @@ impl Editor {
     ) -> Option<()> {
         let result = result?;
 
-        self.handle_workspace_edit(result.edits, ctx);
+        self.apply_edit_lists(result.edit_lists, ctx);
 
         let command = result.command?;
         let (_, doc) = self.get_focused_tab_and_doc_mut()?;
@@ -199,14 +199,9 @@ impl Editor {
         Some(())
     }
 
-    // TODO: CodeActionDocumentEdit isn't a good name, considering it's also used for rename.
-    pub fn handle_workspace_edit(
-        &mut self,
-        edits: Vec<CodeActionDocumentEdit>,
-        ctx: &mut Ctx,
-    ) -> Option<()> {
-        for mut edit in edits {
-            let path = uri_to_path(&edit.uri, String::new())?;
+    pub fn apply_edit_lists(&mut self, edit_lists: Vec<EditList>, ctx: &mut Ctx) -> Option<()> {
+        for mut edit_list in edit_lists {
+            let path = uri_to_path(&edit_list.uri, String::new())?;
 
             let doc = self
                 .doc_list
@@ -238,7 +233,7 @@ impl Editor {
                 continue;
             };
 
-            let edits = &mut edit.edits;
+            let edits = &mut edit_list.edits;
 
             for i in 0..edits.len() {
                 let current_edit = &edits[i];

@@ -96,9 +96,9 @@ impl Lsp {
                         continue;
                     };
 
-                    let workspace_edit = workspace_edit.decode(encoding, doc);
+                    let edit_lists = workspace_edit.decode(encoding, doc);
 
-                    editor.handle_workspace_edit(workspace_edit, ctx);
+                    editor.apply_edit_lists(edit_lists, ctx);
                 }
                 LanguageServerResult::Definition { path, range } => {
                     let (pane, doc_list) = editor.get_focused_pane_and_doc_list();

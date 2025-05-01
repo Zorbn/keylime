@@ -4,7 +4,7 @@ use crate::{
     ctx::Ctx,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::action::action_keybind,
-    lsp::types::{CodeActionDocumentEdit, CodeActionResult, CompletionItem},
+    lsp::types::{CodeActionResult, CompletionItem, EditList},
     platform::gfx::Gfx,
     text::{cursor_index::CursorIndex, doc::Doc, grapheme, line_pool::LinePool},
     ui::{
@@ -38,7 +38,7 @@ impl LspCompletionState {
 
 #[derive(Debug, Default)]
 pub struct CompletionListResult {
-    pub edits: Vec<CodeActionDocumentEdit>,
+    pub edit_lists: Vec<EditList>,
     pub command: Option<CompletionCommand>,
 }
 
@@ -353,9 +353,13 @@ impl CompletionList {
                 command: Some(command),
                 ..Default::default()
             }),
-            CompletionResultAction::CodeAction { edits, command } => {
-                Some(CompletionListResult { edits, command })
-            }
+            CompletionResultAction::CodeAction {
+                edit_lists,
+                command,
+            } => Some(CompletionListResult {
+                edit_lists,
+                command,
+            }),
         }
     }
 
