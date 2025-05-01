@@ -276,7 +276,6 @@ impl LanguageServer {
                 Some(LanguageServerResult::Completion(result))
             }
             "textDocument/codeAction" => {
-                println!("received code action results");
                 let result = message.result.as_ref()?;
                 let result = serde_json::from_str::<Vec<LspCodeActionResult>>(result.get())
                     .unwrap_or_default();

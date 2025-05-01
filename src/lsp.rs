@@ -11,7 +11,7 @@ use std::{
 
 use language_server::{LanguageServer, LanguageServerResult};
 use position_encoding::PositionEncoding;
-use types::{CodeActionResult, CompletionItem, LspMessage};
+use types::LspMessage;
 
 use crate::{config::language::Language, ctx::Ctx, platform::process::Process, ui::editor::Editor};
 
@@ -51,7 +51,7 @@ impl Lsp {
 
                     // The compiler should perform an in-place collect here because
                     // LspCompletionItem and CompletionItem have the same size and alignment.
-                    let completion_items: Vec<CompletionItem> = completion_items
+                    let completion_items = completion_items
                         .into_iter()
                         .map(|item| item.decode(encoding, doc))
                         .collect();
@@ -65,7 +65,7 @@ impl Lsp {
                         continue;
                     };
 
-                    let results: Vec<CodeActionResult> = results
+                    let results = results
                         .into_iter()
                         .map(|result| result.decode(encoding, doc))
                         .collect();

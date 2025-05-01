@@ -1,7 +1,5 @@
 use std::path::PathBuf;
 
-use serde_json::value::RawValue;
-
 use crate::{
     ctx::Ctx,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
@@ -13,6 +11,10 @@ use crate::{
         core::{Ui, Widget},
         result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     },
+};
+
+use super::completion_result::{
+    CompletionCommand, CompletionDocumentTextEdit, CompletionResult, CompletionResultAction,
 };
 
 const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
@@ -36,73 +38,16 @@ impl LspCompletionState {
     }
 }
 
-#[derive(Debug)]
-pub struct CompletionCommand {
-    pub command: String,
-    pub arguments: Vec<Box<RawValue>>,
-}
-
-#[derive(Debug)]
-pub struct CompletionTextEdit {
-    pub range: (Position, Position),
-    pub new_text: String,
-}
-
-enum CompletionResultAction {
-    Completion {
-        insert_text: Option<String>,
-        range: Option<(Position, Position)>,
-    },
-    Command(CompletionCommand),
-    CodeAction {
-        edit: Vec<(String, Vec<CompletionTextEdit>)>,
-        command: Option<CompletionCommand>,
-    },
-}
-
-struct CompletionResult {
-    label: String,
-    action: CompletionResultAction,
-}
-
-impl CompletionResult {
-    fn push_to_pool(self, pool: &mut LinePool) {
-        pool.push(self.label);
-
-        match self.action {
-            CompletionResultAction::Completion { insert_text, .. } => {
-                if let Some(insert_text) = insert_text {
-                    pool.push(insert_text);
-                }
-            }
-            CompletionResultAction::Command(command) => pool.push(command.command),
-            CompletionResultAction::CodeAction { edit, command } => {
-                for (uri, edits) in edit {
-                    pool.push(uri);
-
-                    for edit in edits {
-                        pool.push(edit.new_text);
-                    }
-                }
-
-                if let Some(command) = command {
-                    pool.push(command.command);
-                }
-            }
-        }
-    }
-}
-
 #[derive(Debug, Default)]
 pub struct CompletionListResult {
-    pub edit: Vec<(String, Vec<CompletionTextEdit>)>,
+    pub edits: Vec<CompletionDocumentTextEdit>,
     pub command: Option<CompletionCommand>,
 }
 
 pub struct CompletionList {
-    completion_result_list: ResultList<CompletionResult>,
-    completion_result_pool: LinePool,
-    completion_prefix: String,
+    result_list: ResultList<CompletionResult>,
+    pool: LinePool,
+    prefix: String,
 
     lsp_completion_state: LspCompletionState,
     lsp_pending_doc_path: PathBuf,
@@ -114,9 +59,9 @@ pub struct CompletionList {
 impl CompletionList {
     pub fn new() -> Self {
         Self {
-            completion_result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS),
-            completion_result_pool: LinePool::new(),
-            completion_prefix: String::new(),
+            result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS),
+            pool: LinePool::new(),
+            prefix: String::new(),
 
             lsp_completion_state: LspCompletionState::Idle,
             lsp_pending_doc_path: PathBuf::new(),
@@ -127,23 +72,22 @@ impl CompletionList {
     }
 
     pub fn is_animating(&self) -> bool {
-        self.completion_result_list.is_animating()
+        self.result_list.is_animating()
     }
 
     pub fn layout(&mut self, visual_position: VisualPosition, gfx: &mut Gfx) {
-        let min_y = self.completion_result_list.min_visible_result_index();
-        let max_y =
-            (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.completion_result_list.results.len());
+        let min_y = self.result_list.min_visible_result_index();
+        let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.results.len());
         let mut longest_visible_result = 0;
 
         for y in min_y..max_y {
             longest_visible_result =
-                longest_visible_result.max(self.completion_result_list.results[y].label.len());
+                longest_visible_result.max(self.result_list.results[y].label.len());
         }
 
-        self.completion_result_list.layout(
+        self.result_list.layout(
             Rect::new(
-                visual_position.x - (self.completion_prefix.len() as f32 + 1.0) * gfx.glyph_width()
+                visual_position.x - (self.prefix.len() as f32 + 1.0) * gfx.glyph_width()
                     + gfx.border_width(),
                 visual_position.y + gfx.line_height(),
                 (longest_visible_result as f32 + 2.0) * gfx.glyph_width(),
@@ -161,15 +105,11 @@ impl CompletionList {
         is_visible: bool,
         ctx: &mut Ctx,
     ) -> Option<CompletionListResult> {
-        let are_results_focused = !self.completion_result_list.results.is_empty();
+        let are_results_focused = !self.result_list.results.is_empty();
 
-        let result_input = self.completion_result_list.update(
-            widget,
-            ui,
-            ctx.window,
-            is_visible,
-            are_results_focused,
-        );
+        let result_input =
+            self.result_list
+                .update(widget, ui, ctx.window, is_visible, are_results_focused);
 
         let mut completion_result = None;
 
@@ -218,45 +158,21 @@ impl CompletionList {
     }
 
     pub fn update_camera(&mut self, dt: f32) {
-        self.completion_result_list.update_camera(dt);
+        self.result_list.update_camera(dt);
     }
 
     pub fn draw(&mut self, ctx: &mut Ctx) {
-        self.completion_result_list
-            .draw(ctx, |result| &result.label);
+        self.result_list.draw(ctx, |result| &result.label);
     }
 
     fn lsp_add_completion_results(&mut self, mut items: Vec<CompletionItem>) {
-        items.retain(|item| item.filter_text().starts_with(&self.completion_prefix));
+        items.retain(|item| item.filter_text().starts_with(&self.prefix));
         items.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
 
         for item in items {
-            let (label, insert_text, range) = if let Some(text_edit) = &item.text_edit {
-                (
-                    item.label,
-                    Some(text_edit.new_text.clone()),
-                    Some(text_edit.range),
-                )
-            } else {
-                (item.label, item.insert_text, None)
-            };
+            let result = CompletionResult::from_completion_item(item, &mut self.pool);
 
-            let mut label_string = self.completion_result_pool.pop();
-            label_string.push_str(label);
-
-            let insert_text_string = insert_text.map(|insert_text| {
-                let mut insert_text_string = self.completion_result_pool.pop();
-                insert_text_string.push_str(&insert_text);
-                insert_text_string
-            });
-
-            self.completion_result_list.results.push(CompletionResult {
-                label: label_string,
-                action: CompletionResultAction::Completion {
-                    insert_text: insert_text_string,
-                    range,
-                },
-            });
+            self.result_list.results.push(result);
         }
     }
 
@@ -279,74 +195,21 @@ impl CompletionList {
         for result in results {
             match result {
                 CodeActionResult::Command(command) => {
-                    let mut label = self.completion_result_pool.pop();
-                    label.push_str(command.title);
+                    let result = CompletionResult::from_command(command, &mut self.pool);
 
-                    let mut command_string = self.completion_result_pool.pop();
-                    command_string.push_str(command.command);
-
-                    self.completion_result_list.results.push(CompletionResult {
-                        label,
-                        action: CompletionResultAction::Command(CompletionCommand {
-                            command: command_string,
-                            arguments: command.arguments,
-                        }),
-                    });
+                    self.result_list.results.push(result);
                 }
                 CodeActionResult::CodeAction(code_action) => {
-                    let mut label = self.completion_result_pool.pop();
-                    label.push_str(code_action.title);
+                    let (result, is_preferred) =
+                        CompletionResult::from_code_action(code_action, &mut self.pool);
 
-                    let command = if let Some(command) = code_action.command {
-                        let mut command_string = self.completion_result_pool.pop();
-                        command_string.push_str(command.command);
-
-                        Some(CompletionCommand {
-                            command: command_string,
-                            arguments: command.arguments,
-                        })
-                    } else {
-                        None
-                    };
-
-                    let mut completion_edit = Vec::new();
-
-                    for (uri, edits) in code_action.edit.into_iter() {
-                        let edits = edits
-                            .into_iter()
-                            .map(|edit| {
-                                let mut new_text = self.completion_result_pool.pop();
-                                new_text.push_str(&edit.new_text);
-
-                                CompletionTextEdit {
-                                    range: edit.range,
-                                    new_text,
-                                }
-                            })
-                            .collect();
-
-                        let mut uri_string = self.completion_result_pool.pop();
-                        uri_string.push_str(uri);
-
-                        completion_edit.push((uri_string, edits));
-                    }
-
-                    let index = if code_action.is_preferred {
+                    let index = if is_preferred {
                         0
                     } else {
-                        self.completion_result_list.results.len()
+                        self.result_list.results.len()
                     };
 
-                    self.completion_result_list.results.insert(
-                        index,
-                        CompletionResult {
-                            label,
-                            action: CompletionResultAction::CodeAction {
-                                edit: completion_edit,
-                                command,
-                            },
-                        },
-                    );
+                    self.result_list.results.insert(index, result);
                 }
             }
         }
@@ -376,7 +239,7 @@ impl CompletionList {
         }
 
         if self.should_open || is_position_different {
-            self.completion_prefix.clear();
+            self.prefix.clear();
         }
 
         if !self.should_open {
@@ -393,7 +256,7 @@ impl CompletionList {
             return None;
         };
 
-        self.completion_prefix.push_str(prefix);
+        self.prefix.push_str(prefix);
 
         if doc.get_language_server_mut(ctx).is_some() {
             let path = doc.path().on_drive()?;
@@ -414,20 +277,17 @@ impl CompletionList {
 
         self.clear();
 
-        if !self.completion_prefix.is_empty() {
-            doc.tokens().traverse(
-                &self.completion_prefix,
-                &mut self.completion_result_pool,
-                |label| {
-                    self.completion_result_list.results.push(CompletionResult {
+        if !self.prefix.is_empty() {
+            doc.tokens()
+                .traverse(&self.prefix, &mut self.pool, |label| {
+                    self.result_list.results.push(CompletionResult {
                         label,
                         action: CompletionResultAction::Completion {
                             insert_text: None,
                             range: None,
                         },
                     });
-                },
-            );
+                });
         }
 
         Some(())
@@ -466,8 +326,8 @@ impl CompletionList {
     }
 
     pub fn clear(&mut self) {
-        for result in self.completion_result_list.drain() {
-            result.push_to_pool(&mut self.completion_result_pool);
+        for result in self.result_list.drain() {
+            result.push_to_pool(&mut self.pool);
         }
     }
 
@@ -476,7 +336,7 @@ impl CompletionList {
         doc: &mut Doc,
         ctx: &mut Ctx,
     ) -> Option<CompletionListResult> {
-        let result = self.completion_result_list.remove_selected_result()?;
+        let result = self.result_list.remove_selected_result()?;
 
         match result.action {
             CompletionResultAction::Completion { insert_text, range } => {
@@ -486,7 +346,7 @@ impl CompletionList {
                     doc.delete(start, end, ctx);
                     doc.insert(start, insert_text, ctx);
                 } else {
-                    doc.insert_at_cursors(&insert_text[self.completion_prefix.len()..], ctx);
+                    doc.insert_at_cursors(&insert_text[self.prefix.len()..], ctx);
                 }
 
                 None
@@ -495,14 +355,13 @@ impl CompletionList {
                 command: Some(command),
                 ..Default::default()
             }),
-            CompletionResultAction::CodeAction { edit, command } => {
-                println!("performing code action");
-                Some(CompletionListResult { edit, command })
+            CompletionResultAction::CodeAction { edits, command } => {
+                Some(CompletionListResult { edits, command })
             }
         }
     }
 
     pub fn bounds(&self) -> Rect {
-        self.completion_result_list.bounds()
+        self.result_list.bounds()
     }
 }

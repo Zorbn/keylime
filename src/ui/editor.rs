@@ -25,6 +25,7 @@ use super::{
 };
 
 pub mod completion_list;
+mod completion_result;
 mod doc_io;
 pub mod editor_pane;
 
@@ -185,15 +186,13 @@ impl Editor {
         result: Option<CompletionListResult>,
         ctx: &mut Ctx,
     ) -> Option<()> {
-        // TODO: The completion list result stores uris so we have to convert them in this functions... is that ok?
         let result = result?;
-        println!("handling completion result: {:?}", result);
 
-        for (result_uri, mut edits) in result.edit {
+        for mut edit in result.edits {
             let mut uri = ctx.buffers.text.take_mut();
-            uri.push_str(&result_uri);
+            uri.push_str(&edit.uri);
 
-            let mut path = result_uri;
+            let mut path = edit.uri;
             path.clear();
 
             let path = uri_to_path(&uri, path)?;
@@ -228,15 +227,15 @@ impl Editor {
                 continue;
             };
 
-            for i in 0..edits.len() {
-                let (start, end) = edits[i].range;
+            for i in 0..edit.edits.len() {
+                let current_edit = &edit.edits[i];
+
+                let (start, end) = current_edit.range;
 
                 doc.delete(start, end, ctx);
-                doc.insert(start, &edits[i].new_text, ctx);
+                doc.insert(start, &current_edit.new_text, ctx);
 
-                // TODO: Get the version for documentChanges and pass it through to CompletionTextEdit as an optional.
-                // only shift future edit position is their version is not greater than the current edit's version.
-                for future_edit in edits.iter_mut().skip(i + 1) {
+                for future_edit in edit.edits.iter_mut().skip(i + 1) {
                     let (future_start, future_end) = future_edit.range;
 
                     let future_start = doc.shift_position_by_delete(start, end, future_start);

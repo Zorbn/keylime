@@ -2012,8 +2012,6 @@ impl Doc {
     }
 
     pub fn lsp_code_action(&self, ctx: &mut Ctx) -> Option<()> {
-        println!("code action");
-
         let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;
 

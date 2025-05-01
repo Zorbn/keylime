@@ -244,7 +244,7 @@ impl CompletionItem<'_> {
 
 #[derive(Debug, Deserialize)]
 struct LspTextDocumentIdentifier<'a> {
-    pub uri: &'a str,
+    uri: &'a str,
 }
 
 #[derive(Debug, Deserialize)]
@@ -288,22 +288,25 @@ impl<'a> LspCodeAction<'a> {
         if let Some(lsp_edit) = self.edit {
             if let Some(changes) = lsp_edit.document_changes {
                 for change in changes {
-                    let edits: Vec<TextEdit<'a>> = change
+                    let edits = change
                         .edits
                         .into_iter()
                         .map(|text_edit| text_edit.decode(encoding, doc))
                         .collect();
 
-                    edit.push((change.text_document.uri, edits));
+                    edit.push(CodeActionDocumentEdit {
+                        uri: change.text_document.uri,
+                        edits,
+                    });
                 }
             } else if let Some(changes) = lsp_edit.changes {
                 for (uri, edits) in changes {
-                    let edits: Vec<TextEdit<'a>> = edits
+                    let edits = edits
                         .into_iter()
                         .map(|text_edit| text_edit.decode(encoding, doc))
                         .collect();
 
-                    edit.push((uri, edits));
+                    edit.push(CodeActionDocumentEdit { uri, edits });
                 }
             }
         }
@@ -339,9 +342,15 @@ impl<'a> LspCodeActionResult<'a> {
 }
 
 #[derive(Debug)]
+pub struct CodeActionDocumentEdit<'a> {
+    pub uri: &'a str,
+    pub edits: Vec<TextEdit<'a>>,
+}
+
+#[derive(Debug)]
 pub struct CodeAction<'a> {
     pub title: &'a str,
-    pub edit: Vec<(&'a str, Vec<TextEdit<'a>>)>,
+    pub edit: Vec<CodeActionDocumentEdit<'a>>,
     pub command: Option<Command<'a>>,
     pub is_preferred: bool,
 }
