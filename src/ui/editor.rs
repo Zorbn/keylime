@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use completion_list::{CompletionList, CompletionListResult};
 use doc_io::confirm_close_all;
@@ -181,6 +181,14 @@ impl Editor {
         }
     }
 
+    pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
+        for pane in self.panes.iter_mut() {
+            pane.update_camera(&self.widget, ui, &mut self.doc_list, ctx, dt);
+        }
+
+        self.completion_list.update_camera(dt);
+    }
+
     pub fn handle_completion_list_result(
         &mut self,
         result: Option<CompletionListResult>,
@@ -203,71 +211,68 @@ impl Editor {
         for mut edit_list in edit_lists {
             let path = uri_to_path(&edit_list.uri, String::new())?;
 
-            let doc = self
-                .doc_list
-                .iter_mut()
-                .flatten()
-                .find(|doc| doc.path().on_drive() == Some(&path));
+            self.with_doc(path, ctx, |doc, ctx| {
+                let edits = &mut edit_list.edits;
 
-            let mut loaded_doc = None;
+                for i in 0..edits.len() {
+                    let current_edit = &edits[i];
 
-            let doc = doc.or_else(|| {
-                loaded_doc = Some(Doc::new(
-                    Some(path),
-                    &mut ctx.buffers.lines,
-                    None,
-                    DocKind::Output,
-                ));
+                    let (start, end) = current_edit.range;
 
-                let doc = loaded_doc.as_mut()?;
+                    doc.delete(start, end, ctx);
+                    doc.insert(start, &current_edit.new_text, ctx);
 
-                if doc.load(ctx).is_err() {
-                    doc.clear(ctx);
-                    return None;
+                    for future_edit in edits.iter_mut().skip(i + 1) {
+                        let (future_start, future_end) = future_edit.range;
+
+                        let future_start = doc.shift_position_by_delete(start, end, future_start);
+                        let future_end = doc.shift_position_by_delete(start, end, future_end);
+
+                        future_edit.range = (future_start, future_end);
+                    }
                 }
-
-                Some(doc)
             });
-
-            let Some(doc) = doc else {
-                continue;
-            };
-
-            let edits = &mut edit_list.edits;
-
-            for i in 0..edits.len() {
-                let current_edit = &edits[i];
-
-                let (start, end) = current_edit.range;
-
-                doc.delete(start, end, ctx);
-                doc.insert(start, &current_edit.new_text, ctx);
-
-                for future_edit in edits.iter_mut().skip(i + 1) {
-                    let (future_start, future_end) = future_edit.range;
-
-                    let future_start = doc.shift_position_by_delete(start, end, future_start);
-                    let future_end = doc.shift_position_by_delete(start, end, future_end);
-
-                    future_edit.range = (future_start, future_end);
-                }
-            }
-
-            if let Some(mut doc) = loaded_doc {
-                let _ = doc.save(None, ctx);
-                doc.clear(ctx);
-            }
         }
 
         Some(())
     }
 
-    pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
-        for pane in self.panes.iter_mut() {
-            pane.update_camera(&self.widget, ui, &mut self.doc_list, ctx, dt);
-        }
+    pub fn with_doc(
+        &mut self,
+        path: PathBuf,
+        ctx: &mut Ctx,
+        mut doc_fn: impl FnMut(&mut Doc, &mut Ctx),
+    ) {
+        let doc = self
+            .doc_list
+            .iter_mut()
+            .flatten()
+            .find(|doc| doc.path().on_drive() == Some(&path));
 
-        self.completion_list.update_camera(dt);
+        let mut loaded_doc = None;
+
+        let doc = doc.or_else(|| {
+            loaded_doc = Some(Doc::new(
+                Some(path),
+                &mut ctx.buffers.lines,
+                None,
+                DocKind::Output,
+            ));
+
+            let doc = loaded_doc.as_mut()?;
+            doc.load(ctx).ok()?;
+
+            Some(doc)
+        });
+
+        if let Some(doc) = doc {
+            doc_fn(doc, ctx);
+        };
+
+        if let Some(mut doc) = loaded_doc {
+            let _ = doc.save(None, ctx);
+            doc.clear(ctx);
+        }
     }
 
     // Necessary when syntax highlighting rules change.

@@ -331,6 +331,10 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
+    pub fn is_problem(&self) -> bool {
+        self.severity <= 2
+    }
+
     pub fn color(&self, theme: &Theme) -> Color {
         match self.severity {
             1 => theme.error,

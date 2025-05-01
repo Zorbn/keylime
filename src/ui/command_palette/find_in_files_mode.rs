@@ -71,9 +71,7 @@ impl FindInFilesMode {
 
         let mut doc = Doc::new(Some(path), &mut ctx.buffers.lines, None, DocKind::Output);
 
-        if doc.load(ctx).is_err() {
-            doc.clear(ctx);
-        } else {
+        if doc.load(ctx).is_ok() {
             self.pending_doc = Some(doc);
             self.handle_doc(start_time, command_palette, ctx);
         }

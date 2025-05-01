@@ -12,13 +12,17 @@ use std::{
 use language_server::{LanguageServer, LanguageServerResult};
 use position_encoding::PositionEncoding;
 use types::LspMessage;
+use uri::uri_to_path;
 
 use crate::{
     config::language::Language,
     ctx::Ctx,
     platform::process::Process,
     ui::{
-        command_palette::{rename_mode::RenameMode, CommandPalette},
+        command_palette::{
+            references::References, rename_mode::RenameMode, CommandPalette,
+            CommandPaletteMetaData::PathWithPosition, CommandPaletteResult,
+        },
         core::Ui,
         editor::Editor,
     },
@@ -99,6 +103,70 @@ impl Lsp {
                     let edit_lists = workspace_edit.decode(encoding, doc);
 
                     editor.apply_edit_lists(edit_lists, ctx);
+                }
+                LanguageServerResult::References(mut results) => {
+                    let root = current_dir().unwrap_or_default();
+
+                    results.sort_by(|a, b| a.uri.cmp(b.uri));
+
+                    let mut command_palette_results = Vec::new();
+                    let mut results = results.into_iter().peekable();
+
+                    while let Some(result) = results.peek() {
+                        let current_uri = result.uri;
+
+                        let Some(path) = uri_to_path(current_uri, String::new()) else {
+                            continue;
+                        };
+
+                        editor.with_doc(path.clone(), ctx, |doc, _| {
+                            while let Some(result) = results.peek() {
+                                if result.uri != current_uri {
+                                    break;
+                                }
+
+                                let next_result = results.next().unwrap();
+                                let (result_position, _) = next_result.range.decode(encoding, doc);
+
+                                // TODO: This is a duplicate of the find in files result position handling.
+                                let Some(line) = doc.get_line(result_position.y) else {
+                                    continue;
+                                };
+
+                                let line_start = doc.get_line_start(result_position.y);
+
+                                let Some(relative_path) = doc
+                                    .path()
+                                    .on_drive()
+                                    .and_then(|path| path.strip_prefix(&root).ok())
+                                else {
+                                    continue;
+                                };
+
+                                let text = format!(
+                                    "{}:{}: {}",
+                                    relative_path.display(),
+                                    result_position.y + 1,
+                                    &line[line_start..]
+                                );
+
+                                command_palette_results.push(CommandPaletteResult {
+                                    text,
+                                    meta_data: PathWithPosition {
+                                        path: path.clone(),
+                                        position: result_position,
+                                    },
+                                });
+                            }
+                        });
+                    }
+
+                    command_palette.open(
+                        ui,
+                        Box::new(References::new(command_palette_results)),
+                        editor,
+                        ctx,
+                    );
                 }
                 LanguageServerResult::Definition { path, range } => {
                     let (pane, doc_list) = editor.get_focused_pane_and_doc_list();

@@ -3,6 +3,7 @@ mod find_file_mode;
 mod find_in_files_mode;
 mod go_to_line_mode;
 mod mode;
+pub mod references;
 pub mod rename_mode;
 mod search_mode;
 
@@ -38,12 +39,12 @@ use go_to_line_mode::GoToLineMode;
 use mode::{CommandPaletteEventArgs, CommandPaletteMode};
 use search_mode::{SearchAndReplaceMode, SearchMode};
 
-struct CommandPaletteResult {
-    text: String,
-    meta_data: CommandPaletteMetaData,
+pub struct CommandPaletteResult {
+    pub text: String,
+    pub meta_data: CommandPaletteMetaData,
 }
 
-enum CommandPaletteMetaData {
+pub enum CommandPaletteMetaData {
     None,
     Path(PathBuf),
     PathWithPosition { path: PathBuf, position: Position },

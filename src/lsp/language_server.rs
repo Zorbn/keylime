@@ -63,6 +63,7 @@ pub(super) enum LanguageServerResult<'a> {
     CodeAction(Vec<LspCodeActionResult<'a>>),
     PrepareRename,
     Rename(LspWorkspaceEdit<'a>),
+    References(Vec<LspLocation<'a>>),
     Definition { path: PathBuf, range: LspRange },
 }
 
@@ -314,6 +315,12 @@ impl LanguageServer {
 
                 result.map(LanguageServerResult::Rename)
             }
+            "textDocument/references" => {
+                let result = message.result.as_ref()?;
+                let result = serde_json::from_str::<Vec<LspLocation>>(result.get()).ok();
+
+                result.map(LanguageServerResult::References)
+            }
             "textDocument/definition" => {
                 let result = message.result.as_ref()?;
 
@@ -470,6 +477,27 @@ impl LanguageServer {
                 },
                 "position": LspPosition::encode(position, self.position_encoding, doc),
                 "newName": new_name,
+            }),
+        );
+
+        self.uri_buffer.replace(uri_buffer);
+    }
+
+    pub fn references(&mut self, path: &Path, position: Position, doc: &Doc) {
+        let mut uri_buffer = self.uri_buffer.take_mut();
+
+        path_to_uri(path, &mut uri_buffer);
+
+        self.send_request(
+            "textDocument/references",
+            json!({
+                "textDocument": {
+                    "uri": uri_buffer,
+                },
+                "position": LspPosition::encode(position, self.position_encoding, doc),
+                "context": {
+                    "includeDeclaration": true,
+                },
             }),
         );
 

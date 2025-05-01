@@ -165,6 +165,9 @@ pub fn handle_action(action: Action, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) ->
         action_name!(Rename) => {
             doc.lsp_prepare_rename(ctx);
         }
+        action_name!(FindReferences) => {
+            doc.lsp_references(ctx);
+        }
         _ => return false,
     }
 

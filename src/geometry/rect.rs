@@ -134,10 +134,10 @@ impl Rect {
     }
 
     pub fn contains_position(&self, position: VisualPosition) -> bool {
-        position.x > self.x
-            && position.x < self.x + self.width
-            && position.y > self.y
-            && position.y < self.y + self.height
+        position.x >= self.x
+            && position.x <= self.x + self.width
+            && position.y >= self.y
+            && position.y <= self.y + self.height
     }
 
     pub fn floor(&self) -> Rect {

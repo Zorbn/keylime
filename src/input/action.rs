@@ -61,6 +61,7 @@ pub enum ActionName {
     DeleteForwardWord,
     RequestCodeAction,
     Rename,
+    FindReferences,
 }
 
 macro_rules! action_name {

@@ -661,6 +661,10 @@ impl Tab {
         for language_server in ctx.lsp.iter_servers_mut() {
             // Reversed so that more severe diagnostics are drawn on top.
             for diagnostic in language_server.get_diagnostics_mut(doc).iter().rev() {
+                if !diagnostic.is_problem() {
+                    continue;
+                }
+
                 let color = diagnostic.color(theme);
                 let (start, end) = diagnostic.range;
 

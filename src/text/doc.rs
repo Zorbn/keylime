@@ -1522,6 +1522,10 @@ impl Doc {
     }
 
     pub fn save(&mut self, path: Option<PathBuf>, ctx: &mut Ctx) -> io::Result<()> {
+        if self.is_saved {
+            return Ok(());
+        }
+
         let string = self.to_string();
 
         if let Some(path) = path {
@@ -2044,6 +2048,16 @@ impl Doc {
         let position = self.get_cursor(CursorIndex::Main).position;
 
         language_server.rename(new_name, path, position, self);
+
+        Some(())
+    }
+
+    pub fn lsp_references(&self, ctx: &mut Ctx) -> Option<()> {
+        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let path = self.path.on_drive()?;
+        let position = self.get_cursor(CursorIndex::Main).position;
+
+        language_server.references(path, position, self);
 
         Some(())
     }
