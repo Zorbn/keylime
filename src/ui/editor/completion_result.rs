@@ -2,7 +2,7 @@ use serde_json::value::RawValue;
 
 use crate::{
     geometry::position::Position,
-    lsp::types::{CodeAction, CodeActionDocumentEdit, Command, CompletionItem, TextEdit},
+    lsp::types::{CodeAction, CodeActionDocumentEdit, Command, CompletionItem},
     text::line_pool::LinePool,
 };
 
@@ -24,51 +24,6 @@ impl CompletionCommand {
     }
 }
 
-#[derive(Debug)]
-pub struct CompletionTextEdit {
-    pub range: (Position, Position),
-    pub new_text: String,
-}
-
-impl CompletionTextEdit {
-    pub fn from_text_edit(edit: TextEdit, pool: &mut LinePool) -> Self {
-        let mut new_text = pool.pop();
-        new_text.push_str(&edit.new_text);
-
-        Self {
-            range: edit.range,
-            new_text,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct CompletionDocumentTextEdit {
-    pub uri: String,
-    pub edits: Vec<CompletionTextEdit>,
-}
-
-impl CompletionDocumentTextEdit {
-    pub fn from_code_action_document_edit(
-        edit: CodeActionDocumentEdit,
-        pool: &mut LinePool,
-    ) -> Self {
-        let edits = edit
-            .edits
-            .into_iter()
-            .map(|edit| CompletionTextEdit::from_text_edit(edit, pool))
-            .collect();
-
-        let mut uri_string = pool.pop();
-        uri_string.push_str(edit.uri);
-
-        Self {
-            uri: uri_string,
-            edits,
-        }
-    }
-}
-
 pub enum CompletionResultAction {
     Completion {
         insert_text: Option<String>,
@@ -76,7 +31,7 @@ pub enum CompletionResultAction {
     },
     Command(CompletionCommand),
     CodeAction {
-        edits: Vec<CompletionDocumentTextEdit>,
+        edits: Vec<CodeActionDocumentEdit>,
         command: Option<CompletionCommand>,
     },
 }
@@ -162,17 +117,11 @@ impl CompletionResult {
             .command
             .map(|command| CompletionCommand::from_command(command, pool));
 
-        let completion_edits = code_action
-            .edit
-            .into_iter()
-            .map(|edit| CompletionDocumentTextEdit::from_code_action_document_edit(edit, pool))
-            .collect();
-
         (
             Self {
                 label,
                 action: CompletionResultAction::CodeAction {
-                    edits: completion_edits,
+                    edits: code_action.edit,
                     command,
                 },
             },

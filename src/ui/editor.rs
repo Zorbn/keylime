@@ -188,70 +188,7 @@ impl Editor {
     ) -> Option<()> {
         let result = result?;
 
-        for mut edit in result.edits {
-            let mut uri = ctx.buffers.text.take_mut();
-            uri.push_str(&edit.uri);
-
-            let mut path = edit.uri;
-            path.clear();
-
-            let path = uri_to_path(&uri, path)?;
-
-            ctx.buffers.text.replace(uri);
-
-            let doc = self
-                .doc_list
-                .iter_mut()
-                .flatten()
-                .find(|doc| doc.path().on_drive() == Some(&path));
-
-            let mut loaded_doc = None;
-
-            let doc = doc.or_else(|| {
-                loaded_doc = Some(Doc::new(
-                    Some(path),
-                    &mut ctx.buffers.lines,
-                    None,
-                    DocKind::Output,
-                ));
-
-                let doc = loaded_doc.as_mut()?;
-
-                if doc.load(ctx).is_err() {
-                    doc.clear(ctx);
-                    return None;
-                }
-
-                Some(doc)
-            });
-
-            let Some(doc) = doc else {
-                continue;
-            };
-
-            for i in 0..edit.edits.len() {
-                let current_edit = &edit.edits[i];
-
-                let (start, end) = current_edit.range;
-
-                doc.delete(start, end, ctx);
-                doc.insert(start, &current_edit.new_text, ctx);
-
-                for future_edit in edit.edits.iter_mut().skip(i + 1) {
-                    let (future_start, future_end) = future_edit.range;
-
-                    let future_start = doc.shift_position_by_delete(start, end, future_start);
-                    let future_end = doc.shift_position_by_delete(start, end, future_end);
-
-                    future_edit.range = (future_start, future_end);
-                }
-            }
-
-            if let Some(mut doc) = loaded_doc {
-                let _ = doc.save(None, ctx);
-                doc.clear(ctx);
-            }
-        }
+        self.handle_workspace_edit(result.edits, ctx);
 
         let command = result.command?;
         let (_, doc) = self.get_focused_tab_and_doc_mut()?;
@@ -262,7 +199,6 @@ impl Editor {
         Some(())
     }
 
-    // TODO: Unify with handle_completion_list_result.
     // TODO: CodeActionDocumentEdit isn't a good name, considering it's also used for rename.
     pub fn handle_workspace_edit(
         &mut self,
@@ -270,7 +206,7 @@ impl Editor {
         ctx: &mut Ctx,
     ) -> Option<()> {
         for mut edit in edits {
-            let path = uri_to_path(edit.uri, String::new())?;
+            let path = uri_to_path(&edit.uri, String::new())?;
 
             let doc = self
                 .doc_list
@@ -302,15 +238,17 @@ impl Editor {
                 continue;
             };
 
-            for i in 0..edit.edits.len() {
-                let current_edit = &edit.edits[i];
+            let edits = &mut edit.edits;
+
+            for i in 0..edits.len() {
+                let current_edit = &edits[i];
 
                 let (start, end) = current_edit.range;
 
                 doc.delete(start, end, ctx);
                 doc.insert(start, &current_edit.new_text, ctx);
 
-                for future_edit in edit.edits.iter_mut().skip(i + 1) {
+                for future_edit in edits.iter_mut().skip(i + 1) {
                     let (future_start, future_end) = future_edit.range;
 
                     let future_start = doc.shift_position_by_delete(start, end, future_start);

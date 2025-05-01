@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
@@ -104,13 +104,13 @@ pub(super) struct LspPublishDiagnosticsParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct LspTextEdit<'a> {
+struct LspTextEdit {
     range: LspRange,
-    new_text: Cow<'a, str>,
+    new_text: String,
 }
 
-impl<'a> LspTextEdit<'a> {
-    fn decode(self, encoding: PositionEncoding, doc: &Doc) -> TextEdit<'a> {
+impl LspTextEdit {
+    fn decode(self, encoding: PositionEncoding, doc: &Doc) -> TextEdit {
         TextEdit {
             range: self.range.decode(encoding, doc),
             new_text: self.new_text,
@@ -124,8 +124,8 @@ pub(super) struct LspCompletionItem<'a> {
     label: &'a str,
     sort_text: Option<&'a str>,
     filter_text: Option<&'a str>,
-    insert_text: Option<Cow<'a, str>>,
-    text_edit: Option<LspTextEdit<'a>>,
+    insert_text: Option<String>,
+    text_edit: Option<LspTextEdit>,
 }
 
 impl<'a> LspCompletionItem<'a> {
@@ -218,9 +218,9 @@ impl Diagnostic {
 }
 
 #[derive(Debug)]
-pub struct TextEdit<'a> {
+pub struct TextEdit {
     pub range: (Position, Position),
-    pub new_text: Cow<'a, str>,
+    pub new_text: String,
 }
 
 #[derive(Debug)]
@@ -228,8 +228,8 @@ pub struct CompletionItem<'a> {
     pub label: &'a str,
     sort_text: Option<&'a str>,
     filter_text: Option<&'a str>,
-    pub insert_text: Option<Cow<'a, str>>,
-    pub text_edit: Option<TextEdit<'a>>,
+    pub insert_text: Option<String>,
+    pub text_edit: Option<TextEdit>,
 }
 
 impl CompletionItem<'_> {
@@ -252,19 +252,19 @@ struct LspTextDocumentIdentifier<'a> {
 struct LspTextDocumentEdit<'a> {
     #[serde(borrow)]
     text_document: LspTextDocumentIdentifier<'a>,
-    edits: Vec<LspTextEdit<'a>>,
+    edits: Vec<LspTextEdit>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct LspWorkspaceEdit<'a> {
     #[serde(borrow)]
-    changes: Option<HashMap<&'a str, Vec<LspTextEdit<'a>>>>,
+    changes: Option<HashMap<&'a str, Vec<LspTextEdit>>>,
     document_changes: Option<Vec<LspTextDocumentEdit<'a>>>,
 }
 
-impl<'a> LspWorkspaceEdit<'a> {
-    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> Vec<CodeActionDocumentEdit<'a>> {
+impl LspWorkspaceEdit<'_> {
+    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> Vec<CodeActionDocumentEdit> {
         let mut edit = Vec::new();
 
         if let Some(changes) = self.document_changes {
@@ -276,7 +276,7 @@ impl<'a> LspWorkspaceEdit<'a> {
                     .collect();
 
                 edit.push(CodeActionDocumentEdit {
-                    uri: change.text_document.uri,
+                    uri: change.text_document.uri.to_string(),
                     edits,
                 });
             }
@@ -287,7 +287,10 @@ impl<'a> LspWorkspaceEdit<'a> {
                     .map(|text_edit| text_edit.decode(encoding, doc))
                     .collect();
 
-                edit.push(CodeActionDocumentEdit { uri, edits });
+                edit.push(CodeActionDocumentEdit {
+                    uri: uri.to_string(),
+                    edits,
+                });
             }
         }
 
@@ -297,11 +300,11 @@ impl<'a> LspWorkspaceEdit<'a> {
 
 #[derive(Debug, Deserialize, Default)]
 #[serde(untagged)]
-pub(super) enum LspPrepareRenameResult<'a> {
+pub(super) enum LspPrepareRenameResult {
     Range(LspRange),
     RangeWithPlaceholder {
         range: LspRange,
-        placeholder: Cow<'a, str>,
+        placeholder: String,
     },
     #[default]
     Invalid,
@@ -363,15 +366,15 @@ impl<'a> LspCodeActionResult<'a> {
 }
 
 #[derive(Debug)]
-pub struct CodeActionDocumentEdit<'a> {
-    pub uri: &'a str,
-    pub edits: Vec<TextEdit<'a>>,
+pub struct CodeActionDocumentEdit {
+    pub uri: String,
+    pub edits: Vec<TextEdit>,
 }
 
 #[derive(Debug)]
 pub struct CodeAction<'a> {
     pub title: &'a str,
-    pub edit: Vec<CodeActionDocumentEdit<'a>>,
+    pub edit: Vec<CodeActionDocumentEdit>,
     pub command: Option<Command<'a>>,
     pub is_preferred: bool,
 }

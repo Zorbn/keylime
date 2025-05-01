@@ -4,7 +4,7 @@ use crate::{
     ctx::Ctx,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::action::action_keybind,
-    lsp::types::{CodeActionResult, CompletionItem},
+    lsp::types::{CodeActionDocumentEdit, CodeActionResult, CompletionItem},
     platform::gfx::Gfx,
     text::{cursor_index::CursorIndex, doc::Doc, grapheme, line_pool::LinePool},
     ui::{
@@ -13,9 +13,7 @@ use crate::{
     },
 };
 
-use super::completion_result::{
-    CompletionCommand, CompletionDocumentTextEdit, CompletionResult, CompletionResultAction,
-};
+use super::completion_result::{CompletionCommand, CompletionResult, CompletionResultAction};
 
 const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
 
@@ -40,7 +38,7 @@ impl LspCompletionState {
 
 #[derive(Debug, Default)]
 pub struct CompletionListResult {
-    pub edits: Vec<CompletionDocumentTextEdit>,
+    pub edits: Vec<CodeActionDocumentEdit>,
     pub command: Option<CompletionCommand>,
 }
 
