@@ -23,7 +23,6 @@ use platform::window::WindowRunner;
 /*
  * TODO:
  * Update Windows platform with input changes.
- * Undoing after reloading still does a delete/insert of the entire document so it will move cursor and diagnostics the the end of the file.
  * Add LSP code actions.
  * - Add support for the "codeActionLiteralSupport" capability.
  * - Put "isPreferred: true" code action on top of results.
@@ -36,7 +35,6 @@ fn main() {
 
     let app = App::new();
     let mut window = WindowRunner::new(app).unwrap();
-    let a = 5;
 
     window.run();
 }

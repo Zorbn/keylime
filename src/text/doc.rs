@@ -1583,6 +1583,8 @@ impl Doc {
 
         let string = read_to_string(path)?;
 
+        self.add_cursors_to_action_history(ActionKind::Done, ctx.time);
+
         self.do_skip_shifting = true;
 
         self.delete(Position::ZERO, self.end(), ctx);
