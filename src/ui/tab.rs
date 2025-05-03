@@ -328,7 +328,7 @@ impl Tab {
         self.draw_diagnostics(doc, camera_position, visible_lines, ctx);
         self.draw_go_to_definition_hint(doc, camera_position, ctx);
         self.draw_cursors(doc, is_focused, camera_position, visible_lines, ctx);
-        self.draw_scroll_bar(doc, visible_lines, ctx);
+        self.draw_scroll_bar(doc, camera_position, ctx);
 
         ctx.gfx.end();
     }
@@ -650,7 +650,7 @@ impl Tab {
         }
     }
 
-    fn draw_scroll_bar(&mut self, doc: &Doc, visible_lines: VisibleLines, ctx: &mut Ctx) {
+    fn draw_scroll_bar(&mut self, doc: &Doc, camera_position: VisualPosition, ctx: &mut Ctx) {
         if doc.kind() != DocKind::MultiLine {
             return;
         }
@@ -669,14 +669,14 @@ impl Tab {
                 let (start, end) = diagnostic.range;
 
                 gfx.add_rect(
-                    self.doc_range_to_scrollbar_rect(start.y, end.y, doc, gfx),
+                    self.doc_range_to_scrollbar_rect(start.y as f32, end.y as f32, doc, gfx),
                     color,
                 );
             }
         }
 
         for index in doc.cursor_indices() {
-            let cursor_y = doc.get_cursor(index).position.y;
+            let cursor_y = doc.get_cursor(index).position.y as f32;
 
             gfx.add_rect(
                 self.doc_range_to_scrollbar_rect(cursor_y, cursor_y, doc, gfx),
@@ -684,12 +684,13 @@ impl Tab {
             );
         }
 
+        let camera_line_y = camera_position.y / gfx.line_height();
         let doc_height_lines = self.doc_height_lines(gfx);
 
         gfx.add_rect(
             self.doc_range_to_scrollbar_rect(
-                visible_lines.min_y,
-                visible_lines.max_y.max(doc_height_lines),
+                camera_line_y,
+                camera_line_y + doc_height_lines as f32,
                 doc,
                 gfx,
             ),
@@ -697,21 +698,15 @@ impl Tab {
         );
     }
 
-    fn doc_range_to_scrollbar_rect(
-        &self,
-        start_y: usize,
-        end_y: usize,
-        doc: &Doc,
-        gfx: &Gfx,
-    ) -> Rect {
+    fn doc_range_to_scrollbar_rect(&self, start_y: f32, end_y: f32, doc: &Doc, gfx: &Gfx) -> Rect {
         let doc_height_lines = self.doc_height_lines(gfx);
         let doc_len = doc.lines().len().max(doc_height_lines);
 
         let width = gfx.glyph_width() / 2.0;
         let x = self.doc_bounds.width - width;
 
-        let start_y = (start_y as f32 / doc_len as f32) * self.doc_bounds.height;
-        let end_y = ((end_y + 1) as f32 / doc_len as f32) * self.doc_bounds.height;
+        let start_y = (start_y / doc_len as f32) * self.doc_bounds.height;
+        let end_y = ((end_y + 1.0) / doc_len as f32) * self.doc_bounds.height;
 
         let start_y = start_y.floor();
         let end_y = end_y.floor();
