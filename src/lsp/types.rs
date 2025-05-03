@@ -194,7 +194,7 @@ pub(super) struct LspInitializeResult<'a> {
 
 #[derive(Debug, Deserialize)]
 pub(super) struct LspMessage {
-    pub id: Option<u64>,
+    pub id: Option<usize>,
     pub method: Option<String>,
     pub result: Option<Box<RawValue>>,
     pub params: Option<Box<RawValue>>,

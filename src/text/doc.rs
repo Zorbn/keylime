@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt::Display,
     fs::{read_to_string, File},
     io::{self, Write},
@@ -11,7 +12,7 @@ use crate::{
     config::language::Language,
     ctx::{ctx_with_time, Ctx},
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
-    lsp::language_server::LanguageServer,
+    lsp::{language_server::LanguageServer, LspExpectedResponse, LspSentRequest},
     platform::gfx::Gfx,
     temp_buffer::TempString,
     text::grapheme,
@@ -117,6 +118,8 @@ pub struct Doc {
     tokenizer: Tokenizer,
     needs_tokenization: bool,
 
+    lsp_expected_responses: HashMap<&'static str, LspExpectedResponse>,
+
     kind: DocKind,
 }
 
@@ -160,6 +163,8 @@ impl Doc {
             unhighlighted_line_y: 0,
             tokenizer: Tokenizer::new(),
             needs_tokenization: false,
+
+            lsp_expected_responses: HashMap::new(),
 
             kind,
         };
@@ -1966,6 +1971,38 @@ impl Doc {
         }
     }
 
+    pub fn get_completion_prefix<'a>(&'a self, gfx: &mut Gfx) -> Option<&'a str> {
+        let prefix_end = self.get_cursor(CursorIndex::Main).position;
+
+        if prefix_end.x == 0 {
+            return None;
+        }
+
+        let mut prefix_start = prefix_end;
+
+        while prefix_start.x > 0 {
+            let next_start = self.move_position(prefix_start, -1, 0, gfx);
+
+            let grapheme = self.get_grapheme(next_start);
+
+            if grapheme::is_alphanumeric(grapheme) || grapheme == "_" {
+                prefix_start = next_start;
+                continue;
+            }
+
+            // These characters aren't included in the completion prefix
+            // but they should still trigger a completion.
+            if !matches!(grapheme, "." | ":") && prefix_start == prefix_end {
+                return None;
+            }
+
+            break;
+        }
+
+        self.get_line(prefix_end.y)
+            .map(|line| &line[prefix_start.x..prefix_end.x])
+    }
+
     pub fn get_language_server_mut<'a>(
         &self,
         ctx: &'a mut Ctx,
@@ -1978,6 +2015,53 @@ impl Doc {
         let language_server = ctx.lsp.get_language_server_mut(language)?;
 
         Some((language, language_server))
+    }
+
+    fn lsp_add_expected_response(&mut self, sent_request: LspSentRequest) {
+        self.lsp_expected_responses.insert(
+            sent_request.method,
+            LspExpectedResponse {
+                id: sent_request.id,
+                position: self.get_cursor(CursorIndex::Main).position,
+                version: self.version,
+            },
+        );
+    }
+
+    pub fn lsp_is_response_expected(
+        &mut self,
+        method: &str,
+        id: Option<usize>,
+        ctx: &mut Ctx,
+    ) -> bool {
+        let Some(id) = id else {
+            // This was a notification so it's expected by default.
+            return true;
+        };
+
+        let Some(expected_response) = self.lsp_expected_responses.get(method).copied() else {
+            // Expected responses don't need to be tracked for this method.
+            return true;
+        };
+
+        if expected_response.id != id {
+            return false;
+        }
+
+        self.lsp_expected_responses.remove(method);
+
+        let position = self.get_cursor(CursorIndex::Main).position;
+
+        if expected_response.position != position || expected_response.version != self.version {
+            // We received the expected response, but the doc didn't match the expected state.
+            if method == "textDocument/completion" {
+                self.lsp_completion(ctx);
+            }
+
+            return false;
+        }
+
+        true
     }
 
     fn lsp_did_open(&mut self, text: &str, ctx: &mut Ctx) -> Option<()> {
@@ -2005,17 +2089,27 @@ impl Doc {
         Some(())
     }
 
-    pub fn lsp_completion(&self, ctx: &mut Ctx) -> Option<()> {
+    pub fn lsp_completion(&mut self, ctx: &mut Ctx) -> Option<()> {
+        if self
+            .lsp_expected_responses
+            .contains_key("textDocument/completion")
+        {
+            return None;
+        }
+
+        self.get_completion_prefix(ctx.gfx)?;
+
         let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;
         let position = self.get_cursor(CursorIndex::Main).position;
 
-        language_server.completion(path, position, self);
+        let sent_request = language_server.completion(path, position, self);
+        self.lsp_add_expected_response(sent_request);
 
         Some(())
     }
 
-    pub fn lsp_code_action(&self, ctx: &mut Ctx) -> Option<()> {
+    pub fn lsp_code_action(&mut self, ctx: &mut Ctx) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;
 
@@ -2027,17 +2121,19 @@ impl Doc {
             (cursor.position, cursor.position)
         };
 
-        language_server.code_action(path, start, end, self);
+        let sent_request = language_server.code_action(path, start, end, self);
+        self.lsp_add_expected_response(sent_request);
 
         Some(())
     }
 
-    pub fn lsp_prepare_rename(&self, ctx: &mut Ctx) -> Option<()> {
+    pub fn lsp_prepare_rename(&mut self, ctx: &mut Ctx) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;
         let position = self.get_cursor(CursorIndex::Main).position;
 
-        language_server.prepare_rename(path, position, self);
+        let sent_request = language_server.prepare_rename(path, position, self);
+        self.lsp_add_expected_response(sent_request);
 
         Some(())
     }
@@ -2052,21 +2148,23 @@ impl Doc {
         Some(())
     }
 
-    pub fn lsp_references(&self, ctx: &mut Ctx) -> Option<()> {
+    pub fn lsp_references(&mut self, ctx: &mut Ctx) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;
         let position = self.get_cursor(CursorIndex::Main).position;
 
-        language_server.references(path, position, self);
+        let sent_request = language_server.references(path, position, self);
+        self.lsp_add_expected_response(sent_request);
 
         Some(())
     }
 
-    pub fn lsp_definition(&self, position: Position, ctx: &mut Ctx) -> Option<()> {
+    pub fn lsp_definition(&mut self, position: Position, ctx: &mut Ctx) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;
 
-        language_server.definition(path, position, self);
+        let sent_request = language_server.definition(path, position, self);
+        self.lsp_add_expected_response(sent_request);
 
         Some(())
     }

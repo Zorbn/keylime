@@ -27,6 +27,7 @@ use super::{
         LspWorkspaceEdit,
     },
     uri::path_to_uri,
+    LspSentRequest,
 };
 
 #[derive(Debug, Default)]
@@ -58,7 +59,8 @@ enum MessageParseState {
     HasContentLen(usize),
 }
 
-pub(super) enum LanguageServerResult<'a> {
+#[derive(Debug)]
+pub(super) enum MessageResult<'a> {
     Completion(Vec<LspCompletionItem<'a>>),
     CodeAction(Vec<LspCodeActionResult<'a>>),
     PrepareRename {
@@ -75,8 +77,8 @@ pub(super) enum LanguageServerResult<'a> {
 
 pub struct LanguageServer {
     pub(super) process: Process,
-    next_request_id: u64,
-    pending_requests: HashMap<u64, &'static str>,
+    next_request_id: usize,
+    pending_requests: HashMap<usize, &'static str>,
     parse_state: MessageParseState,
     message_queue: Vec<u8>,
     has_initialized: bool,
@@ -223,19 +225,22 @@ impl LanguageServer {
         }
     }
 
-    pub(super) fn handle_message<'a>(
-        &mut self,
-        message: &'a LspMessage,
-    ) -> Option<LanguageServerResult<'a>> {
-        let method = message
+    pub(super) fn get_message_method<'a>(&mut self, message: &'a LspMessage) -> Option<&'a str> {
+        message
             .id
             .and_then(|id| {
                 self.pending_requests
                     .remove_entry(&id)
                     .map(|(_, method)| method)
             })
-            .or(message.method.as_deref())?;
+            .or(message.method.as_deref())
+    }
 
+    pub(super) fn handle_message<'a>(
+        &mut self,
+        method: &'a str,
+        message: &'a LspMessage,
+    ) -> Option<MessageResult<'a>> {
         match method {
             "initialize" => {
                 let result = message.result.as_ref()?;
@@ -277,10 +282,12 @@ impl LanguageServer {
                 None
             }
             "textDocument/completion" => {
-                let result = message.result.as_ref()?;
-
-                let result = serde_json::from_str::<LspCompletionResult>(result.get())
-                    .ok()
+                let result = message
+                    .result
+                    .as_ref()
+                    .and_then(|result| {
+                        serde_json::from_str::<LspCompletionResult>(result.get()).ok()
+                    })
                     .and_then(|result| match result {
                         LspCompletionResult::None => None,
                         LspCompletionResult::Items(items) => Some(items),
@@ -288,14 +295,18 @@ impl LanguageServer {
                     })
                     .unwrap_or_default();
 
-                Some(LanguageServerResult::Completion(result))
+                Some(MessageResult::Completion(result))
             }
             "textDocument/codeAction" => {
-                let result = message.result.as_ref()?;
-                let result = serde_json::from_str::<Vec<LspCodeActionResult>>(result.get())
+                let result = message
+                    .result
+                    .as_deref()
+                    .and_then(|result| {
+                        serde_json::from_str::<Vec<LspCodeActionResult>>(result.get()).ok()
+                    })
                     .unwrap_or_default();
 
-                Some(LanguageServerResult::CodeAction(result))
+                Some(MessageResult::CodeAction(result))
             }
             "textDocument/prepareRename" => {
                 let result = message.result.as_ref()?;
@@ -305,14 +316,12 @@ impl LanguageServer {
                     .unwrap_or_default();
 
                 match result {
-                    LspPrepareRenameResult::Range(range) => {
-                        Some(LanguageServerResult::PrepareRename {
-                            range,
-                            placeholder: None,
-                        })
-                    }
+                    LspPrepareRenameResult::Range(range) => Some(MessageResult::PrepareRename {
+                        range,
+                        placeholder: None,
+                    }),
                     LspPrepareRenameResult::RangeWithPlaceholder { range, placeholder } => {
-                        Some(LanguageServerResult::PrepareRename {
+                        Some(MessageResult::PrepareRename {
                             range,
                             placeholder: Some(placeholder),
                         })
@@ -324,13 +333,13 @@ impl LanguageServer {
                 let result = message.result.as_ref()?;
                 let result = serde_json::from_str::<LspWorkspaceEdit>(result.get()).ok();
 
-                result.map(LanguageServerResult::Rename)
+                result.map(MessageResult::Rename)
             }
             "textDocument/references" => {
                 let result = message.result.as_ref()?;
                 let result = serde_json::from_str::<Vec<LspLocation>>(result.get()).ok();
 
-                result.map(LanguageServerResult::References)
+                result.map(MessageResult::References)
             }
             "textDocument/definition" => {
                 let result = message.result.as_ref()?;
@@ -351,7 +360,7 @@ impl LanguageServer {
 
                 let path = uri_to_path(result.uri, String::new())?;
 
-                Some(LanguageServerResult::Definition {
+                Some(MessageResult::Definition {
                     path,
                     range: result.range,
                 })
@@ -413,12 +422,12 @@ impl LanguageServer {
         self.uri_buffer.replace(uri_buffer);
     }
 
-    pub fn completion(&mut self, path: &Path, position: Position, doc: &Doc) {
+    pub fn completion(&mut self, path: &Path, position: Position, doc: &Doc) -> LspSentRequest {
         let mut uri_buffer = self.uri_buffer.take_mut();
 
         path_to_uri(path, &mut uri_buffer);
 
-        self.send_request(
+        let sent_request = self.send_request(
             "textDocument/completion",
             json!({
                 "textDocument": {
@@ -429,16 +438,24 @@ impl LanguageServer {
         );
 
         self.uri_buffer.replace(uri_buffer);
+
+        sent_request
     }
 
-    pub fn code_action(&mut self, path: &Path, start: Position, end: Position, doc: &Doc) {
+    pub fn code_action(
+        &mut self,
+        path: &Path,
+        start: Position,
+        end: Position,
+        doc: &Doc,
+    ) -> LspSentRequest {
         let mut uri_buffer = self.uri_buffer.take_mut();
 
         path_to_uri(path, &mut uri_buffer);
 
         let encoding = self.position_encoding;
 
-        self.send_request(
+        let sent_reqest = self.send_request(
             "textDocument/codeAction",
             json!({
                 "textDocument": {
@@ -455,14 +472,16 @@ impl LanguageServer {
         );
 
         self.uri_buffer.replace(uri_buffer);
+
+        sent_reqest
     }
 
-    pub fn prepare_rename(&mut self, path: &Path, position: Position, doc: &Doc) {
+    pub fn prepare_rename(&mut self, path: &Path, position: Position, doc: &Doc) -> LspSentRequest {
         let mut uri_buffer = self.uri_buffer.take_mut();
 
         path_to_uri(path, &mut uri_buffer);
 
-        self.send_request(
+        let sent_reqest = self.send_request(
             "textDocument/prepareRename",
             json!({
                 "textDocument": {
@@ -473,14 +492,22 @@ impl LanguageServer {
         );
 
         self.uri_buffer.replace(uri_buffer);
+
+        sent_reqest
     }
 
-    pub fn rename(&mut self, new_name: &str, path: &Path, position: Position, doc: &Doc) {
+    pub fn rename(
+        &mut self,
+        new_name: &str,
+        path: &Path,
+        position: Position,
+        doc: &Doc,
+    ) -> LspSentRequest {
         let mut uri_buffer = self.uri_buffer.take_mut();
 
         path_to_uri(path, &mut uri_buffer);
 
-        self.send_request(
+        let sent_request = self.send_request(
             "textDocument/rename",
             json!({
                 "textDocument": {
@@ -492,14 +519,16 @@ impl LanguageServer {
         );
 
         self.uri_buffer.replace(uri_buffer);
+
+        sent_request
     }
 
-    pub fn references(&mut self, path: &Path, position: Position, doc: &Doc) {
+    pub fn references(&mut self, path: &Path, position: Position, doc: &Doc) -> LspSentRequest {
         let mut uri_buffer = self.uri_buffer.take_mut();
 
         path_to_uri(path, &mut uri_buffer);
 
-        self.send_request(
+        let sent_request = self.send_request(
             "textDocument/references",
             json!({
                 "textDocument": {
@@ -513,6 +542,8 @@ impl LanguageServer {
         );
 
         self.uri_buffer.replace(uri_buffer);
+
+        sent_request
     }
 
     pub fn execute_command(&mut self, command: &str, arguments: &[Box<RawValue>]) {
@@ -525,12 +556,12 @@ impl LanguageServer {
         );
     }
 
-    pub fn definition(&mut self, path: &Path, position: Position, doc: &Doc) {
+    pub fn definition(&mut self, path: &Path, position: Position, doc: &Doc) -> LspSentRequest {
         let mut uri_buffer = self.uri_buffer.take_mut();
 
         path_to_uri(path, &mut uri_buffer);
 
-        self.send_request(
+        let sent_request = self.send_request(
             "textDocument/definition",
             json!({
                 "textDocument": {
@@ -541,6 +572,8 @@ impl LanguageServer {
         );
 
         self.uri_buffer.replace(uri_buffer);
+
+        sent_request
     }
 
     pub fn text_document_notification(&mut self, path: &Path, method: &'static str) {
@@ -560,7 +593,7 @@ impl LanguageServer {
         self.uri_buffer.replace(uri_buffer);
     }
 
-    fn send_request(&mut self, method: &'static str, params: Value) {
+    fn send_request(&mut self, method: &'static str, params: Value) -> LspSentRequest {
         let id = self.next_request_id;
         self.next_request_id += 1;
 
@@ -574,6 +607,8 @@ impl LanguageServer {
         });
 
         self.send_content(content, self.has_initialized || method == "initialize");
+
+        LspSentRequest { method, id }
     }
 
     fn send_notification(&mut self, method: &'static str, params: Value) {

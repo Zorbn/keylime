@@ -9,14 +9,14 @@ use std::{
     path::PathBuf,
 };
 
-use language_server::{LanguageServer, LanguageServerResult};
-use position_encoding::PositionEncoding;
+use language_server::{LanguageServer, MessageResult};
 use types::LspMessage;
 use uri::uri_to_path;
 
 use crate::{
     config::language::Language,
     ctx::Ctx,
+    geometry::position::Position,
     platform::process::Process,
     ui::{
         command_palette::{
@@ -27,6 +27,18 @@ use crate::{
         editor::Editor,
     },
 };
+
+pub struct LspSentRequest {
+    pub method: &'static str,
+    pub id: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct LspExpectedResponse {
+    pub id: usize,
+    pub position: Position,
+    pub version: usize,
+}
 
 pub struct Lsp {
     servers: HashMap<usize, Option<LanguageServer>>,
@@ -56,152 +68,154 @@ impl Lsp {
         ui: &mut Ui,
         ctx: &mut Ctx,
     ) {
-        while let Some((language_index, message)) = ctx.lsp.poll() {
-            let Some((encoding, result)) = ctx.lsp.handle_message(language_index, &message) else {
-                continue;
-            };
+        while let Some(polled_message) = ctx.lsp.poll() {
+            Self::handle_message(polled_message, editor, command_palette, ui, ctx);
+        }
+    }
 
-            match result {
-                LanguageServerResult::Completion(completion_items) => {
-                    let Some((_, doc)) = editor.get_focused_tab_and_doc() else {
+    fn handle_message(
+        (language_index, message): (usize, LspMessage),
+        editor: &mut Editor,
+        command_palette: &mut CommandPalette,
+        ui: &mut Ui,
+        ctx: &mut Ctx,
+    ) -> Option<()> {
+        let server = ctx.lsp.servers.get_mut(&language_index)?.as_mut()?;
+        let encoding = server.position_encoding();
+
+        let method = server.get_message_method(&message)?;
+        let (_, doc) = editor.get_focused_tab_and_doc_mut()?;
+
+        if !doc.lsp_is_response_expected(method, message.id, ctx) {
+            return None;
+        }
+
+        let server = ctx.lsp.servers.get_mut(&language_index)?.as_mut()?;
+        let result = server.handle_message(method, &message)?;
+
+        match result {
+            MessageResult::Completion(completion_items) => {
+                // The compiler should perform an in-place collect here because
+                // LspCompletionItem and CompletionItem have the same size and alignment.
+                let completion_items = completion_items
+                    .into_iter()
+                    .map(|item| item.decode(encoding, doc))
+                    .collect();
+
+                editor
+                    .completion_list
+                    .lsp_update_completion_results(completion_items);
+            }
+            MessageResult::CodeAction(results) => {
+                let results = results
+                    .into_iter()
+                    .map(|result| result.decode(encoding, doc))
+                    .collect();
+
+                editor
+                    .completion_list
+                    .lsp_update_code_action_results(results);
+            }
+            MessageResult::PrepareRename { range, placeholder } => {
+                let (start, end) = range.decode(encoding, doc);
+
+                let placeholder = placeholder.unwrap_or_else(|| {
+                    let mut placeholder = String::new();
+
+                    doc.collect_string(start, end, &mut placeholder);
+
+                    placeholder
+                });
+
+                command_palette.open(ui, Box::new(RenameMode::new(placeholder)), editor, ctx);
+            }
+            MessageResult::Rename(workspace_edit) => {
+                let edit_lists = workspace_edit.decode(encoding, doc);
+
+                editor.apply_edit_lists(edit_lists, ctx);
+            }
+            MessageResult::References(mut results) => {
+                let root = current_dir().unwrap_or_default();
+
+                results.sort_by(|a, b| a.uri.cmp(b.uri));
+
+                let mut command_palette_results = Vec::new();
+                let mut results = results.into_iter().peekable();
+
+                while let Some(result) = results.peek() {
+                    let current_uri = result.uri;
+
+                    let Some(path) = uri_to_path(current_uri, String::new()) else {
                         continue;
                     };
 
-                    // The compiler should perform an in-place collect here because
-                    // LspCompletionItem and CompletionItem have the same size and alignment.
-                    let completion_items = completion_items
-                        .into_iter()
-                        .map(|item| item.decode(encoding, doc))
-                        .collect();
-
-                    editor
-                        .completion_list
-                        .lsp_update_completion_results(completion_items);
-                }
-                LanguageServerResult::CodeAction(results) => {
-                    let Some((_, doc)) = editor.get_focused_tab_and_doc() else {
-                        continue;
-                    };
-
-                    let results = results
-                        .into_iter()
-                        .map(|result| result.decode(encoding, doc))
-                        .collect();
-
-                    editor
-                        .completion_list
-                        .lsp_update_code_action_results(results);
-                }
-                LanguageServerResult::PrepareRename { range, placeholder } => {
-                    let Some((_, doc)) = editor.get_focused_tab_and_doc() else {
-                        continue;
-                    };
-
-                    let (start, end) = range.decode(encoding, doc);
-
-                    let placeholder = placeholder.unwrap_or_else(|| {
-                        let mut placeholder = String::new();
-
-                        doc.collect_string(start, end, &mut placeholder);
-
-                        placeholder
-                    });
-
-                    command_palette.open(ui, Box::new(RenameMode::new(placeholder)), editor, ctx);
-                }
-                LanguageServerResult::Rename(workspace_edit) => {
-                    let Some((_, doc)) = editor.get_focused_tab_and_doc() else {
-                        continue;
-                    };
-
-                    let edit_lists = workspace_edit.decode(encoding, doc);
-
-                    editor.apply_edit_lists(edit_lists, ctx);
-                }
-                LanguageServerResult::References(mut results) => {
-                    let root = current_dir().unwrap_or_default();
-
-                    results.sort_by(|a, b| a.uri.cmp(b.uri));
-
-                    let mut command_palette_results = Vec::new();
-                    let mut results = results.into_iter().peekable();
-
-                    while let Some(result) = results.peek() {
-                        let current_uri = result.uri;
-
-                        let Some(path) = uri_to_path(current_uri, String::new()) else {
-                            continue;
-                        };
-
-                        editor.with_doc(path.clone(), ctx, |doc, _| {
-                            while let Some(result) = results.peek() {
-                                if result.uri != current_uri {
-                                    break;
-                                }
-
-                                let next_result = results.next().unwrap();
-                                let (result_position, _) = next_result.range.decode(encoding, doc);
-
-                                // TODO: This is a duplicate of the find in files result position handling.
-                                let Some(line) = doc.get_line(result_position.y) else {
-                                    continue;
-                                };
-
-                                let line_start = doc.get_line_start(result_position.y);
-
-                                let Some(relative_path) = doc
-                                    .path()
-                                    .on_drive()
-                                    .and_then(|path| path.strip_prefix(&root).ok())
-                                else {
-                                    continue;
-                                };
-
-                                let text = format!(
-                                    "{}:{}: {}",
-                                    relative_path.display(),
-                                    result_position.y + 1,
-                                    &line[line_start..]
-                                );
-
-                                command_palette_results.push(CommandPaletteResult {
-                                    text,
-                                    meta_data: PathWithPosition {
-                                        path: path.clone(),
-                                        position: result_position,
-                                    },
-                                });
+                    editor.with_doc(path.clone(), ctx, |doc, _| {
+                        while let Some(result) = results.peek() {
+                            if result.uri != current_uri {
+                                break;
                             }
-                        });
-                    }
 
-                    command_palette.open(
-                        ui,
-                        Box::new(References::new(command_palette_results)),
-                        editor,
-                        ctx,
-                    );
+                            let next_result = results.next().unwrap();
+                            let (result_position, _) = next_result.range.decode(encoding, doc);
+
+                            // TODO: This is a duplicate of the find in files result position handling.
+                            let Some(line) = doc.get_line(result_position.y) else {
+                                continue;
+                            };
+
+                            let line_start = doc.get_line_start(result_position.y);
+
+                            let Some(relative_path) = doc
+                                .path()
+                                .on_drive()
+                                .and_then(|path| path.strip_prefix(&root).ok())
+                            else {
+                                continue;
+                            };
+
+                            let text = format!(
+                                "{}:{}: {}",
+                                relative_path.display(),
+                                result_position.y + 1,
+                                &line[line_start..]
+                            );
+
+                            command_palette_results.push(CommandPaletteResult {
+                                text,
+                                meta_data: PathWithPosition {
+                                    path: path.clone(),
+                                    position: result_position,
+                                },
+                            });
+                        }
+                    });
                 }
-                LanguageServerResult::Definition { path, range } => {
-                    let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
 
-                    if pane.open_file(&path, doc_list, ctx).is_err() {
-                        continue;
-                    }
+                command_palette.open(
+                    ui,
+                    Box::new(References::new(command_palette_results)),
+                    editor,
+                    ctx,
+                );
+            }
+            MessageResult::Definition { path, range } => {
+                let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
 
-                    let focused_tab_index = pane.focused_tab_index();
-                    let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list)
-                    else {
-                        continue;
-                    };
-
-                    let (position, _) = range.decode(encoding, doc);
-
-                    doc.jump_cursors(position, false, ctx.gfx);
-                    tab.camera.recenter();
+                if pane.open_file(&path, doc_list, ctx).is_err() {
+                    return None;
                 }
+
+                let focused_tab_index = pane.focused_tab_index();
+                let (tab, doc) = pane.get_tab_with_data_mut(focused_tab_index, doc_list)?;
+
+                let (position, _) = range.decode(encoding, doc);
+
+                doc.jump_cursors(position, false, ctx.gfx);
+                tab.camera.recenter();
             }
         }
+
+        Some(())
     }
 
     fn poll(&mut self) -> Option<(usize, LspMessage)> {
@@ -216,18 +230,6 @@ impl Lsp {
         }
 
         None
-    }
-
-    fn handle_message<'a>(
-        &mut self,
-        language_index: usize,
-        message: &'a LspMessage,
-    ) -> Option<(PositionEncoding, LanguageServerResult<'a>)> {
-        let server = self.servers.get_mut(&language_index)?.as_mut()?;
-
-        server
-            .handle_message(message)
-            .map(|result| (server.position_encoding(), result))
     }
 
     pub fn iter_servers_mut(&mut self) -> impl Iterator<Item = &mut LanguageServer> {

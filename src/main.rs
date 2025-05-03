@@ -22,9 +22,9 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
- * Generalize completion list's lsp_are_pending_results_valid to work independently for code actions as well.
- * Similar to lsp_are_pending_results_valid, don't go forward with rename if the cursor has moved.
  * Update Windows platform with input changes.
+ * Consider renaming DocKind::Output to DocKind::Raw
+ * Consider making DocKinds predefined BitFields that store a list of features such action history, position shifting, multi line, etc.
  */
 
 fn main() {

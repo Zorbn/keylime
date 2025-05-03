@@ -1,12 +1,10 @@
-use std::path::PathBuf;
-
 use crate::{
     ctx::Ctx,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::action::action_keybind,
     lsp::types::{CodeActionResult, CompletionItem, EditList},
     platform::gfx::Gfx,
-    text::{cursor_index::CursorIndex, doc::Doc, grapheme, line_pool::LinePool},
+    text::{cursor_index::CursorIndex, doc::Doc, line_pool::LinePool},
     ui::{
         core::{Ui, Widget},
         result_list::{ResultList, ResultListInput, ResultListSubmitKind},
@@ -16,25 +14,6 @@ use crate::{
 use super::completion_result::{CompletionCommand, CompletionResult, CompletionResultAction};
 
 const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-enum LspCompletionState {
-    Idle,
-    Pending,
-    MultiplePending,
-    ReadyForCompletion,
-}
-
-impl LspCompletionState {
-    pub fn next(&self) -> LspCompletionState {
-        match self {
-            LspCompletionState::Idle => LspCompletionState::Pending,
-            LspCompletionState::Pending => LspCompletionState::MultiplePending,
-            LspCompletionState::MultiplePending => LspCompletionState::MultiplePending,
-            _ => *self,
-        }
-    }
-}
 
 #[derive(Debug, Default)]
 pub struct CompletionListResult {
@@ -47,10 +26,6 @@ pub struct CompletionList {
     pool: LinePool,
     prefix: String,
 
-    lsp_completion_state: LspCompletionState,
-    lsp_pending_doc_path: PathBuf,
-    lsp_are_pending_results_valid: bool,
-
     should_open: bool,
 }
 
@@ -60,10 +35,6 @@ impl CompletionList {
             result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS),
             pool: LinePool::new(),
             prefix: String::new(),
-
-            lsp_completion_state: LspCompletionState::Idle,
-            lsp_pending_doc_path: PathBuf::new(),
-            lsp_are_pending_results_valid: false,
 
             should_open: false,
         }
@@ -147,11 +118,6 @@ impl CompletionList {
             }
         }
 
-        if self.lsp_completion_state == LspCompletionState::ReadyForCompletion {
-            self.lsp_completion_state = LspCompletionState::Idle;
-            return true;
-        }
-
         false
     }
 
@@ -163,7 +129,9 @@ impl CompletionList {
         self.result_list.draw(ctx, |result| &result.label);
     }
 
-    fn lsp_add_completion_results(&mut self, mut items: Vec<CompletionItem>) {
+    pub fn lsp_update_completion_results(&mut self, mut items: Vec<CompletionItem>) {
+        self.clear();
+
         items.retain(|item| item.filter_text().starts_with(&self.prefix));
         items.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
 
@@ -174,22 +142,9 @@ impl CompletionList {
         }
     }
 
-    pub fn lsp_update_completion_results(&mut self, items: Vec<CompletionItem>) {
+    pub fn lsp_update_code_action_results(&mut self, results: Vec<CodeActionResult>) {
         self.clear();
 
-        if self.lsp_are_pending_results_valid {
-            self.lsp_add_completion_results(items);
-        }
-
-        self.lsp_completion_state =
-            if self.lsp_completion_state == LspCompletionState::MultiplePending {
-                LspCompletionState::ReadyForCompletion
-            } else {
-                LspCompletionState::Idle
-            };
-    }
-
-    fn lsp_add_code_action_results(&mut self, results: Vec<CodeActionResult>) {
         for result in results {
             match result {
                 CodeActionResult::Command(command) => {
@@ -213,28 +168,15 @@ impl CompletionList {
         }
     }
 
-    pub fn lsp_update_code_action_results(&mut self, results: Vec<CodeActionResult>) {
-        self.clear();
-        self.lsp_add_code_action_results(results);
-    }
-
     // TODO: Simplify all of the clear calls.
     pub fn update_results(
         &mut self,
-        doc: &Doc,
+        doc: &mut Doc,
         handled_position: Option<Position>,
         ctx: &mut Ctx,
     ) -> Option<()> {
         let position = doc.get_cursor(CursorIndex::Main).position;
         let is_position_different = Some(position) != handled_position;
-
-        if self.lsp_are_pending_results_valid
-            && (self.should_open
-                || is_position_different
-                || Some(self.lsp_pending_doc_path.as_path()) != doc.path().on_drive())
-        {
-            self.lsp_are_pending_results_valid = false;
-        }
 
         if self.should_open || is_position_different {
             self.prefix.clear();
@@ -248,7 +190,7 @@ impl CompletionList {
             return None;
         }
 
-        let Some(prefix) = Self::get_completion_prefix(doc, ctx.gfx) else {
+        let Some(prefix) = doc.get_completion_prefix(ctx.gfx) else {
             self.clear();
 
             return None;
@@ -257,18 +199,7 @@ impl CompletionList {
         self.prefix.push_str(prefix);
 
         if doc.get_language_server_mut(ctx).is_some() {
-            let path = doc.path().on_drive()?;
-
-            if self.lsp_completion_state == LspCompletionState::Idle {
-                doc.lsp_completion(ctx);
-
-                self.lsp_pending_doc_path.clear();
-                self.lsp_pending_doc_path.push(path);
-
-                self.lsp_are_pending_results_valid = true;
-            }
-
-            self.lsp_completion_state = self.lsp_completion_state.next();
+            doc.lsp_completion(ctx);
 
             return Some(());
         }
@@ -289,38 +220,6 @@ impl CompletionList {
         }
 
         Some(())
-    }
-
-    fn get_completion_prefix<'a>(doc: &'a Doc, gfx: &mut Gfx) -> Option<&'a str> {
-        let prefix_end = doc.get_cursor(CursorIndex::Main).position;
-
-        if prefix_end.x == 0 {
-            return None;
-        }
-
-        let mut prefix_start = prefix_end;
-
-        while prefix_start.x > 0 {
-            let next_start = doc.move_position(prefix_start, -1, 0, gfx);
-
-            let grapheme = doc.get_grapheme(next_start);
-
-            if grapheme::is_alphanumeric(grapheme) || grapheme == "_" {
-                prefix_start = next_start;
-                continue;
-            }
-
-            // These characters aren't included in the completion prefix
-            // but they should still trigger a completion.
-            if !matches!(grapheme, "." | ":") && prefix_start == prefix_end {
-                return None;
-            }
-
-            break;
-        }
-
-        doc.get_line(prefix_end.y)
-            .map(|line| &line[prefix_start.x..prefix_end.x])
     }
 
     pub fn clear(&mut self) {
