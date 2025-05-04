@@ -4,6 +4,8 @@ use crate::{
     platform::gfx::Gfx,
 };
 
+use super::color::Color;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum PopupAlignment {
     TopLeft,
@@ -14,6 +16,7 @@ pub fn draw_popup(
     message: &str,
     position: VisualPosition,
     alignment: PopupAlignment,
+    foreground: Color,
     theme: &Theme,
     gfx: &mut Gfx,
 ) -> Rect {
@@ -55,7 +58,7 @@ pub fn draw_popup(
     for (y, line) in message.lines().enumerate() {
         let y = y as f32 * gfx.line_height() + gfx.line_padding() + margin;
 
-        gfx.add_text(line, margin, y, theme.normal);
+        gfx.add_text(line, margin, y, foreground);
     }
 
     gfx.end();

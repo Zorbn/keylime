@@ -20,8 +20,8 @@ use crate::{
     platform::process::Process,
     ui::{
         command_palette::{
-            references::References, rename_mode::RenameMode, CommandPalette,
-            CommandPaletteMetaData::PathWithPosition, CommandPaletteResult,
+            find_in_files_mode::FindInFilesMode, references::References, rename_mode::RenameMode,
+            CommandPalette,
         },
         core::Ui,
         editor::Editor,
@@ -158,35 +158,13 @@ impl Lsp {
                             let next_result = results.next().unwrap();
                             let (result_position, _) = next_result.range.decode(encoding, doc);
 
-                            // TODO: This is a duplicate of the find in files result position handling.
-                            let Some(line) = doc.get_line(result_position.y) else {
-                                continue;
-                            };
-
-                            let line_start = doc.get_line_start(result_position.y);
-
-                            let Some(relative_path) = doc
-                                .path()
-                                .on_drive()
-                                .and_then(|path| path.strip_prefix(&root).ok())
+                            let Some(result) =
+                                FindInFilesMode::position_to_result(result_position, &root, doc)
                             else {
                                 continue;
                             };
 
-                            let text = format!(
-                                "{}:{}: {}",
-                                relative_path.display(),
-                                result_position.y + 1,
-                                &line[line_start..]
-                            );
-
-                            command_palette_results.push(CommandPaletteResult {
-                                text,
-                                meta_data: PathWithPosition {
-                                    path: path.clone(),
-                                    position: result_position,
-                                },
-                            });
+                            command_palette_results.push(result);
                         }
                     });
                 }

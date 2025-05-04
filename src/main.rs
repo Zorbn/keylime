@@ -23,6 +23,7 @@ use platform::window::WindowRunner;
 /*
  * TODO:
  * Update Windows platform with input changes.
+ * Support additional edits for LSP completions (eg. for automatically adding imports).
  * Consider renaming DocKind::Output to DocKind::Raw
  * Consider making DocKinds predefined BitFields that store a list of features such action history, position shifting, multi line, etc.
  */

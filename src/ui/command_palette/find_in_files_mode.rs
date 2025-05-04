@@ -2,12 +2,13 @@ use std::{
     collections::VecDeque,
     env::current_dir,
     fs::{read_dir, DirEntry, ReadDir},
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::Instant,
 };
 
 use crate::{
     ctx::Ctx,
+    geometry::position::Position,
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
@@ -40,6 +41,75 @@ impl FindInFilesMode {
             pending_dir_entries: VecDeque::new(),
             pending_results: Vec::new(),
         }
+    }
+
+    pub fn position_to_result(
+        position: Position,
+        root: &Path,
+        doc: &Doc,
+    ) -> Option<CommandPaletteResult> {
+        let line = doc.get_line(position.y)?;
+        let line_start = doc.get_line_start(position.y);
+
+        let relative_path = doc
+            .path()
+            .on_drive()
+            .and_then(|path| path.strip_prefix(root).ok())?;
+
+        let text = format!(
+            "{}:{}: {}",
+            relative_path.display(),
+            position.y + 1,
+            &line[line_start..]
+        );
+
+        Some(CommandPaletteResult {
+            text,
+            meta_data: CommandPaletteMetaData::PathWithPosition {
+                path: relative_path.to_owned(),
+                position,
+            },
+        })
+    }
+
+    pub fn jump_to_path_with_position(
+        command_palette: &mut CommandPalette,
+        CommandPaletteEventArgs {
+            pane,
+            doc_list,
+            ctx,
+        }: CommandPaletteEventArgs,
+        kind: ResultListSubmitKind,
+    ) -> CommandPaletteAction {
+        if !matches!(
+            kind,
+            ResultListSubmitKind::Normal | ResultListSubmitKind::Alternate
+        ) {
+            return CommandPaletteAction::Stay;
+        }
+
+        let Some(CommandPaletteResult {
+            meta_data: CommandPaletteMetaData::PathWithPosition { path, position },
+            ..
+        }) = command_palette.result_list.get_selected_result()
+        else {
+            return CommandPaletteAction::Stay;
+        };
+
+        if pane.open_file(path, doc_list, ctx).is_err() {
+            return CommandPaletteAction::Stay;
+        }
+
+        let focused_tab_index = pane.focused_tab_index();
+
+        let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
+            return CommandPaletteAction::Close;
+        };
+
+        doc.jump_cursors(*position, false, ctx.gfx);
+        tab.camera.recenter();
+
+        CommandPaletteAction::Close
     }
 
     fn handle_entry(
@@ -100,34 +170,11 @@ impl FindInFilesMode {
                 ctx.gfx,
             );
 
-            let Some(line) = doc.get_line(result_position.y) else {
+            let Some(result) = Self::position_to_result(result_position, &self.root, &doc) else {
                 continue;
             };
 
-            let line_start = doc.get_line_start(result_position.y);
-
-            let Some(relative_path) = doc
-                .path()
-                .on_drive()
-                .and_then(|path| path.strip_prefix(&self.root).ok())
-            else {
-                continue;
-            };
-
-            let result_text = format!(
-                "{}:{}: {}",
-                relative_path.display(),
-                result_position.y + 1,
-                &line[line_start..]
-            );
-
-            self.pending_results.push(CommandPaletteResult {
-                text: result_text,
-                meta_data: CommandPaletteMetaData::PathWithPosition {
-                    path: relative_path.to_owned(),
-                    position: result_position,
-                },
-            });
+            self.pending_results.push(result);
 
             if self.try_finish_finding(start_time, command_palette) {
                 self.pending_doc = Some(doc);
@@ -182,42 +229,10 @@ impl CommandPaletteMode for FindInFilesMode {
     fn on_submit(
         &mut self,
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs {
-            pane,
-            doc_list,
-            ctx,
-        }: CommandPaletteEventArgs,
+        args: CommandPaletteEventArgs,
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
-        if !matches!(
-            kind,
-            ResultListSubmitKind::Normal | ResultListSubmitKind::Alternate
-        ) {
-            return CommandPaletteAction::Stay;
-        }
-
-        let Some(CommandPaletteResult {
-            meta_data: CommandPaletteMetaData::PathWithPosition { path, position },
-            ..
-        }) = command_palette.result_list.get_selected_result()
-        else {
-            return CommandPaletteAction::Stay;
-        };
-
-        if pane.open_file(path, doc_list, ctx).is_err() {
-            return CommandPaletteAction::Stay;
-        }
-
-        let focused_tab_index = pane.focused_tab_index();
-
-        let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
-            return CommandPaletteAction::Close;
-        };
-
-        doc.jump_cursors(*position, false, ctx.gfx);
-        tab.camera.recenter();
-
-        CommandPaletteAction::Close
+        Self::jump_to_path_with_position(command_palette, args, kind)
     }
 
     fn on_update_results(

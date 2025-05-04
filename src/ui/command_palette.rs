@@ -1,6 +1,6 @@
 mod all_files_mode;
 mod find_file_mode;
-mod find_in_files_mode;
+pub mod find_in_files_mode;
 mod go_to_line_mode;
 mod mode;
 pub mod references;

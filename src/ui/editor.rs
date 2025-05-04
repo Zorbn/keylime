@@ -330,15 +330,19 @@ impl Editor {
                     continue;
                 }
 
-                let mut position = doc.position_to_visual(start, tab.camera.position(), ctx.gfx);
+                let gfx = &mut ctx.gfx;
+                let theme = &ctx.config.theme;
+
+                let mut position = doc.position_to_visual(start, tab.camera.position(), gfx);
                 position = position.offset_by(tab.doc_bounds());
 
                 draw_popup(
                     &diagnostic.message,
                     position,
                     PopupAlignment::Above,
-                    &ctx.config.theme,
-                    ctx.gfx,
+                    theme.normal,
+                    theme,
+                    gfx,
                 );
 
                 return Some(());

@@ -1,8 +1,9 @@
 use crate::ui::result_list::ResultListSubmitKind;
 
 use super::{
+    find_in_files_mode::FindInFilesMode,
     mode::{CommandPaletteEventArgs, CommandPaletteMode},
-    CommandPalette, CommandPaletteAction, CommandPaletteMetaData, CommandPaletteResult,
+    CommandPalette, CommandPaletteAction, CommandPaletteResult,
 };
 
 pub struct References {
@@ -30,42 +31,9 @@ impl CommandPaletteMode for References {
     fn on_submit(
         &mut self,
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs {
-            pane,
-            doc_list,
-            ctx,
-        }: CommandPaletteEventArgs,
+        args: CommandPaletteEventArgs,
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
-        // TODO: This is the same logic as on_submit for find in files mode.
-        if !matches!(
-            kind,
-            ResultListSubmitKind::Normal | ResultListSubmitKind::Alternate
-        ) {
-            return CommandPaletteAction::Stay;
-        }
-
-        let Some(CommandPaletteResult {
-            meta_data: CommandPaletteMetaData::PathWithPosition { path, position },
-            ..
-        }) = command_palette.result_list.get_selected_result()
-        else {
-            return CommandPaletteAction::Stay;
-        };
-
-        if pane.open_file(path, doc_list, ctx).is_err() {
-            return CommandPaletteAction::Stay;
-        }
-
-        let focused_tab_index = pane.focused_tab_index();
-
-        let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
-            return CommandPaletteAction::Close;
-        };
-
-        doc.jump_cursors(*position, false, ctx.gfx);
-        tab.camera.recenter();
-
-        CommandPaletteAction::Close
+        FindInFilesMode::jump_to_path_with_position(command_palette, args, kind)
     }
 }

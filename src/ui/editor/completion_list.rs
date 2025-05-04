@@ -142,8 +142,11 @@ impl CompletionList {
             return;
         };
 
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
+
         let mut position = VisualPosition::new(
-            self.result_list.bounds().right() - ctx.gfx.border_width(),
+            self.result_list.bounds().right() - gfx.border_width(),
             self.result_list.bounds().y,
         );
 
@@ -152,11 +155,12 @@ impl CompletionList {
                 detail,
                 position,
                 PopupAlignment::TopLeft,
-                &ctx.config.theme,
-                ctx.gfx,
+                theme.line_number,
+                theme,
+                gfx,
             );
 
-            position.y += detail_bounds.height - ctx.gfx.border_width();
+            position.y += detail_bounds.height - gfx.border_width();
         }
 
         if let Some(documentation) = documentation {
@@ -164,8 +168,9 @@ impl CompletionList {
                 documentation,
                 position,
                 PopupAlignment::TopLeft,
-                &ctx.config.theme,
-                ctx.gfx,
+                theme.normal,
+                theme,
+                gfx,
             );
         }
     }
