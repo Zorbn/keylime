@@ -7,6 +7,7 @@ use crate::{
     text::{cursor_index::CursorIndex, doc::Doc, line_pool::LinePool},
     ui::{
         core::{Ui, Widget},
+        popup::{draw_popup, PopupAlignment},
         result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     },
 };
@@ -127,6 +128,46 @@ impl CompletionList {
 
     pub fn draw(&mut self, ctx: &mut Ctx) {
         self.result_list.draw(ctx, |result| &result.label);
+
+        let Some(selected_result) = self.result_list.get_selected_result() else {
+            return;
+        };
+
+        let CompletionResultAction::Completion {
+            detail,
+            documentation,
+            ..
+        } = &selected_result.action
+        else {
+            return;
+        };
+
+        let mut position = VisualPosition::new(
+            self.result_list.bounds().right() - ctx.gfx.border_width(),
+            self.result_list.bounds().y,
+        );
+
+        if let Some(detail) = detail {
+            let detail_bounds = draw_popup(
+                detail,
+                position,
+                PopupAlignment::TopLeft,
+                &ctx.config.theme,
+                ctx.gfx,
+            );
+
+            position.y += detail_bounds.height - ctx.gfx.border_width();
+        }
+
+        if let Some(documentation) = documentation {
+            draw_popup(
+                documentation,
+                position,
+                PopupAlignment::TopLeft,
+                &ctx.config.theme,
+                ctx.gfx,
+            );
+        }
     }
 
     pub fn lsp_update_completion_results(&mut self, mut items: Vec<CompletionItem>) {
@@ -214,6 +255,8 @@ impl CompletionList {
                         action: CompletionResultAction::Completion {
                             insert_text: None,
                             range: None,
+                            detail: None,
+                            documentation: None,
                         },
                     });
                 });
@@ -236,7 +279,9 @@ impl CompletionList {
         let result = self.result_list.remove_selected_result()?;
 
         match result.action {
-            CompletionResultAction::Completion { insert_text, range } => {
+            CompletionResultAction::Completion {
+                insert_text, range, ..
+            } => {
                 let insert_text = insert_text.as_ref().unwrap_or(&result.label);
 
                 if let Some((start, end)) = range {

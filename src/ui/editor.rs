@@ -6,7 +6,7 @@ use editor_pane::EditorPane;
 
 use crate::{
     ctx::Ctx,
-    geometry::{rect::Rect, sides::Sides, visual_position::VisualPosition},
+    geometry::{rect::Rect, visual_position::VisualPosition},
     input::{action::action_name, mods::Mods, mouse_button::MouseButton, mousebind::Mousebind},
     lsp::{types::EditList, uri::uri_to_path},
     platform::{file_watcher::FileWatcher, gfx::Gfx},
@@ -20,6 +20,7 @@ use crate::{
 use super::{
     core::{Ui, Widget},
     focus_list::FocusList,
+    popup::{draw_popup, PopupAlignment},
     slot_list::SlotList,
     tab::Tab,
 };
@@ -329,49 +330,16 @@ impl Editor {
                     continue;
                 }
 
-                let gfx = &mut ctx.gfx;
-                let theme = &ctx.config.theme;
+                let mut position = doc.position_to_visual(start, tab.camera.position(), ctx.gfx);
+                position = position.offset_by(tab.doc_bounds());
 
-                let mut popup_bounds = Rect::ZERO;
-
-                for line in diagnostic.message.lines() {
-                    popup_bounds.height += gfx.line_height();
-
-                    let line_width = gfx.measure_text(line) as f32 * gfx.glyph_width();
-                    popup_bounds.width = popup_bounds.width.max(line_width);
-                }
-
-                let margin = gfx.glyph_width();
-                popup_bounds = popup_bounds.add_margin(margin);
-
-                let mut visual_start = doc.position_to_visual(start, tab.camera.position(), gfx);
-                visual_start = visual_start.offset_by(tab.doc_bounds());
-
-                popup_bounds.x += visual_start.x;
-                popup_bounds.y = visual_start.y - popup_bounds.height;
-
-                if popup_bounds.right() > gfx.width() - margin {
-                    popup_bounds.x -= popup_bounds.right() - (gfx.width() - margin);
-                }
-
-                popup_bounds.x = popup_bounds.x.max(margin);
-
-                gfx.begin(Some(popup_bounds));
-
-                gfx.add_bordered_rect(
-                    popup_bounds.unoffset_by(popup_bounds),
-                    Sides::ALL,
-                    theme.background,
-                    theme.border,
+                draw_popup(
+                    &diagnostic.message,
+                    position,
+                    PopupAlignment::Above,
+                    &ctx.config.theme,
+                    ctx.gfx,
                 );
-
-                for (y, line) in diagnostic.message.lines().enumerate() {
-                    let y = y as f32 * gfx.line_height() + gfx.line_padding() + margin;
-
-                    gfx.add_text(line, margin, y, theme.normal);
-                }
-
-                gfx.end();
 
                 return Some(());
             }

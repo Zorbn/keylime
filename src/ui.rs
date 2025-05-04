@@ -5,6 +5,7 @@ pub mod core;
 pub mod editor;
 mod focus_list;
 mod pane;
+mod popup;
 mod result_list;
 mod slot_list;
 pub mod tab;

@@ -119,6 +119,13 @@ impl LspTextEdit {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum LspDocumentation {
+    PlainText(String),
+    MarkupContent { value: String },
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct LspCompletionItem<'a> {
     label: &'a str,
@@ -126,6 +133,8 @@ pub(super) struct LspCompletionItem<'a> {
     filter_text: Option<&'a str>,
     insert_text: Option<String>,
     text_edit: Option<LspTextEdit>,
+    detail: Option<String>,
+    documentation: Option<LspDocumentation>,
 }
 
 impl<'a> LspCompletionItem<'a> {
@@ -138,6 +147,11 @@ impl<'a> LspCompletionItem<'a> {
             text_edit: self
                 .text_edit
                 .map(|text_edit| text_edit.decode(encoding, doc)),
+            detail: self.detail,
+            documentation: self.documentation.map(|documentation| match documentation {
+                LspDocumentation::PlainText(text) => text,
+                LspDocumentation::MarkupContent { value, .. } => value,
+            }),
         }
     }
 }
@@ -357,6 +371,8 @@ pub struct CompletionItem<'a> {
     filter_text: Option<&'a str>,
     pub insert_text: Option<String>,
     pub text_edit: Option<TextEdit>,
+    pub detail: Option<String>,
+    pub documentation: Option<String>,
 }
 
 impl CompletionItem<'_> {

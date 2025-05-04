@@ -28,6 +28,8 @@ pub enum CompletionResultAction {
     Completion {
         insert_text: Option<String>,
         range: Option<(Position, Position)>,
+        detail: Option<String>,
+        documentation: Option<String>,
     },
     Command(CompletionCommand),
     CodeAction {
@@ -96,6 +98,8 @@ impl CompletionResult {
             action: CompletionResultAction::Completion {
                 insert_text: insert_text_string,
                 range,
+                detail: item.detail,
+                documentation: item.documentation,
             },
         }
     }
