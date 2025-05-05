@@ -341,16 +341,16 @@ fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
 
-        let mut indent_position = Position::new(0, cursor.position.y);
+        let mut indent_y = cursor.position.y;
 
-        while indent_position.y > 0 && doc.is_line_whitespace(indent_position.y) {
-            indent_position.y -= 1;
+        while indent_y > 0 && doc.is_line_whitespace(indent_y) {
+            indent_y -= 1;
         }
 
-        let indent_line = doc.get_line(indent_position.y).unwrap_or_default();
-        let indent_line_start = doc.get_line_start(indent_position.y);
+        let indent_line = doc.get_line(indent_y).unwrap_or_default();
+        let indent_line_start = doc.get_line_start(indent_y);
 
-        let mut text_buffer = ctx.buffers.text.take_mut();
+        let mut text_buffer = ctx.buffers.text.pop();
         text_buffer.push_str(&indent_line[..indent_line_start]);
 
         let previous_position = doc.move_position(cursor.position, -1, 0, ctx.gfx);
@@ -373,7 +373,7 @@ fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
             doc.jump_cursor(index, cursor_position, false, ctx.gfx);
         }
 
-        ctx.buffers.text.replace(text_buffer);
+        ctx.buffers.text.push(text_buffer);
     }
 }
 
@@ -444,12 +444,12 @@ pub fn handle_copy(doc: &mut Doc, ctx: &mut Ctx) {
 fn handle_paste(doc: &mut Doc, ctx: &mut Ctx) {
     let was_copy_implicit = ctx.window.was_copy_implicit();
 
-    let mut text = ctx.buffers.text.take_mut();
+    let mut text = ctx.buffers.text.pop();
     let _ = ctx.window.get_clipboard(&mut text);
 
     doc.paste_at_cursors(&text, was_copy_implicit, ctx);
 
-    ctx.buffers.text.replace(text);
+    ctx.buffers.text.push(text);
 }
 
 fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx) {
@@ -482,7 +482,7 @@ fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx) {
 
         let selection = cursor_selection.trim();
 
-        let mut text_buffer = ctx.buffers.text.take_mut();
+        let mut text_buffer = ctx.buffers.text.pop();
 
         let mut start = Position::new(0, selection.start.y);
         let mut end = doc.get_line_end(selection.end.y);
@@ -513,7 +513,7 @@ fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx) {
 
         doc.insert(insert_start, &text_buffer, ctx);
 
-        ctx.buffers.text.replace(text_buffer);
+        ctx.buffers.text.push(text_buffer);
 
         // Reset the selection to prevent it being expanded by the latest insert.
         if had_selection {

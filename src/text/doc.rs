@@ -898,22 +898,22 @@ impl Doc {
         &self.lines
     }
 
-    pub fn collect_string(&self, start: Position, end: Position, buffer: &mut String) {
+    pub fn collect_string(&self, start: Position, end: Position, result: &mut String) {
         let start = self.clamp_position(start);
         let end = self.clamp_position(end);
 
         if start.y == end.y {
-            buffer.push_str(&self.lines[start.y][start.x..end.x]);
+            result.push_str(&self.lines[start.y][start.x..end.x]);
         } else {
-            buffer.push_str(&self.lines[start.y][start.x..]);
-            buffer.push('\n');
+            result.push_str(&self.lines[start.y][start.x..]);
+            result.push('\n');
 
             for line in &self.lines[start.y + 1..end.y] {
-                buffer.push_str(&line[..]);
-                buffer.push('\n');
+                result.push_str(&line[..]);
+                result.push('\n');
             }
 
-            buffer.push_str(&self.lines[end.y][..end.x]);
+            result.push_str(&self.lines[end.y][..end.x]);
         }
     }
 

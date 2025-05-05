@@ -109,7 +109,7 @@ impl LanguageServer {
             .and_then(|file_name| file_name.to_str())
             .unwrap_or_default();
 
-        let mut uri_buffer = language_server.uri_buffer.take_mut();
+        let mut uri_buffer = language_server.uri_buffer.pop();
         path_to_uri(current_dir, &mut uri_buffer);
 
         language_server.send_request(
@@ -153,7 +153,7 @@ impl LanguageServer {
             }),
         );
 
-        language_server.uri_buffer.replace(uri_buffer);
+        language_server.uri_buffer.push(uri_buffer);
 
         Some(language_server)
     }
@@ -385,7 +385,7 @@ impl LanguageServer {
     }
 
     pub fn did_open(&mut self, path: &Path, language_id: &str, version: usize, text: &str) {
-        let mut uri_buffer = self.uri_buffer.take_mut();
+        let mut uri_buffer = self.uri_buffer.pop();
 
         path_to_uri(path, &mut uri_buffer);
 
@@ -401,7 +401,7 @@ impl LanguageServer {
             }),
         );
 
-        self.uri_buffer.replace(uri_buffer);
+        self.uri_buffer.push(uri_buffer);
     }
 
     pub fn did_change(
@@ -413,7 +413,7 @@ impl LanguageServer {
         text: &str,
         doc: &Doc,
     ) {
-        let mut uri_buffer = self.uri_buffer.take_mut();
+        let mut uri_buffer = self.uri_buffer.pop();
 
         path_to_uri(path, &mut uri_buffer);
 
@@ -434,11 +434,11 @@ impl LanguageServer {
             }),
         );
 
-        self.uri_buffer.replace(uri_buffer);
+        self.uri_buffer.push(uri_buffer);
     }
 
     pub fn completion(&mut self, path: &Path, position: Position, doc: &Doc) -> LspSentRequest {
-        let mut uri_buffer = self.uri_buffer.take_mut();
+        let mut uri_buffer = self.uri_buffer.pop();
 
         path_to_uri(path, &mut uri_buffer);
 
@@ -452,7 +452,7 @@ impl LanguageServer {
             }),
         );
 
-        self.uri_buffer.replace(uri_buffer);
+        self.uri_buffer.push(uri_buffer);
 
         sent_request
     }
@@ -471,7 +471,7 @@ impl LanguageServer {
         end: Position,
         doc: &Doc,
     ) -> LspSentRequest {
-        let mut uri_buffer = self.uri_buffer.take_mut();
+        let mut uri_buffer = self.uri_buffer.pop();
 
         path_to_uri(path, &mut uri_buffer);
 
@@ -493,13 +493,13 @@ impl LanguageServer {
             }),
         );
 
-        self.uri_buffer.replace(uri_buffer);
+        self.uri_buffer.push(uri_buffer);
 
         sent_reqest
     }
 
     pub fn prepare_rename(&mut self, path: &Path, position: Position, doc: &Doc) -> LspSentRequest {
-        let mut uri_buffer = self.uri_buffer.take_mut();
+        let mut uri_buffer = self.uri_buffer.pop();
 
         path_to_uri(path, &mut uri_buffer);
 
@@ -513,7 +513,7 @@ impl LanguageServer {
             }),
         );
 
-        self.uri_buffer.replace(uri_buffer);
+        self.uri_buffer.push(uri_buffer);
 
         sent_reqest
     }
@@ -525,7 +525,7 @@ impl LanguageServer {
         position: Position,
         doc: &Doc,
     ) -> LspSentRequest {
-        let mut uri_buffer = self.uri_buffer.take_mut();
+        let mut uri_buffer = self.uri_buffer.pop();
 
         path_to_uri(path, &mut uri_buffer);
 
@@ -540,13 +540,13 @@ impl LanguageServer {
             }),
         );
 
-        self.uri_buffer.replace(uri_buffer);
+        self.uri_buffer.push(uri_buffer);
 
         sent_request
     }
 
     pub fn references(&mut self, path: &Path, position: Position, doc: &Doc) -> LspSentRequest {
-        let mut uri_buffer = self.uri_buffer.take_mut();
+        let mut uri_buffer = self.uri_buffer.pop();
 
         path_to_uri(path, &mut uri_buffer);
 
@@ -563,7 +563,7 @@ impl LanguageServer {
             }),
         );
 
-        self.uri_buffer.replace(uri_buffer);
+        self.uri_buffer.push(uri_buffer);
 
         sent_request
     }
@@ -579,7 +579,7 @@ impl LanguageServer {
     }
 
     pub fn definition(&mut self, path: &Path, position: Position, doc: &Doc) -> LspSentRequest {
-        let mut uri_buffer = self.uri_buffer.take_mut();
+        let mut uri_buffer = self.uri_buffer.pop();
 
         path_to_uri(path, &mut uri_buffer);
 
@@ -593,13 +593,13 @@ impl LanguageServer {
             }),
         );
 
-        self.uri_buffer.replace(uri_buffer);
+        self.uri_buffer.push(uri_buffer);
 
         sent_request
     }
 
     pub fn text_document_notification(&mut self, path: &Path, method: &'static str) {
-        let mut uri_buffer = self.uri_buffer.take_mut();
+        let mut uri_buffer = self.uri_buffer.pop();
 
         path_to_uri(path, &mut uri_buffer);
 
@@ -612,7 +612,7 @@ impl LanguageServer {
             }),
         );
 
-        self.uri_buffer.replace(uri_buffer);
+        self.uri_buffer.push(uri_buffer);
     }
 
     fn send_request(&mut self, method: &'static str, params: Value) -> LspSentRequest {

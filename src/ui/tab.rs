@@ -99,12 +99,12 @@ impl Tab {
         let mut grapheme_handler = ui.get_grapheme_handler(widget, ctx.window);
 
         while let Some(grapheme) = grapheme_handler.next(ctx.window) {
-            let mut text_buffer = ctx.buffers.text.take_mut();
+            let mut text_buffer = ctx.buffers.text.pop();
             text_buffer.push_str(grapheme);
 
             handle_grapheme(&text_buffer, doc, ctx);
 
-            ctx.buffers.text.replace(text_buffer);
+            ctx.buffers.text.push(text_buffer);
         }
 
         let mut mousebind_handler = ui.get_mousebind_handler(widget, ctx.window);
