@@ -197,6 +197,11 @@ impl Lsp {
                 doc.jump_cursors(position, false, ctx.gfx);
                 tab.camera.recenter();
             }
+            MessageResult::SignatureHelp(signature_help) => {
+                editor
+                    .signature_help_popup
+                    .lsp_set_signature_help(signature_help);
+            }
         }
 
         Some(())

@@ -1,6 +1,6 @@
 use core::str;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
@@ -24,7 +24,7 @@ use super::{
     position_encoding::PositionEncoding,
     types::{
         CompletionItem, Diagnostic, LspCompletionItem, LspDiagnostic, LspPrepareRenameResult,
-        LspRange, LspWorkspaceEdit,
+        LspRange, LspWorkspaceEdit, SignatureHelp,
     },
     uri::path_to_uri,
     LspSentRequest,
@@ -74,6 +74,7 @@ pub(super) enum MessageResult<'a> {
         path: PathBuf,
         range: LspRange,
     },
+    SignatureHelp(Option<SignatureHelp>),
 }
 
 pub struct LanguageServer {
@@ -86,6 +87,8 @@ pub struct LanguageServer {
     uri_buffer: TempString,
     diagnostics: HashMap<PathBuf, Diagnostics>,
     position_encoding: PositionEncoding,
+    trigger_chars: HashSet<char>,
+    retrigger_chars: HashSet<char>,
 }
 
 impl LanguageServer {
@@ -102,6 +105,8 @@ impl LanguageServer {
             uri_buffer: TempString::new(),
             diagnostics: HashMap::new(),
             position_encoding: PositionEncoding::Utf16,
+            trigger_chars: HashSet::new(),
+            retrigger_chars: HashSet::new(),
         };
 
         let workspace_name = current_dir
@@ -147,6 +152,9 @@ impl LanguageServer {
                                 },
                                 "labelDetailsSupport": true,
                             },
+                        },
+                        "signatureHelp": {
+                            "contextSupport": true,
                         },
                     },
                 },
@@ -258,6 +266,22 @@ impl LanguageServer {
                     if result.capabilities.position_encoding == "utf-8" {
                         self.position_encoding = PositionEncoding::Utf8;
                     }
+
+                    if let Some(provider) = result.capabilities.signature_help_provider {
+                        self.trigger_chars.extend(
+                            provider
+                                .trigger_characters
+                                .iter()
+                                .filter_map(|string| string.chars().nth(0)),
+                        );
+
+                        self.retrigger_chars.extend(
+                            provider
+                                .retrigger_characters
+                                .iter()
+                                .filter_map(|string| string.chars().nth(0)),
+                        );
+                    }
                 }
 
                 self.send_notification("initialized", json!({}));
@@ -315,7 +339,7 @@ impl LanguageServer {
             "textDocument/codeAction" => {
                 let result = message
                     .result
-                    .as_deref()
+                    .as_ref()
                     .and_then(|result| {
                         serde_json::from_str::<Vec<LspCodeActionResult>>(result.get()).ok()
                     })
@@ -379,6 +403,14 @@ impl LanguageServer {
                     path,
                     range: result.range,
                 })
+            }
+            "textDocument/signatureHelp" => {
+                let result = message
+                    .result
+                    .as_ref()
+                    .and_then(|result| serde_json::from_str::<SignatureHelp>(result.get()).ok());
+
+                Some(MessageResult::SignatureHelp(result))
             }
             _ => None,
         }
@@ -598,6 +630,42 @@ impl LanguageServer {
         sent_request
     }
 
+    pub fn signature_help(
+        &mut self,
+        path: &Path,
+        position: Position,
+        trigger_char: Option<char>,
+        is_retrigger: bool,
+        doc: &Doc,
+    ) -> LspSentRequest {
+        let mut uri_buffer = self.uri_buffer.pop();
+
+        path_to_uri(path, &mut uri_buffer);
+
+        let sent_request = self.send_request(
+            "textDocument/signatureHelp",
+            json!({
+                "textDocument": {
+                    "uri": uri_buffer,
+                },
+                "position": LspPosition::encode(position, self.position_encoding, doc),
+                "context": {
+                    "triggerKind": if trigger_char.is_some() {
+                        2
+                    } else {
+                        3
+                    },
+                    "triggerCharacter": trigger_char,
+                    "isRetrigger": is_retrigger,
+                },
+            }),
+        );
+
+        self.uri_buffer.push(uri_buffer);
+
+        sent_request
+    }
+
     pub fn text_document_notification(&mut self, path: &Path, method: &'static str) {
         let mut uri_buffer = self.uri_buffer.pop();
 
@@ -663,6 +731,14 @@ impl LanguageServer {
 
     pub fn position_encoding(&self) -> PositionEncoding {
         self.position_encoding
+    }
+
+    pub fn is_trigger_char(&self, c: char) -> bool {
+        self.trigger_chars.contains(&c)
+    }
+
+    pub fn is_retrigger_char(&self, c: char) -> bool {
+        self.retrigger_chars.contains(&c)
     }
 }
 

@@ -2194,6 +2194,23 @@ impl Doc {
         Some(())
     }
 
+    pub fn lsp_signature_help(
+        &mut self,
+        position: Position,
+        trigger_char: Option<char>,
+        is_retrigger: bool,
+        ctx: &mut Ctx,
+    ) -> Option<()> {
+        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let path = self.path.on_drive()?;
+
+        let sent_request =
+            language_server.signature_help(path, position, trigger_char, is_retrigger, self);
+        self.lsp_add_expected_response(sent_request);
+
+        Some(())
+    }
+
     fn lsp_text_document_notification(
         &mut self,
         method: &'static str,

@@ -204,8 +204,18 @@ pub(super) enum LspDefinitionResult<'a> {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct LspSignatureHelpOptions {
+    #[serde(default)]
+    pub trigger_characters: Vec<String>,
+    #[serde(default)]
+    pub retrigger_characters: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct LspServerCapabilities<'a> {
     pub position_encoding: &'a str,
+    pub signature_help_provider: Option<LspSignatureHelpOptions>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -404,6 +414,15 @@ pub enum Documentation {
     MarkupContent { kind: String, value: String },
 }
 
+impl Documentation {
+    pub fn text(&self) -> &str {
+        match self {
+            Documentation::PlainText(text) => text,
+            Documentation::MarkupContent { value, .. } => value,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CompletionItem {
     pub label: String,
@@ -477,4 +496,18 @@ pub struct CodeAction {
 pub enum CodeActionResult {
     Command(Command),
     CodeAction(CodeAction),
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SignatureInformation {
+    pub label: String,
+    pub documentation: Option<Documentation>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignatureHelp {
+    pub signatures: Vec<SignatureInformation>,
+    #[serde(default)]
+    pub active_signature: usize,
 }

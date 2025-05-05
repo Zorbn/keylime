@@ -366,7 +366,7 @@ impl Tab {
             let color = if is_focused && y == cursor_y {
                 theme.normal
             } else {
-                theme.line_number
+                theme.subtle
             };
 
             gfx.add_text(digits, visual_x, visual_y, color);
@@ -725,6 +725,11 @@ impl Tab {
         let start_y = start_y.floor();
         let end_y = end_y.floor();
 
-        Rect::new(x, start_y, width, (end_y - start_y).max(gfx.border_width()))
+        Rect::new(
+            x,
+            start_y,
+            width,
+            (end_y - start_y).max(gfx.border_width() * 2.0),
+        )
     }
 }

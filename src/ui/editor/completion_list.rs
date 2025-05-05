@@ -8,7 +8,7 @@ use crate::{
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::action::action_keybind,
     lsp::{
-        types::{CodeAction, CodeActionResult, Command, CompletionItem, Documentation, EditList},
+        types::{CodeAction, CodeActionResult, Command, CompletionItem, EditList},
         LspSentRequest,
     },
     platform::gfx::Gfx,
@@ -218,7 +218,7 @@ impl CompletionList {
                 detail,
                 position,
                 PopupAlignment::TopLeft,
-                theme.line_number,
+                theme.subtle,
                 theme,
                 gfx,
             );
@@ -227,13 +227,8 @@ impl CompletionList {
         }
 
         if let Some(documentation) = documentation {
-            let text = match documentation {
-                Documentation::PlainText(text) => text,
-                Documentation::MarkupContent { value, .. } => value,
-            };
-
             draw_popup(
-                text,
+                documentation.text(),
                 position,
                 PopupAlignment::TopLeft,
                 theme.normal,

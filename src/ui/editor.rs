@@ -6,6 +6,7 @@ use std::{
 use completion_list::{CompletionList, CompletionListResult};
 use doc_io::confirm_close_all;
 use editor_pane::EditorPane;
+use signature_help_popup::SignatureHelpPopup;
 
 use crate::{
     ctx::Ctx,
@@ -36,6 +37,7 @@ use super::{
 pub mod completion_list;
 mod doc_io;
 pub mod editor_pane;
+mod signature_help_popup;
 
 pub struct Editor {
     doc_list: SlotList<Doc>,
@@ -43,7 +45,7 @@ pub struct Editor {
     panes: FocusList<EditorPane>,
 
     do_show_diagnostic_popup: bool,
-
+    pub signature_help_popup: SignatureHelpPopup,
     pub completion_list: CompletionList,
     status_bar_bounds: Rect,
     pub widget: Widget,
@@ -56,7 +58,7 @@ impl Editor {
             panes: FocusList::new(),
 
             do_show_diagnostic_popup: true,
-
+            signature_help_popup: SignatureHelpPopup::new(),
             completion_list: CompletionList::new(),
             status_bar_bounds: Rect::ZERO,
             widget: Widget::new(ui, true),
@@ -101,6 +103,17 @@ impl Editor {
 
     pub fn update(&mut self, ui: &mut Ui, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
         self.reload_changed_files(file_watcher, ctx);
+
+        let pane = self.panes.get_focused_mut().unwrap();
+        let focused_tab_index = pane.focused_tab_index();
+
+        let doc = pane
+            .get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
+            .map(|(_, doc)| doc);
+
+        let signature_help_triggers =
+            self.signature_help_popup
+                .get_triggers(&self.widget, ui, doc, ctx);
 
         let mut mousebind_handler = ui.get_mousebind_handler(&self.widget, ctx.window);
 
@@ -160,7 +173,9 @@ impl Editor {
                     if let Some((_, doc)) = self.get_focused_tab_and_doc() {
                         let position = doc.get_cursor(CursorIndex::Main).position;
 
-                        if self.do_show_diagnostic_popup
+                        if self.signature_help_popup.is_open() {
+                            self.signature_help_popup.clear();
+                        } else if self.do_show_diagnostic_popup
                             && ctx.lsp.get_diagnostic_at(position, doc).is_some()
                         {
                             self.do_show_diagnostic_popup = false;
@@ -204,10 +219,14 @@ impl Editor {
 
         let Some((_, doc)) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
         else {
+            self.signature_help_popup.clear();
             self.completion_list.clear();
 
             return;
         };
+
+        self.signature_help_popup
+            .update(signature_help_triggers, doc, ctx);
 
         self.completion_list
             .update_results(doc, handled_position, ctx);
@@ -340,8 +359,14 @@ impl Editor {
 
         self.completion_list.draw(ctx);
 
-        if self.do_show_diagnostic_popup {
-            self.draw_diagnostic_popup(ctx);
+        let Some((tab, doc)) = self.get_focused_tab_and_doc() else {
+            return;
+        };
+
+        if self.signature_help_popup.is_open() {
+            self.signature_help_popup.draw(tab, doc, ctx);
+        } else if self.do_show_diagnostic_popup {
+            self.draw_diagnostic_popup(tab, doc, ctx);
         }
     }
 
@@ -376,14 +401,13 @@ impl Editor {
         let status_text_y = gfx.border_width() + gfx.tab_padding_y();
 
         gfx.begin(Some(self.status_bar_bounds));
-        gfx.add_text(status_text, status_text_x, status_text_y, theme.normal);
+        gfx.add_text(status_text, status_text_x, status_text_y, theme.subtle);
         gfx.end();
 
         Some(())
     }
 
-    fn draw_diagnostic_popup(&self, ctx: &mut Ctx) -> Option<()> {
-        let (tab, doc) = self.get_focused_tab_and_doc()?;
+    fn draw_diagnostic_popup(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
         let position = doc.get_cursor(CursorIndex::Main).position;
 
         if let Some(diagnostic) = ctx.lsp.get_diagnostic_at(position, doc) {
