@@ -10,7 +10,7 @@ use std::{
 };
 
 use language_server::{LanguageServer, MessageResult};
-use types::LspMessage;
+use types::{Diagnostic, LspMessage};
 use uri::uri_to_path;
 
 use crate::{
@@ -18,6 +18,7 @@ use crate::{
     ctx::Ctx,
     geometry::position::Position,
     platform::process::Process,
+    text::doc::Doc,
     ui::{
         command_palette::{
             find_in_files_mode::FindInFilesMode, references::References, rename_mode::RenameMode,
@@ -231,6 +232,24 @@ impl Lsp {
 
         let server = self.servers.get_mut(&language.index)?;
         server.as_mut()
+    }
+
+    pub fn get_diagnostic_at<'a>(
+        &'a mut self,
+        position: Position,
+        doc: &Doc,
+    ) -> Option<&'a mut Diagnostic> {
+        for language_server in self.iter_servers_mut() {
+            for diagnostic in language_server.get_diagnostics_mut(doc) {
+                if !diagnostic.contains_position(position, doc) {
+                    continue;
+                }
+
+                return Some(diagnostic);
+            }
+        }
+
+        None
     }
 
     pub fn processes(&mut self) -> impl Iterator<Item = &mut Process> {

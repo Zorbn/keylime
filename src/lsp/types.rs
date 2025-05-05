@@ -375,7 +375,7 @@ impl Diagnostic {
         (start, end)
     }
 
-    pub fn contains(&self, position: Position, doc: &Doc) -> bool {
+    pub fn contains_position(&self, position: Position, doc: &Doc) -> bool {
         let (start, end) = self.range;
 
         position.x >= doc.get_line_start(position.y) && position >= start && position <= end

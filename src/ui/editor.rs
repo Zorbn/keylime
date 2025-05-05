@@ -7,7 +7,12 @@ use editor_pane::EditorPane;
 use crate::{
     ctx::Ctx,
     geometry::{rect::Rect, visual_position::VisualPosition},
-    input::{action::action_name, mods::Mods, mouse_button::MouseButton, mousebind::Mousebind},
+    input::{
+        action::{action_keybind, action_name},
+        mods::Mods,
+        mouse_button::MouseButton,
+        mousebind::Mousebind,
+    },
     lsp::{types::EditList, uri::uri_to_path},
     platform::{file_watcher::FileWatcher, gfx::Gfx},
     text::{
@@ -34,6 +39,8 @@ pub struct Editor {
     // There should always be at least one pane.
     panes: FocusList<EditorPane>,
 
+    do_show_diagnostic_popup: bool,
+
     pub completion_list: CompletionList,
     pub widget: Widget,
 }
@@ -43,8 +50,10 @@ impl Editor {
         let mut editor = Self {
             doc_list: SlotList::new(),
             panes: FocusList::new(),
-            completion_list: CompletionList::new(),
 
+            do_show_diagnostic_popup: true,
+
+            completion_list: CompletionList::new(),
             widget: Widget::new(ui, true),
         };
 
@@ -140,6 +149,19 @@ impl Editor {
                         action_handler.unprocessed(ctx.window, action);
                     }
                 }
+                action_keybind!(key: Escape, mods: Mods::NONE) => {
+                    if let Some((_, doc)) = self.get_focused_tab_and_doc() {
+                        let position = doc.get_cursor(CursorIndex::Main).position;
+
+                        if self.do_show_diagnostic_popup
+                            && ctx.lsp.get_diagnostic_at(position, doc).is_some()
+                        {
+                            self.do_show_diagnostic_popup = false;
+                        } else {
+                            action_handler.unprocessed(ctx.window, action);
+                        }
+                    }
+                }
                 _ => action_handler.unprocessed(ctx.window, action),
             }
         }
@@ -173,11 +195,20 @@ impl Editor {
         let pane = self.panes.get_focused_mut().unwrap();
         let focused_tab_index = pane.focused_tab_index();
 
-        if let Some((_, doc)) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list) {
-            self.completion_list
-                .update_results(doc, handled_position, ctx);
-        } else {
+        let Some((_, doc)) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
+        else {
             self.completion_list.clear();
+
+            return;
+        };
+
+        self.completion_list
+            .update_results(doc, handled_position, ctx);
+
+        let position = doc.get_cursor(CursorIndex::Main).position;
+
+        if !self.do_show_diagnostic_popup && ctx.lsp.get_diagnostic_at(position, doc).is_none() {
+            self.do_show_diagnostic_popup = true;
         }
     }
 
@@ -294,42 +325,38 @@ impl Editor {
             pane.draw(None, &mut self.doc_list, ctx, is_focused);
         }
 
-        if self.is_cursor_visible(ctx.gfx) {
-            self.completion_list.draw(ctx);
+        if !self.is_cursor_visible(ctx.gfx) {
+            return;
+        }
+
+        self.completion_list.draw(ctx);
+
+        if self.do_show_diagnostic_popup {
             self.draw_diagnostic_popup(ctx);
         }
     }
 
     fn draw_diagnostic_popup(&self, ctx: &mut Ctx) -> Option<()> {
         let (tab, doc) = self.get_focused_tab_and_doc()?;
-
         let position = doc.get_cursor(CursorIndex::Main).position;
 
-        for language_server in ctx.lsp.iter_servers_mut() {
-            for diagnostic in language_server.get_diagnostics_mut(doc) {
-                if !diagnostic.contains(position, doc) {
-                    continue;
-                }
+        if let Some(diagnostic) = ctx.lsp.get_diagnostic_at(position, doc) {
+            let gfx = &mut ctx.gfx;
+            let theme = &ctx.config.theme;
 
-                let gfx = &mut ctx.gfx;
-                let theme = &ctx.config.theme;
+            let (start, _) = diagnostic.get_visible_range(doc);
 
-                let (start, _) = diagnostic.get_visible_range(doc);
+            let mut position = doc.position_to_visual(start, tab.camera.position(), gfx);
+            position = position.offset_by(tab.doc_bounds());
 
-                let mut position = doc.position_to_visual(start, tab.camera.position(), gfx);
-                position = position.offset_by(tab.doc_bounds());
-
-                draw_popup(
-                    &diagnostic.message,
-                    position,
-                    PopupAlignment::Above,
-                    theme.normal,
-                    theme,
-                    gfx,
-                );
-
-                return Some(());
-            }
+            draw_popup(
+                &diagnostic.message,
+                position,
+                PopupAlignment::Above,
+                theme.normal,
+                theme,
+                gfx,
+            );
         }
 
         Some(())

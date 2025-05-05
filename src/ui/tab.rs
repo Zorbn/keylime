@@ -525,7 +525,9 @@ impl Tab {
                 let mut position = start;
 
                 while position < end {
-                    if !diagnostic.contains(position, doc) {
+                    if !diagnostic.contains_position(position, doc) {
+                        position = doc.move_position(position, 1, 0, gfx);
+
                         continue;
                     }
 
