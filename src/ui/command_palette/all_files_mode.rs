@@ -216,7 +216,7 @@ fn score_fuzzy_match(path: &str, input: &str) -> f32 {
     const AWARD_MAX_AFTER_MISMATCH: f32 = 1.0;
 
     let mut score = 0.0;
-    let mut next_match_award = 1.0;
+    let mut next_match_award = AWARD_MATCH_BONUS;
 
     let mut path_chars = path.chars();
     let mut input_chars = input.chars().peekable();
@@ -230,7 +230,7 @@ fn score_fuzzy_match(path: &str, input: &str) -> f32 {
             next_match_award += AWARD_MATCH_BONUS;
 
             input_chars.next();
-        } else if score > 0.0 {
+        } else {
             next_match_award =
                 AWARD_MAX_AFTER_MISMATCH.min(next_match_award * AWARD_DISTANCE_FALLOFF);
         }
