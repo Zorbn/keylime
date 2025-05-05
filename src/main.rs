@@ -22,7 +22,6 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
- * Pair matching shouldn't be blocked by symbols in front of the cursor.
  * Pressing escape should hide any open diagnostic popups.
  * While typing in the search box, interactively search from the original start position to the first result.
  * Add status bar at the bottom of the editor (above the terminal) with misc info.
