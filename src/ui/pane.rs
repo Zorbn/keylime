@@ -1,7 +1,11 @@
 use crate::{
     config::theme::Theme,
     ctx::Ctx,
-    geometry::{rect::Rect, visual_position::VisualPosition},
+    geometry::{
+        rect::Rect,
+        sides::{Side, Sides},
+        visual_position::VisualPosition,
+    },
     input::{action::action_name, mods::Mods, mouse_button::MouseButton, mousebind::Mousebind},
     platform::{gfx::Gfx, window::Window},
     text::doc::Doc,
@@ -214,7 +218,12 @@ impl<T> Pane<T> {
 
         let gfx = &mut ctx.gfx;
 
-        gfx.add_rect(tab_bounds.left_border(gfx.border_width()), theme.border);
+        gfx.add_bordered_rect(
+            tab_bounds,
+            Sides::ALL.without(Side::Bottom),
+            theme.background,
+            theme.border,
+        );
 
         let text_x = (tab_bounds.x + gfx.glyph_width() * 2.0).floor();
         let text_y = gfx.border_width() + gfx.tab_padding_y();
@@ -223,8 +232,6 @@ impl<T> Pane<T> {
         if !doc.is_saved() {
             gfx.add_text("*", text_x + text_width, text_y, theme.symbol);
         }
-
-        gfx.add_rect(tab_bounds.right_border(gfx.border_width()), theme.border);
     }
 
     fn get_tab_color(doc: &Doc, theme: &Theme, ctx: &mut Ctx) -> Color {

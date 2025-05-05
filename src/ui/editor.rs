@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fmt::Write,
+    path::{Path, PathBuf},
+};
 
 use completion_list::{CompletionList, CompletionListResult};
 use doc_io::confirm_close_all;
@@ -42,6 +45,7 @@ pub struct Editor {
     do_show_diagnostic_popup: bool,
 
     pub completion_list: CompletionList,
+    status_bar_bounds: Rect,
     pub widget: Widget,
 }
 
@@ -54,6 +58,7 @@ impl Editor {
             do_show_diagnostic_popup: true,
 
             completion_list: CompletionList::new(),
+            status_bar_bounds: Rect::ZERO,
             widget: Widget::new(ui, true),
         };
 
@@ -67,6 +72,8 @@ impl Editor {
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx) {
+        self.status_bar_bounds = Rect::new(0.0, 0.0, bounds.width, gfx.tab_height());
+
         let mut pane_bounds = bounds;
         pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
 
@@ -316,6 +323,8 @@ impl Editor {
     }
 
     pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
+        self.draw_status_bar(ctx);
+
         let is_focused = ui.is_focused(&self.widget);
         let focused_pane_index = self.panes.focused_index();
 
@@ -334,6 +343,43 @@ impl Editor {
         if self.do_show_diagnostic_popup {
             self.draw_diagnostic_popup(ctx);
         }
+    }
+
+    fn draw_status_bar(&self, ctx: &mut Ctx) -> Option<()> {
+        let (_, doc) = self.get_focused_tab_and_doc()?;
+        let position = doc.get_cursor(CursorIndex::Main).position;
+
+        let path = doc
+            .path()
+            .some()
+            .and_then(|path| path.to_str())
+            .unwrap_or_default();
+
+        let path_suffix = if path.is_empty() { "" } else { ", " };
+
+        let status_text = ctx.buffers.text.get_mut();
+
+        let _ = write!(
+            status_text,
+            "{}{}Ln {}, Col {}",
+            path,
+            path_suffix,
+            position.y + 1,
+            position.x + 1
+        );
+
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
+
+        let status_text_x = self.status_bar_bounds.width
+            - (gfx.measure_text(status_text) + 1) as f32 * gfx.glyph_width();
+        let status_text_y = gfx.border_width() + gfx.tab_padding_y();
+
+        gfx.begin(Some(self.status_bar_bounds));
+        gfx.add_text(status_text, status_text_x, status_text_y, theme.normal);
+        gfx.end();
+
+        Some(())
     }
 
     fn draw_diagnostic_popup(&self, ctx: &mut Ctx) -> Option<()> {

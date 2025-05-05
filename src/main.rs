@@ -24,7 +24,6 @@ use platform::window::WindowRunner;
  * TODO:
  * When pasting add indentation to all lines based on first.
  * While typing in the search box, interactively search from the original start position to the first result.
- * Add status bar at the bottom of the editor (above the terminal) with misc info.
  * When reloading a file compare the lines and only delete & re-insert doc lines that changed.
  * Use FocusList for ResultList's results/selection.
  * If the language server returns no completions for a request use simple completions instead.
