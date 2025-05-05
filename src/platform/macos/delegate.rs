@@ -185,18 +185,11 @@ impl Delegate {
         unsafe { msg_send![super(this), init] }
     }
 
-    fn on_focused_changed(&self, is_focused: bool) {
-        let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
-            return;
-        };
+    fn on_focused_changed(&self, is_focused: bool) -> Option<()> {
+        let mut window = self.ivars().window.try_borrow_mut().ok()?;
 
-        let Ok(mut gfx) = self.ivars().gfx.try_borrow_mut() else {
-            return;
-        };
-
-        let Some(gfx) = gfx.as_mut() else {
-            return;
-        };
+        let mut gfx = self.ivars().gfx.try_borrow_mut().ok()?;
+        let gfx = gfx.as_mut()?;
 
         window.inner.is_focused = is_focused;
 
@@ -205,18 +198,17 @@ impl Delegate {
         unsafe {
             view.setNeedsDisplay(true);
         }
+
+        Some(())
     }
 
-    fn on_fullscreen_changed(&self, is_fullscreen: bool) {
-        let Ok(mut gfx) = self.ivars().gfx.try_borrow_mut() else {
-            return;
-        };
-
-        let Some(gfx) = gfx.as_mut() else {
-            return;
-        };
+    fn on_fullscreen_changed(&self, is_fullscreen: bool) -> Option<()> {
+        let mut gfx = self.ivars().gfx.try_borrow_mut().ok()?;
+        let gfx = gfx.as_mut()?;
 
         gfx.inner.is_fullscreen = is_fullscreen;
+
+        Some(())
     }
 
     fn on_close(&self) {

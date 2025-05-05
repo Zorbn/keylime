@@ -233,39 +233,7 @@ define_class!(
     unsafe impl CALayerDelegate for View {
         #[unsafe(method(displayLayer:))]
         unsafe fn display_layer(&self, _layer: &CALayer) {
-            let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
-                return;
-            };
-
-            let Ok(mut gfx) = self.ivars().gfx.try_borrow_mut() else {
-                return;
-            };
-
-            let Some(gfx) = gfx.as_mut() else {
-                return;
-            };
-
-            let Ok(mut app) = self.ivars().app.try_borrow_mut() else {
-                return;
-            };
-
-            let Some(app) = app.as_mut() else {
-                return;
-            };
-
-            let window = &mut *window;
-            let time = window.inner.time;
-
-            app.draw(window, gfx, time);
-
-            if !window.inner.was_shown {
-                window.inner.ns_window.makeKeyAndOrderFront(None);
-                window.inner.was_shown = true;
-            }
-
-            unsafe {
-                gfx.inner.display_link.setPaused(!app.is_animating());
-            }
+            self.on_display_layer();
         }
     }
 );
@@ -306,28 +274,15 @@ impl View {
         view
     }
 
-    pub fn update(&self) {
-        let Ok(mut window) = self.ivars().window.try_borrow_mut() else {
-            return;
-        };
-
-        let Ok(mut gfx) = self.ivars().gfx.try_borrow_mut() else {
-            return;
-        };
-
-        let Some(gfx) = gfx.as_mut() else {
-            return;
-        };
-
-        let Ok(mut app) = self.ivars().app.try_borrow_mut() else {
-            return;
-        };
-
-        let Some(app) = app.as_mut() else {
-            return;
-        };
-
+    pub fn update(&self) -> Option<()> {
+        let mut window = self.ivars().window.try_borrow_mut().ok()?;
         let window = &mut *window;
+
+        let mut gfx = self.ivars().gfx.try_borrow_mut().ok()?;
+        let gfx = gfx.as_mut()?;
+
+        let mut app = self.ivars().app.try_borrow_mut().ok()?;
+        let app = app.as_mut()?;
 
         let (time, dt) = window.inner.get_time(app.is_animating());
         app.update(window, gfx, time, dt);
@@ -338,6 +293,34 @@ impl View {
         unsafe {
             self.setNeedsDisplay(true);
         }
+
+        Some(())
+    }
+
+    fn on_display_layer(&self) -> Option<()> {
+        let mut window = self.ivars().window.try_borrow_mut().ok()?;
+        let window = &mut *window;
+
+        let mut gfx = self.ivars().gfx.try_borrow_mut().ok()?;
+        let gfx = gfx.as_mut()?;
+
+        let mut app = self.ivars().app.try_borrow_mut().ok()?;
+        let app = app.as_mut()?;
+
+        let time = window.inner.time;
+
+        app.draw(window, gfx, time);
+
+        if !window.inner.was_shown {
+            window.inner.ns_window.makeKeyAndOrderFront(None);
+            window.inner.was_shown = true;
+        }
+
+        unsafe {
+            gfx.inner.display_link.setPaused(!app.is_animating());
+        }
+
+        Some(())
     }
 
     pub unsafe fn next_drawable(&self) -> Option<Retained<ProtocolObject<dyn CAMetalDrawable>>> {
