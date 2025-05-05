@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-terminal_emulator_debug = []
+terminal_debug = []
 lsp_debug = []
 
 [dependencies]

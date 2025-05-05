@@ -55,13 +55,18 @@ impl TerminalEmulator {
                             // Exit alternative keypad mode, ignored.
                             Some(&output[2..])
                         }
+                        Some(&b'M') => {
+                            self.reverse_newline_cursor(doc, ctx);
+
+                            Some(&output[2..])
+                        }
                         _ => None,
                     };
 
                     if let Some(remaining) = remaining {
                         output = remaining;
                     } else {
-                        #[cfg(feature = "terminal_emulator_debug")]
+                        #[cfg(feature = "terminal_debug")]
                         {
                             // Print unhandled control sequences.
                             for c in output.iter().take(8) {
@@ -184,7 +189,7 @@ impl TerminalEmulator {
                             Some(&25) => self.is_cursor_visible = false,
                             Some(&1047) | Some(&1049) => self.switch_to_normal_buffer(doc),
                             // Otherwise, ignored.
-                            #[cfg(feature = "terminal_emulator_debug")]
+                            #[cfg(feature = "terminal_debug")]
                             Some(parameter) => {
                                 println!("Unhandled private mode disabled: {}", parameter)
                             }
@@ -201,7 +206,7 @@ impl TerminalEmulator {
                             }
                             Some(&1047) | Some(&1049) => self.switch_to_alternate_buffer(doc),
                             // Otherwise, ignored.
-                            #[cfg(feature = "terminal_emulator_debug")]
+                            #[cfg(feature = "terminal_debug")]
                             Some(parameter) => {
                                 println!("Unhandled private mode enabled: {}", parameter)
                             }
@@ -331,7 +336,7 @@ impl TerminalEmulator {
                         106 => self.background_color = TerminalHighlightKind::BrightCyan,
                         107 => self.background_color = TerminalHighlightKind::BrightForeground,
                         _ => {
-                            #[cfg(feature = "terminal_emulator_debug")]
+                            #[cfg(feature = "terminal_debug")]
                             println!("Unhandled format parameter: {:?}", parameter);
                         }
                     }
@@ -342,7 +347,7 @@ impl TerminalEmulator {
             Some(&b'l') => {
                 match parameters.first() {
                     // Otherwise, ignored.
-                    #[cfg(feature = "terminal_emulator_debug")]
+                    #[cfg(feature = "terminal_debug")]
                     Some(parameter) => {
                         println!("Unhandled mode disabled: {}", parameter)
                     }
@@ -354,7 +359,7 @@ impl TerminalEmulator {
             Some(&b'h') => {
                 match parameters.first() {
                     // Otherwise, ignored.
-                    #[cfg(feature = "terminal_emulator_debug")]
+                    #[cfg(feature = "terminal_debug")]
                     Some(parameter) => {
                         println!("Unhandled mode enabled: {}", parameter)
                     }
@@ -647,7 +652,7 @@ impl TerminalEmulator {
                 Some(output)
             }
             _ => {
-                #[cfg(feature = "terminal_emulator_debug")]
+                #[cfg(feature = "terminal_debug")]
                 println!("Unhandled osc sequence: {}", kind);
 
                 loop {

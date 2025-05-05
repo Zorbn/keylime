@@ -685,6 +685,14 @@ impl TerminalEmulator {
         }
     }
 
+    pub fn reverse_newline_cursor(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+        if self.grid_cursor.y == self.scroll_top {
+            self.scroll_grid_region_down(self.scroll_top..=self.scroll_bottom, doc, ctx);
+        } else {
+            self.move_cursor(0, -1, doc, ctx.gfx);
+        }
+    }
+
     pub fn insert_at_cursor(&mut self, text: &str, doc: &mut Doc, ctx: &mut Ctx) {
         for c in CharIterator::new(text) {
             if self.grid_position_byte_to_char(self.grid_cursor, doc) >= self.grid_width {

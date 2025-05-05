@@ -22,7 +22,7 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
- * Scrolling up in git diff/less doesn't work correctly.
+ * Don't underline whitespace when drawing diagnostics (eg. see info underlines in escape_sequences.rs).
  * Auto indent should follow the same logic as the indent guides to determine width.
  * While typing in the search box, interactively search from the original start position to the first result.
  * Cmd-T search for tab, editor, etc and see that the ideal top result is 2nd for some reason.
