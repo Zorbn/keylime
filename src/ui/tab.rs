@@ -501,7 +501,7 @@ impl Tab {
             // Reversed so that more severe diagnostics are drawn on top.
             for diagnostic in language_server.get_diagnostics_mut(doc).iter().rev() {
                 let color = diagnostic.color(theme);
-                let (start, end) = diagnostic.range;
+                let (start, end) = diagnostic.get_visible_range(doc);
 
                 if start == end && start.y >= visible_lines.min_y && start.y <= visible_lines.max_y
                 {
@@ -525,6 +525,10 @@ impl Tab {
                 let mut position = start;
 
                 while position < end {
+                    if !diagnostic.contains(position, doc) {
+                        continue;
+                    }
+
                     let highlight_position = doc.position_to_visual(position, camera_position, gfx);
 
                     let grapheme = doc.get_grapheme(position);

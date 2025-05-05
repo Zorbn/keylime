@@ -228,7 +228,6 @@ impl Process {
 
         if hconsole.is_none() {
             startup_info.StartupInfo.hStdOutput = output_write;
-            startup_info.StartupInfo.hStdError = output_write;
             startup_info.StartupInfo.hStdInput = input_read;
             startup_info.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
         }

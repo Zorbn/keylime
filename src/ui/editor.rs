@@ -307,14 +307,14 @@ impl Editor {
 
         for language_server in ctx.lsp.iter_servers_mut() {
             for diagnostic in language_server.get_diagnostics_mut(doc) {
-                let (start, end) = diagnostic.range;
-
-                if position < start || position > end {
+                if !diagnostic.contains(position, doc) {
                     continue;
                 }
 
                 let gfx = &mut ctx.gfx;
                 let theme = &ctx.config.theme;
+
+                let (start, _) = diagnostic.get_visible_range(doc);
 
                 let mut position = doc.position_to_visual(start, tab.camera.position(), gfx);
                 position = position.offset_by(tab.doc_bounds());

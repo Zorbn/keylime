@@ -365,6 +365,21 @@ impl Diagnostic {
             _ => theme.info,
         }
     }
+
+    pub fn get_visible_range(&self, doc: &Doc) -> (Position, Position) {
+        let (mut start, mut end) = self.range;
+
+        start.x = start.x.max(doc.get_line_start(start.y));
+        end.x = end.x.max(doc.get_line_start(end.y));
+
+        (start, end)
+    }
+
+    pub fn contains(&self, position: Position, doc: &Doc) -> bool {
+        let (start, end) = self.range;
+
+        position.x >= doc.get_line_start(position.y) && position >= start && position <= end
+    }
 }
 
 #[derive(Debug, Clone)]
