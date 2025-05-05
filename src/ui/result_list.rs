@@ -282,8 +282,16 @@ impl<T> ResultList<T> {
         self.results.drain(..)
     }
 
+    pub fn selected_result_index(&self) -> usize {
+        self.selected_result_index
+    }
+
     pub fn get_selected_result(&self) -> Option<&T> {
         self.results.get(self.selected_result_index)
+    }
+
+    pub fn get_selected_result_mut(&mut self) -> Option<&mut T> {
+        self.results.get_mut(self.selected_result_index)
     }
 
     pub fn remove_selected_result(&mut self) -> Option<T> {

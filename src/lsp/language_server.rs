@@ -23,8 +23,8 @@ use crate::{
 use super::{
     position_encoding::PositionEncoding,
     types::{
-        Diagnostic, LspCompletionItem, LspDiagnostic, LspPrepareRenameResult, LspRange,
-        LspWorkspaceEdit,
+        CompletionItem, Diagnostic, LspCompletionItem, LspDiagnostic, LspPrepareRenameResult,
+        LspRange, LspWorkspaceEdit,
     },
     uri::path_to_uri,
     LspSentRequest,
@@ -61,7 +61,8 @@ enum MessageParseState {
 
 #[derive(Debug)]
 pub(super) enum MessageResult<'a> {
-    Completion(Vec<LspCompletionItem<'a>>),
+    Completion(Vec<LspCompletionItem>),
+    CompletionItemResolve(LspCompletionItem),
     CodeAction(Vec<LspCodeActionResult<'a>>),
     PrepareRename {
         range: LspRange,
@@ -138,6 +139,14 @@ impl LanguageServer {
                         },
                         "rename": {
                             "prepareSupport": true,
+                        },
+                        "completion": {
+                            "completionItem": {
+                                "resolveSupport": {
+                                    "properties": ["documentation", "textEdit", "additionalTextEdits"],
+                                },
+                                "labelDetailsSupport": true,
+                            },
                         },
                     },
                 },
@@ -297,6 +306,12 @@ impl LanguageServer {
 
                 Some(MessageResult::Completion(result))
             }
+            "completionItem/resolve" => {
+                let result = message.result.as_ref()?;
+                let result = serde_json::from_str::<LspCompletionItem>(result.get()).ok()?;
+
+                Some(MessageResult::CompletionItemResolve(result))
+            }
             "textDocument/codeAction" => {
                 let result = message
                     .result
@@ -440,6 +455,13 @@ impl LanguageServer {
         self.uri_buffer.replace(uri_buffer);
 
         sent_request
+    }
+
+    pub fn completion_item_resolve(&mut self, item: CompletionItem, doc: &Doc) -> LspSentRequest {
+        self.send_request(
+            "completionItem/resolve",
+            json!(item.encode(self.position_encoding, doc)),
+        )
     }
 
     pub fn code_action(

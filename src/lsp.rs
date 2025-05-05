@@ -94,17 +94,22 @@ impl Lsp {
         let result = server.handle_message(method, &message)?;
 
         match result {
-            MessageResult::Completion(completion_items) => {
+            MessageResult::Completion(items) => {
                 // The compiler should perform an in-place collect here because
                 // LspCompletionItem and CompletionItem have the same size and alignment.
-                let completion_items = completion_items
+                let items = items
                     .into_iter()
                     .map(|item| item.decode(encoding, doc))
                     .collect();
 
+                editor.completion_list.lsp_update_completion_results(items);
+            }
+            MessageResult::CompletionItemResolve(item) => {
+                let item = item.decode(encoding, doc);
+
                 editor
                     .completion_list
-                    .lsp_update_completion_results(completion_items);
+                    .lsp_resolve_completion_item(message.id, item);
             }
             MessageResult::CodeAction(results) => {
                 let results = results

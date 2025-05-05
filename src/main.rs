@@ -23,7 +23,9 @@ use platform::window::WindowRunner;
 /*
  * TODO:
  * Update Windows platform with input changes.
- * Support additional edits for LSP completions (eg. for automatically adding imports).
+ * When reloading a file compare the lines and only delete & re-insert doc lines that changed.
+ * Use FocusList for ResultList's results/selection.
+ * If the language server returns no completions for a request use simple completions instead.
  * Consider renaming DocKind::Output to DocKind::Raw
  * Consider making DocKinds predefined BitFields that store a list of features such action history, position shifting, multi line, etc.
  */

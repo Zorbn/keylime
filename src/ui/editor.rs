@@ -26,7 +26,6 @@ use super::{
 };
 
 pub mod completion_list;
-mod completion_result;
 mod doc_io;
 pub mod editor_pane;
 
@@ -215,23 +214,7 @@ impl Editor {
             self.with_doc(path, ctx, |doc, ctx| {
                 let edits = &mut edit_list.edits;
 
-                for i in 0..edits.len() {
-                    let current_edit = &edits[i];
-
-                    let (start, end) = current_edit.range;
-
-                    doc.delete(start, end, ctx);
-                    doc.insert(start, &current_edit.new_text, ctx);
-
-                    for future_edit in edits.iter_mut().skip(i + 1) {
-                        let (future_start, future_end) = future_edit.range;
-
-                        let future_start = doc.shift_position_by_delete(start, end, future_start);
-                        let future_end = doc.shift_position_by_delete(start, end, future_end);
-
-                        future_edit.range = (future_start, future_end);
-                    }
-                }
+                doc.apply_edit_list(edits, ctx);
             });
         }
 

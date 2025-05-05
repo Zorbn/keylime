@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use serde_json::value::RawValue;
+use serde_json::{value::RawValue, Value};
 
 use crate::{config::theme::Theme, geometry::position::Position, text::doc::Doc, ui::color::Color};
 
@@ -70,6 +70,17 @@ pub(super) struct LspRange {
 }
 
 impl LspRange {
+    pub fn encode(
+        (start, end): (Position, Position),
+        encoding: PositionEncoding,
+        doc: &Doc,
+    ) -> LspRange {
+        let start = LspPosition::encode(start, encoding, doc);
+        let end = LspPosition::encode(end, encoding, doc);
+
+        LspRange { start, end }
+    }
+
     pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> (Position, Position) {
         let start = self.start.decode(encoding, doc);
         let end = self.end.decode(encoding, doc);
@@ -102,7 +113,7 @@ pub(super) struct LspPublishDiagnosticsParams {
     pub diagnostics: Vec<LspDiagnostic>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct LspTextEdit {
     range: LspRange,
@@ -118,27 +129,22 @@ impl LspTextEdit {
     }
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum LspDocumentation {
-    PlainText(String),
-    MarkupContent { value: String },
-}
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct LspCompletionItem<'a> {
-    label: &'a str,
-    sort_text: Option<&'a str>,
-    filter_text: Option<&'a str>,
+pub(super) struct LspCompletionItem {
+    label: String,
+    sort_text: Option<String>,
+    filter_text: Option<String>,
     insert_text: Option<String>,
     text_edit: Option<LspTextEdit>,
+    additional_text_edits: Vec<LspTextEdit>,
     detail: Option<String>,
-    documentation: Option<LspDocumentation>,
+    documentation: Option<Documentation>,
+    data: Option<Value>,
 }
 
-impl<'a> LspCompletionItem<'a> {
-    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> CompletionItem<'a> {
+impl LspCompletionItem {
+    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> CompletionItem {
         CompletionItem {
             label: self.label,
             sort_text: self.sort_text,
@@ -147,27 +153,28 @@ impl<'a> LspCompletionItem<'a> {
             text_edit: self
                 .text_edit
                 .map(|text_edit| text_edit.decode(encoding, doc)),
+            additional_text_edits: self
+                .additional_text_edits
+                .into_iter()
+                .map(|text_edit| text_edit.decode(encoding, doc))
+                .collect(),
             detail: self.detail,
-            documentation: self.documentation.map(|documentation| match documentation {
-                LspDocumentation::PlainText(text) => text,
-                LspDocumentation::MarkupContent { value, .. } => value,
-            }),
+            documentation: self.documentation,
+            data: self.data,
         }
     }
 }
 
 #[derive(Debug, Deserialize)]
-pub(super) struct LspCompletionList<'a> {
-    #[serde(borrow)]
-    pub items: Vec<LspCompletionItem<'a>>,
+pub(super) struct LspCompletionList {
+    pub items: Vec<LspCompletionItem>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
-pub(super) enum LspCompletionResult<'a> {
-    List(LspCompletionList<'a>),
-    #[serde(borrow)]
-    Items(Vec<LspCompletionItem<'a>>),
+pub(super) enum LspCompletionResult {
+    List(LspCompletionList),
+    Items(Vec<LspCompletionItem>),
     None,
 }
 
@@ -283,9 +290,9 @@ pub(super) enum LspPrepareRenameResult {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Command<'a> {
-    pub title: &'a str,
-    pub command: &'a str,
+pub struct Command {
+    pub title: String,
+    pub command: String,
     #[serde(default)]
     pub arguments: Vec<Box<RawValue>>,
 }
@@ -293,15 +300,16 @@ pub struct Command<'a> {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct LspCodeAction<'a> {
-    title: &'a str,
+    title: String,
+    #[serde(borrow)]
     edit: Option<LspWorkspaceEdit<'a>>,
-    command: Option<Command<'a>>,
+    command: Option<Command>,
     #[serde(default)]
     is_preferred: bool,
 }
 
-impl<'a> LspCodeAction<'a> {
-    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> CodeAction<'a> {
+impl LspCodeAction<'_> {
+    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> CodeAction {
         let edit_lists = self
             .edit
             .map(|edit| edit.decode(encoding, doc))
@@ -319,14 +327,14 @@ impl<'a> LspCodeAction<'a> {
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub(super) enum LspCodeActionResult<'a> {
+    Command(Command),
     #[serde(borrow)]
-    Command(Command<'a>),
     CodeAction(LspCodeAction<'a>),
     None,
 }
 
-impl<'a> LspCodeActionResult<'a> {
-    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> CodeActionResult<'a> {
+impl LspCodeActionResult<'_> {
+    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> CodeActionResult {
         match self {
             LspCodeActionResult::Command(command) => CodeActionResult::Command(command),
             LspCodeActionResult::CodeAction(code_action) => {
@@ -358,30 +366,80 @@ impl Diagnostic {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TextEdit {
     pub range: (Position, Position),
     pub new_text: String,
 }
 
-#[derive(Debug)]
-pub struct CompletionItem<'a> {
-    pub label: &'a str,
-    sort_text: Option<&'a str>,
-    filter_text: Option<&'a str>,
-    pub insert_text: Option<String>,
-    pub text_edit: Option<TextEdit>,
-    pub detail: Option<String>,
-    pub documentation: Option<String>,
+impl TextEdit {
+    fn encode(self, encoding: PositionEncoding, doc: &Doc) -> LspTextEdit {
+        LspTextEdit {
+            range: LspRange::encode(self.range, encoding, doc),
+            new_text: self.new_text,
+        }
+    }
 }
 
-impl CompletionItem<'_> {
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum Documentation {
+    PlainText(String),
+    MarkupContent { kind: String, value: String },
+}
+
+#[derive(Debug, Clone)]
+pub struct CompletionItem {
+    pub label: String,
+    sort_text: Option<String>,
+    filter_text: Option<String>,
+    pub insert_text: Option<String>,
+    pub text_edit: Option<TextEdit>,
+    pub additional_text_edits: Vec<TextEdit>,
+    pub detail: Option<String>,
+    pub documentation: Option<Documentation>,
+    data: Option<Value>,
+}
+
+impl CompletionItem {
     pub fn sort_text(&self) -> &str {
-        self.sort_text.unwrap_or(self.label)
+        self.sort_text.as_ref().unwrap_or(&self.label)
     }
 
     pub fn filter_text(&self) -> &str {
-        self.filter_text.unwrap_or(self.label)
+        self.filter_text.as_ref().unwrap_or(&self.label)
+    }
+
+    pub fn insert_text(&self) -> &str {
+        self.text_edit
+            .as_ref()
+            .map(|text_edit| &text_edit.new_text)
+            .or(self.insert_text.as_ref())
+            .unwrap_or(&self.label)
+    }
+
+    pub fn range(&self) -> Option<(Position, Position)> {
+        self.text_edit.as_ref().map(|text_edit| text_edit.range)
+    }
+
+    pub(super) fn encode(self, encoding: PositionEncoding, doc: &Doc) -> LspCompletionItem {
+        LspCompletionItem {
+            label: self.label,
+            sort_text: self.sort_text,
+            filter_text: self.filter_text,
+            insert_text: self.insert_text,
+            text_edit: self
+                .text_edit
+                .map(|text_edit| text_edit.encode(encoding, doc)),
+            additional_text_edits: self
+                .additional_text_edits
+                .into_iter()
+                .map(|text_edit| text_edit.encode(encoding, doc))
+                .collect(),
+            detail: self.detail,
+            documentation: self.documentation,
+            data: self.data,
+        }
     }
 }
 
@@ -392,15 +450,15 @@ pub struct EditList {
 }
 
 #[derive(Debug)]
-pub struct CodeAction<'a> {
-    pub title: &'a str,
+pub struct CodeAction {
+    pub title: String,
     pub edit_lists: Vec<EditList>,
-    pub command: Option<Command<'a>>,
+    pub command: Option<Command>,
     pub is_preferred: bool,
 }
 
 #[derive(Debug)]
-pub enum CodeActionResult<'a> {
-    Command(Command<'a>),
-    CodeAction(CodeAction<'a>),
+pub enum CodeActionResult {
+    Command(Command),
+    CodeAction(CodeAction),
 }

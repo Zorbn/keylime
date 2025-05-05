@@ -12,7 +12,7 @@ use crate::{
     config::language::Language,
     ctx::{ctx_with_time, Ctx},
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
-    lsp::{language_server::LanguageServer, LspExpectedResponse, LspSentRequest},
+    lsp::{language_server::LanguageServer, types::TextEdit, LspExpectedResponse, LspSentRequest},
     platform::gfx::Gfx,
     temp_buffer::TempString,
     text::grapheme,
@@ -1087,8 +1087,8 @@ impl Doc {
         }
     }
 
-    pub fn insert(&mut self, start: Position, text: &str, ctx: &mut Ctx) {
-        self.insert_as_action_kind(start, text, ActionKind::Done, ctx);
+    pub fn insert(&mut self, start: Position, text: &str, ctx: &mut Ctx) -> Position {
+        self.insert_as_action_kind(start, text, ActionKind::Done, ctx)
     }
 
     pub fn insert_as_action_kind(
@@ -1097,9 +1097,9 @@ impl Doc {
         text: &str,
         action_kind: ActionKind,
         ctx: &mut Ctx,
-    ) {
+    ) -> Position {
         if text.is_empty() {
-            return;
+            return start;
         }
 
         if action_kind == ActionKind::Done {
@@ -1158,6 +1158,8 @@ impl Doc {
         if self.do_shift() {
             self.shift_positions(start, position, Self::shift_position_by_insert, ctx);
         }
+
+        position
     }
 
     fn shift_positions(
@@ -2001,6 +2003,29 @@ impl Doc {
 
         self.get_line(prefix_end.y)
             .map(|line| &line[prefix_start.x..prefix_end.x])
+    }
+
+    pub fn apply_edit_list(&mut self, edits: &mut [TextEdit], ctx: &mut Ctx) {
+        for i in 0..edits.len() {
+            let current_edit = &edits[i];
+
+            let (start, end) = current_edit.range;
+
+            self.delete(start, end, ctx);
+            let insert_end = self.insert(start, &current_edit.new_text, ctx);
+
+            for future_edit in edits.iter_mut().skip(i + 1) {
+                let (future_start, future_end) = future_edit.range;
+
+                let future_start = self.shift_position_by_delete(start, end, future_start);
+                let future_end = self.shift_position_by_delete(start, end, future_end);
+
+                let future_start = self.shift_position_by_insert(start, insert_end, future_start);
+                let future_end = self.shift_position_by_insert(start, insert_end, future_end);
+
+                future_edit.range = (future_start, future_end);
+            }
+        }
     }
 
     pub fn get_language_server_mut<'a>(

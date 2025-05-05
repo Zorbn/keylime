@@ -1,8 +1,13 @@
+use std::collections::{hash_map::Entry, HashMap};
+
 use crate::{
     ctx::Ctx,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::action::action_keybind,
-    lsp::types::{CodeActionResult, CompletionItem, EditList},
+    lsp::{
+        types::{CodeAction, CodeActionResult, Command, CompletionItem, Documentation, EditList},
+        LspSentRequest,
+    },
     platform::gfx::Gfx,
     text::{cursor_index::CursorIndex, doc::Doc, line_pool::LinePool},
     ui::{
@@ -12,14 +17,34 @@ use crate::{
     },
 };
 
-use super::completion_result::{CompletionCommand, CompletionResult, CompletionResultAction};
-
 const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
+
+#[derive(Debug)]
+pub enum CompletionResult {
+    SimpleCompletion(String),
+    Completion {
+        item: CompletionItem,
+        needs_resolve_request: bool,
+    },
+    Command(Command),
+    CodeAction(CodeAction),
+}
+
+impl CompletionResult {
+    pub fn label(&self) -> &str {
+        match self {
+            CompletionResult::SimpleCompletion(text) => text,
+            CompletionResult::Completion { item, .. } => &item.label,
+            CompletionResult::Command(command) => &command.title,
+            CompletionResult::CodeAction(code_action) => &code_action.title,
+        }
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct CompletionListResult {
     pub edit_lists: Vec<EditList>,
-    pub command: Option<CompletionCommand>,
+    pub command: Option<Command>,
 }
 
 pub struct CompletionList {
@@ -28,6 +53,8 @@ pub struct CompletionList {
     prefix: String,
 
     should_open: bool,
+
+    lsp_expected_responses: HashMap<usize, usize>,
 }
 
 impl CompletionList {
@@ -38,6 +65,8 @@ impl CompletionList {
             prefix: String::new(),
 
             should_open: false,
+
+            lsp_expected_responses: HashMap::new(),
         }
     }
 
@@ -51,8 +80,9 @@ impl CompletionList {
         let mut longest_visible_result = 0;
 
         for y in min_y..max_y {
-            longest_visible_result =
-                longest_visible_result.max(self.result_list.results[y].label.len());
+            let label = self.result_list.results[y].label();
+
+            longest_visible_result = longest_visible_result.max(label.len());
         }
 
         self.result_list.layout(
@@ -96,9 +126,33 @@ impl CompletionList {
             _ => {}
         }
 
+        if let Some(CompletionResult::Completion {
+            item,
+            needs_resolve_request: needs_resolve_request @ false,
+        }) = self.result_list.get_selected_result_mut()
+        {
+            *needs_resolve_request = true;
+
+            if let Some(sent_request) = Self::lsp_completion_item_resolve(item, doc, ctx) {
+                let index = self.result_list.selected_result_index();
+
+                self.lsp_expected_responses.insert(sent_request.id, index);
+            }
+        }
+
         self.should_open = self.get_should_open(ui, widget, ctx);
 
         completion_result
+    }
+
+    fn lsp_completion_item_resolve(
+        item: &CompletionItem,
+        doc: &mut Doc,
+        ctx: &mut Ctx,
+    ) -> Option<LspSentRequest> {
+        let (_, language_server) = doc.get_language_server_mut(ctx)?;
+
+        Some(language_server.completion_item_resolve(item.clone(), doc))
     }
 
     fn get_should_open(&mut self, ui: &mut Ui, widget: &Widget, ctx: &mut Ctx) -> bool {
@@ -127,17 +181,21 @@ impl CompletionList {
     }
 
     pub fn draw(&mut self, ctx: &mut Ctx) {
-        self.result_list.draw(ctx, |result| &result.label);
+        self.result_list.draw(ctx, |result| result.label());
 
         let Some(selected_result) = self.result_list.get_selected_result() else {
             return;
         };
 
-        let CompletionResultAction::Completion {
-            detail,
-            documentation,
+        let CompletionResult::Completion {
+            item:
+                CompletionItem {
+                    detail,
+                    documentation,
+                    ..
+                },
             ..
-        } = &selected_result.action
+        } = &selected_result
         else {
             return;
         };
@@ -164,8 +222,13 @@ impl CompletionList {
         }
 
         if let Some(documentation) = documentation {
+            let text = match documentation {
+                Documentation::PlainText(text) => text,
+                Documentation::MarkupContent { value, .. } => value,
+            };
+
             draw_popup(
-                documentation,
+                text,
                 position,
                 PopupAlignment::TopLeft,
                 theme.normal,
@@ -175,6 +238,28 @@ impl CompletionList {
         }
     }
 
+    pub fn lsp_resolve_completion_item(&mut self, id: Option<usize>, item: CompletionItem) {
+        let Some(id) = id else {
+            return;
+        };
+
+        let Entry::Occupied(index) = self.lsp_expected_responses.entry(id) else {
+            return;
+        };
+
+        let index = index.remove();
+
+        let Some(CompletionResult::Completion {
+            item: existing_item,
+            ..
+        }) = &mut self.result_list.results.get_mut(index)
+        else {
+            return;
+        };
+
+        *existing_item = item;
+    }
+
     pub fn lsp_update_completion_results(&mut self, mut items: Vec<CompletionItem>) {
         self.clear();
 
@@ -182,9 +267,10 @@ impl CompletionList {
         items.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
 
         for item in items {
-            let result = CompletionResult::from_completion_item(item, &mut self.pool);
-
-            self.result_list.results.push(result);
+            self.result_list.results.push(CompletionResult::Completion {
+                item,
+                needs_resolve_request: false,
+            });
         }
     }
 
@@ -194,21 +280,20 @@ impl CompletionList {
         for result in results {
             match result {
                 CodeActionResult::Command(command) => {
-                    let result = CompletionResult::from_command(command, &mut self.pool);
-
-                    self.result_list.results.push(result);
+                    self.result_list
+                        .results
+                        .push(CompletionResult::Command(command));
                 }
                 CodeActionResult::CodeAction(code_action) => {
-                    let (result, is_preferred) =
-                        CompletionResult::from_code_action(code_action, &mut self.pool);
-
-                    let index = if is_preferred {
+                    let index = if code_action.is_preferred {
                         0
                     } else {
                         self.result_list.results.len()
                     };
 
-                    self.result_list.results.insert(index, result);
+                    self.result_list
+                        .results
+                        .insert(index, CompletionResult::CodeAction(code_action));
                 }
             }
         }
@@ -254,16 +339,10 @@ impl CompletionList {
 
         if !self.prefix.is_empty() {
             doc.tokens()
-                .traverse(&self.prefix, &mut self.pool, |label| {
-                    self.result_list.results.push(CompletionResult {
-                        label,
-                        action: CompletionResultAction::Completion {
-                            insert_text: None,
-                            range: None,
-                            detail: None,
-                            documentation: None,
-                        },
-                    });
+                .traverse(&self.prefix, &mut self.pool, |result| {
+                    self.result_list
+                        .results
+                        .push(CompletionResult::SimpleCompletion(result));
                 });
         }
 
@@ -271,9 +350,8 @@ impl CompletionList {
     }
 
     pub fn clear(&mut self) {
-        for result in self.result_list.drain() {
-            result.push_to_pool(&mut self.pool);
-        }
+        self.result_list.drain();
+        self.lsp_expected_responses.clear();
     }
 
     fn perform_result_action(
@@ -283,31 +361,33 @@ impl CompletionList {
     ) -> Option<CompletionListResult> {
         let result = self.result_list.remove_selected_result()?;
 
-        match result.action {
-            CompletionResultAction::Completion {
-                insert_text, range, ..
-            } => {
-                let insert_text = insert_text.as_ref().unwrap_or(&result.label);
+        match result {
+            CompletionResult::SimpleCompletion(text) => {
+                doc.insert_at_cursors(&text[self.prefix.len()..], ctx);
 
-                if let Some((start, end)) = range {
+                None
+            }
+            CompletionResult::Completion { mut item, .. } => {
+                let insert_text = item.insert_text();
+
+                if let Some((start, end)) = item.range() {
                     doc.delete(start, end, ctx);
                     doc.insert(start, insert_text, ctx);
                 } else {
                     doc.insert_at_cursors(&insert_text[self.prefix.len()..], ctx);
                 }
 
+                doc.apply_edit_list(&mut item.additional_text_edits, ctx);
+
                 None
             }
-            CompletionResultAction::Command(command) => Some(CompletionListResult {
+            CompletionResult::Command(command) => Some(CompletionListResult {
                 command: Some(command),
                 ..Default::default()
             }),
-            CompletionResultAction::CodeAction {
-                edit_lists,
-                command,
-            } => Some(CompletionListResult {
-                edit_lists,
-                command,
+            CompletionResult::CodeAction(code_action) => Some(CompletionListResult {
+                edit_lists: code_action.edit_lists,
+                command: code_action.command,
             }),
         }
     }
