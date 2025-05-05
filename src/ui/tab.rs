@@ -628,7 +628,7 @@ impl Tab {
         }
 
         if is_focused && ctx.window.is_focused() {
-            let cursor_width = (gfx.glyph_width() * 0.25).ceil();
+            let cursor_width = gfx.border_width() * 2.0;
 
             for index in doc.cursor_indices() {
                 let cursor_position = doc.position_to_visual(
@@ -639,7 +639,7 @@ impl Tab {
 
                 gfx.add_rect(
                     Rect::new(
-                        (cursor_position.x - cursor_width / 2.0).max(0.0) - camera_position.x,
+                        cursor_position.x - camera_position.x,
                         cursor_position.y,
                         cursor_width,
                         gfx.line_height(),
