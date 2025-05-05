@@ -1,4 +1,7 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    path::PathBuf,
+};
 
 use crate::{
     ctx::Ctx,
@@ -53,6 +56,7 @@ pub struct CompletionList {
     prefix: String,
 
     should_open: bool,
+    handled_path: PathBuf,
 
     lsp_expected_responses: HashMap<usize, usize>,
 }
@@ -65,6 +69,7 @@ impl CompletionList {
             prefix: String::new(),
 
             should_open: false,
+            handled_path: PathBuf::new(),
 
             lsp_expected_responses: HashMap::new(),
         }
@@ -299,7 +304,6 @@ impl CompletionList {
         }
     }
 
-    // TODO: Simplify all of the clear calls.
     pub fn update_results(
         &mut self,
         doc: &mut Doc,
@@ -308,18 +312,24 @@ impl CompletionList {
     ) -> Option<()> {
         let position = doc.get_cursor(CursorIndex::Main).position;
         let is_position_different = Some(position) != handled_position;
+        let is_path_different = Some(self.handled_path.as_path()) != doc.path().some();
 
-        if self.should_open || is_position_different {
+        self.handled_path.clear();
+
+        if let Some(path) = doc.path().some() {
+            self.handled_path.push(path);
+        }
+
+        if is_position_different || is_path_different {
             self.prefix.clear();
+            self.clear();
         }
 
         if !self.should_open {
-            if is_position_different {
-                self.clear();
-            }
-
             return None;
         }
+
+        self.prefix.clear();
 
         let Some(prefix) = doc.get_completion_prefix(ctx.gfx) else {
             self.clear();
