@@ -23,8 +23,8 @@ use platform::window::WindowRunner;
 /*
  * TODO:
  * When pasting add indentation to all lines based on first.
- * While typing in the search box, interactively search from the original start position to the first result.
  * When reloading a file compare the lines and only delete & re-insert doc lines that changed.
+ * - After this we can add a format on save feature?
  * Use FocusList for ResultList's results/selection.
  * If the language server returns no completions for a request use simple completions instead.
  * Add LSP hover documentation support.

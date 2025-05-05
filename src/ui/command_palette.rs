@@ -153,7 +153,7 @@ impl CommandPalette {
                     self.open(ui, Box::new(FindFileMode), editor, ctx);
                 }
                 action_name!(OpenSearch) => {
-                    self.open(ui, Box::new(SearchMode), editor, ctx);
+                    self.open(ui, Box::new(SearchMode::new()), editor, ctx);
                 }
                 action_name!(OpenSearchAndReplace) => {
                     self.open(ui, Box::new(SearchAndReplaceMode::new()), editor, ctx);

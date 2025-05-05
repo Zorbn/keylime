@@ -1,7 +1,11 @@
 use crate::{
+    geometry::position::Position,
     platform::gfx::Gfx,
     text::{cursor_index::CursorIndex, doc::Doc, selection::Selection},
-    ui::{result_list::ResultListSubmitKind, tab::Tab},
+    ui::{
+        editor::editor_pane::EditorPane, result_list::ResultListSubmitKind, slot_list::SlotList,
+        tab::Tab,
+    },
 };
 
 use super::{
@@ -9,11 +13,42 @@ use super::{
     CommandPalette, CommandPaletteAction,
 };
 
-pub struct SearchMode;
+pub struct SearchMode {
+    start: Position,
+}
+
+impl SearchMode {
+    pub fn new() -> Self {
+        Self {
+            start: Position::ZERO,
+        }
+    }
+}
 
 impl CommandPaletteMode for SearchMode {
     fn title(&self) -> &str {
         "Search"
+    }
+
+    fn on_open(
+        &mut self,
+        _: &mut CommandPalette,
+        CommandPaletteEventArgs { pane, doc_list, .. }: CommandPaletteEventArgs,
+    ) {
+        self.start = get_start(pane, doc_list);
+    }
+
+    fn on_update_results(
+        &mut self,
+        command_palette: &mut CommandPalette,
+        CommandPaletteEventArgs {
+            pane,
+            doc_list,
+            ctx,
+            ..
+        }: CommandPaletteEventArgs,
+    ) {
+        preview_search(self.start, command_palette, pane, doc_list, ctx.gfx);
     }
 
     fn on_submit(
@@ -34,9 +69,8 @@ impl CommandPaletteMode for SearchMode {
             return CommandPaletteAction::Stay;
         }
 
-        let focused_tab_index = pane.focused_tab_index();
-
         let search_term = command_palette.get_input();
+        let focused_tab_index = pane.focused_tab_index();
 
         let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
             return CommandPaletteAction::Stay;
@@ -44,6 +78,7 @@ impl CommandPaletteMode for SearchMode {
 
         search(
             search_term,
+            None,
             tab,
             doc,
             kind == ResultListSubmitKind::Alternate,
@@ -55,12 +90,16 @@ impl CommandPaletteMode for SearchMode {
 }
 
 pub struct SearchAndReplaceMode {
+    start: Position,
     search_term: Option<String>,
 }
 
 impl SearchAndReplaceMode {
     pub fn new() -> Self {
-        Self { search_term: None }
+        Self {
+            start: Position::ZERO,
+            search_term: None,
+        }
     }
 }
 
@@ -71,6 +110,31 @@ impl CommandPaletteMode for SearchAndReplaceMode {
         } else {
             "Search and Replace: Replace"
         }
+    }
+
+    fn on_open(
+        &mut self,
+        _: &mut CommandPalette,
+        CommandPaletteEventArgs { pane, doc_list, .. }: CommandPaletteEventArgs,
+    ) {
+        self.start = get_start(pane, doc_list);
+    }
+
+    fn on_update_results(
+        &mut self,
+        command_palette: &mut CommandPalette,
+        CommandPaletteEventArgs {
+            pane,
+            doc_list,
+            ctx,
+            ..
+        }: CommandPaletteEventArgs,
+    ) {
+        if self.search_term.is_some() {
+            return;
+        }
+
+        preview_search(self.start, command_palette, pane, doc_list, ctx.gfx);
     }
 
     fn on_submit(
@@ -133,6 +197,7 @@ impl CommandPaletteMode for SearchAndReplaceMode {
 
         search(
             search_term,
+            None,
             tab,
             doc,
             kind == ResultListSubmitKind::Alternate,
@@ -143,8 +208,42 @@ impl CommandPaletteMode for SearchAndReplaceMode {
     }
 }
 
-fn search(search_term: &str, tab: &mut Tab, doc: &mut Doc, is_reverse: bool, gfx: &mut Gfx) {
-    let start = doc.get_cursor(CursorIndex::Main).position;
+fn get_start(pane: &EditorPane, doc_list: &SlotList<Doc>) -> Position {
+    let focused_tab_index = pane.focused_tab_index();
+
+    let Some((_, doc)) = pane.get_tab_with_data(focused_tab_index, doc_list) else {
+        return Position::ZERO;
+    };
+
+    doc.get_cursor(CursorIndex::Main).position
+}
+
+fn preview_search(
+    start: Position,
+    command_palette: &CommandPalette,
+    pane: &mut EditorPane,
+    doc_list: &mut SlotList<Doc>,
+    gfx: &mut Gfx,
+) {
+    let search_term = command_palette.get_input();
+    let focused_tab_index = pane.focused_tab_index();
+
+    let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
+        return;
+    };
+
+    search(search_term, Some(start), tab, doc, false, gfx);
+}
+
+fn search(
+    search_term: &str,
+    start: Option<Position>,
+    tab: &mut Tab,
+    doc: &mut Doc,
+    is_reverse: bool,
+    gfx: &mut Gfx,
+) {
+    let start = start.unwrap_or(doc.get_cursor(CursorIndex::Main).position);
 
     if let Some(position) = doc.search(search_term, start, is_reverse, gfx) {
         let end = doc.move_position(position, search_term.len() as isize, 0, gfx);
