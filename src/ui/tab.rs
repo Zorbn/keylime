@@ -20,7 +20,7 @@ use crate::{
 };
 
 use super::{
-    camera::{Camera, RECENTER_DISTANCE},
+    camera::{Camera, OUTPUT_SCROLL_PADDING_LINES, RECENTER_DISTANCE},
     color::Color,
     core::{Ui, Widget},
 };
@@ -46,6 +46,7 @@ pub struct Tab {
 
     pub camera: Camera,
     handled_cursor_position: Option<Position>,
+    handled_doc_len: Option<usize>,
 
     tab_bounds: Rect,
     gutter_bounds: Rect,
@@ -59,6 +60,7 @@ impl Tab {
 
             camera: Camera::new(),
             handled_cursor_position: None,
+            handled_doc_len: None,
 
             tab_bounds: Rect::ZERO,
             gutter_bounds: Rect::ZERO,
@@ -92,6 +94,7 @@ impl Tab {
 
     pub fn update(&mut self, widget: &Widget, ui: &mut Ui, doc: &mut Doc, ctx: &mut Ctx) {
         self.handled_cursor_position = Some(doc.get_cursor(CursorIndex::Main).position);
+        self.handled_doc_len = Some(doc.lines().len());
 
         let mut grapheme_handler = ui.get_grapheme_handler(widget, ctx.window);
 
@@ -204,15 +207,28 @@ impl Tab {
     }
 
     fn update_camera_vertical(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
-        let new_cursor_position = doc.get_cursor(CursorIndex::Main).position;
-        let new_cursor_visual_position =
-            doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
+        let doc_len = doc.lines().len();
+        let max_y = (doc_len - 1) as f32 * gfx.line_height();
 
-        let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
-        let recenter_distance = Self::get_doc_recenter_distance(doc);
+        let (target_y, can_recenter, recenter_distance) = match doc.kind() {
+            DocKind::Output => {
+                let can_recenter = self.handled_doc_len != Some(doc_len);
+                let target_y =
+                    max_y - self.camera.y() + gfx.line_height() * OUTPUT_SCROLL_PADDING_LINES;
 
-        let target_y = new_cursor_visual_position.y + gfx.line_height() / 2.0;
-        let max_y = (doc.lines().len() - 1) as f32 * gfx.line_height();
+                (target_y, can_recenter, 1)
+            }
+            _ => {
+                let new_cursor_position = doc.get_cursor(CursorIndex::Main).position;
+                let new_cursor_visual_position =
+                    doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
+
+                let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
+                let target_y = new_cursor_visual_position.y + gfx.line_height() / 2.0;
+
+                (target_y, can_recenter, RECENTER_DISTANCE)
+            }
+        };
 
         let scroll_border_top = gfx.line_height() * recenter_distance as f32;
         let scroll_border_bottom = self.doc_bounds.height - scroll_border_top;
@@ -233,12 +249,11 @@ impl Tab {
             doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
 
         let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
-        let recenter_distance = Self::get_doc_recenter_distance(doc);
 
         let target_x = new_cursor_visual_position.x + gfx.glyph_width() / 2.0;
         let max_x = f32::MAX;
 
-        let scroll_border_left = gfx.glyph_width() * recenter_distance as f32;
+        let scroll_border_left = gfx.glyph_width() * RECENTER_DISTANCE as f32;
         let scroll_border_right = self.doc_bounds.width - scroll_border_left;
 
         self.camera.horizontal.update(
@@ -249,13 +264,6 @@ impl Tab {
             can_recenter,
             dt,
         );
-    }
-
-    fn get_doc_recenter_distance(doc: &Doc) -> usize {
-        match doc.kind() {
-            DocKind::Output => 1,
-            _ => RECENTER_DISTANCE,
-        }
     }
 
     pub fn tab_bounds(&self) -> Rect {

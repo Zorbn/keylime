@@ -23,7 +23,7 @@ use crate::{
         syntax_highlighter::TerminalHighlightKind,
     },
     ui::{
-        camera::CameraRecenterKind,
+        camera::{CameraRecenterKind, OUTPUT_SCROLL_PADDING_LINES},
         core::{Ui, Widget},
         tab::Tab,
     },
@@ -395,7 +395,8 @@ impl TerminalEmulator {
         let grid_width = (doc_width / gfx.glyph_width()).floor() as usize;
         let grid_width = grid_width.max(MIN_GRID_WIDTH);
 
-        let grid_height = (doc_height / gfx.line_height()).floor() as usize;
+        let grid_height =
+            (doc_height / gfx.line_height() - OUTPUT_SCROLL_PADDING_LINES).floor() as usize;
         let grid_height = grid_height.max(MIN_GRID_HEIGHT);
 
         (grid_width, grid_height)
