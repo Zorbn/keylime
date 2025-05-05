@@ -14,5 +14,6 @@ impl Mods {
     pub const SHIFT: Self = Self::from(Mod::Shift);
     pub const CTRL: Self = Self::from(Mod::Ctrl);
     pub const ALT: Self = Self::from(Mod::Alt);
+    #[allow(dead_code)]
     pub const CMD: Self = Self::from(Mod::Cmd);
 }

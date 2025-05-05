@@ -22,7 +22,6 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
- * Update Windows platform with input changes.
  * When reloading a file compare the lines and only delete & re-insert doc lines that changed.
  * Use FocusList for ResultList's results/selection.
  * If the language server returns no completions for a request use simple completions instead.

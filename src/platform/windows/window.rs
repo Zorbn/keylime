@@ -41,12 +41,13 @@ use windows_core::BOOL;
 use crate::{
     app::App,
     config::{theme::Theme, Config},
+    geometry::visual_position::VisualPosition,
     input::{
         action::{Action, ActionName},
         input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
         key::Key,
         keybind::Keybind,
-        mods::Mods,
+        mods::{Mod, Mods},
         mouse_button::MouseButton,
         mouse_scroll::MouseScroll,
         mousebind::{MouseClickKind, Mousebind},
@@ -306,6 +307,8 @@ pub struct Window {
     pub actions_typed: Vec<Action>,
     pub mousebinds_pressed: Vec<Mousebind>,
     pub mouse_scrolls: Vec<MouseScroll>,
+    mouse_position: VisualPosition,
+    mods: Mods,
 
     was_copy_implicit: bool,
     did_just_copy: bool,
@@ -351,6 +354,8 @@ impl Window {
             actions_typed: Vec::new(),
             mousebinds_pressed: Vec::new(),
             mouse_scrolls: Vec::new(),
+            mouse_position: VisualPosition::new(0.0, 0.0),
+            mods: Mods::NONE,
 
             was_copy_implicit: false,
             did_just_copy: false,
@@ -484,6 +489,14 @@ impl Window {
 
     pub fn get_mouse_scroll_handler(&self) -> MouseScrollHandler {
         MouseScrollHandler::new(self.mouse_scrolls.len())
+    }
+
+    pub fn mouse_position(&self) -> VisualPosition {
+        self.mouse_position
+    }
+
+    pub fn mods(&self) -> Mods {
+        self.mods
     }
 
     pub fn set_clipboard(&mut self, text: &str, was_copy_implicit: bool) -> Result<()> {
@@ -677,25 +690,36 @@ impl Window {
                 }
             }
             WM_KEYDOWN | WM_SYSKEYDOWN => {
-                if let Some(key) = Self::key_from_keycode((wparam.0 & 0xFFFF) as u32) {
-                    const LSHIFT: i32 = VK_LSHIFT.0 as i32;
-                    const RSHIFT: i32 = VK_RSHIFT.0 as i32;
-                    const LCTRL: i32 = VK_LCONTROL.0 as i32;
-                    const RCTRL: i32 = VK_RCONTROL.0 as i32;
-                    const LALT: i32 = VK_LMENU.0 as i32;
-                    const RALT: i32 = VK_RMENU.0 as i32;
+                const LSHIFT: i32 = VK_LSHIFT.0 as i32;
+                const RSHIFT: i32 = VK_RSHIFT.0 as i32;
+                const LCTRL: i32 = VK_LCONTROL.0 as i32;
+                const RCTRL: i32 = VK_RCONTROL.0 as i32;
+                const LALT: i32 = VK_LMENU.0 as i32;
+                const RALT: i32 = VK_RMENU.0 as i32;
 
-                    let mods = Mods {
-                        has_shift: GetKeyState(LSHIFT) < 0 || GetKeyState(RSHIFT) < 0,
-                        has_ctrl: GetKeyState(LCTRL) < 0 || GetKeyState(RCTRL) < 0,
-                        has_alt: GetKeyState(LALT) < 0 || GetKeyState(RALT) < 0,
-                        has_cmd: false,
-                    };
+                let mut mods = Mods::NONE;
 
-                    let action = Action::from_keybind(Keybind::new(key, mods), &self.keymaps);
-
-                    self.actions_typed.push(action);
+                if GetKeyState(LSHIFT) < 0 || GetKeyState(RSHIFT) < 0 {
+                    mods = mods.with(Mod::Shift);
                 }
+
+                if GetKeyState(LCTRL) < 0 || GetKeyState(RCTRL) < 0 {
+                    mods = mods.with(Mod::Ctrl);
+                }
+
+                if GetKeyState(LALT) < 0 || GetKeyState(RALT) < 0 {
+                    mods = mods.with(Mod::Alt);
+                }
+
+                self.mods = mods;
+
+                let Some(key) = Self::key_from_keycode((wparam.0 & 0xFFFF) as u32) else {
+                    return DefWindowProcW(hwnd, msg, wparam, lparam);
+                };
+
+                let action = Action::from_keybind(Keybind::new(key, mods), &self.keymaps);
+
+                self.actions_typed.push(action);
 
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
@@ -713,6 +737,9 @@ impl Window {
                 {
                     self.current_click = None;
                 }
+
+                let (x, y) = Self::lparam_to_xy(lparam);
+                self.mouse_position = VisualPosition::new(x, y);
             }
             WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_MOUSEMOVE => {
                 const MK_LBUTTON: usize = 0x01;
@@ -739,15 +766,18 @@ impl Window {
                     None
                 };
 
-                let mods = Mods {
-                    has_shift: wparam.0 & MK_SHIFT != 0,
-                    has_ctrl: wparam.0 & MK_CONTROL != 0,
-                    has_alt: false,
-                    has_cmd: false,
-                };
+                let mut mods = Mods::NONE;
 
-                let x = transmute::<u32, i32>((lparam.0 & 0xFFFF) as u32) as f32;
-                let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xFFFF) as u32) as f32;
+                if wparam.0 & MK_SHIFT != 0 {
+                    mods = mods.with(Mod::Shift);
+                }
+
+                if wparam.0 & MK_CONTROL != 0 {
+                    mods = mods.with(Mod::Ctrl);
+                }
+
+                let (x, y) = Self::lparam_to_xy(lparam);
+                self.mouse_position = VisualPosition::new(x, y);
 
                 let (kind, is_drag) = match msg {
                     WM_MOUSEMOVE => {
@@ -821,15 +851,14 @@ impl Window {
 
                 let is_horizontal = msg == WM_MOUSEHWHEEL;
 
-                let x = transmute::<u32, i32>((lparam.0 & 0xFFFF) as u32);
-                let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xFFFF) as u32);
+                let (x, y) = Self::lparam_to_xy(lparam);
 
                 self.mouse_scrolls.push(MouseScroll {
                     delta,
                     is_horizontal,
                     is_precise: false,
-                    x: (x - self.x) as f32,
-                    y: (y - self.y) as f32,
+                    x: x - self.x as f32,
+                    y: y - self.y as f32,
                 });
             }
             WM_CLIPBOARDUPDATE => {
@@ -843,6 +872,13 @@ impl Window {
         }
 
         LRESULT(0)
+    }
+
+    unsafe fn lparam_to_xy(lparam: LPARAM) -> (f32, f32) {
+        let x = transmute::<u32, i32>((lparam.0 & 0xFFFF) as u32) as f32;
+        let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xFFFF) as u32) as f32;
+
+        (x, y)
     }
 
     fn key_from_keycode(value: u32) -> Option<Key> {

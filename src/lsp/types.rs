@@ -137,6 +137,7 @@ pub(super) struct LspCompletionItem {
     filter_text: Option<String>,
     insert_text: Option<String>,
     text_edit: Option<LspTextEdit>,
+    #[serde(default)]
     additional_text_edits: Vec<LspTextEdit>,
     detail: Option<String>,
     documentation: Option<Documentation>,
