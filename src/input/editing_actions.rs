@@ -346,6 +346,10 @@ fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
 
         let mut indent_position = Position::new(0, cursor.position.y);
 
+        while indent_position.y > 0 && doc.is_line_whitespace(indent_position.y) {
+            indent_position.y -= 1;
+        }
+
         while indent_position < cursor.position {
             let grapheme = doc.get_grapheme(indent_position);
 

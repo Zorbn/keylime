@@ -22,7 +22,8 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
- * Auto indent should follow the same logic as the indent guides to determine width.
+ * Pair matching shouldn't be blocked by symbols in front of the cursor.
+ * Pressing escape should hide any open diagnostic popups.
  * While typing in the search box, interactively search from the original start position to the first result.
  * Add status bar at the bottom of the editor (above the terminal) with misc info.
  * When reloading a file compare the lines and only delete & re-insert doc lines that changed.
