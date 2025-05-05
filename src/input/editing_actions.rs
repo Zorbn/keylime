@@ -338,8 +338,6 @@ fn handle_delete_forward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
 }
 
 fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
-    let mut text_buffer = ctx.buffers.text.take_mut();
-
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
 
@@ -349,27 +347,24 @@ fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
             indent_position.y -= 1;
         }
 
-        while indent_position < cursor.position {
-            let grapheme = doc.get_grapheme(indent_position);
+        let indent_line = doc.get_line(indent_position.y).unwrap_or_default();
+        let indent_line_start = doc.get_line_start(indent_position.y);
 
-            if grapheme::is_whitespace(grapheme) {
-                text_buffer.push_str(grapheme);
-                indent_position = doc.move_position(indent_position, 1, 0, ctx.gfx);
-            } else {
-                break;
-            }
-        }
+        let mut text_buffer = ctx.buffers.text.take_mut();
+        text_buffer.push_str(&indent_line[..indent_line_start]);
 
         let previous_position = doc.move_position(cursor.position, -1, 0, ctx.gfx);
-        let do_start_block =
-            doc.get_grapheme(previous_position) == "{" && doc.get_grapheme(cursor.position) == "}";
+        let do_start_block = doc.get_grapheme(previous_position) == "{";
+        let do_end_block = do_start_block && doc.get_grapheme(cursor.position) == "}";
 
         doc.insert_at_cursor(index, "\n", ctx);
         doc.insert_at_cursor(index, &text_buffer, ctx);
 
         if do_start_block {
             doc.indent_at_cursor(index, ctx);
+        }
 
+        if do_end_block {
             let cursor_position = doc.get_cursor(index).position;
 
             doc.insert_at_cursor(index, "\n", ctx);
@@ -377,9 +372,9 @@ fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
 
             doc.jump_cursor(index, cursor_position, false, ctx.gfx);
         }
-    }
 
-    ctx.buffers.text.replace(text_buffer)
+        ctx.buffers.text.replace(text_buffer);
+    }
 }
 
 fn handle_tab(mods: Mods, doc: &mut Doc, ctx: &mut Ctx) {
