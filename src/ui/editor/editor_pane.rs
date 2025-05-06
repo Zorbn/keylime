@@ -1,5 +1,4 @@
 use std::{
-    env::set_current_dir,
     io,
     ops::{Deref, DerefMut},
     path::Path,
@@ -53,15 +52,6 @@ impl EditorPane {
                     if let Ok(path) = find_file(FindFileKind::OpenFile) {
                         if let Err(err) = self.open_file(path.as_path(), doc_list, ctx) {
                             message("Error Opening File", &err.to_string(), MessageKind::Ok);
-                        }
-                    }
-                }
-                action_name!(OpenFolder) => {
-                    if let Ok(path) = find_file(FindFileKind::OpenFolder) {
-                        if let Err(err) = set_current_dir(path) {
-                            message("Error Opening Folder", &err.to_string(), MessageKind::Ok);
-                        } else {
-                            ctx.lsp.update_current_dir();
                         }
                     }
                 }

@@ -1,4 +1,5 @@
 use std::{
+    env::{current_dir, set_current_dir},
     fmt::Write,
     path::{Path, PathBuf},
 };
@@ -18,7 +19,11 @@ use crate::{
         mousebind::Mousebind,
     },
     lsp::{types::EditList, uri::uri_to_path},
-    platform::{file_watcher::FileWatcher, gfx::Gfx},
+    platform::{
+        dialog::{find_file, message, FindFileKind, MessageKind},
+        file_watcher::FileWatcher,
+        gfx::Gfx,
+    },
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
@@ -43,6 +48,7 @@ pub struct Editor {
     doc_list: SlotList<Doc>,
     // There should always be at least one pane.
     panes: FocusList<EditorPane>,
+    current_dir: Option<PathBuf>,
 
     do_show_diagnostic_popup: bool,
     pub signature_help_popup: SignatureHelpPopup,
@@ -56,6 +62,7 @@ impl Editor {
         let mut editor = Self {
             doc_list: SlotList::new(),
             panes: FocusList::new(),
+            current_dir: current_dir().ok(),
 
             do_show_diagnostic_popup: true,
             signature_help_popup: SignatureHelpPopup::new(),
@@ -147,6 +154,16 @@ impl Editor {
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
+                action_name!(OpenFolder) => {
+                    if let Ok(path) = find_file(FindFileKind::OpenFolder) {
+                        if let Err(err) = set_current_dir(path) {
+                            message("Error Opening Folder", &err.to_string(), MessageKind::Ok);
+                        } else {
+                            self.current_dir = current_dir().ok();
+                            ctx.lsp.update_current_dir();
+                        }
+                    }
+                }
                 action_name!(NewPane) => self.add_pane(&mut ctx.buffers.lines),
                 action_name!(ClosePane) => self.close_pane(ctx),
                 action_name!(PreviousPane) => self.panes.focus_previous(),
@@ -380,6 +397,8 @@ impl Editor {
         let path = doc
             .path()
             .some()
+            .zip(self.current_dir.as_ref())
+            .and_then(|(path, current_dir)| path.strip_prefix(current_dir).ok())
             .and_then(|path| path.to_str())
             .unwrap_or_default();
 
@@ -389,7 +408,7 @@ impl Editor {
 
         let _ = write!(
             status_text,
-            "{}{}Ln {}, Col {}",
+            "{}{}Ln {:02}, Col {:02}",
             path,
             path_suffix,
             position.y + 1,
