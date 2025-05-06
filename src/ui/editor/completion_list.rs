@@ -315,12 +315,12 @@ impl CompletionList {
             self.handled_path.push(path);
         }
 
-        if is_position_different || is_path_different {
-            self.prefix.clear();
-            self.clear();
-        }
-
         if !self.should_open {
+            if is_position_different || is_path_different {
+                self.prefix.clear();
+                self.clear();
+            }
+
             return None;
         }
 
