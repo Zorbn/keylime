@@ -81,7 +81,8 @@ impl SignatureHelpPopup {
                 gfx,
             );
 
-            position.y -= documentation_bounds.height;
+            position.x = documentation_bounds.x + gfx.glyph_width();
+            position.y -= documentation_bounds.height - gfx.border_width();
         }
 
         draw_popup(
