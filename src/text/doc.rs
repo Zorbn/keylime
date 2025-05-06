@@ -2211,6 +2211,17 @@ impl Doc {
         Some(())
     }
 
+    pub fn lsp_formatting(&mut self, ctx: &mut Ctx) -> Option<()> {
+        let indent_width = ctx.config.get_indent_width_for_doc(self);
+
+        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let path = self.path.on_drive()?;
+
+        language_server.formatting(path, indent_width);
+
+        Some(())
+    }
+
     fn lsp_text_document_notification(
         &mut self,
         method: &'static str,

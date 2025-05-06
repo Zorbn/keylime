@@ -18,7 +18,7 @@ pub(super) enum SpriteKind {
     Rect = 2,
 }
 
-const TAB_WIDTH: usize = 4;
+pub const TAB_WIDTH: usize = 4;
 
 pub struct Gfx {
     pub(super) inner: platform_impl::gfx::Gfx,

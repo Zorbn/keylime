@@ -10,7 +10,7 @@ use std::{
 };
 
 use language_server::{LanguageServer, MessageResult};
-use types::{Diagnostic, LspMessage};
+use types::{Diagnostic, LspMessage, TextEdit};
 use uri::uri_to_path;
 
 use crate::{
@@ -84,11 +84,19 @@ impl Lsp {
         let server = ctx.lsp.servers.get_mut(&language_index)?.as_mut()?;
         let encoding = server.position_encoding();
 
-        let method = server.get_message_method(&message)?;
-        let (_, doc) = editor.get_focused_tab_and_doc_mut()?;
+        let (path, method) = server.get_message_path_and_method(&message);
+        let method = method.unwrap_or_default();
 
-        if !doc.lsp_is_response_expected(method, message.id, ctx) {
-            return None;
+        let mut doc = path.as_ref().and_then(|path| editor.find_doc_mut(path));
+
+        if let Some(path) = path {
+            server.push_path(path);
+        }
+
+        if let Some(ref mut doc) = doc {
+            if !doc.lsp_is_response_expected(method, message.id, ctx) {
+                return None;
+            }
         }
 
         let server = ctx.lsp.servers.get_mut(&language_index)?.as_mut()?;
@@ -96,6 +104,8 @@ impl Lsp {
 
         match result {
             MessageResult::Completion(items) => {
+                let doc = doc?;
+
                 // The compiler should perform an in-place collect here because
                 // LspCompletionItem and CompletionItem have the same size and alignment.
                 let items = items
@@ -106,6 +116,7 @@ impl Lsp {
                 editor.completion_list.lsp_update_completion_results(items);
             }
             MessageResult::CompletionItemResolve(item) => {
+                let doc = doc?;
                 let item = item.decode(encoding, doc);
 
                 editor
@@ -113,6 +124,7 @@ impl Lsp {
                     .lsp_resolve_completion_item(message.id, item);
             }
             MessageResult::CodeAction(results) => {
+                let doc = doc?;
                 let results = results
                     .into_iter()
                     .map(|result| result.decode(encoding, doc))
@@ -123,6 +135,7 @@ impl Lsp {
                     .lsp_update_code_action_results(results);
             }
             MessageResult::PrepareRename { range, placeholder } => {
+                let doc = doc?;
                 let (start, end) = range.decode(encoding, doc);
 
                 let placeholder = placeholder.unwrap_or_else(|| {
@@ -136,6 +149,7 @@ impl Lsp {
                 command_palette.open(ui, Box::new(RenameMode::new(placeholder)), editor, ctx);
             }
             MessageResult::Rename(workspace_edit) => {
+                let doc = doc?;
                 let edit_lists = workspace_edit.decode(encoding, doc);
 
                 editor.apply_edit_lists(edit_lists, ctx);
@@ -201,6 +215,17 @@ impl Lsp {
                 editor
                     .signature_help_popup
                     .lsp_set_signature_help(signature_help);
+            }
+            MessageResult::Formatting(edits) => {
+                let doc = doc?;
+
+                let mut edits: Vec<TextEdit> = edits
+                    .into_iter()
+                    .map(|edit| edit.decode(encoding, doc))
+                    .collect();
+
+                doc.apply_edit_list(&mut edits, ctx);
+                let _ = doc.save(None, ctx);
             }
         }
 

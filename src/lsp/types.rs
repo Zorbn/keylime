@@ -115,13 +115,13 @@ pub(super) struct LspPublishDiagnosticsParams {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct LspTextEdit {
+pub(super) struct LspTextEdit {
     range: LspRange,
     new_text: String,
 }
 
 impl LspTextEdit {
-    fn decode(self, encoding: PositionEncoding, doc: &Doc) -> TextEdit {
+    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> TextEdit {
         TextEdit {
             range: self.range.decode(encoding, doc),
             new_text: self.new_text,

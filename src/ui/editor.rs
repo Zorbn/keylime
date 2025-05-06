@@ -284,11 +284,7 @@ impl Editor {
         ctx: &mut Ctx,
         mut doc_fn: impl FnMut(&mut Doc, &mut Ctx),
     ) {
-        let doc = self
-            .doc_list
-            .iter_mut()
-            .flatten()
-            .find(|doc| doc.path().on_drive() == Some(&path));
+        let doc = self.find_doc_mut(&path);
 
         let mut loaded_doc = None;
 
@@ -314,6 +310,13 @@ impl Editor {
             let _ = doc.save(None, ctx);
             doc.clear(ctx);
         }
+    }
+
+    pub fn find_doc_mut(&mut self, path: &Path) -> Option<&mut Doc> {
+        self.doc_list
+            .iter_mut()
+            .flatten()
+            .find(|doc| doc.path().on_drive() == Some(path))
     }
 
     // Necessary when syntax highlighting rules change.

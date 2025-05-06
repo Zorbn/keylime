@@ -24,6 +24,7 @@ const CONFIG_FILE: &str = "config.json";
 const CONFIG_DIR: &str = "config";
 const DEFAULT_COMMENT: fn() -> String = || "//".to_owned();
 const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
+const DEFAULT_FORMAT_ON_SAVE: fn() -> bool = || true;
 const DEFAULT_TERMINAL_HEIGHT: fn() -> f32 = || 12.0;
 const DEFAULT_IGNORED_DIRS: fn() -> Vec<String> = || {
     ["target", "build", "out", ".git"]
@@ -78,6 +79,8 @@ struct ConfigDesc<'a> {
     font_size: f32,
     #[serde(default = "DEFAULT_TRIM_TRAILING_WHITESPACE")]
     trim_trailing_whitespace: bool,
+    #[serde(default = "DEFAULT_FORMAT_ON_SAVE")]
+    format_on_save: bool,
     #[serde(default = "DEFAULT_TERMINAL_HEIGHT")]
     terminal_height: f32,
     theme: &'a str,
@@ -104,6 +107,7 @@ pub struct Config {
     pub font: String,
     pub font_size: f32,
     pub trim_trailing_whitespace: bool,
+    pub format_on_save: bool,
     pub terminal_height: f32,
     pub theme: Theme,
     pub languages: Vec<Language>,
@@ -173,6 +177,7 @@ impl Config {
             font: config_desc.font,
             font_size: config_desc.font_size,
             trim_trailing_whitespace: config_desc.trim_trailing_whitespace,
+            format_on_save: config_desc.format_on_save,
             terminal_height: config_desc.terminal_height.max(0.0),
             ignored_dirs,
             theme,
@@ -258,6 +263,7 @@ impl Default for Config {
             font: String::new(),
             font_size: 13.0,
             trim_trailing_whitespace: DEFAULT_TRIM_TRAILING_WHITESPACE(),
+            format_on_save: DEFAULT_FORMAT_ON_SAVE(),
             terminal_height: DEFAULT_TERMINAL_HEIGHT(),
             theme: Theme::default(),
             languages: Vec::new(),

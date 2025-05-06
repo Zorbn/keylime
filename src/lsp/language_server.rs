@@ -7,6 +7,7 @@ use std::{
 use serde_json::{json, value::RawValue, Value};
 
 use crate::{
+    config::language::IndentWidth,
     geometry::position::Position,
     lsp::{
         types::{
@@ -15,7 +16,10 @@ use crate::{
         },
         uri::uri_to_path,
     },
-    platform::process::{Process, ProcessKind},
+    platform::{
+        gfx::TAB_WIDTH,
+        process::{Process, ProcessKind},
+    },
     temp_buffer::TempString,
     text::doc::Doc,
 };
@@ -24,7 +28,7 @@ use super::{
     position_encoding::PositionEncoding,
     types::{
         CompletionItem, Diagnostic, LspCompletionItem, LspDiagnostic, LspPrepareRenameResult,
-        LspRange, LspWorkspaceEdit, SignatureHelp,
+        LspRange, LspTextEdit, LspWorkspaceEdit, SignatureHelp,
     },
     uri::path_to_uri,
     LspSentRequest,
@@ -75,17 +79,22 @@ pub(super) enum MessageResult<'a> {
         range: LspRange,
     },
     SignatureHelp(Option<SignatureHelp>),
+    Formatting(Vec<LspTextEdit>),
 }
 
 pub struct LanguageServer {
     pub(super) process: Process,
     next_request_id: usize,
-    pending_requests: HashMap<usize, &'static str>,
+    pending_requests: HashMap<usize, (Option<PathBuf>, &'static str)>,
     parse_state: MessageParseState,
     message_queue: Vec<u8>,
     has_initialized: bool,
+
     uri_buffer: TempString,
+    path_pool: Vec<PathBuf>,
+
     diagnostics: HashMap<PathBuf, Diagnostics>,
+
     position_encoding: PositionEncoding,
     trigger_chars: HashSet<char>,
     retrigger_chars: HashSet<char>,
@@ -102,8 +111,12 @@ impl LanguageServer {
             parse_state: MessageParseState::Idle,
             message_queue: Vec::new(),
             has_initialized: false,
+
             uri_buffer: TempString::new(),
+            path_pool: Vec::new(),
+
             diagnostics: HashMap::new(),
+
             position_encoding: PositionEncoding::Utf16,
             trigger_chars: HashSet::new(),
             retrigger_chars: HashSet::new(),
@@ -118,6 +131,7 @@ impl LanguageServer {
         path_to_uri(current_dir, &mut uri_buffer);
 
         language_server.send_request(
+            None,
             "initialize",
             json!({
                 "workspaceFolders": [
@@ -242,15 +256,18 @@ impl LanguageServer {
         }
     }
 
-    pub(super) fn get_message_method<'a>(&mut self, message: &'a LspMessage) -> Option<&'a str> {
-        message
+    pub(super) fn get_message_path_and_method<'a>(
+        &mut self,
+        message: &'a LspMessage,
+    ) -> (Option<PathBuf>, Option<&'a str>) {
+        if let Some((_, (path, method))) = message
             .id
-            .and_then(|id| {
-                self.pending_requests
-                    .remove_entry(&id)
-                    .map(|(_, method)| method)
-            })
-            .or(message.method.as_deref())
+            .and_then(|id| self.pending_requests.remove_entry(&id))
+        {
+            return (path, Some(method));
+        }
+
+        (None, message.method.as_deref())
     }
 
     pub(super) fn handle_message<'a>(
@@ -412,6 +429,12 @@ impl LanguageServer {
 
                 Some(MessageResult::SignatureHelp(result))
             }
+            "textDocument/formatting" => {
+                let result = message.result.as_ref()?;
+                let result = serde_json::from_str::<Vec<LspTextEdit>>(result.get()).ok();
+
+                result.map(MessageResult::Formatting)
+            }
             _ => None,
         }
     }
@@ -475,6 +498,7 @@ impl LanguageServer {
         path_to_uri(path, &mut uri_buffer);
 
         let sent_request = self.send_request(
+            Some(path),
             "textDocument/completion",
             json!({
                 "textDocument": {
@@ -491,6 +515,7 @@ impl LanguageServer {
 
     pub fn completion_item_resolve(&mut self, item: CompletionItem, doc: &Doc) -> LspSentRequest {
         self.send_request(
+            doc.path().on_drive(),
             "completionItem/resolve",
             json!(item.encode(self.position_encoding, doc)),
         )
@@ -510,6 +535,7 @@ impl LanguageServer {
         let encoding = self.position_encoding;
 
         let sent_reqest = self.send_request(
+            Some(path),
             "textDocument/codeAction",
             json!({
                 "textDocument": {
@@ -536,6 +562,7 @@ impl LanguageServer {
         path_to_uri(path, &mut uri_buffer);
 
         let sent_reqest = self.send_request(
+            Some(path),
             "textDocument/prepareRename",
             json!({
                 "textDocument": {
@@ -562,6 +589,7 @@ impl LanguageServer {
         path_to_uri(path, &mut uri_buffer);
 
         let sent_request = self.send_request(
+            Some(path),
             "textDocument/rename",
             json!({
                 "textDocument": {
@@ -583,6 +611,7 @@ impl LanguageServer {
         path_to_uri(path, &mut uri_buffer);
 
         let sent_request = self.send_request(
+            Some(path),
             "textDocument/references",
             json!({
                 "textDocument": {
@@ -602,6 +631,7 @@ impl LanguageServer {
 
     pub fn execute_command(&mut self, command: &str, arguments: &[Box<RawValue>]) {
         self.send_request(
+            None,
             "workspace/executeCommand",
             json!({
                 "command": command,
@@ -616,6 +646,7 @@ impl LanguageServer {
         path_to_uri(path, &mut uri_buffer);
 
         let sent_request = self.send_request(
+            Some(path),
             "textDocument/definition",
             json!({
                 "textDocument": {
@@ -643,6 +674,7 @@ impl LanguageServer {
         path_to_uri(path, &mut uri_buffer);
 
         let sent_request = self.send_request(
+            Some(path),
             "textDocument/signatureHelp",
             json!({
                 "textDocument": {
@@ -657,6 +689,30 @@ impl LanguageServer {
                     },
                     "triggerCharacter": trigger_char,
                     "isRetrigger": is_retrigger,
+                },
+            }),
+        );
+
+        self.uri_buffer.push(uri_buffer);
+
+        sent_request
+    }
+
+    pub fn formatting(&mut self, path: &Path, indent_width: IndentWidth) -> LspSentRequest {
+        let mut uri_buffer = self.uri_buffer.pop();
+
+        path_to_uri(path, &mut uri_buffer);
+
+        let sent_request = self.send_request(
+            Some(path),
+            "textDocument/formatting",
+            json!({
+                "textDocument": {
+                    "uri": uri_buffer,
+                },
+                "options": {
+                    "tabSize": TAB_WIDTH,
+                    "insertSpaces": matches!(indent_width, IndentWidth::Spaces(..)),
                 },
             }),
         );
@@ -683,11 +739,27 @@ impl LanguageServer {
         self.uri_buffer.push(uri_buffer);
     }
 
-    fn send_request(&mut self, method: &'static str, params: Value) -> LspSentRequest {
+    pub(super) fn push_path(&mut self, path: PathBuf) {
+        self.path_pool.push(path);
+    }
+
+    fn send_request(
+        &mut self,
+        path: Option<&Path>,
+        method: &'static str,
+        params: Value,
+    ) -> LspSentRequest {
         let id = self.next_request_id;
         self.next_request_id += 1;
 
-        self.pending_requests.insert(id, method);
+        let path = path.map(|path| {
+            let mut path_buf = self.path_pool.pop().unwrap_or_default();
+            path_buf.push(path);
+
+            path_buf
+        });
+
+        self.pending_requests.insert(id, (path, method));
 
         let content = json!({
             "jsonrpc": 2.0,
@@ -744,7 +816,7 @@ impl LanguageServer {
 
 impl Drop for LanguageServer {
     fn drop(&mut self) {
-        self.send_request("shutdown", json!({}));
+        self.send_request(None, "shutdown", json!({}));
         self.send_notification("exit", json!({}));
     }
 }
