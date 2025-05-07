@@ -497,7 +497,7 @@ impl TerminalEmulator {
             let delete_end = Position::new(0, delete_start.y + 1);
 
             let insert_start =
-                self.grid_position_to_doc_position(self.get_line_end(scroll_bottom - 1, doc), doc);
+                self.grid_position_to_doc_position(self.get_line_end(scroll_bottom, doc), doc);
 
             doc.delete(delete_start, delete_end, ctx);
 
