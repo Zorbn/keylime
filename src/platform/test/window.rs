@@ -68,7 +68,7 @@ impl Window {
         MouseScrollHandler::new(0)
     }
 
-    pub fn mouse_position(&self) -> VisualPosition {
+    pub fn get_mouse_position(&self) -> VisualPosition {
         VisualPosition::new(0.0, 0.0)
     }
 
