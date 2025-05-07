@@ -1,7 +1,6 @@
 use std::{
     cmp::Ordering,
     collections::VecDeque,
-    env::current_dir,
     fs::{read_dir, DirEntry, ReadDir},
     path::PathBuf,
     time::Instant,
@@ -84,11 +83,15 @@ impl CommandPaletteMode for AllFilesMode {
         "All Files"
     }
 
-    fn on_open(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {
+    fn on_open(
+        &mut self,
+        _: &mut CommandPalette,
+        CommandPaletteEventArgs { editor, .. }: CommandPaletteEventArgs,
+    ) {
         self.pending_dir_entries.clear();
         self.needs_new_results = true;
 
-        let Ok(current_dir) = current_dir() else {
+        let Some(current_dir) = editor.current_dir() else {
             return;
         };
 
@@ -103,11 +106,7 @@ impl CommandPaletteMode for AllFilesMode {
     fn on_submit(
         &mut self,
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs {
-            pane,
-            doc_list,
-            ctx,
-        }: CommandPaletteEventArgs,
+        CommandPaletteEventArgs { editor, ctx }: CommandPaletteEventArgs,
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
         if !matches!(
@@ -124,6 +123,8 @@ impl CommandPaletteMode for AllFilesMode {
         else {
             return CommandPaletteAction::Stay;
         };
+
+        let (pane, doc_list) = editor.get_focused_pane_and_doc_list_mut();
 
         if pane.open_file(path, doc_list, ctx).is_ok() {
             CommandPaletteAction::Close

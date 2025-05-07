@@ -136,10 +136,6 @@ impl Terminal {
         );
     }
 
-    pub fn bounds(&self) -> Rect {
-        self.widget.bounds()
-    }
-
     pub fn is_animating(&self) -> bool {
         self.pane.is_animating()
     }

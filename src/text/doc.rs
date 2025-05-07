@@ -41,11 +41,20 @@ macro_rules! action_history {
     };
 }
 
-#[derive(Default)]
-enum LineEnding {
+#[derive(Debug, Clone, Copy)]
+pub enum LineEnding {
     Lf,
-    #[default]
     CrLf,
+}
+
+impl Default for LineEnding {
+    fn default() -> Self {
+        if cfg!(target_os = "windows") {
+            LineEnding::CrLf
+        } else {
+            LineEnding::Lf
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -2237,6 +2246,10 @@ impl Doc {
 
     pub fn version(&self) -> usize {
         self.version
+    }
+
+    pub fn line_ending(&self) -> LineEnding {
+        self.line_ending
     }
 }
 

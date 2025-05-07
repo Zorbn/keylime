@@ -1,6 +1,5 @@
 use std::{
     env::{current_dir, set_current_dir},
-    fmt::Write,
     path::{Path, PathBuf},
 };
 
@@ -53,7 +52,6 @@ pub struct Editor {
     do_show_diagnostic_popup: bool,
     pub signature_help_popup: SignatureHelpPopup,
     pub completion_list: CompletionList,
-    status_bar_bounds: Rect,
     pub widget: Widget,
 }
 
@@ -67,7 +65,6 @@ impl Editor {
             do_show_diagnostic_popup: true,
             signature_help_popup: SignatureHelpPopup::new(),
             completion_list: CompletionList::new(),
-            status_bar_bounds: Rect::ZERO,
             widget: Widget::new(ui, true),
         };
 
@@ -81,8 +78,6 @@ impl Editor {
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx) {
-        self.status_bar_bounds = Rect::new(0.0, 0.0, bounds.width, gfx.tab_height());
-
         let mut pane_bounds = bounds;
         pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
 
@@ -160,7 +155,7 @@ impl Editor {
                             message("Error Opening Folder", &err.to_string(), MessageKind::Ok);
                         } else {
                             self.current_dir = current_dir().ok();
-                            ctx.lsp.update_current_dir();
+                            ctx.lsp.update_current_dir(self.current_dir.clone());
                         }
                     }
                 }
@@ -362,8 +357,6 @@ impl Editor {
     }
 
     pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        self.draw_status_bar(ctx);
-
         let is_focused = ui.is_focused(&self.widget);
         let focused_pane_index = self.panes.focused_index();
 
@@ -388,45 +381,6 @@ impl Editor {
         } else if self.do_show_diagnostic_popup {
             self.draw_diagnostic_popup(tab, doc, ctx);
         }
-    }
-
-    fn draw_status_bar(&self, ctx: &mut Ctx) -> Option<()> {
-        let (_, doc) = self.get_focused_tab_and_doc()?;
-        let position = doc.get_cursor(CursorIndex::Main).position;
-
-        let path = doc
-            .path()
-            .some()
-            .zip(self.current_dir.as_ref())
-            .and_then(|(path, current_dir)| path.strip_prefix(current_dir).ok())
-            .and_then(|path| path.to_str())
-            .unwrap_or_default();
-
-        let path_suffix = if path.is_empty() { "" } else { ", " };
-
-        let status_text = ctx.buffers.text.get_mut();
-
-        let _ = write!(
-            status_text,
-            "{}{}Ln {:02}, Col {:02}",
-            path,
-            path_suffix,
-            position.y + 1,
-            position.x + 1
-        );
-
-        let gfx = &mut ctx.gfx;
-        let theme = &ctx.config.theme;
-
-        let status_text_x = self.status_bar_bounds.width
-            - (gfx.measure_text(status_text) + 1) as f32 * gfx.glyph_width();
-        let status_text_y = gfx.border_width() + gfx.tab_padding_y();
-
-        gfx.begin(Some(self.status_bar_bounds));
-        gfx.add_text(status_text, status_text_x, status_text_y, theme.subtle);
-        gfx.end();
-
-        Some(())
     }
 
     fn draw_diagnostic_popup(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
@@ -512,8 +466,16 @@ impl Editor {
         confirm_close_all(&mut self.doc_list, "exiting", ctx);
     }
 
-    pub fn get_focused_pane_and_doc_list(&mut self) -> (&mut EditorPane, &mut SlotList<Doc>) {
+    pub fn get_focused_pane_and_doc_list(&self) -> (&EditorPane, &SlotList<Doc>) {
+        (self.panes.get_focused().unwrap(), &self.doc_list)
+    }
+
+    pub fn get_focused_pane_and_doc_list_mut(&mut self) -> (&mut EditorPane, &mut SlotList<Doc>) {
         (self.panes.get_focused_mut().unwrap(), &mut self.doc_list)
+    }
+
+    pub fn current_dir(&self) -> Option<&Path> {
+        self.current_dir.as_deref()
     }
 
     pub fn files(&self) -> impl Iterator<Item = &Path> {

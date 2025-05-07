@@ -15,18 +15,14 @@ impl CommandPaletteMode for GoToLineMode {
     fn on_submit(
         &mut self,
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs {
-            pane,
-            doc_list,
-            ctx,
-            ..
-        }: CommandPaletteEventArgs,
+        CommandPaletteEventArgs { editor, ctx, .. }: CommandPaletteEventArgs,
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
         if kind != ResultListSubmitKind::Normal {
             return CommandPaletteAction::Stay;
         }
 
+        let (pane, doc_list) = editor.get_focused_pane_and_doc_list_mut();
         let focused_tab_index = pane.focused_tab_index();
         let input = command_palette.get_input();
 

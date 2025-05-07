@@ -7,7 +7,10 @@ use crate::{
     geometry::rect::Rect,
     lsp::Lsp,
     platform::{file_watcher::FileWatcher, gfx::Gfx, process::Process, window::Window},
-    ui::{command_palette::CommandPalette, core::Ui, editor::Editor, terminal::Terminal},
+    ui::{
+        command_palette::CommandPalette, core::Ui, editor::Editor, status_bar::StatusBar,
+        terminal::Terminal,
+    },
 };
 
 macro_rules! ctx_for_app {
@@ -29,6 +32,7 @@ pub struct App {
     ui: Ui,
     editor: Editor,
     terminal: Terminal,
+    status_bar: StatusBar,
     command_palette: CommandPalette,
     file_watcher: FileWatcher,
     lsp: Lsp,
@@ -52,6 +56,7 @@ impl App {
         let mut ui = Ui::new();
         let editor = Editor::new(&mut ui, &mut buffers.lines);
         let terminal = Terminal::new(&mut ui, &mut buffers.lines);
+        let status_bar = StatusBar::new(&mut ui);
         let command_palette = CommandPalette::new(&mut ui, &mut buffers.lines);
         let file_watcher = FileWatcher::new();
         let lsp = Lsp::new();
@@ -62,6 +67,7 @@ impl App {
             ui,
             editor,
             terminal,
+            status_bar,
             command_palette,
             file_watcher,
             lsp,
@@ -140,6 +146,7 @@ impl App {
 
         let ctx = ctx_for_app!(self, window, gfx, time);
 
+        self.status_bar.draw(&self.editor, ctx);
         self.terminal.draw(&mut self.ui, ctx);
         self.editor.draw(&mut self.ui, ctx);
         self.command_palette.draw(&mut self.ui, ctx);
@@ -151,9 +158,12 @@ impl App {
         let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
 
         self.command_palette.layout(bounds, gfx);
-        self.terminal.layout(bounds, &self.config, gfx);
 
-        bounds = bounds.shrink_bottom_by(self.terminal.bounds());
+        self.status_bar.layout(bounds, gfx);
+        bounds = bounds.shrink_bottom_by(self.status_bar.widget.bounds());
+
+        self.terminal.layout(bounds, &self.config, gfx);
+        bounds = bounds.shrink_bottom_by(self.terminal.widget.bounds());
 
         self.editor.layout(bounds, gfx);
     }

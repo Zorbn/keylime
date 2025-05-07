@@ -58,8 +58,8 @@ impl Lsp {
         self.servers.clear();
     }
 
-    pub fn update_current_dir(&mut self) {
-        self.current_dir = current_dir().ok();
+    pub fn update_current_dir(&mut self, current_dir: Option<PathBuf>) {
+        self.current_dir = current_dir;
         self.clear();
     }
 
@@ -155,8 +155,6 @@ impl Lsp {
                 editor.apply_edit_lists(edit_lists, ctx);
             }
             MessageResult::References(mut results) => {
-                let root = current_dir().unwrap_or_default();
-
                 results.sort_by(|a, b| a.uri.cmp(b.uri));
 
                 let mut command_palette_results = Vec::new();
@@ -169,8 +167,12 @@ impl Lsp {
                         continue;
                     };
 
-                    editor.with_doc(path.clone(), ctx, |doc, _| {
+                    editor.with_doc(path.clone(), ctx, |doc, ctx| {
                         while let Some(result) = results.peek() {
+                            let Some(root) = ctx.lsp.current_dir.as_ref() else {
+                                break;
+                            };
+
                             if result.uri != current_uri {
                                 break;
                             }
@@ -179,7 +181,7 @@ impl Lsp {
                             let (result_position, _) = next_result.range.decode(encoding, doc);
 
                             let Some(result) =
-                                FindInFilesMode::position_to_result(result_position, &root, doc)
+                                FindInFilesMode::position_to_result(result_position, root, doc)
                             else {
                                 continue;
                             };
@@ -197,7 +199,7 @@ impl Lsp {
                 );
             }
             MessageResult::Definition { path, range } => {
-                let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
+                let (pane, doc_list) = editor.get_focused_pane_and_doc_list_mut();
 
                 if pane.open_file(&path, doc_list, ctx).is_err() {
                     return None;

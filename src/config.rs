@@ -62,6 +62,7 @@ impl SyntaxDesc<'_> {
 
 #[derive(Deserialize, Debug)]
 struct LanguageDesc<'a> {
+    name: String,
     extensions: Vec<String>,
     #[serde(default)]
     indent_width: IndentWidth,
@@ -133,25 +134,16 @@ impl Config {
 
                 let path = entry.path();
                 let language_desc_string = Self::load_file_string(&path)?;
-                let language_desc =
+                let mut language_desc =
                     Self::load_file_data::<LanguageDesc>(&path, &language_desc_string)?;
 
                 let index = languages.len();
 
-                languages.push(Language {
-                    index,
-                    indent_width: language_desc.indent_width,
-                    comment: language_desc.comment,
-                    lsp_language_id: language_desc.lsp_language_id,
-                    language_server_command: language_desc.language_server_command,
-                    syntax: language_desc
-                        .syntax
-                        .map(|syntax_desc| syntax_desc.get_syntax()),
-                });
-
-                for extension in language_desc.extensions {
+                for extension in language_desc.extensions.drain(..) {
                     extension_languages.insert(extension, index);
                 }
+
+                languages.push(Language::new(index, language_desc));
             }
         }
 

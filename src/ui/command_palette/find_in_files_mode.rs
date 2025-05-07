@@ -1,6 +1,5 @@
 use std::{
     collections::VecDeque,
-    env::current_dir,
     fs::{read_dir, DirEntry, ReadDir},
     path::{Path, PathBuf},
     time::Instant,
@@ -74,11 +73,7 @@ impl FindInFilesMode {
 
     pub fn jump_to_path_with_position(
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs {
-            pane,
-            doc_list,
-            ctx,
-        }: CommandPaletteEventArgs,
+        CommandPaletteEventArgs { editor, ctx }: CommandPaletteEventArgs,
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
         if !matches!(
@@ -95,6 +90,8 @@ impl FindInFilesMode {
         else {
             return CommandPaletteAction::Stay;
         };
+
+        let (pane, doc_list) = editor.get_focused_pane_and_doc_list_mut();
 
         if pane.open_file(path, doc_list, ctx).is_err() {
             return CommandPaletteAction::Stay;
@@ -238,7 +235,7 @@ impl CommandPaletteMode for FindInFilesMode {
     fn on_update_results(
         &mut self,
         command_palette: &mut CommandPalette,
-        _: CommandPaletteEventArgs,
+        CommandPaletteEventArgs { editor, .. }: CommandPaletteEventArgs,
     ) {
         self.clear_pending();
         self.needs_new_results = true;
@@ -248,7 +245,7 @@ impl CommandPaletteMode for FindInFilesMode {
             return;
         };
 
-        let Ok(current_dir) = current_dir() else {
+        let Some(current_dir) = editor.current_dir() else {
             return;
         };
 

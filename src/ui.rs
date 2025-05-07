@@ -8,5 +8,6 @@ mod pane;
 mod popup;
 mod result_list;
 mod slot_list;
+pub mod status_bar;
 pub mod tab;
 pub mod terminal;

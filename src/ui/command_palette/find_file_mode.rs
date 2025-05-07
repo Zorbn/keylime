@@ -1,5 +1,4 @@
 use std::{
-    env::current_dir,
     fs::{create_dir_all, read_dir},
     io,
     path::{Component, Path, PathBuf},
@@ -36,20 +35,16 @@ impl CommandPaletteMode for FindFileMode {
     fn on_open(
         &mut self,
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs {
-            pane,
-            doc_list,
-            ctx,
-            ..
-        }: CommandPaletteEventArgs,
+        CommandPaletteEventArgs { editor, ctx, .. }: CommandPaletteEventArgs,
     ) {
+        let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
         let focused_tab_index = pane.focused_tab_index();
 
         let Some((_, doc)) = pane.get_tab_with_data(focused_tab_index, doc_list) else {
             return;
         };
 
-        let Ok(current_dir) = current_dir() else {
+        let Some(current_dir) = editor.current_dir() else {
             return;
         };
 
@@ -80,11 +75,7 @@ impl CommandPaletteMode for FindFileMode {
     fn on_submit(
         &mut self,
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs {
-            pane,
-            doc_list,
-            ctx,
-        }: CommandPaletteEventArgs,
+        CommandPaletteEventArgs { editor, ctx }: CommandPaletteEventArgs,
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
         if !matches!(
@@ -122,6 +113,8 @@ impl CommandPaletteMode for FindFileMode {
         if is_dir {
             return CommandPaletteAction::Stay;
         }
+
+        let (pane, doc_list) = editor.get_focused_pane_and_doc_list_mut();
 
         if pane
             .open_file(path, doc_list, ctx)

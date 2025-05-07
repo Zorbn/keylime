@@ -1,30 +1,18 @@
 use crate::{
     ctx::Ctx,
-    text::doc::Doc,
-    ui::{
-        editor::{editor_pane::EditorPane, Editor},
-        result_list::ResultListSubmitKind,
-        slot_list::SlotList,
-    },
+    ui::{editor::Editor, result_list::ResultListSubmitKind},
 };
 
 use super::{CommandPalette, CommandPaletteAction};
 
 pub struct CommandPaletteEventArgs<'a, 'b> {
-    pub pane: &'a mut EditorPane,
-    pub doc_list: &'a mut SlotList<Doc>,
+    pub editor: &'a mut Editor,
     pub ctx: &'a mut Ctx<'b>,
 }
 
 impl<'a, 'b> CommandPaletteEventArgs<'a, 'b> {
     pub fn new(editor: &'a mut Editor, ctx: &'a mut Ctx<'b>) -> CommandPaletteEventArgs<'a, 'b> {
-        let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
-
-        CommandPaletteEventArgs {
-            pane,
-            doc_list,
-            ctx,
-        }
+        CommandPaletteEventArgs { editor, ctx }
     }
 }
 
