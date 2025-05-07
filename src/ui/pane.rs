@@ -6,7 +6,12 @@ use crate::{
         sides::{Side, Sides},
         visual_position::VisualPosition,
     },
-    input::{action::action_name, mods::Mods, mouse_button::MouseButton, mousebind::Mousebind},
+    input::{
+        action::action_name,
+        mods::Mods,
+        mouse_button::MouseButton,
+        mousebind::{MouseClickKind, Mousebind},
+    },
     platform::{gfx::Gfx, window::Window},
     text::doc::Doc,
 };
@@ -22,6 +27,7 @@ use super::{
 pub struct Pane<T> {
     pub tabs: FocusList<Tab>,
     bounds: Rect,
+    dragged_tab_offset: Option<f32>,
 
     get_doc: fn(&T) -> &Doc,
     get_doc_mut: fn(&mut T) -> &mut Doc,
@@ -32,6 +38,7 @@ impl<T> Pane<T> {
         Self {
             tabs: FocusList::new(),
             bounds: Rect::ZERO,
+            dragged_tab_offset: None,
 
             get_doc,
             get_doc_mut,
@@ -75,26 +82,70 @@ impl<T> Pane<T> {
         let mut mousebind_handler = ui.get_mousebind_handler(widget, window);
 
         while let Some(mousebind) = mousebind_handler.next(window) {
-            let visual_position =
-                VisualPosition::new(mousebind.x - self.bounds.x, mousebind.y - self.bounds.y);
+            let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
 
             match mousebind {
                 Mousebind {
                     button: Some(MouseButton::Left),
                     mods: Mods::NONE,
-                    is_drag: false,
+                    kind: MouseClickKind::Press,
                     ..
                 } => {
+                    let mut offset = 0.0;
+
                     let index = self.tabs.iter().position(|tab| {
-                        tab.tab_bounds()
-                            .unoffset_by(self.bounds)
-                            .contains_position(visual_position)
+                        let tab_bounds = tab.tab_bounds();
+
+                        offset = tab_bounds.x - visual_position.x - self.bounds.x;
+
+                        tab_bounds.contains_position(visual_position)
                     });
 
                     if let Some(index) = index {
                         self.tabs.set_focused_index(index);
+                        self.dragged_tab_offset = Some(offset);
                     } else {
                         mousebind_handler.unprocessed(window, mousebind);
+                    }
+                }
+                Mousebind {
+                    button: Some(MouseButton::Left),
+                    mods: Mods::NONE,
+                    kind: MouseClickKind::Release,
+                    ..
+                } => self.dragged_tab_offset = None,
+                Mousebind {
+                    button: Some(MouseButton::Left),
+                    mods: Mods::NONE,
+                    kind: MouseClickKind::Drag,
+                    ..
+                } if self.dragged_tab_offset.is_some() => {
+                    let half_focused_tab_width = self
+                        .tabs
+                        .get_focused()
+                        .map(|tab| tab.tab_bounds().width)
+                        .unwrap_or_default()
+                        / 2.0;
+
+                    let index = self.tabs.iter().enumerate().position(|(index, tab)| {
+                        let tab_bounds = tab.tab_bounds();
+                        let half_tab_width = tab_bounds.width / 2.0;
+
+                        if self.tabs.focused_index() < index {
+                            visual_position.x + half_focused_tab_width
+                                > tab_bounds.x + half_tab_width
+                                && visual_position.x < tab_bounds.right()
+                        } else {
+                            visual_position.x - half_focused_tab_width
+                                < tab_bounds.x + half_tab_width
+                                && visual_position.x > tab_bounds.x
+                        }
+                    });
+
+                    let index = index.filter(|index| *index != self.tabs.focused_index());
+
+                    if let Some(index) = index {
+                        self.tabs.swap(self.tabs.focused_index(), index);
                     }
                 }
                 _ => mousebind_handler.unprocessed(window, mousebind),
@@ -155,30 +206,35 @@ impl<T> Pane<T> {
             theme.border,
         );
 
-        for i in 0..self.tabs.len() {
-            let get_doc = self.get_doc;
+        if self.tabs.is_empty() {
+            gfx.add_rect(
+                Rect::from_sides(
+                    0.0,
+                    tab_height - gfx.border_width(),
+                    self.bounds.width,
+                    tab_height,
+                ),
+                theme.border,
+            );
 
-            let Some((tab, data)) = self.get_tab_with_data(i, data_list) else {
-                continue;
-            };
+            gfx.end();
 
-            Self::draw_tab(tab, get_doc(data), self.bounds, ctx);
+            return;
         }
+
+        for i in 0..self.tabs.len() {
+            if i == self.tabs.focused_index() {
+                continue;
+            }
+
+            self.draw_tab_from_index(i, data_list, ctx);
+        }
+
+        let focused_tab_bounds =
+            self.draw_tab_from_index(self.tabs.focused_index(), data_list, ctx);
 
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
-
-        let focused_tab_bounds = if let Some(tab) = self.tabs.get_focused() {
-            let tab_bounds = tab.tab_bounds().unoffset_by(self.bounds);
-
-            if is_focused {
-                gfx.add_rect(tab_bounds.top_border(gfx.border_width()), theme.keyword);
-            }
-
-            tab_bounds
-        } else {
-            Rect::ZERO
-        };
 
         gfx.add_rect(
             Rect::from_sides(
@@ -210,11 +266,44 @@ impl<T> Pane<T> {
         }
     }
 
-    fn draw_tab(tab: &Tab, doc: &Doc, bounds: Rect, ctx: &mut Ctx) {
+    fn draw_tab_from_index(
+        &mut self,
+        index: usize,
+        data_list: &mut SlotList<T>,
+        ctx: &mut Ctx,
+    ) -> Rect {
+        let get_doc = self.get_doc;
+
+        let Some((tab, data)) = self.get_tab_with_data(index, data_list) else {
+            return Rect::ZERO;
+        };
+
+        Self::draw_tab(
+            index == self.tabs.focused_index(),
+            self.dragged_tab_offset,
+            tab,
+            get_doc(data),
+            self.bounds,
+            ctx,
+        )
+    }
+
+    fn draw_tab(
+        is_focused: bool,
+        dragged_tab_offset: Option<f32>,
+        tab: &Tab,
+        doc: &Doc,
+        bounds: Rect,
+        ctx: &mut Ctx,
+    ) -> Rect {
         let theme = &ctx.config.theme;
 
         let text_color = Self::get_tab_color(doc, theme, ctx);
-        let tab_bounds = tab.tab_bounds().unoffset_by(bounds);
+        let mut tab_bounds = tab.tab_bounds().unoffset_by(bounds);
+
+        if let Some(offset) = dragged_tab_offset.filter(|_| is_focused) {
+            tab_bounds.x += ctx.window.get_mouse_position().x - tab_bounds.x + offset;
+        };
 
         let gfx = &mut ctx.gfx;
 
@@ -232,6 +321,12 @@ impl<T> Pane<T> {
         if !doc.is_saved() {
             gfx.add_text("*", text_x + text_width, text_y, theme.symbol);
         }
+
+        if is_focused {
+            gfx.add_rect(tab_bounds.top_border(gfx.border_width()), theme.keyword);
+        }
+
+        tab_bounds
     }
 
     fn get_tab_color(doc: &Doc, theme: &Theme, ctx: &mut Ctx) -> Color {

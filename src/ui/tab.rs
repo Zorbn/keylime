@@ -9,7 +9,7 @@ use crate::{
         editing_actions::{handle_action, handle_grapheme, handle_left_click},
         mods::{Mod, Mods},
         mouse_button::MouseButton,
-        mousebind::Mousebind,
+        mousebind::{MouseClickKind, Mousebind},
     },
     platform::gfx::Gfx,
     text::{
@@ -134,17 +134,19 @@ impl Tab {
                 Mousebind {
                     button: Some(MouseButton::Left),
                     mods: Mods::NONE | Mods::SHIFT,
-                    kind,
-                    is_drag,
+                    count,
+                    kind: kind @ (MouseClickKind::Press | MouseClickKind::Drag),
                     ..
                 } => {
-                    handle_left_click(doc, position, mousebind.mods, kind, is_drag, ctx.gfx);
+                    let is_drag = kind == MouseClickKind::Drag;
+
+                    handle_left_click(doc, position, mousebind.mods, count, is_drag, ctx.gfx);
                     self.handled_cursor_position = Some(doc.get_cursor(CursorIndex::Main).position);
                 }
                 Mousebind {
                     button: Some(MouseButton::Left),
                     mods,
-                    is_drag: false,
+                    kind: MouseClickKind::Press,
                     ..
                 } if mods.contains(Mod::Ctrl) || mods.contains(Mod::Cmd) => {
                     if mods.contains(Mod::Alt) {
@@ -569,14 +571,14 @@ impl Tab {
             return;
         }
 
-        let position = ctx.window.mouse_position();
+        let position = ctx.window.get_mouse_position();
 
         if !self.doc_bounds.contains_position(position) {
             return;
         }
 
         let position = doc.visual_to_position(
-            ctx.window.mouse_position().unoffset_by(self.doc_bounds),
+            ctx.window.get_mouse_position().unoffset_by(self.doc_bounds),
             camera_position,
             gfx,
         );

@@ -16,7 +16,7 @@ use crate::{
         mods::{Mod, Mods},
         mouse_button::MouseButton,
         mouse_scroll::MouseScroll,
-        mousebind::{MouseClickKind, Mousebind},
+        mousebind::{MouseClickCount, MouseClickKind, Mousebind},
     },
     platform::aliases::{AnyFileWatcher, AnyProcess, AnyWindow},
     temp_buffer::TempBuffer,
@@ -123,7 +123,7 @@ impl WindowRunner {
 #[derive(Clone, Copy, Debug)]
 struct RecordedMouseClick {
     button: MouseButton,
-    kind: MouseClickKind,
+    count: MouseClickCount,
 }
 
 pub struct Window {
@@ -147,7 +147,6 @@ pub struct Window {
     pub actions_typed: Vec<Action>,
     pub mousebinds_pressed: Vec<Mousebind>,
     pub mouse_scrolls: Vec<MouseScroll>,
-    mouse_position: VisualPosition,
     mods: Mods,
 
     was_last_scroll_horizontal: bool,
@@ -204,7 +203,6 @@ impl Window {
             actions_typed: Vec::new(),
             mousebinds_pressed: Vec::new(),
             mouse_scrolls: Vec::new(),
-            mouse_position: VisualPosition::new(0.0, 0.0),
             mods: Mods::NONE,
 
             was_last_scroll_horizontal: false,
@@ -333,47 +331,57 @@ impl Window {
 
     pub fn handle_mouse_down(&mut self, event: &NSEvent, is_drag: bool) {
         let (x, y) = self.event_location_to_xy(event);
-        self.mouse_position = VisualPosition::new(x, y);
 
         let modifier_flags = unsafe { event.modifierFlags() };
         let mods = Self::modifier_flags_to_mods(modifier_flags);
 
-        let (button, kind) = if is_drag {
+        let (button, count, kind) = if is_drag {
             self.current_pressed_button
-                .map(|click| (Some(click.button), click.kind))
-                .unwrap_or((None, MouseClickKind::Single))
+                .map(|click| (Some(click.button), click.count, MouseClickKind::Drag))
+                .unwrap_or((None, MouseClickCount::Single, MouseClickKind::Drag))
         } else {
             let click_count = unsafe { event.clickCount() - 1 } % 3 + 1;
 
-            let kind = match click_count {
-                1 => MouseClickKind::Single,
-                2 => MouseClickKind::Double,
-                3 => MouseClickKind::Triple,
+            let count = match click_count {
+                1 => MouseClickCount::Single,
+                2 => MouseClickCount::Double,
+                3 => MouseClickCount::Triple,
                 _ => unreachable!(),
             };
 
             let button = Self::get_event_button(event);
 
             if let Some(button) = button {
-                self.current_pressed_button = Some(RecordedMouseClick { button, kind });
+                self.current_pressed_button = Some(RecordedMouseClick { button, count });
             }
 
-            (button, kind)
+            (button, count, MouseClickKind::Press)
         };
 
         self.mousebinds_pressed
-            .push(Mousebind::new(button, x, y, mods, kind, is_drag));
+            .push(Mousebind::new(button, x, y, mods, count, kind));
     }
 
     pub fn handle_mouse_up(&mut self, event: &NSEvent) {
         let (x, y) = self.event_location_to_xy(event);
-        self.mouse_position = VisualPosition::new(x, y);
+
+        let modifier_flags = unsafe { event.modifierFlags() };
+        let mods = Self::modifier_flags_to_mods(modifier_flags);
 
         let button = Self::get_event_button(event);
 
         if button == self.current_pressed_button.map(|click| click.button) {
             self.current_pressed_button = None;
         }
+
+        self.mousebinds_pressed.push(Mousebind::new(
+            button,
+            x,
+            y,
+            mods,
+            MouseClickCount::Single,
+            MouseClickKind::Release,
+        ));
     }
 
     fn modifier_flags_to_mods(modifier_flags: NSEventModifierFlags) -> Mods {
@@ -427,10 +435,15 @@ impl Window {
         });
     }
 
-    fn event_location_to_xy(&mut self, event: &NSEvent) -> (f32, f32) {
-        let position = unsafe { event.locationInWindow() };
-        let x = position.x * self.scale;
-        let y = self.height - (position.y * self.scale);
+    fn event_location_to_xy(&self, event: &NSEvent) -> (f32, f32) {
+        let point = unsafe { event.locationInWindow() };
+
+        self.point_in_window_to_xy(point)
+    }
+
+    fn point_in_window_to_xy(&self, point: NSPoint) -> (f32, f32) {
+        let x = point.x * self.scale;
+        let y = self.height - (point.y * self.scale);
 
         (x as f32, y as f32)
     }
@@ -495,8 +508,11 @@ impl Window {
         MouseScrollHandler::new(self.mouse_scrolls.len())
     }
 
-    pub fn mouse_position(&self) -> VisualPosition {
-        self.mouse_position
+    pub fn get_mouse_position(&self) -> VisualPosition {
+        let point = unsafe { self.ns_window.mouseLocationOutsideOfEventStream() };
+        let (x, y) = self.point_in_window_to_xy(point);
+
+        VisualPosition::new(x, y)
     }
 
     pub fn mods(&self) -> Mods {

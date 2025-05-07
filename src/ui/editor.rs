@@ -16,7 +16,7 @@ use crate::{
         action::{action_keybind, action_name},
         mods::Mods,
         mouse_button::MouseButton,
-        mousebind::Mousebind,
+        mousebind::{MouseClickKind, Mousebind},
     },
     lsp::{types::EditList, uri::uri_to_path},
     platform::{
@@ -132,7 +132,7 @@ impl Editor {
                 Mousebind {
                     button: Some(MouseButton::Left),
                     mods: Mods::NONE,
-                    is_drag: false,
+                    kind: MouseClickKind::Press,
                     ..
                 } => {
                     let index = self

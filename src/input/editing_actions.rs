@@ -17,7 +17,7 @@ use crate::{
 use super::{
     action::{action_keybind, action_name, Action},
     mods::{Mod, Mods},
-    mousebind::MouseClickKind,
+    mousebind::MouseClickCount,
 };
 
 pub(crate) enum DeleteKind {
@@ -218,28 +218,28 @@ pub fn handle_left_click(
     doc: &mut Doc,
     position: Position,
     mods: Mods,
-    kind: MouseClickKind,
+    count: MouseClickCount,
     is_drag: bool,
     gfx: &mut Gfx,
 ) {
     let do_extend_selection = is_drag || mods.contains(Mod::Shift);
 
-    if kind == MouseClickKind::Single {
+    if count == MouseClickCount::Single {
         doc.jump_cursors(position, do_extend_selection, gfx);
         return;
     }
 
     if !do_extend_selection {
-        match kind {
-            MouseClickKind::Double => doc.select_current_word_at_cursors(gfx),
-            MouseClickKind::Triple => doc.select_current_line_at_cursors(gfx),
+        match count {
+            MouseClickCount::Double => doc.select_current_word_at_cursors(gfx),
+            MouseClickCount::Triple => doc.select_current_line_at_cursors(gfx),
             _ => {}
         }
 
         return;
     }
 
-    let select_at_position = if kind == MouseClickKind::Double {
+    let select_at_position = if count == MouseClickCount::Double {
         Doc::select_current_word_at_position
     } else {
         Doc::select_current_line_at_position

@@ -1,10 +1,17 @@
 use super::{mods::Mods, mouse_button::MouseButton};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MouseClickKind {
+pub enum MouseClickCount {
     Single,
     Double,
     Triple,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MouseClickKind {
+    Press,
+    Release,
+    Drag,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -13,8 +20,8 @@ pub struct Mousebind {
     pub x: f32,
     pub y: f32,
     pub mods: Mods,
+    pub count: MouseClickCount,
     pub kind: MouseClickKind,
-    pub is_drag: bool,
 }
 
 impl Mousebind {
@@ -23,16 +30,16 @@ impl Mousebind {
         x: f32,
         y: f32,
         mods: Mods,
+        count: MouseClickCount,
         kind: MouseClickKind,
-        is_drag: bool,
     ) -> Self {
         Self {
             button,
             x,
             y,
             mods,
+            count,
             kind,
-            is_drag,
         }
     }
 }

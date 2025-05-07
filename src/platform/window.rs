@@ -90,8 +90,8 @@ impl Window {
         &mut self.inner.mouse_scrolls
     }
 
-    pub fn mouse_position(&self) -> VisualPosition {
-        self.inner.mouse_position()
+    pub fn get_mouse_position(&self) -> VisualPosition {
+        self.inner.get_mouse_position()
     }
 
     pub fn mods(&self) -> Mods {

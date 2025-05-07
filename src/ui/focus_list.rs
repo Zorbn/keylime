@@ -43,6 +43,16 @@ impl<T> FocusList<T> {
         self.clamp_focused();
     }
 
+    pub fn swap(&mut self, a: usize, b: usize) {
+        if self.focused_index == a {
+            self.focused_index = b;
+        } else if self.focused_index == b {
+            self.focused_index = a;
+        }
+
+        self.items.swap(a, b);
+    }
+
     pub fn len(&self) -> usize {
         self.items.len()
     }
