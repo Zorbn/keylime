@@ -83,15 +83,11 @@ impl CommandPaletteMode for AllFilesMode {
         "All Files"
     }
 
-    fn on_open(
-        &mut self,
-        _: &mut CommandPalette,
-        CommandPaletteEventArgs { editor, .. }: CommandPaletteEventArgs,
-    ) {
+    fn on_open(&mut self, _: &mut CommandPalette, args: CommandPaletteEventArgs) {
         self.pending_dir_entries.clear();
         self.needs_new_results = true;
 
-        let Some(current_dir) = editor.current_dir() else {
+        let Some(current_dir) = args.editor.current_dir() else {
             return;
         };
 
@@ -106,7 +102,7 @@ impl CommandPaletteMode for AllFilesMode {
     fn on_submit(
         &mut self,
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs { editor, ctx }: CommandPaletteEventArgs,
+        args: CommandPaletteEventArgs,
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
         if !matches!(
@@ -124,9 +120,9 @@ impl CommandPaletteMode for AllFilesMode {
             return CommandPaletteAction::Stay;
         };
 
-        let (pane, doc_list) = editor.get_focused_pane_and_doc_list_mut();
+        let (pane, doc_list) = args.editor.get_focused_pane_and_doc_list_mut();
 
-        if pane.open_file(path, doc_list, ctx).is_ok() {
+        if pane.open_file(path, doc_list, args.ctx).is_ok() {
             CommandPaletteAction::Close
         } else {
             CommandPaletteAction::Stay

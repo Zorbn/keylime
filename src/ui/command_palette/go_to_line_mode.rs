@@ -15,14 +15,14 @@ impl CommandPaletteMode for GoToLineMode {
     fn on_submit(
         &mut self,
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs { editor, ctx, .. }: CommandPaletteEventArgs,
+        args: CommandPaletteEventArgs,
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
         if kind != ResultListSubmitKind::Normal {
             return CommandPaletteAction::Stay;
         }
 
-        let (pane, doc_list) = editor.get_focused_pane_and_doc_list_mut();
+        let (pane, doc_list) = args.editor.get_focused_pane_and_doc_list_mut();
         let focused_tab_index = pane.focused_tab_index();
         let input = command_palette.get_input();
 
@@ -34,7 +34,11 @@ impl CommandPaletteMode for GoToLineMode {
             return CommandPaletteAction::Close;
         };
 
-        doc.jump_cursors(Position::new(0, line.saturating_sub(1)), false, ctx.gfx);
+        doc.jump_cursors(
+            Position::new(0, line.saturating_sub(1)),
+            false,
+            args.ctx.gfx,
+        );
         tab.camera.recenter();
 
         CommandPaletteAction::Close

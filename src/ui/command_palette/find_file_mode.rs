@@ -32,19 +32,15 @@ impl CommandPaletteMode for FindFileMode {
         "Find File"
     }
 
-    fn on_open(
-        &mut self,
-        command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs { editor, ctx, .. }: CommandPaletteEventArgs,
-    ) {
-        let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
+    fn on_open(&mut self, command_palette: &mut CommandPalette, args: CommandPaletteEventArgs) {
+        let (pane, doc_list) = args.editor.get_focused_pane_and_doc_list();
         let focused_tab_index = pane.focused_tab_index();
 
         let Some((_, doc)) = pane.get_tab_with_data(focused_tab_index, doc_list) else {
             return;
         };
 
-        let Some(current_dir) = editor.current_dir() else {
+        let Some(current_dir) = args.editor.current_dir() else {
             return;
         };
 
@@ -64,10 +60,10 @@ impl CommandPaletteMode for FindFileMode {
                 continue;
             };
 
-            command_doc.insert(command_doc.end(), string, ctx);
+            command_doc.insert(command_doc.end(), string, args.ctx);
 
             if !ends_with_path_separator(string) {
-                command_doc.insert(command_doc.end(), PREFERRED_PATH_SEPARATOR, ctx);
+                command_doc.insert(command_doc.end(), PREFERRED_PATH_SEPARATOR, args.ctx);
             }
         }
     }
@@ -75,7 +71,7 @@ impl CommandPaletteMode for FindFileMode {
     fn on_submit(
         &mut self,
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs { editor, ctx }: CommandPaletteEventArgs,
+        args: CommandPaletteEventArgs,
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
         if !matches!(
@@ -94,7 +90,7 @@ impl CommandPaletteMode for FindFileMode {
 
         if kind == ResultListSubmitKind::Delete {
             if path.exists() && recycle(path).is_ok() {
-                delete_last_path_component(true, &mut command_palette.doc, ctx);
+                delete_last_path_component(true, &mut command_palette.doc, args.ctx);
             }
 
             return CommandPaletteAction::Stay;
@@ -114,13 +110,13 @@ impl CommandPaletteMode for FindFileMode {
             return CommandPaletteAction::Stay;
         }
 
-        let (pane, doc_list) = editor.get_focused_pane_and_doc_list_mut();
+        let (pane, doc_list) = args.editor.get_focused_pane_and_doc_list_mut();
 
         if pane
-            .open_file(path, doc_list, ctx)
+            .open_file(path, doc_list, args.ctx)
             .or_else(|err| {
                 if err.kind() == io::ErrorKind::NotFound {
-                    pane.new_file(Some(path), doc_list, ctx)
+                    pane.new_file(Some(path), doc_list, args.ctx)
                 } else {
                     Err(err)
                 }
@@ -136,17 +132,17 @@ impl CommandPaletteMode for FindFileMode {
     fn on_complete_result(
         &mut self,
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs { ctx, .. }: CommandPaletteEventArgs,
+        args: CommandPaletteEventArgs,
     ) {
         let Some(result) = command_palette.result_list.get_selected_result() else {
             return;
         };
 
-        delete_last_path_component(false, &mut command_palette.doc, ctx);
+        delete_last_path_component(false, &mut command_palette.doc, args.ctx);
 
         let line_len = command_palette.doc.get_line_len(0);
         let start = Position::new(line_len, 0);
-        command_palette.doc.insert(start, &result.text, ctx);
+        command_palette.doc.insert(start, &result.text, args.ctx);
     }
 
     fn on_update_results(
@@ -195,16 +191,16 @@ impl CommandPaletteMode for FindFileMode {
     fn on_backspace(
         &mut self,
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs { ctx, .. }: CommandPaletteEventArgs,
+        args: CommandPaletteEventArgs,
     ) -> bool {
         let cursor = command_palette.doc.get_cursor(CursorIndex::Main);
         let end = cursor.position;
-        let mut start = command_palette.doc.move_position(end, -1, 0, ctx.gfx);
+        let mut start = command_palette.doc.move_position(end, -1, 0, args.ctx.gfx);
 
         if is_grapheme_path_separator(command_palette.doc.get_grapheme(start)) {
-            start = find_path_component_start(&command_palette.doc, start, ctx.gfx);
+            start = find_path_component_start(&command_palette.doc, start, args.ctx.gfx);
 
-            command_palette.doc.delete(start, end, ctx);
+            command_palette.doc.delete(start, end, args.ctx);
 
             true
         } else {

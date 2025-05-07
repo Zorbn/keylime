@@ -73,7 +73,7 @@ impl FindInFilesMode {
 
     pub fn jump_to_path_with_position(
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs { editor, ctx }: CommandPaletteEventArgs,
+        args: CommandPaletteEventArgs,
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
         if !matches!(
@@ -91,9 +91,9 @@ impl FindInFilesMode {
             return CommandPaletteAction::Stay;
         };
 
-        let (pane, doc_list) = editor.get_focused_pane_and_doc_list_mut();
+        let (pane, doc_list) = args.editor.get_focused_pane_and_doc_list_mut();
 
-        if pane.open_file(path, doc_list, ctx).is_err() {
+        if pane.open_file(path, doc_list, args.ctx).is_err() {
             return CommandPaletteAction::Stay;
         }
 
@@ -103,7 +103,7 @@ impl FindInFilesMode {
             return CommandPaletteAction::Close;
         };
 
-        doc.jump_cursors(*position, false, ctx.gfx);
+        doc.jump_cursors(*position, false, args.ctx.gfx);
         tab.camera.recenter();
 
         CommandPaletteAction::Close
@@ -235,7 +235,7 @@ impl CommandPaletteMode for FindInFilesMode {
     fn on_update_results(
         &mut self,
         command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs { editor, .. }: CommandPaletteEventArgs,
+        args: CommandPaletteEventArgs,
     ) {
         self.clear_pending();
         self.needs_new_results = true;
@@ -245,7 +245,7 @@ impl CommandPaletteMode for FindInFilesMode {
             return;
         };
 
-        let Some(current_dir) = editor.current_dir() else {
+        let Some(current_dir) = args.editor.current_dir() else {
             return;
         };
 
@@ -257,18 +257,14 @@ impl CommandPaletteMode for FindInFilesMode {
         }
     }
 
-    fn on_update(
-        &mut self,
-        command_palette: &mut CommandPalette,
-        CommandPaletteEventArgs { ctx, .. }: CommandPaletteEventArgs,
-    ) {
+    fn on_update(&mut self, command_palette: &mut CommandPalette, args: CommandPaletteEventArgs) {
         if !self.needs_new_results {
             return;
         }
 
         let start_time = Instant::now();
 
-        self.handle_doc(start_time, command_palette, ctx);
+        self.handle_doc(start_time, command_palette, args.ctx);
 
         if self.try_finish_finding(start_time, command_palette) {
             return;
@@ -280,7 +276,7 @@ impl CommandPaletteMode for FindInFilesMode {
                     continue;
                 };
 
-                self.handle_entry(entry, start_time, command_palette, ctx);
+                self.handle_entry(entry, start_time, command_palette, args.ctx);
 
                 if self.try_finish_finding(start_time, command_palette) {
                     self.pending_dir_entries.push_front(entries);
