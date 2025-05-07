@@ -9,9 +9,12 @@ use windows::{
     core::{w, Result},
     Win32::{
         Foundation::{
-            GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, RECT, WAIT_OBJECT_0, WPARAM,
+            GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_OBJECT_0, WPARAM,
         },
-        Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE},
+        Graphics::{
+            Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE},
+            Gdi::ScreenToClient,
+        },
         System::{
             Com::{
                 CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
@@ -50,7 +53,7 @@ use crate::{
         mods::{Mod, Mods},
         mouse_button::MouseButton,
         mouse_scroll::MouseScroll,
-        mousebind::{MouseClickKind, Mousebind},
+        mousebind::{MouseClickCount, MouseClickKind, Mousebind},
     },
     platform::aliases::{AnyFileWatcher, AnyGfx, AnyProcess, AnyWindow},
     temp_buffer::TempBuffer,
@@ -62,6 +65,14 @@ use super::{deferred_call::defer, gfx::Gfx, keymaps::new_keymaps};
 const DEFAULT_DPI: f32 = 96.0;
 const DEFAULT_WIDTH: i32 = 640;
 const DEFAULT_HEIGHT: i32 = 480;
+
+const MK_LBUTTON: usize = 0x01;
+const MK_RBUTTON: usize = 0x02;
+const MK_MBUTTON: usize = 0x10;
+const MK_XBUTTON1: usize = 0x20;
+const MK_XBUTTON2: usize = 0x40;
+const MK_SHIFT: usize = 0x04;
+const MK_CONTROL: usize = 0x08;
 
 pub struct WindowRunner {
     window: ManuallyDrop<AnyWindow>,
@@ -268,7 +279,7 @@ impl Drop for WindowRunner {
 #[derive(Clone, Copy, Debug)]
 struct RecordedMouseClick {
     button: MouseButton,
-    kind: MouseClickKind,
+    count: MouseClickCount,
     x: f32,
     y: f32,
     time: f32,
@@ -307,7 +318,6 @@ pub struct Window {
     pub actions_typed: Vec<Action>,
     pub mousebinds_pressed: Vec<Mousebind>,
     pub mouse_scrolls: Vec<MouseScroll>,
-    mouse_position: VisualPosition,
     mods: Mods,
 
     was_copy_implicit: bool,
@@ -354,7 +364,6 @@ impl Window {
             actions_typed: Vec::new(),
             mousebinds_pressed: Vec::new(),
             mouse_scrolls: Vec::new(),
-            mouse_position: VisualPosition::new(0.0, 0.0),
             mods: Mods::NONE,
 
             was_copy_implicit: false,
@@ -491,8 +500,15 @@ impl Window {
         MouseScrollHandler::new(self.mouse_scrolls.len())
     }
 
-    pub fn mouse_position(&self) -> VisualPosition {
-        self.mouse_position
+    pub fn get_mouse_position(&self) -> VisualPosition {
+        let mut point = POINT::default();
+
+        unsafe {
+            let _ = GetCursorPos(&mut point);
+            let _ = ScreenToClient(self.hwnd, &mut point);
+        }
+
+        VisualPosition::new(point.x as f32, point.y as f32)
     }
 
     pub fn mods(&self) -> Mods {
@@ -690,36 +706,20 @@ impl Window {
                 }
             }
             WM_KEYDOWN | WM_SYSKEYDOWN => {
-                const LSHIFT: i32 = VK_LSHIFT.0 as i32;
-                const RSHIFT: i32 = VK_RSHIFT.0 as i32;
-                const LCTRL: i32 = VK_LCONTROL.0 as i32;
-                const RCTRL: i32 = VK_RCONTROL.0 as i32;
-                const LALT: i32 = VK_LMENU.0 as i32;
-                const RALT: i32 = VK_RMENU.0 as i32;
-
-                let mut mods = Mods::NONE;
-
-                if GetKeyState(LSHIFT) < 0 || GetKeyState(RSHIFT) < 0 {
-                    mods = mods.with(Mod::Shift);
-                }
-
-                if GetKeyState(LCTRL) < 0 || GetKeyState(RCTRL) < 0 {
-                    mods = mods.with(Mod::Ctrl);
-                }
-
-                if GetKeyState(LALT) < 0 || GetKeyState(RALT) < 0 {
-                    mods = mods.with(Mod::Alt);
-                }
-
-                self.mods = mods;
+                self.mods = Self::key_state_to_mods();
 
                 let Some(key) = Self::key_from_keycode((wparam.0 & 0xFFFF) as u32) else {
                     return DefWindowProcW(hwnd, msg, wparam, lparam);
                 };
 
-                let action = Action::from_keybind(Keybind::new(key, mods), &self.keymaps);
+                let action = Action::from_keybind(Keybind::new(key, self.mods), &self.keymaps);
 
                 self.actions_typed.push(action);
+
+                return DefWindowProcW(hwnd, msg, wparam, lparam);
+            }
+            WM_KEYUP | WM_SYSKEYUP => {
+                self.mods = Self::key_state_to_mods();
 
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
@@ -738,18 +738,19 @@ impl Window {
                     self.current_click = None;
                 }
 
+                let mods = Self::wparam_to_mods(wparam);
                 let (x, y) = Self::lparam_to_xy(lparam);
-                self.mouse_position = VisualPosition::new(x, y);
+
+                self.mousebinds_pressed.push(Mousebind::new(
+                    button,
+                    x,
+                    y,
+                    mods,
+                    MouseClickCount::Single,
+                    MouseClickKind::Release,
+                ));
             }
             WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_MOUSEMOVE => {
-                const MK_LBUTTON: usize = 0x01;
-                const MK_RBUTTON: usize = 0x02;
-                const MK_MBUTTON: usize = 0x10;
-                const MK_XBUTTON1: usize = 0x20;
-                const MK_XBUTTON2: usize = 0x40;
-                const MK_SHIFT: usize = 0x04;
-                const MK_CONTROL: usize = 0x08;
-
                 let button = if msg == WM_MOUSEMOVE {
                     self.current_click.map(|click| click.button)
                 } else if wparam.0 & MK_LBUTTON != 0 {
@@ -766,30 +767,20 @@ impl Window {
                     None
                 };
 
-                let mut mods = Mods::NONE;
-
-                if wparam.0 & MK_SHIFT != 0 {
-                    mods = mods.with(Mod::Shift);
-                }
-
-                if wparam.0 & MK_CONTROL != 0 {
-                    mods = mods.with(Mod::Ctrl);
-                }
-
+                let mods = Self::wparam_to_mods(wparam);
                 let (x, y) = Self::lparam_to_xy(lparam);
-                self.mouse_position = VisualPosition::new(x, y);
 
-                let (kind, is_drag) = match msg {
+                let (count, kind) = match msg {
                     WM_MOUSEMOVE => {
-                        let kind = self
+                        let count = self
                             .current_click
-                            .map(|click| click.kind)
-                            .unwrap_or(MouseClickKind::Single);
+                            .map(|click| click.count)
+                            .unwrap_or(MouseClickCount::Single);
 
                         self.last_click =
                             self.last_click.filter(|click| x == click.x && y == click.y);
 
-                        (kind, true)
+                        (count, MouseClickKind::Drag)
                     }
                     _ => {
                         let (is_chained_click, previous_kind) = self
@@ -798,24 +789,24 @@ impl Window {
                                 (
                                     Some(last_click.button) == button
                                         && self.time - last_click.time <= self.double_click_time,
-                                    last_click.kind,
+                                    last_click.count,
                                 )
                             })
-                            .unwrap_or((false, MouseClickKind::Single));
+                            .unwrap_or((false, MouseClickCount::Single));
 
-                        let kind = if is_chained_click {
+                        let count = if is_chained_click {
                             match previous_kind {
-                                MouseClickKind::Single => MouseClickKind::Double,
-                                MouseClickKind::Double => MouseClickKind::Triple,
-                                MouseClickKind::Triple => MouseClickKind::Single,
+                                MouseClickCount::Single => MouseClickCount::Double,
+                                MouseClickCount::Double => MouseClickCount::Triple,
+                                MouseClickCount::Triple => MouseClickCount::Single,
                             }
                         } else {
-                            MouseClickKind::Single
+                            MouseClickCount::Single
                         };
 
                         let click = button.map(|button| RecordedMouseClick {
                             button,
-                            kind,
+                            count,
                             x,
                             y,
                             time: self.time,
@@ -824,23 +815,23 @@ impl Window {
                         self.last_click = click;
                         self.current_click = click;
 
-                        (kind, false)
+                        (count, MouseClickKind::Press)
                     }
                 };
 
                 let do_ignore = if let Some(button) = button {
-                    if !is_drag {
+                    if kind != MouseClickKind::Drag {
                         self.draggable_buttons.insert(button);
                     }
 
-                    is_drag && !self.draggable_buttons.contains(&button)
+                    kind == MouseClickKind::Drag && !self.draggable_buttons.contains(&button)
                 } else {
                     false
                 };
 
                 if !do_ignore {
                     self.mousebinds_pressed
-                        .push(Mousebind::new(button, x, y, mods, kind, is_drag));
+                        .push(Mousebind::new(button, x, y, mods, count, kind));
                 }
             }
             WM_MOUSEWHEEL | WM_MOUSEHWHEEL => {
@@ -879,6 +870,47 @@ impl Window {
         let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xFFFF) as u32) as f32;
 
         (x, y)
+    }
+
+    fn key_state_to_mods() -> Mods {
+        const LSHIFT: i32 = VK_LSHIFT.0 as i32;
+        const RSHIFT: i32 = VK_RSHIFT.0 as i32;
+        const LCTRL: i32 = VK_LCONTROL.0 as i32;
+        const RCTRL: i32 = VK_RCONTROL.0 as i32;
+        const LALT: i32 = VK_LMENU.0 as i32;
+        const RALT: i32 = VK_RMENU.0 as i32;
+
+        let mut mods = Mods::NONE;
+
+        unsafe {
+            if GetKeyState(LSHIFT) < 0 || GetKeyState(RSHIFT) < 0 {
+                mods = mods.with(Mod::Shift);
+            }
+
+            if GetKeyState(LCTRL) < 0 || GetKeyState(RCTRL) < 0 {
+                mods = mods.with(Mod::Ctrl);
+            }
+
+            if GetKeyState(LALT) < 0 || GetKeyState(RALT) < 0 {
+                mods = mods.with(Mod::Alt);
+            }
+        }
+
+        mods
+    }
+
+    fn wparam_to_mods(wparam: WPARAM) -> Mods {
+        let mut mods = Mods::NONE;
+
+        if wparam.0 & MK_SHIFT != 0 {
+            mods = mods.with(Mod::Shift);
+        }
+
+        if wparam.0 & MK_CONTROL != 0 {
+            mods = mods.with(Mod::Ctrl);
+        }
+
+        mods
     }
 
     fn key_from_keycode(value: u32) -> Option<Key> {

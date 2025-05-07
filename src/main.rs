@@ -22,8 +22,6 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
- * On Windows use GetCursorPos and ScreenToClient in Window::mouse_position instead of tracking it manually.
- * Update Windows platform based on mouse input changes.
  * When pasting add indentation to all lines based on first.
  * When reloading a file compare the lines and only delete & re-insert doc lines that changed.
  * Use FocusList for ResultList's results/selection.
