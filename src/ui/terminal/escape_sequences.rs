@@ -419,6 +419,20 @@ impl TerminalEmulator {
 
                 Some(&output[1..])
             }
+            Some(&b'E') => {
+                let distance = Self::get_parameter(parameters, 0, 1) as isize;
+                let y = self.grid_cursor.y.saturating_add_signed(distance);
+                self.jump_cursor(Position::new(0, y), doc, ctx.gfx);
+
+                Some(&output[1..])
+            }
+            Some(&b'F') => {
+                let distance = Self::get_parameter(parameters, 0, 1) as isize;
+                let y = self.grid_cursor.y.saturating_add_signed(-distance);
+                self.jump_cursor(Position::new(0, y), doc, ctx.gfx);
+
+                Some(&output[1..])
+            }
             Some(&b'J') => {
                 let (start, end) = match Self::get_parameter(parameters, 0, 0) {
                     0 => {
