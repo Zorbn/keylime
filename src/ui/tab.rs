@@ -120,13 +120,8 @@ impl Tab {
                 continue;
             }
 
-            // The mouse position is shifted over by half
-            // a glyph to make the cursor line up with the mouse.
-            let visual_position = VisualPosition::new(
-                visual_position.x + ctx.gfx.glyph_width() / 2.0,
-                visual_position.y,
-            )
-            .unoffset_by(self.doc_bounds);
+            let visual_position = VisualPosition::new(visual_position.x, visual_position.y)
+                .unoffset_by(self.doc_bounds);
 
             let position = doc.visual_to_position(visual_position, self.camera.position(), ctx.gfx);
 
@@ -290,7 +285,7 @@ impl Tab {
 
     pub fn draw(
         &mut self,
-        default_background: Option<Color>,
+        background: Option<Color>,
         doc: &mut Doc,
         ctx: &mut Ctx,
         is_focused: bool,
@@ -326,15 +321,13 @@ impl Tab {
 
         ctx.gfx.begin(Some(self.doc_bounds));
 
-        if let Some(default_background) = default_background {
-            ctx.gfx.add_rect(
-                self.doc_bounds.unoffset_by(self.doc_bounds),
-                default_background,
-            );
+        if let Some(background) = background {
+            ctx.gfx
+                .add_rect(self.doc_bounds.unoffset_by(self.doc_bounds), background);
         }
 
         self.draw_indent_guides(doc, camera_position, visible_lines, ctx);
-        self.draw_lines(default_background, doc, camera_position, visible_lines, ctx);
+        self.draw_lines(background, doc, camera_position, visible_lines, ctx);
         self.draw_diagnostics(doc, camera_position, visible_lines, ctx);
         self.draw_go_to_definition_hint(doc, camera_position, ctx);
         self.draw_cursors(doc, is_focused, camera_position, visible_lines, ctx);
@@ -427,7 +420,7 @@ impl Tab {
 
     fn draw_lines(
         &mut self,
-        default_background: Option<Color>,
+        background: Option<Color>,
         doc: &Doc,
         camera_position: VisualPosition,
         visible_lines: VisibleLines,
@@ -469,17 +462,17 @@ impl Tab {
                 let highlighted_text = &line[highlight.start..highlight.end];
 
                 if let Some(highlight_background) = highlight.background {
-                    let background = ctx
+                    let highlight_background = ctx
                         .config
                         .theme
                         .highlight_kind_to_color(highlight_background);
 
-                    if Some(background) != default_background {
+                    if Some(highlight_background) != background {
                         gfx.add_background(
                             highlighted_text,
                             visual_x,
                             background_visual_y,
-                            background,
+                            highlight_background,
                         );
                     }
                 }

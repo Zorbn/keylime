@@ -181,7 +181,7 @@ impl<T> Pane<T> {
 
     pub fn draw(
         &mut self,
-        default_background: Option<Color>,
+        background: Option<Color>,
         data_list: &mut SlotList<T>,
         ctx: &mut Ctx,
         is_focused: bool,
@@ -227,15 +227,11 @@ impl<T> Pane<T> {
                 continue;
             }
 
-            self.draw_tab_from_index(i, default_background, data_list, ctx);
+            self.draw_tab_from_index(i, background, data_list, ctx);
         }
 
-        let focused_tab_bounds = self.draw_tab_from_index(
-            self.tabs.focused_index(),
-            default_background,
-            data_list,
-            ctx,
-        );
+        let focused_tab_bounds =
+            self.draw_tab_from_index(self.tabs.focused_index(), background, data_list, ctx);
 
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
@@ -266,14 +262,14 @@ impl<T> Pane<T> {
 
         if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
         {
-            tab.draw(default_background, get_doc_mut(data), ctx, is_focused);
+            tab.draw(background, get_doc_mut(data), ctx, is_focused);
         }
     }
 
     fn draw_tab_from_index(
         &mut self,
         index: usize,
-        default_background: Option<Color>,
+        background: Option<Color>,
         data_list: &mut SlotList<T>,
         ctx: &mut Ctx,
     ) -> Rect {
@@ -286,7 +282,7 @@ impl<T> Pane<T> {
         Self::draw_tab(
             index == self.tabs.focused_index(),
             self.dragged_tab_offset,
-            default_background,
+            background,
             tab,
             get_doc(data),
             self.bounds,
@@ -297,7 +293,7 @@ impl<T> Pane<T> {
     fn draw_tab(
         is_focused: bool,
         dragged_tab_offset: Option<f32>,
-        default_background: Option<Color>,
+        background: Option<Color>,
         tab: &Tab,
         doc: &Doc,
         bounds: Rect,
@@ -308,15 +304,15 @@ impl<T> Pane<T> {
         let text_color = Self::get_tab_color(doc, theme, ctx);
 
         let mut tab_bounds = tab.tab_bounds().unoffset_by(bounds);
-        let mut background = theme.background;
+        let mut tab_background = theme.background;
 
         if is_focused {
             if let Some(offset) = dragged_tab_offset {
                 tab_bounds.x += ctx.window.get_mouse_position().x - tab_bounds.x + offset;
             }
 
-            if let Some(default_background) = default_background {
-                background = default_background;
+            if let Some(background) = background {
+                tab_background = background;
             }
         }
 
@@ -325,7 +321,7 @@ impl<T> Pane<T> {
         gfx.add_bordered_rect(
             tab_bounds,
             Sides::ALL.without(Side::Bottom),
-            background,
+            tab_background,
             theme.border,
         );
 
