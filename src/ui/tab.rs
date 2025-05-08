@@ -20,7 +20,7 @@ use crate::{
 };
 
 use super::{
-    camera::{Camera, OUTPUT_SCROLL_PADDING_LINES, RECENTER_DISTANCE},
+    camera::{Camera, RECENTER_DISTANCE},
     color::Color,
     core::{Ui, Widget},
 };
@@ -214,8 +214,7 @@ impl Tab {
         let (target_y, can_recenter, recenter_distance) = match doc.kind() {
             DocKind::Output => {
                 let can_recenter = self.handled_doc_len != Some(doc_len);
-                let target_y =
-                    max_y - self.camera.y() + gfx.line_height() * OUTPUT_SCROLL_PADDING_LINES;
+                let target_y = max_y - self.camera.y();
 
                 (target_y, can_recenter, 1)
             }

@@ -10,7 +10,6 @@ pub enum CameraRecenterKind {
 }
 
 pub const RECENTER_DISTANCE: usize = 4;
-pub const OUTPUT_SCROLL_PADDING_LINES: f32 = 0.5;
 const SCROLL_SPEED: f32 = 30.0;
 const PRECISE_SCROLL_SPEED: f32 = 0.1;
 const SCROLL_FRICTION: f32 = 0.0001;
