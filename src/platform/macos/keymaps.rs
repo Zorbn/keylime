@@ -118,6 +118,20 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
         ),
         (
             Keybind {
+                key: Key::LBracket,
+                mods: Mods::CMD | Mods::SHIFT,
+            },
+            ActionName::PreviousTab,
+        ),
+        (
+            Keybind {
+                key: Key::RBracket,
+                mods: Mods::CMD | Mods::SHIFT,
+            },
+            ActionName::NextTab,
+        ),
+        (
+            Keybind {
                 key: Key::Left,
                 mods: Mods::CMD | Mods::SHIFT | Mods::ALT,
             },
