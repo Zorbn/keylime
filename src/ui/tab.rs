@@ -120,8 +120,12 @@ impl Tab {
                 continue;
             }
 
-            let visual_position = VisualPosition::new(visual_position.x, visual_position.y)
-                .unoffset_by(self.doc_bounds);
+            // Offset the x position slightly to make resulting cursor placement more natural.
+            let visual_position = VisualPosition::new(
+                visual_position.x + 0.25 * ctx.gfx.glyph_width(),
+                visual_position.y,
+            )
+            .unoffset_by(self.doc_bounds);
 
             let position = doc.visual_to_position(visual_position, self.camera.position(), ctx.gfx);
 
