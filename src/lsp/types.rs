@@ -32,14 +32,14 @@ impl LspPosition {
     }
 
     fn decode(self, encoding: PositionEncoding, doc: &Doc) -> Position {
-        let line = doc.get_line(self.line).unwrap_or_default();
-
         match encoding {
             PositionEncoding::Utf8 => Position {
                 x: self.character,
                 y: self.line,
             },
             PositionEncoding::Utf16 => {
+                let line = doc.get_line(self.line).unwrap_or_default();
+
                 let mut wide_index = 0;
                 let mut result = Position {
                     x: line.len(),
@@ -49,9 +49,9 @@ impl LspPosition {
                 for (index, c) in line.char_indices() {
                     let mut dst = [0; 2];
 
-                    wide_index += c.encode_utf16(&mut dst).iter().count();
+                    wide_index += c.encode_utf16(&mut dst).len();
 
-                    if wide_index >= self.character {
+                    if wide_index > self.character {
                         result.x = index;
                         break;
                     }

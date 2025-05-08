@@ -762,7 +762,7 @@ impl LanguageServer {
         self.pending_requests.insert(id, (path, method));
 
         let content = json!({
-            "jsonrpc": 2.0,
+            "jsonrpc": "2.0",
             "id": id,
             "method": method,
             "params": params,
@@ -775,7 +775,7 @@ impl LanguageServer {
 
     fn send_notification(&mut self, method: &'static str, params: Value) {
         let content = json!({
-            "jsonrpc": 2.0,
+            "jsonrpc": "2.0",
             "method": method,
             "params": params,
         });

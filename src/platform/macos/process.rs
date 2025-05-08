@@ -104,8 +104,14 @@ impl Process {
                 };
 
                 let child_path = CString::new(child_path).unwrap();
-                let args: Vec<*const i8> = command
+
+                let args: Vec<CString> = command
                     .split(' ')
+                    .map(|arg| CString::new(arg).unwrap())
+                    .collect();
+
+                let args: Vec<*const i8> = args
+                    .iter()
                     .map(|arg| arg.as_ptr() as _)
                     .chain([null()])
                     .collect();

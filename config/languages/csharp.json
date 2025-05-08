@@ -4,6 +4,7 @@
         "cs"
     ],
     "indent_width": 4,
+    "lsp_language_id": "csharp",
     "syntax": {
         "keywords": [
             "abstract",
