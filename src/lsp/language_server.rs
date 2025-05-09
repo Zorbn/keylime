@@ -11,8 +11,9 @@ use crate::{
     geometry::position::Position,
     lsp::{
         types::{
-            LspCodeActionResult, LspCompletionResult, LspDefinitionResult, LspInitializeResult,
-            LspLocation, LspMessage, LspPosition, LspPublishDiagnosticsParams,
+            LspCodeActionResult, LspCompletionResult, LspDefinitionResult,
+            LspFullDocumentDiagnosticParams, LspInitializeResult, LspLocation, LspMessage,
+            LspPosition, LspPublishDiagnosticsParams, LspRegistrationParams,
         },
         uri::uri_to_path,
     },
@@ -80,6 +81,7 @@ pub(super) enum MessageResult<'a> {
     },
     SignatureHelp(Option<SignatureHelp>),
     Formatting(Vec<LspTextEdit>),
+    Diagnostic(Vec<LspDiagnostic>),
 }
 
 pub struct LanguageServer {
@@ -94,6 +96,7 @@ pub struct LanguageServer {
     path_pool: Vec<PathBuf>,
 
     diagnostics: HashMap<PathBuf, Diagnostics>,
+    do_pull_diagnostics: bool,
 
     position_encoding: PositionEncoding,
     trigger_chars: HashSet<char>,
@@ -116,6 +119,7 @@ impl LanguageServer {
             path_pool: Vec::new(),
 
             diagnostics: HashMap::new(),
+            do_pull_diagnostics: false,
 
             position_encoding: PositionEncoding::Utf16,
             trigger_chars: HashSet::new(),
@@ -134,6 +138,7 @@ impl LanguageServer {
             None,
             "initialize",
             json!({
+                "rootUri": uri_buffer,
                 "workspaceFolders": [
                     {
                         "uri": uri_buffer,
@@ -169,6 +174,12 @@ impl LanguageServer {
                         },
                         "signatureHelp": {
                             "contextSupport": true,
+                        },
+                        "definition": {
+                            "linkSupport": true,
+                        },
+                        "diagnostic": {
+                            "dynamicRegistration": true,
                         },
                     },
                 },
@@ -299,6 +310,8 @@ impl LanguageServer {
                                 .filter_map(|string| string.chars().nth(0)),
                         );
                     }
+
+                    self.do_pull_diagnostics = result.capabilities.diagnostic_provider.is_some();
                 }
 
                 self.send_notification("initialized", json!({}));
@@ -314,8 +327,7 @@ impl LanguageServer {
             }
             "textDocument/publishDiagnostics" => {
                 let params = message.params.as_ref()?;
-
-                let mut params =
+                let params =
                     serde_json::from_str::<LspPublishDiagnosticsParams>(params.get()).ok()?;
 
                 let uri = self.uri_buffer.get_mut();
@@ -326,10 +338,16 @@ impl LanguageServer {
 
                 let path = uri_to_path(uri, path)?;
 
-                let diagnostics = self.diagnostics.entry(path).or_default();
-                diagnostics.replace(&mut params.diagnostics);
+                self.set_diagnostics(path, params.diagnostics);
 
                 None
+            }
+            "textDocument/diagnostic" => {
+                let result = message.result.as_ref()?;
+                let result =
+                    serde_json::from_str::<LspFullDocumentDiagnosticParams>(result.get()).ok()?;
+
+                Some(MessageResult::Diagnostic(result.items))
             }
             "textDocument/completion" => {
                 let result = message
@@ -435,8 +453,27 @@ impl LanguageServer {
 
                 result.map(MessageResult::Formatting)
             }
+            "client/registerCapability" => {
+                let params = message.params.as_ref()?;
+                let params = serde_json::from_str::<LspRegistrationParams>(params.get()).ok()?;
+
+                for registration in params.registrations {
+                    if registration.method == "textDocument/diagnostic" {
+                        self.do_pull_diagnostics = true;
+                    }
+                }
+
+                self.send_response(message.id?, json!({}));
+
+                None
+            }
             _ => None,
         }
+    }
+
+    pub(super) fn set_diagnostics(&mut self, path: PathBuf, mut diagnostics: Vec<LspDiagnostic>) {
+        let path_diagnostics = self.diagnostics.entry(path).or_default();
+        path_diagnostics.replace(&mut diagnostics);
     }
 
     pub fn did_open(&mut self, path: &Path, language_id: &str, version: usize, text: &str) {
@@ -722,6 +759,30 @@ impl LanguageServer {
         sent_request
     }
 
+    pub fn diagnostic(&mut self, path: &Path) -> Option<LspSentRequest> {
+        if !self.do_pull_diagnostics {
+            return None;
+        }
+
+        let mut uri_buffer = self.uri_buffer.pop();
+
+        path_to_uri(path, &mut uri_buffer);
+
+        let sent_request = self.send_request(
+            Some(path),
+            "textDocument/diagnostic",
+            json!({
+                "textDocument": {
+                    "uri": uri_buffer,
+                },
+            }),
+        );
+
+        self.uri_buffer.push(uri_buffer);
+
+        Some(sent_request)
+    }
+
     pub fn text_document_notification(&mut self, path: &Path, method: &'static str) {
         let mut uri_buffer = self.uri_buffer.pop();
 
@@ -781,6 +842,16 @@ impl LanguageServer {
         });
 
         self.send_content(content, self.has_initialized || method == "initialized");
+    }
+
+    fn send_response(&mut self, id: usize, result: Value) {
+        let content = json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": result,
+        });
+
+        self.send_content(content, self.has_initialized);
     }
 
     fn send_content(&mut self, content: Value, do_enqueue: bool) {

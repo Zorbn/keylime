@@ -62,7 +62,7 @@ impl Editor {
             panes: FocusList::new(),
             current_dir: current_dir().ok(),
 
-            do_show_diagnostic_popup: true,
+            do_show_diagnostic_popup: false,
             signature_help_popup: SignatureHelpPopup::new(),
             completion_list: CompletionList::new(),
             widget: Widget::new(ui, true),
@@ -196,6 +196,7 @@ impl Editor {
                         }
                     }
                 }
+                action_name!(ShowDiagnostic) => self.do_show_diagnostic_popup = true,
                 _ => action_handler.unprocessed(ctx.window, action),
             }
         }
@@ -245,8 +246,8 @@ impl Editor {
 
         let position = doc.get_cursor(CursorIndex::Main).position;
 
-        if !self.do_show_diagnostic_popup && ctx.lsp.get_diagnostic_at(position, doc).is_none() {
-            self.do_show_diagnostic_popup = true;
+        if self.do_show_diagnostic_popup && ctx.lsp.get_diagnostic_at(position, doc).is_none() {
+            self.do_show_diagnostic_popup = false;
         }
     }
 

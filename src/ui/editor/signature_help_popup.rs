@@ -45,7 +45,7 @@ impl SignatureHelpPopup {
         {
             let trigger_char = trigger_char.or(retrigger_char);
 
-            doc.lsp_signature_help(position, trigger_char, false, ctx);
+            doc.lsp_signature_help(trigger_char, false, ctx);
 
             self.help_position = position;
 

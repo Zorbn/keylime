@@ -1094,6 +1094,8 @@ impl Doc {
         if self.do_shift() {
             self.shift_positions(start, end, Self::shift_position_by_delete, ctx);
         }
+
+        self.lsp_diagnostic(ctx);
     }
 
     pub fn insert(&mut self, start: Position, text: &str, ctx: &mut Ctx) -> Position {
@@ -1167,6 +1169,8 @@ impl Doc {
         if self.do_shift() {
             self.shift_positions(start, position, Self::shift_position_by_insert, ctx);
         }
+
+        self.lsp_diagnostic(ctx);
 
         position
     }
@@ -2051,12 +2055,16 @@ impl Doc {
         Some((language, language_server))
     }
 
-    fn lsp_add_expected_response(&mut self, sent_request: LspSentRequest) {
+    fn lsp_add_expected_response(
+        &mut self,
+        sent_request: LspSentRequest,
+        position: Option<Position>,
+    ) {
         self.lsp_expected_responses.insert(
             sent_request.method,
             LspExpectedResponse {
                 id: sent_request.id,
-                position: self.get_cursor(CursorIndex::Main).position,
+                position,
                 version: self.version,
             },
         );
@@ -2086,10 +2094,20 @@ impl Doc {
 
         let position = self.get_cursor(CursorIndex::Main).position;
 
-        if expected_response.position != position || expected_response.version != self.version {
+        let is_position_expected = expected_response
+            .position
+            .is_none_or(|expected_position| expected_position == position);
+
+        let is_version_expected = expected_response.version == self.version;
+
+        if !is_position_expected || !is_version_expected {
             // We received the expected response, but the doc didn't match the expected state.
             if method == "textDocument/completion" {
                 self.lsp_completion(ctx);
+            }
+
+            if method == "textDocument/diagnostic" {
+                self.lsp_diagnostic(ctx);
             }
 
             return false;
@@ -2104,6 +2122,7 @@ impl Doc {
         let path = self.path.on_drive()?;
 
         language_server.did_open(path, language_id, self.version, text);
+        self.lsp_diagnostic(ctx);
 
         Some(())
     }
@@ -2123,6 +2142,23 @@ impl Doc {
         Some(())
     }
 
+    fn lsp_diagnostic(&mut self, ctx: &mut Ctx) -> Option<()> {
+        if self
+            .lsp_expected_responses
+            .contains_key("textDocument/diagnostic")
+        {
+            return None;
+        }
+
+        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let path = self.path.on_drive()?;
+
+        let sent_request = language_server.diagnostic(path)?;
+        self.lsp_add_expected_response(sent_request, None);
+
+        Some(())
+    }
+
     pub fn lsp_completion(&mut self, ctx: &mut Ctx) -> Option<()> {
         if self
             .lsp_expected_responses
@@ -2138,7 +2174,7 @@ impl Doc {
         let position = self.get_cursor(CursorIndex::Main).position;
 
         let sent_request = language_server.completion(path, position, self);
-        self.lsp_add_expected_response(sent_request);
+        self.lsp_add_expected_response(sent_request, Some(position));
 
         Some(())
     }
@@ -2156,7 +2192,7 @@ impl Doc {
         };
 
         let sent_request = language_server.code_action(path, start, end, self);
-        self.lsp_add_expected_response(sent_request);
+        self.lsp_add_expected_response(sent_request, Some(cursor.position));
 
         Some(())
     }
@@ -2167,7 +2203,7 @@ impl Doc {
         let position = self.get_cursor(CursorIndex::Main).position;
 
         let sent_request = language_server.prepare_rename(path, position, self);
-        self.lsp_add_expected_response(sent_request);
+        self.lsp_add_expected_response(sent_request, Some(position));
 
         Some(())
     }
@@ -2188,7 +2224,7 @@ impl Doc {
         let position = self.get_cursor(CursorIndex::Main).position;
 
         let sent_request = language_server.references(path, position, self);
-        self.lsp_add_expected_response(sent_request);
+        self.lsp_add_expected_response(sent_request, Some(position));
 
         Some(())
     }
@@ -2198,24 +2234,24 @@ impl Doc {
         let path = self.path.on_drive()?;
 
         let sent_request = language_server.definition(path, position, self);
-        self.lsp_add_expected_response(sent_request);
+        self.lsp_add_expected_response(sent_request, None);
 
         Some(())
     }
 
     pub fn lsp_signature_help(
         &mut self,
-        position: Position,
         trigger_char: Option<char>,
         is_retrigger: bool,
         ctx: &mut Ctx,
     ) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
         let path = self.path.on_drive()?;
+        let position = self.get_cursor(CursorIndex::Main).position;
 
         let sent_request =
             language_server.signature_help(path, position, trigger_char, is_retrigger, self);
-        self.lsp_add_expected_response(sent_request);
+        self.lsp_add_expected_response(sent_request, Some(position));
 
         Some(())
     }

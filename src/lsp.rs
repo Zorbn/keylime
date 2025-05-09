@@ -37,7 +37,7 @@ pub struct LspSentRequest {
 #[derive(Debug, Clone, Copy)]
 pub struct LspExpectedResponse {
     pub id: usize,
-    pub position: Position,
+    pub position: Option<Position>,
     pub version: usize,
 }
 
@@ -228,6 +228,12 @@ impl Lsp {
 
                 doc.apply_edit_list(&mut edits, ctx);
                 let _ = doc.save(None, ctx);
+            }
+            MessageResult::Diagnostic(diagnostics) => {
+                let doc = doc?;
+                let path = doc.path().on_drive()?.to_owned();
+
+                server.set_diagnostics(path, diagnostics);
             }
         }
 

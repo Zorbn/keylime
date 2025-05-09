@@ -44,6 +44,12 @@ pub fn draw_popup(
         }
 
         popup_bounds.x = popup_bounds.x.max(margin);
+
+        if popup_bounds.bottom() > gfx.height() - margin {
+            popup_bounds.y -= popup_bounds.bottom() - (gfx.height() - margin);
+        }
+
+        popup_bounds.y = popup_bounds.y.max(margin);
     }
 
     gfx.begin(Some(popup_bounds));

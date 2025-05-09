@@ -424,6 +424,13 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
             },
             ActionName::RequestCodeAction,
         ),
+        (
+            Keybind {
+                key: Key::D,
+                mods: Mods::CMD,
+            },
+            ActionName::ShowDiagnostic,
+        ),
     ]
     .iter()
     .copied()

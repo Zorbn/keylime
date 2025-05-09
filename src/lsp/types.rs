@@ -113,6 +113,11 @@ pub(super) struct LspPublishDiagnosticsParams {
     pub diagnostics: Vec<LspDiagnostic>,
 }
 
+#[derive(Debug, Deserialize)]
+pub(super) struct LspFullDocumentDiagnosticParams {
+    pub items: Vec<LspDiagnostic>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct LspTextEdit {
@@ -216,12 +221,24 @@ pub(super) struct LspSignatureHelpOptions {
 pub(super) struct LspServerCapabilities<'a> {
     pub position_encoding: &'a str,
     pub signature_help_provider: Option<LspSignatureHelpOptions>,
+    pub diagnostic_provider: Option<()>,
 }
 
 #[derive(Debug, Deserialize)]
 pub(super) struct LspInitializeResult<'a> {
     #[serde(borrow)]
     pub capabilities: LspServerCapabilities<'a>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(super) struct LspRegistration<'a> {
+    pub method: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+pub(super) struct LspRegistrationParams<'a> {
+    #[serde(borrow)]
+    pub registrations: Vec<LspRegistration<'a>>,
 }
 
 #[derive(Debug, Deserialize)]
