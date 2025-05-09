@@ -80,7 +80,7 @@ fn should_insert_matching_grapheme(
     previous_grapheme: &str,
 ) -> bool {
     let is_next_clear = !grapheme::is_alphanumeric(next_grapheme);
-    let is_previous_clear = matching_grapheme != "'" || grapheme::is_whitespace(previous_grapheme);
+    let is_previous_clear = !grapheme::is_alphanumeric(previous_grapheme);
 
     is_next_clear && is_previous_clear
 }
