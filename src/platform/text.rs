@@ -109,7 +109,7 @@ impl Text {
             let mut reset_glyphs_start = true;
 
             match grapheme::char_at(char_cursor.cur_cursor(), text) {
-                " " => {
+                " " | "\n" => {
                     result = result.worse(Self::flush_glyphs(
                         inner,
                         cache,
