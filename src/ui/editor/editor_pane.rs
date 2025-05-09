@@ -1,7 +1,7 @@
 use std::{
     io,
     ops::{Deref, DerefMut},
-    path::Path,
+    path::{absolute, Path},
 };
 
 use crate::{
@@ -98,13 +98,8 @@ impl EditorPane {
         doc_list: &mut SlotList<Doc>,
         ctx: &mut Ctx,
     ) -> io::Result<()> {
-        let doc = Doc::new(
-            path.map(|path| path.to_owned()),
-            &mut ctx.buffers.lines,
-            None,
-            DocKind::MultiLine,
-        );
-
+        let path = path.and_then(|path| absolute(path).ok());
+        let doc = Doc::new(path, &mut ctx.buffers.lines, None, DocKind::MultiLine);
         let doc_index = doc_list.add(doc);
 
         self.add_tab(doc_index, doc_list, ctx);
