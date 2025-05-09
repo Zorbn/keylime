@@ -8,7 +8,7 @@ use crate::{
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::action::action_keybind,
     lsp::{
-        types::{CodeAction, CodeActionResult, Command, CompletionItem, EditList},
+        types::{CodeAction, CodeActionResult, Command, CompletionItem, Documentation, EditList},
         LspSentRequest,
     },
     platform::gfx::Gfx,
@@ -22,12 +22,19 @@ use crate::{
 
 const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
 
+#[derive(Debug, PartialEq, Eq)]
+enum CompletionResolveState {
+    NeedsRequest,
+    NeedsResponse,
+    Resolved,
+}
+
 #[derive(Debug)]
-pub enum CompletionResult {
+enum CompletionResult {
     SimpleCompletion(String),
     Completion {
         item: CompletionItem,
-        needs_resolve_request: bool,
+        resolve_state: CompletionResolveState,
     },
     Command(Command),
     CodeAction(CodeAction),
@@ -42,6 +49,17 @@ impl CompletionResult {
             CompletionResult::CodeAction(code_action) => &code_action.title,
         }
     }
+}
+
+// Used to keep a previous completion item's popup open while the next one is loading.
+#[derive(Debug)]
+enum CompletionPopupCache {
+    PreviousIndex(usize),
+    PreviousItem {
+        detail: Option<String>,
+        documentation: Option<Documentation>,
+    },
+    None,
 }
 
 #[derive(Debug, Default)]
@@ -59,6 +77,7 @@ pub struct CompletionList {
     handled_path: PathBuf,
 
     lsp_expected_responses: HashMap<usize, usize>,
+    popup_cache: CompletionPopupCache,
 }
 
 impl CompletionList {
@@ -72,6 +91,7 @@ impl CompletionList {
             handled_path: PathBuf::new(),
 
             lsp_expected_responses: HashMap::new(),
+            popup_cache: CompletionPopupCache::None,
         }
     }
 
@@ -112,6 +132,11 @@ impl CompletionList {
     ) -> Option<CompletionListResult> {
         let are_results_focused = !self.result_list.results.is_empty();
 
+        if matches!(self.popup_cache, CompletionPopupCache::None) {
+            self.popup_cache =
+                CompletionPopupCache::PreviousIndex(self.result_list.selected_result_index())
+        }
+
         let result_input =
             self.result_list
                 .update(widget, ui, ctx.window, is_visible, are_results_focused);
@@ -133,10 +158,10 @@ impl CompletionList {
 
         if let Some(CompletionResult::Completion {
             item,
-            needs_resolve_request: needs_resolve_request @ false,
+            resolve_state: resolve_state @ CompletionResolveState::NeedsRequest,
         }) = self.result_list.get_selected_result_mut()
         {
-            *needs_resolve_request = true;
+            *resolve_state = CompletionResolveState::NeedsResponse;
 
             if let Some(sent_request) = Self::lsp_completion_item_resolve(item, doc, ctx) {
                 let index = self.result_list.selected_result_index();
@@ -195,14 +220,42 @@ impl CompletionList {
         let CompletionResult::Completion {
             item:
                 CompletionItem {
-                    detail,
-                    documentation,
+                    ref detail,
+                    ref documentation,
                     ..
                 },
-            ..
+            resolve_state,
         } = &selected_result
         else {
             return;
+        };
+
+        if *resolve_state == CompletionResolveState::Resolved {
+            self.popup_cache = CompletionPopupCache::None;
+        }
+
+        let (detail, documentation) = match &self.popup_cache {
+            CompletionPopupCache::PreviousIndex(index) => {
+                if let Some(CompletionResult::Completion {
+                    item:
+                        CompletionItem {
+                            detail,
+                            documentation,
+                            ..
+                        },
+                    ..
+                }) = self.result_list.results.get(*index)
+                {
+                    (detail, documentation)
+                } else {
+                    (detail, documentation)
+                }
+            }
+            CompletionPopupCache::PreviousItem {
+                detail,
+                documentation,
+            } => (detail, documentation),
+            _ => (detail, documentation),
         };
 
         let gfx = &mut ctx.gfx;
@@ -251,16 +304,33 @@ impl CompletionList {
 
         let Some(CompletionResult::Completion {
             item: existing_item,
-            ..
+            resolve_state,
         }) = &mut self.result_list.results.get_mut(index)
         else {
             return;
         };
 
         *existing_item = item;
+        *resolve_state = CompletionResolveState::Resolved;
     }
 
     pub fn lsp_update_completion_results(&mut self, mut items: Vec<CompletionItem>) {
+        if let Some(CompletionResult::Completion {
+            item:
+                CompletionItem {
+                    detail,
+                    documentation,
+                    ..
+                },
+            ..
+        }) = self.result_list.remove_selected_result()
+        {
+            self.popup_cache = CompletionPopupCache::PreviousItem {
+                detail,
+                documentation,
+            };
+        }
+
         self.clear();
 
         items.retain(|item| item.filter_text().starts_with(&self.prefix));
@@ -269,7 +339,7 @@ impl CompletionList {
         for item in items {
             self.result_list.results.push(CompletionResult::Completion {
                 item,
-                needs_resolve_request: false,
+                resolve_state: CompletionResolveState::NeedsRequest,
             });
         }
     }
