@@ -45,13 +45,6 @@ impl CommandPaletteMode for SearchMode {
         args: CommandPaletteEventArgs,
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
-        if !matches!(
-            kind,
-            ResultListSubmitKind::Normal | ResultListSubmitKind::Alternate
-        ) {
-            return CommandPaletteAction::Stay;
-        }
-
         let search_term = command_palette.get_input();
 
         let (pane, doc_list) = args.editor.get_focused_pane_and_doc_list_mut();
@@ -119,13 +112,6 @@ impl CommandPaletteMode for SearchAndReplaceMode {
         args: CommandPaletteEventArgs,
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
-        if !matches!(
-            kind,
-            ResultListSubmitKind::Normal | ResultListSubmitKind::Alternate
-        ) {
-            return CommandPaletteAction::Stay;
-        }
-
         let Some(search_term) = &self.search_term else {
             self.search_term = Some(command_palette.get_input().into());
             command_palette.doc.clear(args.ctx);

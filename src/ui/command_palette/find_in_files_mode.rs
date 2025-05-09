@@ -74,15 +74,8 @@ impl FindInFilesMode {
     pub fn jump_to_path_with_position(
         command_palette: &mut CommandPalette,
         args: CommandPaletteEventArgs,
-        kind: ResultListSubmitKind,
+        _: ResultListSubmitKind,
     ) -> CommandPaletteAction {
-        if !matches!(
-            kind,
-            ResultListSubmitKind::Normal | ResultListSubmitKind::Alternate
-        ) {
-            return CommandPaletteAction::Stay;
-        }
-
         let Some(CommandPaletteResult {
             meta_data: CommandPaletteMetaData::PathWithPosition { path, position },
             ..

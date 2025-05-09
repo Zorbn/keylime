@@ -34,6 +34,7 @@ pub struct App {
     terminal: Terminal,
     status_bar: StatusBar,
     command_palette: CommandPalette,
+
     file_watcher: FileWatcher,
     lsp: Lsp,
 
@@ -54,23 +55,18 @@ impl App {
         };
 
         let mut ui = Ui::new();
-        let editor = Editor::new(&mut ui, &mut buffers.lines);
-        let terminal = Terminal::new(&mut ui, &mut buffers.lines);
-        let status_bar = StatusBar::new(&mut ui);
-        let command_palette = CommandPalette::new(&mut ui, &mut buffers.lines);
-        let file_watcher = FileWatcher::new();
-        let lsp = Lsp::new();
 
         Self {
+            editor: Editor::new(&mut ui, &mut buffers.lines),
+            terminal: Terminal::new(&mut ui, &mut buffers.lines),
+            status_bar: StatusBar::new(&mut ui),
+            command_palette: CommandPalette::new(&mut ui, &mut buffers.lines),
+            ui,
+
             buffers,
 
-            ui,
-            editor,
-            terminal,
-            status_bar,
-            command_palette,
-            file_watcher,
-            lsp,
+            file_watcher: FileWatcher::new(),
+            lsp: Lsp::new(),
 
             config_dir,
             config,

@@ -4,7 +4,7 @@ use crate::{
     ctx::Ctx,
     geometry::{rect::Rect, sides::Sides, visual_position::VisualPosition},
     input::{
-        action::{action_keybind, action_name},
+        action::action_keybind,
         mods::{Mod, Mods},
         mouse_button::MouseButton,
         mousebind::Mousebind,
@@ -21,7 +21,6 @@ use super::{
 pub enum ResultListSubmitKind {
     Normal,
     Alternate,
-    Delete,
 }
 
 pub enum ResultListInput {
@@ -35,7 +34,6 @@ pub struct ResultList<T> {
     pub results: Vec<T>,
     selected_result_index: usize,
     handled_selected_result_index: Option<usize>,
-    pub do_allow_delete: bool,
 
     max_visible_results: usize,
     result_bounds: Rect,
@@ -50,7 +48,6 @@ impl<T> ResultList<T> {
             results: Vec::new(),
             selected_result_index: 0,
             handled_selected_result_index: None,
-            do_allow_delete: false,
 
             max_visible_results,
             result_bounds: Rect::ZERO,
@@ -185,11 +182,6 @@ impl<T> ResultList<T> {
                 action_keybind!(key: Enter, mods: Mods::SHIFT) => {
                     *input = ResultListInput::Submit {
                         kind: ResultListSubmitKind::Alternate,
-                    }
-                }
-                action_name!(DeleteForward) if self.do_allow_delete => {
-                    *input = ResultListInput::Submit {
-                        kind: ResultListSubmitKind::Delete,
                     }
                 }
                 action_keybind!(key: Tab, mods: Mods::NONE) => *input = ResultListInput::Complete,

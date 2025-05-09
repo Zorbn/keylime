@@ -1,5 +1,5 @@
 use std::{
-    fs::{create_dir_all, read_dir},
+    fs::{copy, create_dir_all, read_dir, rename},
     io,
     path::{Component, Path, PathBuf},
 };
@@ -7,6 +7,7 @@ use std::{
 use crate::{
     ctx::Ctx,
     geometry::position::Position,
+    input::action::{action_name, Action},
     platform::{gfx::Gfx, recycle::recycle},
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::result_list::ResultListSubmitKind,
@@ -25,7 +26,26 @@ const PATH_SEPARATORS: &[&str] = &["/"];
 
 const PREFERRED_PATH_SEPARATOR: &str = "/";
 
-pub struct FindFileMode;
+#[derive(Debug, PartialEq, Eq)]
+enum FileClipboardState {
+    Empty,
+    Copy,
+    Cut,
+}
+
+pub struct FindFileMode {
+    clipboard_path: PathBuf,
+    clipboard_state: FileClipboardState,
+}
+
+impl FindFileMode {
+    pub fn new() -> Self {
+        Self {
+            clipboard_path: PathBuf::new(),
+            clipboard_state: FileClipboardState::Empty,
+        }
+    }
+}
 
 impl CommandPaletteMode for FindFileMode {
     fn title(&self) -> &str {
@@ -68,34 +88,99 @@ impl CommandPaletteMode for FindFileMode {
         }
     }
 
+    fn on_action(
+        &mut self,
+        command_palette: &mut CommandPalette,
+        args: CommandPaletteEventArgs,
+        action: Action,
+    ) -> bool {
+        let command_doc = &command_palette.doc;
+        let cursor = command_doc.get_cursor(CursorIndex::Main);
+
+        match action {
+            action_name!(DeleteBackward) => {
+                let end = cursor.position;
+                let mut start = command_palette.doc.move_position(end, -1, 0, args.ctx.gfx);
+
+                if !is_grapheme_path_separator(command_doc.get_grapheme(start)) {
+                    return false;
+                }
+
+                start = find_path_component_start(&command_palette.doc, start, args.ctx.gfx);
+                command_palette.doc.delete(start, end, args.ctx);
+
+                true
+            }
+            action_name!(DeleteForward) if cursor.position == command_doc.end() => {
+                if let Some(CommandPaletteResult {
+                    meta_data: CommandPaletteMetaData::Path(path),
+                    ..
+                }) = command_palette.result_list.get_selected_result()
+                {
+                    if path.exists() && recycle(path).is_ok() {
+                        self.on_update_results(command_palette, args);
+                    }
+                }
+
+                true
+            }
+            action_name!(Copy) | action_name!(Cut) if cursor.get_selection().is_none() => {
+                self.clipboard_path.clear();
+
+                if let Some(CommandPaletteResult {
+                    meta_data: CommandPaletteMetaData::Path(path),
+                    ..
+                }) = command_palette.result_list.get_selected_result()
+                {
+                    self.clipboard_path.push(path);
+
+                    self.clipboard_state = match action {
+                        action_name!(Copy) => FileClipboardState::Copy,
+                        action_name!(Cut) => FileClipboardState::Cut,
+                        _ => unreachable!(),
+                    };
+                }
+
+                true
+            }
+            action_name!(Paste) => match self.clipboard_state {
+                FileClipboardState::Empty => false,
+                FileClipboardState::Copy | FileClipboardState::Cut => {
+                    let path = &mut PathBuf::new();
+                    get_command_palette_dir(command_palette, path);
+
+                    let Some(file_name) = self.clipboard_path.file_name() else {
+                        return true;
+                    };
+
+                    path.push(file_name);
+
+                    let is_ok = if self.clipboard_state == FileClipboardState::Copy {
+                        copy(&self.clipboard_path, path).is_ok()
+                    } else {
+                        rename(&self.clipboard_path, path).is_ok()
+                    };
+
+                    if is_ok {
+                        self.on_update_results(command_palette, args);
+                    }
+
+                    true
+                }
+            },
+            _ => false,
+        }
+    }
+
     fn on_submit(
         &mut self,
         command_palette: &mut CommandPalette,
         args: CommandPaletteEventArgs,
-        kind: ResultListSubmitKind,
+        _: ResultListSubmitKind,
     ) -> CommandPaletteAction {
-        if !matches!(
-            kind,
-            ResultListSubmitKind::Normal | ResultListSubmitKind::Delete
-        ) {
-            return CommandPaletteAction::Stay;
-        }
+        let path = get_command_palette_path(command_palette);
 
         let input = command_palette.get_input();
-        // Trim trailing whitespace, this allows entering "/path/to/file " to create "file"
-        // when just "/path/to/file" could auto-complete to another result like "/path/to/filewithlongername"
-        let input = input.trim_end();
-
-        let path = Path::new(input);
-
-        if kind == ResultListSubmitKind::Delete {
-            if path.exists() && recycle(path).is_ok() {
-                delete_last_path_component(true, &mut command_palette.doc, args.ctx);
-            }
-
-            return CommandPaletteAction::Stay;
-        }
-
         let is_dir = ends_with_path_separator(input);
 
         if !path.exists() {
@@ -181,32 +266,21 @@ impl CommandPaletteMode for FindFileMode {
                         .results
                         .push(CommandPaletteResult {
                             text: result_text,
-                            meta_data: CommandPaletteMetaData::None,
+                            meta_data: CommandPaletteMetaData::Path(entry_path),
                         });
                 }
             }
         }
     }
+}
 
-    fn on_backspace(
-        &mut self,
-        command_palette: &mut CommandPalette,
-        args: CommandPaletteEventArgs,
-    ) -> bool {
-        let cursor = command_palette.doc.get_cursor(CursorIndex::Main);
-        let end = cursor.position;
-        let mut start = command_palette.doc.move_position(end, -1, 0, args.ctx.gfx);
+fn get_command_palette_path(command_palette: &CommandPalette) -> &Path {
+    let input = command_palette.get_input();
+    // Trim trailing whitespace, this allows entering "/path/to/file " to create "file"
+    // when just "/path/to/file" could auto-complete to another result like "/path/to/filewithlongername"
+    let input = input.trim_end();
 
-        if is_grapheme_path_separator(command_palette.doc.get_grapheme(start)) {
-            start = find_path_component_start(&command_palette.doc, start, args.ctx.gfx);
-
-            command_palette.doc.delete(start, end, args.ctx);
-
-            true
-        } else {
-            false
-        }
-    }
+    Path::new(input)
 }
 
 fn get_command_palette_dir<'a>(

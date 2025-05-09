@@ -103,15 +103,8 @@ impl CommandPaletteMode for AllFilesMode {
         &mut self,
         command_palette: &mut CommandPalette,
         args: CommandPaletteEventArgs,
-        kind: ResultListSubmitKind,
+        _: ResultListSubmitKind,
     ) -> CommandPaletteAction {
-        if !matches!(
-            kind,
-            ResultListSubmitKind::Normal | ResultListSubmitKind::Alternate
-        ) {
-            return CommandPaletteAction::Stay;
-        }
-
         let Some(CommandPaletteResult {
             meta_data: CommandPaletteMetaData::Path(path),
             ..

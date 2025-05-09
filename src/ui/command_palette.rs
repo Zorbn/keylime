@@ -16,10 +16,9 @@ use crate::{
         rect::Rect,
         sides::{Side, Sides},
     },
-    input::action::{action_keybind, action_name},
+    input::action::action_name,
     platform::gfx::Gfx,
     text::{
-        cursor_index::CursorIndex,
         doc::{Doc, DocKind},
         line_pool::LinePool,
     },
@@ -45,7 +44,6 @@ pub struct CommandPaletteResult {
 }
 
 pub enum CommandPaletteMetaData {
-    None,
     Path(PathBuf),
     PathWithPosition { path: PathBuf, position: Position },
 }
@@ -150,7 +148,7 @@ impl CommandPalette {
         while let Some(action) = global_action_handler.next(ctx.window) {
             match action {
                 action_name!(OpenFileFinder) => {
-                    self.open(ui, Box::new(FindFileMode), editor, ctx);
+                    self.open(ui, Box::new(FindFileMode::new()), editor, ctx);
                 }
                 action_name!(OpenSearch) => {
                     self.open(ui, Box::new(SearchMode::new()), editor, ctx);
@@ -175,22 +173,14 @@ impl CommandPalette {
             let mut action_handler = ui.get_action_handler(&self.widget, ctx.window);
 
             while let Some(action) = action_handler.next(ctx.window) {
-                match action {
-                    action_keybind!(key: Backspace) => {
-                        if !mode.on_backspace(self, CommandPaletteEventArgs::new(editor, ctx)) {
-                            action_handler.unprocessed(ctx.window, action);
-                        }
-                    }
-                    _ => action_handler.unprocessed(ctx.window, action),
+                if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
+                    action_handler.unprocessed(ctx.window, action);
                 }
             }
 
             mode.on_update(self, CommandPaletteEventArgs::new(editor, ctx));
             self.mode = Some(mode);
         }
-
-        self.result_list.do_allow_delete = self.doc.cursors_len() == 1
-            && self.doc.get_cursor(CursorIndex::Main).position == self.doc.end();
 
         let result_input = self
             .result_list

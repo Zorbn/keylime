@@ -22,6 +22,9 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
+ * Support copy/cut/paste in file finder. (Cut and paste trigger when you use the normal keybinds and have nothing selected, paste pastes a file if you have one copied).
+ * - Files in the process of being cut should show up with the subtle color in the results list. (Maybe do this by expanding result_to_str to also return a color for ResultList::draw (display_result: fn(&'a T) -> (&'a str, Color)))
+ * - Create ResultListActionKind for Delete, Copy, Paste, etc ops that are used by ResultListInput::Action and a command palette mode on_action event.
  * If the language server returns no completions for a request use simple completions instead.
  * Add LSP hover documentation support.
  * Consider renaming DocKind::Output to DocKind::Raw

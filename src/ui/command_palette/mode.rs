@@ -1,5 +1,6 @@
 use crate::{
     ctx::Ctx,
+    input::action::Action,
     ui::{editor::Editor, result_list::ResultListSubmitKind},
 };
 
@@ -23,6 +24,10 @@ pub trait CommandPaletteMode {
 
     fn on_open(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
 
+    fn on_action(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs, _: Action) -> bool {
+        false
+    }
+
     fn on_submit(
         &mut self,
         _: &mut CommandPalette,
@@ -37,10 +42,6 @@ pub trait CommandPaletteMode {
     fn on_update_results(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
 
     fn on_update(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
-
-    fn on_backspace(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) -> bool {
-        false
-    }
 
     fn is_animating(&self) -> bool {
         false
