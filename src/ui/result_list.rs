@@ -1,6 +1,7 @@
 use std::vec::Drain;
 
 use crate::{
+    config::theme::Theme,
     ctx::Ctx,
     geometry::{rect::Rect, sides::Sides, visual_position::VisualPosition},
     input::{
@@ -14,6 +15,7 @@ use crate::{
 
 use super::{
     camera::{Camera, RECENTER_DISTANCE},
+    color::Color,
     core::{Ui, Widget},
 };
 
@@ -223,7 +225,11 @@ impl<T> ResultList<T> {
         );
     }
 
-    pub fn draw<'a>(&'a mut self, ctx: &mut Ctx, result_to_str: fn(&'a T) -> &'a str) {
+    pub fn draw<'a>(
+        &'a mut self,
+        ctx: &mut Ctx,
+        mut display_result: impl FnMut(&'a T, &Theme) -> (&'a str, Color),
+    ) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
@@ -247,16 +253,16 @@ impl<T> ResultList<T> {
                 + (self.result_bounds.height - gfx.glyph_height()) / 2.0
                 - sub_line_offset_y;
 
+            let result = &self.results[y];
+            let (text, color) = display_result(result, theme);
+
             let color = if y == self.selected_result_index {
                 theme.keyword
             } else {
-                theme.normal
+                color
             };
 
-            let result = &self.results[y];
-            let string = result_to_str(result);
-
-            gfx.add_text(string, gfx.glyph_width(), visual_y, color);
+            gfx.add_text(text, gfx.glyph_width(), visual_y, color);
         }
 
         gfx.end();
@@ -274,6 +280,26 @@ impl<T> ResultList<T> {
         self.results.drain(..)
     }
 
+    pub fn set_selected_result_index(&mut self, index: usize) {
+        self.selected_result_index = index;
+        self.clamp_selected_result_index();
+    }
+
+    pub fn remove_selected_result(&mut self) -> Option<T> {
+        if self.selected_result_index < self.results.len() {
+            let result = self.results.remove(self.selected_result_index);
+            self.clamp_selected_result_index();
+
+            Some(result)
+        } else {
+            None
+        }
+    }
+
+    fn clamp_selected_result_index(&mut self) {
+        self.selected_result_index = self.selected_result_index.clamp(0, self.results.len());
+    }
+
     pub fn selected_result_index(&self) -> usize {
         self.selected_result_index
     }
@@ -284,14 +310,6 @@ impl<T> ResultList<T> {
 
     pub fn get_selected_result_mut(&mut self) -> Option<&mut T> {
         self.results.get_mut(self.selected_result_index)
-    }
-
-    pub fn remove_selected_result(&mut self) -> Option<T> {
-        if self.selected_result_index < self.results.len() {
-            Some(self.results.remove(self.selected_result_index))
-        } else {
-            None
-        }
     }
 
     pub fn mark_selected_result_handled(&mut self) {

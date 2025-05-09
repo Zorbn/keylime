@@ -5,12 +5,13 @@ use std::{
 };
 
 use crate::{
+    config::theme::Theme,
     ctx::Ctx,
     geometry::position::Position,
     input::action::{action_name, Action},
     platform::{gfx::Gfx, recycle::recycle},
     text::{cursor_index::CursorIndex, doc::Doc},
-    ui::result_list::ResultListSubmitKind,
+    ui::{color::Color, result_list::ResultListSubmitKind},
 };
 
 use super::{
@@ -43,6 +44,65 @@ impl FindFileMode {
         Self {
             clipboard_path: PathBuf::new(),
             clipboard_state: FileClipboardState::Empty,
+        }
+    }
+
+    fn clear_clipboard(&mut self) {
+        self.clipboard_path.clear();
+        self.clipboard_state = FileClipboardState::Empty;
+    }
+
+    fn update_results(
+        &mut self,
+        command_palette: &mut CommandPalette,
+        selected_result_index: Option<usize>,
+        deleted_path: Option<PathBuf>,
+    ) {
+        command_palette.result_list.drain();
+
+        let mut path = PathBuf::new();
+        let dir = get_command_palette_dir(command_palette, &mut path);
+
+        let Ok(entries) = read_dir(dir) else {
+            return;
+        };
+
+        for entry in entries {
+            let Ok(entry) = entry else {
+                continue;
+            };
+
+            let entry_path = entry.path();
+
+            if Some(&entry_path) == deleted_path.as_ref() {
+                continue;
+            }
+
+            if does_path_match_prefix(&path, &entry_path) {
+                if let Some(mut result_text) = entry_path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .map(|str| str.to_owned())
+                {
+                    if entry_path.is_dir() {
+                        result_text.push_str(PREFERRED_PATH_SEPARATOR);
+                    }
+
+                    command_palette
+                        .result_list
+                        .results
+                        .push(CommandPaletteResult {
+                            text: result_text,
+                            meta_data: CommandPaletteMetaData::Path(entry_path),
+                        });
+                }
+            }
+        }
+
+        if let Some(selected_result_index) = selected_result_index {
+            command_palette
+                .result_list
+                .set_selected_result_index(selected_result_index);
         }
     }
 }
@@ -112,20 +172,29 @@ impl CommandPaletteMode for FindFileMode {
                 true
             }
             action_name!(DeleteForward) if cursor.position == command_doc.end() => {
+                let selected_result_index = command_palette.result_list.selected_result_index();
+                let mut deleted_path = None;
+
                 if let Some(CommandPaletteResult {
                     meta_data: CommandPaletteMetaData::Path(path),
                     ..
-                }) = command_palette.result_list.get_selected_result()
+                }) = command_palette.result_list.remove_selected_result()
                 {
-                    if path.exists() && recycle(path).is_ok() {
-                        self.on_update_results(command_palette, args);
+                    if path.exists() && recycle(&path).is_ok() {
+                        deleted_path = Some(path);
                     }
                 }
 
+                self.update_results(command_palette, Some(selected_result_index), deleted_path);
+
                 true
             }
-            action_name!(Copy) | action_name!(Cut) if cursor.get_selection().is_none() => {
-                self.clipboard_path.clear();
+            action_name!(Copy) | action_name!(Cut) => {
+                self.clear_clipboard();
+
+                if cursor.get_selection().is_some() {
+                    return false;
+                }
 
                 if let Some(CommandPaletteResult {
                     meta_data: CommandPaletteMetaData::Path(path),
@@ -146,8 +215,10 @@ impl CommandPaletteMode for FindFileMode {
             action_name!(Paste) => match self.clipboard_state {
                 FileClipboardState::Empty => false,
                 FileClipboardState::Copy | FileClipboardState::Cut => {
-                    let path = &mut PathBuf::new();
-                    get_command_palette_dir(command_palette, path);
+                    let selected_result_index = command_palette.result_list.selected_result_index();
+
+                    let mut path = PathBuf::new();
+                    get_command_palette_dir(command_palette, &mut path);
 
                     let Some(file_name) = self.clipboard_path.file_name() else {
                         return true;
@@ -156,13 +227,17 @@ impl CommandPaletteMode for FindFileMode {
                     path.push(file_name);
 
                     let is_ok = if self.clipboard_state == FileClipboardState::Copy {
+                        update_path_for_copy(&mut path, args.ctx.buffers.text.get_mut());
+
                         copy(&self.clipboard_path, path).is_ok()
                     } else {
-                        rename(&self.clipboard_path, path).is_ok()
+                        rename(&self.clipboard_path, path)
+                            .inspect(|_| self.clear_clipboard())
+                            .is_ok()
                     };
 
                     if is_ok {
-                        self.on_update_results(command_palette, args);
+                        self.update_results(command_palette, Some(selected_result_index), None);
                     }
 
                     true
@@ -235,42 +310,31 @@ impl CommandPaletteMode for FindFileMode {
         command_palette: &mut CommandPalette,
         _: CommandPaletteEventArgs,
     ) {
-        command_palette.result_list.drain();
+        self.update_results(command_palette, None, None);
+    }
 
-        let mut path = PathBuf::new();
-        let dir = get_command_palette_dir(command_palette, &mut path);
+    fn on_display_result<'a>(
+        &self,
+        result: &'a CommandPaletteResult,
+        theme: &Theme,
+    ) -> (&'a str, Color) {
+        let default_display = (result.text.as_str(), theme.normal);
 
-        let Ok(entries) = read_dir(dir) else {
-            return;
-        };
+        if self.clipboard_state != FileClipboardState::Cut {
+            return default_display;
+        }
 
-        for entry in entries {
-            let Ok(entry) = entry else {
-                continue;
-            };
-
-            let entry_path = entry.path();
-
-            if does_path_match_prefix(&path, &entry_path) {
-                if let Some(mut result_text) = entry_path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .map(|str| str.to_owned())
-                {
-                    if entry_path.is_dir() {
-                        result_text.push_str(PREFERRED_PATH_SEPARATOR);
-                    }
-
-                    command_palette
-                        .result_list
-                        .results
-                        .push(CommandPaletteResult {
-                            text: result_text,
-                            meta_data: CommandPaletteMetaData::Path(entry_path),
-                        });
-                }
+        if let CommandPaletteResult {
+            meta_data: CommandPaletteMetaData::Path(path),
+            ..
+        } = result
+        {
+            if path == &self.clipboard_path {
+                return (&result.text, theme.subtle);
             }
         }
+
+        default_display
     }
 }
 
@@ -369,4 +433,24 @@ fn does_path_match_prefix(prefix: &Path, path: &Path) -> bool {
     }
 
     true
+}
+
+fn update_path_for_copy(path: &mut PathBuf, buffer: &mut String) {
+    if !path.exists() {
+        return;
+    }
+
+    let Some(file_stem) = path.file_stem().and_then(|file_stem| file_stem.to_str()) else {
+        return;
+    };
+
+    buffer.push_str(file_stem);
+    buffer.push_str(" (copy)");
+
+    if let Some(extension) = path.extension().and_then(|extension| extension.to_str()) {
+        buffer.push('.');
+        buffer.push_str(extension);
+    }
+
+    path.set_file_name(buffer);
 }

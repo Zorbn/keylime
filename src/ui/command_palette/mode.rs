@@ -1,10 +1,11 @@
 use crate::{
+    config::theme::Theme,
     ctx::Ctx,
     input::action::Action,
-    ui::{editor::Editor, result_list::ResultListSubmitKind},
+    ui::{color::Color, editor::Editor, result_list::ResultListSubmitKind},
 };
 
-use super::{CommandPalette, CommandPaletteAction};
+use super::{CommandPalette, CommandPaletteAction, CommandPaletteResult};
 
 pub struct CommandPaletteEventArgs<'a, 'b> {
     pub editor: &'a mut Editor,
@@ -42,6 +43,14 @@ pub trait CommandPaletteMode {
     fn on_update_results(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
 
     fn on_update(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
+
+    fn on_display_result<'a>(
+        &self,
+        result: &'a CommandPaletteResult,
+        theme: &Theme,
+    ) -> (&'a str, Color) {
+        (&result.text, theme.normal)
+    }
 
     fn is_animating(&self) -> bool {
         false

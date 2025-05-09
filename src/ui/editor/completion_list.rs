@@ -211,7 +211,8 @@ impl CompletionList {
     }
 
     pub fn draw(&mut self, ctx: &mut Ctx) {
-        self.result_list.draw(ctx, |result| result.label());
+        self.result_list
+            .draw(ctx, |result, theme| (result.label(), theme.normal));
 
         let Some(selected_result) = self.result_list.get_selected_result() else {
             return;
