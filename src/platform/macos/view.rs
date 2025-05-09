@@ -151,14 +151,7 @@ define_class!(
 
             unsafe {
                 self.setFrameSize(size);
-            }
-
-            let mut gfx = self.ivars().gfx.borrow_mut();
-            let gfx = gfx.as_mut().unwrap();
-            let view = gfx.inner.view();
-
-            unsafe {
-                view.setNeedsDisplay(true);
+                self.setNeedsDisplay(true);
             }
         }
 
