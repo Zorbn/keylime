@@ -1757,6 +1757,8 @@ impl Doc {
         if let Some(selection) = self.get_cursor(index).get_selection() {
             self.delete(selection.start, selection.end, ctx);
             self.end_cursor_selection(index);
+
+            start = selection.start;
         } else if was_copy_implicit {
             start.x = 0;
         }
