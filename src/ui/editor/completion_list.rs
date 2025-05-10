@@ -107,7 +107,11 @@ impl CompletionList {
         let mut longest_visible_result = 0;
 
         for y in min_y..max_y {
-            let label = self.result_list.results[y].label();
+            let Some(result) = self.result_list.results.get(y) else {
+                continue;
+            };
+
+            let label = result.label();
 
             longest_visible_result = longest_visible_result.max(label.len());
         }
@@ -136,7 +140,7 @@ impl CompletionList {
 
         if matches!(self.popup_cache, CompletionPopupCache::None) {
             self.popup_cache =
-                CompletionPopupCache::PreviousIndex(self.result_list.selected_index())
+                CompletionPopupCache::PreviousIndex(self.result_list.results.focused_index())
         }
 
         let result_input =
@@ -160,12 +164,12 @@ impl CompletionList {
         if let Some(CompletionResult::Completion {
             item,
             resolve_state: resolve_state @ CompletionResolveState::NeedsRequest,
-        }) = self.result_list.get_selected_mut()
+        }) = self.result_list.results.get_focused_mut()
         {
             *resolve_state = CompletionResolveState::NeedsResponse;
 
             if let Some(sent_request) = Self::lsp_completion_item_resolve(item, doc, ctx) {
-                let index = self.result_list.selected_index();
+                let index = self.result_list.results.focused_index();
 
                 self.lsp_expected_responses.insert(sent_request.id, index);
             }
@@ -215,7 +219,7 @@ impl CompletionList {
         self.result_list
             .draw(ctx, |result, theme| (result.label(), theme.normal));
 
-        let Some(selected_result) = self.result_list.get_selected() else {
+        let Some(focused_result) = self.result_list.results.get_focused() else {
             return;
         };
 
@@ -227,7 +231,7 @@ impl CompletionList {
                     ..
                 },
             resolve_state,
-        } = &selected_result
+        } = &focused_result
         else {
             return;
         };
@@ -325,7 +329,7 @@ impl CompletionList {
                     ..
                 },
             ..
-        }) = self.result_list.remove_selected()
+        }) = self.result_list.results.remove()
         {
             self.popup_cache = CompletionPopupCache::PreviousItem {
                 detail,
@@ -439,7 +443,7 @@ impl CompletionList {
         doc: &mut Doc,
         ctx: &mut Ctx,
     ) -> Option<CompletionListResult> {
-        let result = self.result_list.remove_selected()?;
+        let result = self.result_list.results.remove()?;
 
         match result {
             CompletionResult::SimpleCompletion(text) => {

@@ -59,9 +59,9 @@ impl FileExplorerMode {
     }
 
     fn begin_renaming(&mut self, command_palette: &mut CommandPalette, ctx: &mut Ctx) {
-        let selected_result_index = command_palette.result_list.selected_index();
+        let focused_result_index = command_palette.result_list.results.focused_index();
 
-        self.renaming_result_index = Some(selected_result_index);
+        self.renaming_result_index = Some(focused_result_index);
         self.input_backup.clear();
 
         let command_doc = &mut command_palette.doc;
@@ -72,7 +72,8 @@ impl FileExplorerMode {
             Position::ZERO,
             command_palette
                 .result_list
-                .get_selected()
+                .results
+                .get_focused()
                 .map(|result| result.text.as_str())
                 .unwrap_or_default(),
             ctx,
@@ -102,14 +103,14 @@ impl FileExplorerMode {
 
         self.renaming_result_index = None;
 
-        let selected_result_index = command_palette.result_list.selected_index();
-        self.update_results(command_palette, Some(selected_result_index), None);
+        let focused_result_index = command_palette.result_list.results.focused_index();
+        self.update_results(command_palette, Some(focused_result_index), None);
     }
 
     fn update_results(
         &self,
         command_palette: &mut CommandPalette,
-        selected_result_index: Option<usize>,
+        focused_result_index: Option<usize>,
         deleted_path: Option<PathBuf>,
     ) {
         command_palette.result_list.drain();
@@ -170,10 +171,11 @@ impl FileExplorerMode {
                 .to_owned();
         }
 
-        if let Some(selected_result_index) = selected_result_index.or(self.renaming_result_index) {
+        if let Some(focused_result_index) = focused_result_index.or(self.renaming_result_index) {
             command_palette
                 .result_list
-                .set_selected_index(selected_result_index);
+                .results
+                .set_focused_index(focused_result_index);
         }
     }
 }
@@ -255,20 +257,20 @@ impl CommandPaletteMode for FileExplorerMode {
                 true
             }
             action_name!(DeleteForward) if cursor.position == command_doc.end() => {
-                let selected_result_index = command_palette.result_list.selected_index();
+                let focused_result_index = command_palette.result_list.results.focused_index();
                 let mut deleted_path = None;
 
                 if let Some(CommandPaletteResult {
                     meta_data: CommandPaletteMetaData::Path(path),
                     ..
-                }) = command_palette.result_list.remove_selected()
+                }) = command_palette.result_list.results.remove()
                 {
                     if path.exists() && recycle(&path).is_ok() {
                         deleted_path = Some(path);
                     }
                 }
 
-                self.update_results(command_palette, Some(selected_result_index), deleted_path);
+                self.update_results(command_palette, Some(focused_result_index), deleted_path);
 
                 true
             }
@@ -282,7 +284,7 @@ impl CommandPaletteMode for FileExplorerMode {
                 if let Some(CommandPaletteResult {
                     meta_data: CommandPaletteMetaData::Path(path),
                     ..
-                }) = command_palette.result_list.get_selected()
+                }) = command_palette.result_list.results.get_focused()
                 {
                     self.clipboard_path.push(path);
 
@@ -298,7 +300,7 @@ impl CommandPaletteMode for FileExplorerMode {
             action_name!(Paste) => match self.clipboard_state {
                 FileClipboardState::Empty => false,
                 FileClipboardState::Copy | FileClipboardState::Cut => {
-                    let selected_result_index = command_palette.result_list.selected_index();
+                    let focused_result_index = command_palette.result_list.results.focused_index();
 
                     let input = command_palette.get_input();
                     let mut path = PathBuf::new();
@@ -321,7 +323,7 @@ impl CommandPaletteMode for FileExplorerMode {
                     };
 
                     if is_ok {
-                        self.update_results(command_palette, Some(selected_result_index), None);
+                        self.update_results(command_palette, Some(focused_result_index), None);
                     }
 
                     true
@@ -392,7 +394,7 @@ impl CommandPaletteMode for FileExplorerMode {
             return;
         }
 
-        let Some(result) = command_palette.result_list.get_selected() else {
+        let Some(result) = command_palette.result_list.results.get_focused() else {
             return;
         };
 

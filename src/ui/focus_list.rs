@@ -1,3 +1,5 @@
+use std::{cmp::Ordering, vec::Drain};
+
 pub struct FocusList<T> {
     items: Vec<T>,
     focused_index: usize,
@@ -38,9 +40,38 @@ impl<T> FocusList<T> {
         }
     }
 
-    pub fn remove(&mut self) {
-        self.items.remove(self.focused_index);
+    pub fn insert(&mut self, index: usize, item: T) {
+        self.items.insert(index, item);
+
+        if self.focused_index >= index {
+            self.focused_index += 1;
+        }
+    }
+
+    pub fn push(&mut self, item: T) {
+        self.items.push(item);
+    }
+
+    pub fn append(&mut self, other: &mut Vec<T>) {
+        self.items.append(other);
+    }
+
+    pub fn remove(&mut self) -> Option<T> {
+        let item = if self.focused_index >= self.items.len() {
+            None
+        } else {
+            Some(self.items.remove(self.focused_index))
+        };
+
         self.clamp_focused();
+
+        item
+    }
+
+    pub fn drain(&mut self) -> Drain<T> {
+        self.focused_index = 0;
+
+        self.items.drain(..)
     }
 
     pub fn swap(&mut self, a: usize, b: usize) {
@@ -51,6 +82,10 @@ impl<T> FocusList<T> {
         }
 
         self.items.swap(a, b);
+    }
+
+    pub fn sort_by(&mut self, compare: impl FnMut(&T, &T) -> Ordering) {
+        self.items.sort_by(compare);
     }
 
     pub fn len(&self) -> usize {

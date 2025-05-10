@@ -17,6 +17,7 @@ use super::{
     camera::{Camera, RECENTER_DISTANCE},
     color::Color,
     core::{Ui, Widget},
+    focus_list::FocusList,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -33,9 +34,8 @@ pub enum ResultListInput {
 }
 
 pub struct ResultList<T> {
-    pub results: Vec<T>,
-    selected_index: usize,
-    handled_selected_index: Option<usize>,
+    pub results: FocusList<T>,
+    handled_focused_index: Option<usize>,
 
     max_visible_results: usize,
     result_bounds: Rect,
@@ -47,9 +47,8 @@ pub struct ResultList<T> {
 impl<T> ResultList<T> {
     pub fn new(max_visible_results: usize) -> Self {
         Self {
-            results: Vec::new(),
-            selected_index: 0,
-            handled_selected_index: None,
+            results: FocusList::new(),
+            handled_focused_index: None,
 
             max_visible_results,
             result_bounds: Rect::ZERO,
@@ -84,10 +83,6 @@ impl<T> ResultList<T> {
         can_be_focused: bool,
     ) -> ResultListInput {
         let mut input = ResultListInput::None;
-
-        self.selected_index = self
-            .selected_index
-            .clamp(0, self.results.len().saturating_sub(1));
 
         if can_be_visible && widget.is_visible() {
             self.handle_mouse_inputs(&mut input, widget, ui, window);
@@ -135,8 +130,8 @@ impl<T> ResultList<T> {
                 continue;
             }
 
-            self.selected_index = clicked_result_index;
-            self.mark_selected_handled();
+            self.results.set_focused_index(clicked_result_index);
+            self.mark_focused_handled();
 
             if mousebind.button.is_some() {
                 let kind = if mods.contains(Mod::Shift) {
@@ -187,24 +182,17 @@ impl<T> ResultList<T> {
                     }
                 }
                 action_keybind!(key: Tab, mods: Mods::NONE) => *input = ResultListInput::Complete,
-                action_keybind!(key: Up, mods: Mods::NONE) => {
-                    if self.selected_index > 0 {
-                        self.selected_index -= 1;
-                    }
-                }
-                action_keybind!(key: Down, mods: Mods::NONE) => {
-                    if self.selected_index < self.results.len() - 1 {
-                        self.selected_index += 1;
-                    }
-                }
+                action_keybind!(key: Up, mods: Mods::NONE) => self.results.focus_previous(),
+                action_keybind!(key: Down, mods: Mods::NONE) => self.results.focus_next(),
                 _ => action_handler.unprocessed(window, action),
             }
         }
     }
 
     pub fn update_camera(&mut self, dt: f32) {
-        let target_y =
-            (self.selected_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
+        let focused_index = self.results.focused_index();
+
+        let target_y = (focused_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
         let max_y = (self.results.len() as f32 * self.result_bounds.height
             - self.results_bounds.height)
             .max(0.0);
@@ -212,8 +200,8 @@ impl<T> ResultList<T> {
         let scroll_border_top = self.result_bounds.height * RECENTER_DISTANCE as f32;
         let scroll_border_bottom = self.results_bounds.height - scroll_border_top;
 
-        let can_recenter = Some(self.selected_index) != self.handled_selected_index;
-        self.mark_selected_handled();
+        let can_recenter = Some(focused_index) != self.handled_focused_index;
+        self.mark_focused_handled();
 
         self.camera.vertical.update(
             target_y,
@@ -254,10 +242,13 @@ impl<T> ResultList<T> {
             let foreground_visual_y =
                 background_visual_y + (self.result_bounds.height - gfx.glyph_height()) / 2.0;
 
-            let result = &self.results[y];
+            let Some(result) = self.results.get(y) else {
+                continue;
+            };
+
             let (text, color) = display_result(result, theme);
 
-            if y == self.selected_index {
+            if y == self.results.focused_index() {
                 gfx.add_rect(
                     Rect::new(
                         0.0,
@@ -276,52 +267,20 @@ impl<T> ResultList<T> {
         gfx.end();
     }
 
-    pub fn reset_selected(&mut self) {
-        self.selected_index = 0;
-        self.handled_selected_index = None;
+    pub fn reset_focused(&mut self) {
+        self.results.set_focused_index(0);
+        self.handled_focused_index = None;
     }
 
     pub fn drain(&mut self) -> Drain<T> {
-        self.reset_selected();
+        self.reset_focused();
         self.camera.reset();
 
-        self.results.drain(..)
+        self.results.drain()
     }
 
-    pub fn set_selected_index(&mut self, index: usize) {
-        self.selected_index = index;
-        self.clamp_selected_index();
-    }
-
-    pub fn remove_selected(&mut self) -> Option<T> {
-        if self.selected_index < self.results.len() {
-            let result = self.results.remove(self.selected_index);
-            self.clamp_selected_index();
-
-            Some(result)
-        } else {
-            None
-        }
-    }
-
-    fn clamp_selected_index(&mut self) {
-        self.selected_index = self.selected_index.clamp(0, self.results.len());
-    }
-
-    pub fn selected_index(&self) -> usize {
-        self.selected_index
-    }
-
-    pub fn get_selected(&self) -> Option<&T> {
-        self.results.get(self.selected_index)
-    }
-
-    pub fn get_selected_mut(&mut self) -> Option<&mut T> {
-        self.results.get_mut(self.selected_index)
-    }
-
-    pub fn mark_selected_handled(&mut self) {
-        self.handled_selected_index = Some(self.selected_index);
+    pub fn mark_focused_handled(&mut self) {
+        self.handled_focused_index = Some(self.results.focused_index());
     }
 
     pub fn bounds(&self) -> Rect {

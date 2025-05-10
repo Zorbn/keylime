@@ -108,7 +108,7 @@ impl CommandPaletteMode for AllFilesMode {
         let Some(CommandPaletteResult {
             meta_data: CommandPaletteMetaData::Path(path),
             ..
-        }) = command_palette.result_list.get_selected()
+        }) = command_palette.result_list.results.get_focused()
         else {
             return CommandPaletteAction::Stay;
         };
@@ -127,7 +127,7 @@ impl CommandPaletteMode for AllFilesMode {
         command_palette: &mut CommandPalette,
         _: CommandPaletteEventArgs,
     ) {
-        command_palette.result_list.reset_selected();
+        command_palette.result_list.reset_focused();
 
         if command_palette.get_input().is_empty() {
             command_palette
