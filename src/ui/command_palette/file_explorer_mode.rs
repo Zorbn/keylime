@@ -170,6 +170,10 @@ impl FileExplorerMode {
             }
         }
 
+        command_palette
+            .result_list
+            .sort_by(|a, b| a.text.cmp(&b.text));
+
         if let Some(renaming_result) = self
             .renaming_result_index
             .and_then(|index| command_palette.result_list.get_mut(index))
