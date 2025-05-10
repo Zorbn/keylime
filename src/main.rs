@@ -22,7 +22,6 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
- * Update path of open docs if they are moved/renamed in the file explorer.
  * If the language server returns no completions for a request use simple completions instead.
  * Add LSP hover documentation support.
  * Consider renaming DocKind::Output to DocKind::Raw

@@ -1542,7 +1542,11 @@ impl Doc {
     }
 
     pub fn save(&mut self, path: Option<PathBuf>, ctx: &mut Ctx) -> io::Result<()> {
-        if self.is_saved {
+        if self.is_saved
+            && path
+                .as_ref()
+                .is_none_or(|path| Some(path.as_path()) == self.path.some())
+        {
             return Ok(());
         }
 

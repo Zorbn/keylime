@@ -1,7 +1,7 @@
 use std::{
-    fs::{copy, create_dir_all, read_dir, rename},
+    fs::{self, copy, create_dir_all, read_dir, remove_file},
     io,
-    path::{Component, Path, PathBuf},
+    path::{absolute, Component, Path, PathBuf},
 };
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
     input::action::{action_name, Action},
     platform::{gfx::Gfx, recycle::recycle},
     text::{cursor_index::CursorIndex, doc::Doc},
-    ui::{color::Color, result_list::ResultListSubmitKind},
+    ui::{color::Color, editor::Editor, result_list::ResultListSubmitKind},
 };
 
 use super::{
@@ -78,9 +78,19 @@ impl FileExplorerMode {
                 .unwrap_or_default(),
             ctx,
         );
+
+        if let Some(extension_start) =
+            command_doc.search_backward(".", command_doc.end(), false, ctx.gfx)
+        {
+            command_doc.jump_cursor(CursorIndex::Main, extension_start, false, ctx.gfx);
+        }
     }
 
-    fn end_renaming(&mut self, command_palette: &mut CommandPalette, ctx: &mut Ctx) {
+    fn end_renaming(
+        &mut self,
+        command_palette: &mut CommandPalette,
+        args: CommandPaletteEventArgs,
+    ) {
         let Some(renaming_index) = self.renaming_result_index else {
             return;
         };
@@ -93,13 +103,13 @@ impl FileExplorerMode {
             let mut new_path = path.clone();
             new_path.set_file_name(text);
 
-            let _ = rename(path, new_path);
+            let _ = rename(path, new_path, args.editor, args.ctx);
         }
 
-        command_palette.doc.clear(ctx);
+        command_palette.doc.clear(args.ctx);
         command_palette
             .doc
-            .insert(Position::ZERO, &self.input_backup, ctx);
+            .insert(Position::ZERO, &self.input_backup, args.ctx);
 
         self.renaming_result_index = None;
 
@@ -317,7 +327,7 @@ impl CommandPaletteMode for FileExplorerMode {
 
                         copy(&self.clipboard_path, path).is_ok()
                     } else {
-                        rename(&self.clipboard_path, path)
+                        rename(&self.clipboard_path, path, args.editor, args.ctx)
                             .inspect(|_| self.clear_clipboard())
                             .is_ok()
                     };
@@ -345,7 +355,7 @@ impl CommandPaletteMode for FileExplorerMode {
         _: ResultListSubmitKind,
     ) -> CommandPaletteAction {
         if self.renaming_result_index.is_some() {
-            self.end_renaming(command_palette, args.ctx);
+            self.end_renaming(command_palette, args);
 
             return CommandPaletteAction::Stay;
         }
@@ -547,4 +557,17 @@ fn update_path_for_copy(path: &mut PathBuf, buffer: &mut String) {
     }
 
     path.set_file_name(buffer);
+}
+
+fn rename(from: &Path, to: PathBuf, editor: &mut Editor, ctx: &mut Ctx) -> io::Result<()> {
+    let from = absolute(from)?;
+
+    if let Some(doc) = editor.find_doc_mut(&from) {
+        remove_file(&from)?;
+        doc.save(Some(to), ctx)?;
+
+        return Ok(());
+    }
+
+    fs::rename(from, to)
 }
