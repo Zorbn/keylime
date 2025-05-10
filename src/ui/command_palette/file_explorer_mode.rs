@@ -59,7 +59,7 @@ impl FileExplorerMode {
     }
 
     fn begin_renaming(&mut self, command_palette: &mut CommandPalette, ctx: &mut Ctx) {
-        let focused_result_index = command_palette.result_list.results.focused_index();
+        let focused_result_index = command_palette.result_list.focused_index();
 
         self.renaming_result_index = Some(focused_result_index);
         self.input_backup.clear();
@@ -88,7 +88,7 @@ impl FileExplorerMode {
         if let Some(CommandPaletteResult {
             text,
             meta_data: CommandPaletteMetaData::Path(path),
-        }) = command_palette.result_list.results.get(renaming_index)
+        }) = command_palette.result_list.get(renaming_index)
         {
             let mut new_path = path.clone();
             new_path.set_file_name(text);
@@ -103,7 +103,7 @@ impl FileExplorerMode {
 
         self.renaming_result_index = None;
 
-        let focused_result_index = command_palette.result_list.results.focused_index();
+        let focused_result_index = command_palette.result_list.focused_index();
         self.update_results(command_palette, Some(focused_result_index), None);
     }
 
@@ -162,7 +162,7 @@ impl FileExplorerMode {
 
         if let Some(renaming_result) = self
             .renaming_result_index
-            .and_then(|index| command_palette.result_list.results.get_mut(index))
+            .and_then(|index| command_palette.result_list.get_mut(index))
         {
             renaming_result.text = command_palette
                 .doc
@@ -257,13 +257,13 @@ impl CommandPaletteMode for FileExplorerMode {
                 true
             }
             action_name!(DeleteForward) if cursor.position == command_doc.end() => {
-                let focused_result_index = command_palette.result_list.results.focused_index();
+                let focused_result_index = command_palette.result_list.focused_index();
                 let mut deleted_path = None;
 
                 if let Some(CommandPaletteResult {
                     meta_data: CommandPaletteMetaData::Path(path),
                     ..
-                }) = command_palette.result_list.results.remove()
+                }) = command_palette.result_list.remove()
                 {
                     if path.exists() && recycle(&path).is_ok() {
                         deleted_path = Some(path);
@@ -284,7 +284,7 @@ impl CommandPaletteMode for FileExplorerMode {
                 if let Some(CommandPaletteResult {
                     meta_data: CommandPaletteMetaData::Path(path),
                     ..
-                }) = command_palette.result_list.results.get_focused()
+                }) = command_palette.result_list.get_focused()
                 {
                     self.clipboard_path.push(path);
 
@@ -300,7 +300,7 @@ impl CommandPaletteMode for FileExplorerMode {
             action_name!(Paste) => match self.clipboard_state {
                 FileClipboardState::Empty => false,
                 FileClipboardState::Copy | FileClipboardState::Cut => {
-                    let focused_result_index = command_palette.result_list.results.focused_index();
+                    let focused_result_index = command_palette.result_list.focused_index();
 
                     let input = command_palette.get_input();
                     let mut path = PathBuf::new();
@@ -394,7 +394,7 @@ impl CommandPaletteMode for FileExplorerMode {
             return;
         }
 
-        let Some(result) = command_palette.result_list.results.get_focused() else {
+        let Some(result) = command_palette.result_list.get_focused() else {
             return;
         };
 

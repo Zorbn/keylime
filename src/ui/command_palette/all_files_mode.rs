@@ -108,7 +108,7 @@ impl CommandPaletteMode for AllFilesMode {
         let Some(CommandPaletteResult {
             meta_data: CommandPaletteMetaData::Path(path),
             ..
-        }) = command_palette.result_list.results.get_focused()
+        }) = command_palette.result_list.get_focused()
         else {
             return CommandPaletteAction::Stay;
         };
@@ -138,7 +138,7 @@ impl CommandPaletteMode for AllFilesMode {
             return;
         }
 
-        command_palette.result_list.results.sort_by(|a, b| {
+        command_palette.result_list.sort_by(|a, b| {
             let input = command_palette.doc.get_line(0).unwrap_or_default();
 
             let a_score = score_fuzzy_match(&a.text, input);

@@ -103,11 +103,11 @@ impl CompletionList {
 
     pub fn layout(&mut self, visual_position: VisualPosition, gfx: &mut Gfx) {
         let min_y = self.result_list.min_visible_result_index();
-        let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.results.len());
+        let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
         let mut longest_visible_result = 0;
 
         for y in min_y..max_y {
-            let Some(result) = self.result_list.results.get(y) else {
+            let Some(result) = self.result_list.get(y) else {
                 continue;
             };
 
@@ -136,11 +136,10 @@ impl CompletionList {
         is_visible: bool,
         ctx: &mut Ctx,
     ) -> Option<CompletionListResult> {
-        let are_results_focused = !self.result_list.results.is_empty();
+        let are_results_focused = !self.result_list.is_empty();
 
         if matches!(self.popup_cache, CompletionPopupCache::None) {
-            self.popup_cache =
-                CompletionPopupCache::PreviousIndex(self.result_list.results.focused_index())
+            self.popup_cache = CompletionPopupCache::PreviousIndex(self.result_list.focused_index())
         }
 
         let result_input =
@@ -164,12 +163,12 @@ impl CompletionList {
         if let Some(CompletionResult::Completion {
             item,
             resolve_state: resolve_state @ CompletionResolveState::NeedsRequest,
-        }) = self.result_list.results.get_focused_mut()
+        }) = self.result_list.get_focused_mut()
         {
             *resolve_state = CompletionResolveState::NeedsResponse;
 
             if let Some(sent_request) = Self::lsp_completion_item_resolve(item, doc, ctx) {
-                let index = self.result_list.results.focused_index();
+                let index = self.result_list.focused_index();
 
                 self.lsp_expected_responses.insert(sent_request.id, index);
             }
@@ -219,7 +218,7 @@ impl CompletionList {
         self.result_list
             .draw(ctx, |result, theme| (result.label(), theme.normal));
 
-        let Some(focused_result) = self.result_list.results.get_focused() else {
+        let Some(focused_result) = self.result_list.get_focused() else {
             return;
         };
 
@@ -250,7 +249,7 @@ impl CompletionList {
                             ..
                         },
                     ..
-                }) = self.result_list.results.get(*index)
+                }) = self.result_list.get(*index)
                 {
                     (detail, documentation)
                 } else {
@@ -311,7 +310,7 @@ impl CompletionList {
         let Some(CompletionResult::Completion {
             item: existing_item,
             resolve_state,
-        }) = &mut self.result_list.results.get_mut(index)
+        }) = &mut self.result_list.get_mut(index)
         else {
             return;
         };
@@ -329,7 +328,7 @@ impl CompletionList {
                     ..
                 },
             ..
-        }) = self.result_list.results.remove()
+        }) = self.result_list.remove()
         {
             self.popup_cache = CompletionPopupCache::PreviousItem {
                 detail,
@@ -343,7 +342,7 @@ impl CompletionList {
         items.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
 
         for item in items {
-            self.result_list.results.push(CompletionResult::Completion {
+            self.result_list.push(CompletionResult::Completion {
                 item,
                 resolve_state: CompletionResolveState::NeedsRequest,
             });
@@ -364,7 +363,7 @@ impl CompletionList {
                     let index = if code_action.is_preferred {
                         0
                     } else {
-                        self.result_list.results.len()
+                        self.result_list.len()
                     };
 
                     self.result_list
@@ -443,7 +442,7 @@ impl CompletionList {
         doc: &mut Doc,
         ctx: &mut Ctx,
     ) -> Option<CompletionListResult> {
-        let result = self.result_list.results.remove()?;
+        let result = self.result_list.remove()?;
 
         match result {
             CompletionResult::SimpleCompletion(text) => {

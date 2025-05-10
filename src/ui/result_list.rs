@@ -1,4 +1,7 @@
-use std::vec::Drain;
+use std::{
+    ops::{Deref, DerefMut},
+    vec::Drain,
+};
 
 use crate::{
     config::theme::Theme,
@@ -65,7 +68,7 @@ impl<T> ResultList<T> {
             bounds.x,
             bounds.y,
             bounds.width,
-            self.result_bounds.height * self.results.len().min(self.max_visible_results) as f32,
+            self.result_bounds.height * self.len().min(self.max_visible_results) as f32,
         )
         .floor();
     }
@@ -126,11 +129,11 @@ impl<T> ResultList<T> {
             let clicked_result_index = ((position.y + self.camera.y() - results_bounds.y)
                 / self.result_bounds.height) as usize;
 
-            if clicked_result_index >= self.results.len() {
+            if clicked_result_index >= self.len() {
                 continue;
             }
 
-            self.results.set_focused_index(clicked_result_index);
+            self.set_focused_index(clicked_result_index);
             self.mark_focused_handled();
 
             if mousebind.button.is_some() {
@@ -182,20 +185,19 @@ impl<T> ResultList<T> {
                     }
                 }
                 action_keybind!(key: Tab, mods: Mods::NONE) => *input = ResultListInput::Complete,
-                action_keybind!(key: Up, mods: Mods::NONE) => self.results.focus_previous(),
-                action_keybind!(key: Down, mods: Mods::NONE) => self.results.focus_next(),
+                action_keybind!(key: Up, mods: Mods::NONE) => self.focus_previous(),
+                action_keybind!(key: Down, mods: Mods::NONE) => self.focus_next(),
                 _ => action_handler.unprocessed(window, action),
             }
         }
     }
 
     pub fn update_camera(&mut self, dt: f32) {
-        let focused_index = self.results.focused_index();
+        let focused_index = self.focused_index();
 
         let target_y = (focused_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
-        let max_y = (self.results.len() as f32 * self.result_bounds.height
-            - self.results_bounds.height)
-            .max(0.0);
+        let max_y =
+            (self.len() as f32 * self.result_bounds.height - self.results_bounds.height).max(0.0);
 
         let scroll_border_top = self.result_bounds.height * RECENTER_DISTANCE as f32;
         let scroll_border_bottom = self.results_bounds.height - scroll_border_top;
@@ -242,13 +244,13 @@ impl<T> ResultList<T> {
             let foreground_visual_y =
                 background_visual_y + (self.result_bounds.height - gfx.glyph_height()) / 2.0;
 
-            let Some(result) = self.results.get(y) else {
+            let Some(result) = self.get(y) else {
                 continue;
             };
 
             let (text, color) = display_result(result, theme);
 
-            if y == self.results.focused_index() {
+            if y == self.focused_index() {
                 gfx.add_rect(
                     Rect::new(
                         0.0,
@@ -268,7 +270,7 @@ impl<T> ResultList<T> {
     }
 
     pub fn reset_focused(&mut self) {
-        self.results.set_focused_index(0);
+        self.set_focused_index(0);
         self.handled_focused_index = None;
     }
 
@@ -280,7 +282,7 @@ impl<T> ResultList<T> {
     }
 
     pub fn mark_focused_handled(&mut self) {
-        self.handled_focused_index = Some(self.results.focused_index());
+        self.handled_focused_index = Some(self.focused_index());
     }
 
     pub fn bounds(&self) -> Rect {
@@ -300,6 +302,20 @@ impl<T> ResultList<T> {
             / self.result_bounds.height) as usize
             + 1;
 
-        max_y.min(self.results.len())
+        max_y.min(self.len())
+    }
+}
+
+impl<T> Deref for ResultList<T> {
+    type Target = FocusList<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.results
+    }
+}
+
+impl<T> DerefMut for ResultList<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.results
     }
 }
