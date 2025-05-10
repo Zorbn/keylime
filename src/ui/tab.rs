@@ -670,6 +670,19 @@ impl Tab {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
+        let camera_line_y = camera_position.y / gfx.line_height();
+        let doc_height_lines = self.doc_height_lines(gfx);
+
+        gfx.add_rect(
+            self.doc_range_to_scrollbar_rect(
+                camera_line_y,
+                camera_line_y + doc_height_lines as f32,
+                doc,
+                gfx,
+            ),
+            theme.scroll_bar,
+        );
+
         for language_server in ctx.lsp.iter_servers_mut() {
             // Reversed so that more severe diagnostics are drawn on top.
             for diagnostic in language_server.get_diagnostics_mut(doc).iter().rev() {
@@ -695,19 +708,6 @@ impl Tab {
                 theme.normal,
             );
         }
-
-        let camera_line_y = camera_position.y / gfx.line_height();
-        let doc_height_lines = self.doc_height_lines(gfx);
-
-        gfx.add_rect(
-            self.doc_range_to_scrollbar_rect(
-                camera_line_y,
-                camera_line_y + doc_height_lines as f32,
-                doc,
-                gfx,
-            ),
-            theme.scroll_bar,
-        );
     }
 
     fn doc_range_to_scrollbar_rect(&self, start_y: f32, end_y: f32, doc: &Doc, gfx: &Gfx) -> Rect {

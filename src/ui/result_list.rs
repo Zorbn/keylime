@@ -249,20 +249,28 @@ impl<T> ResultList<T> {
         let max_y = self.max_visible_result_index();
 
         for (i, y) in (min_y..max_y).enumerate() {
-            let visual_y = i as f32 * self.result_bounds.height
-                + (self.result_bounds.height - gfx.glyph_height()) / 2.0
-                - sub_line_offset_y;
+            let background_visual_y = i as f32 * self.result_bounds.height - sub_line_offset_y;
+
+            let foreground_visual_y =
+                background_visual_y + (self.result_bounds.height - gfx.glyph_height()) / 2.0;
 
             let result = &self.results[y];
             let (text, color) = display_result(result, theme);
 
-            let color = if y == self.selected_result_index {
-                theme.keyword
-            } else {
-                color
-            };
+            if y == self.selected_result_index {
+                gfx.add_rect(
+                    Rect::new(
+                        0.0,
+                        background_visual_y,
+                        self.result_bounds.width,
+                        self.result_bounds.height,
+                    )
+                    .add_margin(-gfx.border_width()),
+                    theme.scroll_bar,
+                );
+            }
 
-            gfx.add_text(text, gfx.glyph_width(), visual_y, color);
+            gfx.add_text(text, gfx.glyph_width(), foreground_visual_y, color);
         }
 
         gfx.end();
