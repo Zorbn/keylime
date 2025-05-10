@@ -1,12 +1,12 @@
 use std::{
     collections::{HashMap, HashSet},
-    mem::{transmute, ManuallyDrop},
+    mem::transmute,
     path::Path,
     ptr::{copy_nonoverlapping, null_mut},
 };
 
 use windows::{
-    core::{w, Result},
+    core::Result,
     Win32::{
         Foundation::{
             GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_OBJECT_0, WPARAM,
@@ -16,21 +16,13 @@ use windows::{
             Gdi::ScreenToClient,
         },
         System::{
-            Com::{
-                CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
-            },
-            DataExchange::{
-                AddClipboardFormatListener, CloseClipboard, GetClipboardData, OpenClipboard,
-                SetClipboardData,
-            },
-            LibraryLoader::GetModuleHandleW,
+            DataExchange::{CloseClipboard, GetClipboardData, OpenClipboard, SetClipboardData},
             Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE},
             Ole::CF_UNICODETEXT,
             Performance::{QueryPerformanceCounter, QueryPerformanceFrequency},
             Threading::INFINITE,
         },
         UI::{
-            HiDpi::GetDpiForWindow,
             Input::KeyboardAndMouse::{
                 GetDoubleClickTime, GetKeyState, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_RCONTROL,
                 VK_RMENU, VK_RSHIFT,
@@ -42,8 +34,7 @@ use windows::{
 use windows_core::BOOL;
 
 use crate::{
-    app::App,
-    config::{theme::Theme, Config},
+    config::theme::Theme,
     geometry::visual_position::VisualPosition,
     input::{
         action::{Action, ActionName},
@@ -55,14 +46,13 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::{MouseClickCount, MouseClickKind, Mousebind},
     },
-    platform::aliases::{AnyFileWatcher, AnyGfx, AnyProcess, AnyWindow},
+    platform::aliases::{AnyFileWatcher, AnyProcess, AnyWindow},
     temp_buffer::TempBuffer,
     text::grapheme::GraphemeCursor,
 };
 
-use super::{deferred_call::defer, gfx::Gfx, keymaps::new_keymaps};
+use super::{deferred_call::defer, keymaps::new_keymaps};
 
-const DEFAULT_DPI: f32 = 96.0;
 const DEFAULT_WIDTH: i32 = 640;
 const DEFAULT_HEIGHT: i32 = 480;
 
@@ -73,208 +63,6 @@ const MK_XBUTTON1: usize = 0x20;
 const MK_XBUTTON2: usize = 0x40;
 const MK_SHIFT: usize = 0x04;
 const MK_CONTROL: usize = 0x08;
-
-pub struct WindowRunner {
-    window: ManuallyDrop<AnyWindow>,
-    gfx: Option<AnyGfx>,
-    app: ManuallyDrop<App>,
-}
-
-impl WindowRunner {
-    pub fn new() -> Result<Box<Self>> {
-        let mut window_runner = Box::new(WindowRunner {
-            window: ManuallyDrop::new(AnyWindow {
-                inner: Window::new()?,
-            }),
-            gfx: None,
-            app: ManuallyDrop::new(App::new()),
-        });
-
-        unsafe {
-            CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE).ok()?;
-
-            let window_class = WNDCLASSEXW {
-                cbSize: size_of::<WNDCLASSEXW>() as u32,
-                lpfnWndProc: Some(Self::window_proc),
-                hInstance: GetModuleHandleW(None)?.into(),
-                hCursor: LoadCursorW(None, IDC_ARROW)?,
-                lpszClassName: w!("keylime_window_class"),
-                ..Default::default()
-            };
-
-            assert!(RegisterClassExW(&window_class) != 0);
-
-            let lparam: *mut WindowRunner = &mut *window_runner;
-
-            CreateWindowExW(
-                WINDOW_EX_STYLE(0),
-                window_class.lpszClassName,
-                w!("Keylime"),
-                WS_OVERLAPPEDWINDOW,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                0,
-                0,
-                None,
-                None,
-                Some(window_class.hInstance),
-                Some(lparam.cast()),
-            )?;
-
-            window_runner
-                .window
-                .set_theme(&window_runner.app.config().theme);
-
-            AddClipboardFormatListener(window_runner.window.inner.hwnd())?;
-
-            let _ = ShowWindow(window_runner.window.inner.hwnd(), SW_SHOWDEFAULT);
-        }
-
-        Ok(window_runner)
-    }
-
-    pub fn run(&mut self) {
-        let WindowRunner {
-            window, gfx, app, ..
-        } = self;
-
-        while window.inner.is_running() {
-            let is_animating = app.is_animating();
-
-            let (file_watcher, files, processes) = app.files_and_processes();
-            window
-                .inner
-                .update(is_animating, file_watcher, files, processes);
-
-            let Some(gfx) = gfx else {
-                continue;
-            };
-
-            let (time, dt) = window.inner.get_time(is_animating);
-
-            app.update(window, gfx, time, dt);
-            app.draw(window, gfx, time);
-        }
-
-        let time = window.inner.time;
-
-        if let Some(gfx) = gfx {
-            app.close(window, gfx, time);
-        }
-    }
-
-    unsafe extern "system" fn window_proc(
-        hwnd: HWND,
-        msg: u32,
-        wparam: WPARAM,
-        lparam: LPARAM,
-    ) -> LRESULT {
-        let window_runner = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut WindowRunner;
-
-        match msg {
-            WM_NCCREATE => {
-                let create_struct = lparam.0 as *const CREATESTRUCTW;
-
-                SetWindowLongPtrW(
-                    hwnd,
-                    GWLP_USERDATA,
-                    (*create_struct).lpCreateParams as isize,
-                );
-
-                // Update the window to finish setting user data.
-                let _ = SetWindowPos(
-                    hwnd,
-                    None,
-                    0,
-                    0,
-                    0,
-                    0,
-                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
-                );
-
-                DefWindowProcW(hwnd, msg, wparam, lparam)
-            }
-            WM_CREATE => {
-                let window_runner = &mut *window_runner;
-
-                let scale = GetDpiForWindow(hwnd) as f32 / DEFAULT_DPI;
-
-                window_runner.window.inner.on_create(scale, hwnd);
-
-                let Config {
-                    font, font_size, ..
-                } = window_runner.app.config();
-
-                window_runner.gfx = Some(AnyGfx {
-                    inner: Gfx::new(font, *font_size, scale, hwnd).unwrap(),
-                });
-
-                LRESULT(0)
-            }
-            WM_DPICHANGED => {
-                let window_runner = &mut *window_runner;
-
-                let scale = (wparam.0 & 0xFFFF) as f32 / DEFAULT_DPI;
-                let rect = *(lparam.0 as *const RECT);
-
-                window_runner.window.inner.on_dpi_changed(rect);
-
-                if let Some(gfx) = &mut window_runner.gfx {
-                    let Config {
-                        font, font_size, ..
-                    } = window_runner.app.config();
-
-                    gfx.inner.update_font(font, *font_size, scale);
-                }
-
-                LRESULT(0)
-            }
-            WM_SIZE => {
-                let width = (lparam.0 & 0xFFFF) as i32;
-                let height = ((lparam.0 >> 16) & 0xFFFF) as i32;
-
-                let window_runner = &mut *window_runner;
-
-                window_runner.window.inner.width = width;
-                window_runner.window.inner.height = height;
-
-                if let WindowRunner {
-                    window,
-                    gfx: Some(gfx),
-                    app,
-                    ..
-                } = window_runner
-                {
-                    let time = window.inner.time;
-
-                    gfx.inner.resize(width, height).unwrap();
-                    app.draw(window, gfx, time);
-                }
-
-                LRESULT(0)
-            }
-            _ => {
-                let window_runner = &mut *window_runner;
-
-                window_runner
-                    .window
-                    .inner
-                    .window_proc(hwnd, msg, wparam, lparam)
-            }
-        }
-    }
-}
-
-impl Drop for WindowRunner {
-    fn drop(&mut self) {
-        unsafe {
-            self.gfx.take();
-            ManuallyDrop::drop(&mut self.window);
-            ManuallyDrop::drop(&mut self.app);
-            CoUninitialize();
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug)]
 struct RecordedMouseClick {
@@ -288,7 +76,7 @@ struct RecordedMouseClick {
 pub struct Window {
     timer_frequency: i64,
     last_queried_time: Option<i64>,
-    time: f32,
+    pub(super) time: f32,
 
     hwnd: HWND,
 
@@ -299,8 +87,8 @@ pub struct Window {
 
     x: i32,
     y: i32,
-    width: i32,
-    height: i32,
+    pub(super) width: i32,
+    pub(super) height: i32,
 
     wide_text_buffer: TempBuffer<u16>,
 
@@ -325,7 +113,7 @@ pub struct Window {
 }
 
 impl Window {
-    fn new() -> Result<Self> {
+    pub(super) fn new() -> Result<Self> {
         let mut timer_frequency = 0i64;
         let triple_click_time;
 
@@ -607,7 +395,7 @@ impl Window {
         self.was_copy_implicit
     }
 
-    unsafe fn on_create(&mut self, scale: f32, hwnd: HWND) {
+    pub(super) unsafe fn on_create(&mut self, scale: f32, hwnd: HWND) {
         self.hwnd = hwnd;
 
         let mut window_rect = RECT {
@@ -631,7 +419,7 @@ impl Window {
         let _ = SetWindowPos(hwnd, None, 0, 0, width, height, SWP_NOMOVE);
     }
 
-    unsafe fn on_dpi_changed(&mut self, rect: RECT) {
+    pub(super) unsafe fn on_dpi_changed(&mut self, rect: RECT) {
         let _ = SetWindowPos(
             self.hwnd,
             None,
@@ -643,7 +431,7 @@ impl Window {
         );
     }
 
-    unsafe fn window_proc(
+    pub(super) unsafe fn window_proc(
         &mut self,
         hwnd: HWND,
         msg: u32,

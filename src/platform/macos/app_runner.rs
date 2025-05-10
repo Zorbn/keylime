@@ -4,7 +4,7 @@ use objc2_app_kit::{
 };
 use objc2_foundation::ns_string;
 
-use crate::platform::platform_impl::delegate::AppDelegate;
+use super::{platform_impl::delegate::AppDelegate, result::Result};
 
 macro_rules! add_menu_item {
     ($title:expr, $action:expr, $mods:expr, $c:expr, $menu:expr, $mtm:expr) => {{
@@ -95,7 +95,7 @@ fn add_menu_items(app: &NSApplication, mtm: MainThreadMarker) {
     window_menu_item.setSubmenu(Some(&window_menu));
 }
 
-pub fn run_app() {
+pub fn run_app() -> Result<()> {
     let mtm = MainThreadMarker::new().unwrap();
 
     let app = NSApplication::sharedApplication(mtm);
@@ -108,4 +108,6 @@ pub fn run_app() {
 
     app.setDelegate(Some(object));
     app.run();
+
+    Ok(())
 }

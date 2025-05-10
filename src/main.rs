@@ -30,5 +30,5 @@ use platform::app_runner::run_app;
 fn main() {
     println!("Hello, world!");
 
-    run_app();
+    run_app().unwrap();
 }

@@ -1,3 +1,4 @@
+pub mod app_runner;
 mod deferred_call;
 pub mod dialog;
 pub mod file_watcher;
