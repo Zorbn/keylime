@@ -6,14 +6,14 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
     [
         (
             Keybind {
-                key: Key::P,
+                key: Key::E,
                 mods: Mods::CMD,
             },
-            ActionName::OpenFileFinder,
+            ActionName::OpenFileExplorer,
         ),
         (
             Keybind {
-                key: Key::T,
+                key: Key::P,
                 mods: Mods::CMD,
             },
             ActionName::OpenAllFiles,

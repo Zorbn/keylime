@@ -34,12 +34,12 @@ enum FileClipboardState {
     Cut,
 }
 
-pub struct FindFileMode {
+pub struct FileExplorerMode {
     clipboard_path: PathBuf,
     clipboard_state: FileClipboardState,
 }
 
-impl FindFileMode {
+impl FileExplorerMode {
     pub fn new() -> Self {
         Self {
             clipboard_path: PathBuf::new(),
@@ -107,9 +107,9 @@ impl FindFileMode {
     }
 }
 
-impl CommandPaletteMode for FindFileMode {
+impl CommandPaletteMode for FileExplorerMode {
     fn title(&self) -> &str {
-        "Find File"
+        "File Explorer"
     }
 
     fn on_open(&mut self, command_palette: &mut CommandPalette, args: CommandPaletteEventArgs) {

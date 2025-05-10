@@ -266,7 +266,7 @@ impl<T> ResultList<T> {
                         self.result_bounds.height,
                     )
                     .add_margin(-gfx.border_width()),
-                    theme.scroll_bar,
+                    theme.border,
                 );
             }
 

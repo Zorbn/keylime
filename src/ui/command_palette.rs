@@ -1,5 +1,5 @@
 mod all_files_mode;
-mod find_file_mode;
+mod file_explorer_mode;
 pub mod find_in_files_mode;
 mod go_to_line_mode;
 mod mode;
@@ -32,7 +32,7 @@ use super::{
 };
 
 use all_files_mode::AllFilesMode;
-use find_file_mode::FindFileMode;
+use file_explorer_mode::FileExplorerMode;
 use find_in_files_mode::FindInFilesMode;
 use go_to_line_mode::GoToLineMode;
 use mode::{CommandPaletteEventArgs, CommandPaletteMode};
@@ -147,8 +147,8 @@ impl CommandPalette {
 
         while let Some(action) = global_action_handler.next(ctx.window) {
             match action {
-                action_name!(OpenFileFinder) => {
-                    self.open(ui, Box::new(FindFileMode::new()), editor, ctx);
+                action_name!(OpenFileExplorer) => {
+                    self.open(ui, Box::new(FileExplorerMode::new()), editor, ctx);
                 }
                 action_name!(OpenSearch) => {
                     self.open(ui, Box::new(SearchMode::new()), editor, ctx);

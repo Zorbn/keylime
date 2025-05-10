@@ -10,7 +10,7 @@ pub enum ActionName {
     GoToStart,
     GoToEnd,
     SelectAll,
-    OpenFileFinder,
+    OpenFileExplorer,
     OpenAllFiles,
     OpenSearch,
     OpenSearchAndReplace,
