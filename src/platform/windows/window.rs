@@ -81,13 +81,13 @@ pub struct WindowRunner {
 }
 
 impl WindowRunner {
-    pub fn new(app: App) -> Result<Box<Self>> {
+    pub fn new() -> Result<Box<Self>> {
         let mut window_runner = Box::new(WindowRunner {
             window: ManuallyDrop::new(AnyWindow {
                 inner: Window::new()?,
             }),
             gfx: None,
-            app: ManuallyDrop::new(app),
+            app: ManuallyDrop::new(App::new()),
         });
 
         unsafe {

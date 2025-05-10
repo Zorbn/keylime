@@ -1,5 +1,4 @@
 use crate::{
-    app::App,
     config::theme::Theme,
     geometry::visual_position::VisualPosition,
     input::{
@@ -13,16 +12,6 @@ use crate::{
 };
 
 use super::result::Result;
-
-pub struct WindowRunner;
-
-impl WindowRunner {
-    pub fn new(_app: App) -> Result<Box<Self>> {
-        Ok(Box::new(Self))
-    }
-
-    pub fn run(&mut self) {}
-}
 
 pub struct Window {
     pub was_shown: bool,

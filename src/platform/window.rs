@@ -1,5 +1,4 @@
 use crate::{
-    app::App,
     config::theme::Theme,
     geometry::visual_position::VisualPosition,
     input::{
@@ -13,22 +12,6 @@ use crate::{
 };
 
 use super::{platform_impl, result::Result};
-
-pub struct WindowRunner {
-    inner: Box<platform_impl::window::WindowRunner>,
-}
-
-impl WindowRunner {
-    pub fn new(app: App) -> Result<Self> {
-        let inner = platform_impl::window::WindowRunner::new(app)?;
-
-        Ok(Self { inner })
-    }
-
-    pub fn run(&mut self) {
-        self.inner.run();
-    }
-}
 
 pub struct Window {
     pub(super) inner: platform_impl::window::Window,

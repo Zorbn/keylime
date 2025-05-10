@@ -1,6 +1,6 @@
-use std::{cell::RefCell, collections::HashMap, path::Path, ptr::NonNull, rc::Rc};
+use std::{collections::HashMap, path::Path, ptr::NonNull};
 
-use objc2::{rc::Retained, runtime::ProtocolObject, sel};
+use objc2::{rc::Retained, runtime::ProtocolObject};
 use objc2_app_kit::*;
 use objc2_foundation::*;
 
@@ -23,102 +23,10 @@ use crate::{
     text::grapheme::GraphemeCursor,
 };
 
-use super::{delegate::Delegate, keymaps::new_keymaps, result::Result, view::View};
+use super::{keymaps::new_keymaps, result::Result, view::View};
 
 const DEFAULT_WIDTH: f64 = 768.0;
 const DEFAULT_HEIGHT: f64 = 768.0;
-
-pub const ENTER_FULL_SCREEN_TITLE: &str = "Enter Full Screen";
-pub const EXIT_FULL_SCREEN_TITLE: &str = "Exit Full Screen";
-
-macro_rules! add_menu_item {
-    ($title:expr, $action:expr, $mods:expr, $c:expr, $menu:expr, $mtm:expr) => {{
-        let menu_item = unsafe {
-            NSMenuItem::initWithTitle_action_keyEquivalent(
-                $mtm.alloc(),
-                ns_string!($title),
-                $action,
-                ns_string!($c),
-            )
-        };
-
-        if let Some(mods) = $mods {
-            menu_item.setKeyEquivalentModifierMask(mods);
-        }
-
-        $menu.addItem(&menu_item);
-
-        menu_item
-    }};
-}
-
-pub struct WindowRunner {
-    app: Rc<RefCell<Option<App>>>,
-}
-
-impl WindowRunner {
-    pub fn new(app: App) -> Result<Box<Self>> {
-        Ok(Box::new(WindowRunner {
-            app: Rc::new(RefCell::new(Some(app))),
-        }))
-    }
-
-    pub fn run(&mut self) {
-        let mtm = MainThreadMarker::new().unwrap();
-
-        let app = NSApplication::sharedApplication(mtm);
-        app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
-
-        let menubar = NSMenu::new(mtm);
-
-        let app_menu_item = NSMenuItem::new(mtm);
-        menubar.addItem(&app_menu_item);
-
-        let window_menu_item = add_menu_item!("Window", None, None, "", menubar, mtm);
-
-        app.setMainMenu(Some(&menubar));
-
-        let app_menu = NSMenu::new(mtm);
-
-        add_menu_item!(
-            "Quit Keylime",
-            Some(sel!(terminate:)),
-            None,
-            "q",
-            app_menu,
-            mtm
-        );
-
-        app_menu_item.setSubmenu(Some(&app_menu));
-
-        let window_menu = NSMenu::new(mtm);
-
-        add_menu_item!(
-            "Minimize",
-            Some(sel!(performMiniaturize:)),
-            None,
-            "m",
-            window_menu,
-            mtm
-        );
-
-        let fullscreen_item = add_menu_item!(
-            ENTER_FULL_SCREEN_TITLE,
-            Some(sel!(toggleFullScreen:)),
-            Some(NSEventModifierFlags::Command | NSEventModifierFlags::Control),
-            "f",
-            window_menu,
-            mtm
-        );
-
-        window_menu_item.setSubmenu(Some(&window_menu));
-
-        let delegate = Delegate::new(self.app.clone(), fullscreen_item, mtm);
-        let object = ProtocolObject::from_ref(&*delegate);
-        app.setDelegate(Some(object));
-        app.run();
-    }
-}
 
 #[derive(Clone, Copy, Debug)]
 struct RecordedMouseClick {

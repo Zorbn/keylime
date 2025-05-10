@@ -17,8 +17,7 @@ mod ui;
 #[cfg(test)]
 mod tests;
 
-use app::App;
-use platform::window::WindowRunner;
+use platform::app_runner::run_app;
 
 /*
  * TODO:
@@ -31,8 +30,5 @@ use platform::window::WindowRunner;
 fn main() {
     println!("Hello, world!");
 
-    let app = App::new();
-    let mut window = WindowRunner::new(app).unwrap();
-
-    window.run();
+    run_app();
 }

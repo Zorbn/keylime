@@ -11,6 +11,7 @@ mod platform_impl;
 mod platform_impl;
 
 mod aliases;
+pub mod app_runner;
 pub mod dialog;
 pub mod file_watcher;
 pub mod gfx;
