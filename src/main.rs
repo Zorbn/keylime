@@ -22,7 +22,6 @@ use platform::window::WindowRunner;
 
 /*
  * TODO:
- * Remove unnecessary "result" in result list function names.
  * Update path of open docs if they are moved/renamed in the file explorer.
  * If the language server returns no completions for a request use simple completions instead.
  * Add LSP hover documentation support.

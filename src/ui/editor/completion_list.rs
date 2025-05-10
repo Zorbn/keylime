@@ -136,7 +136,7 @@ impl CompletionList {
 
         if matches!(self.popup_cache, CompletionPopupCache::None) {
             self.popup_cache =
-                CompletionPopupCache::PreviousIndex(self.result_list.selected_result_index())
+                CompletionPopupCache::PreviousIndex(self.result_list.selected_index())
         }
 
         let result_input =
@@ -160,12 +160,12 @@ impl CompletionList {
         if let Some(CompletionResult::Completion {
             item,
             resolve_state: resolve_state @ CompletionResolveState::NeedsRequest,
-        }) = self.result_list.get_selected_result_mut()
+        }) = self.result_list.get_selected_mut()
         {
             *resolve_state = CompletionResolveState::NeedsResponse;
 
             if let Some(sent_request) = Self::lsp_completion_item_resolve(item, doc, ctx) {
-                let index = self.result_list.selected_result_index();
+                let index = self.result_list.selected_index();
 
                 self.lsp_expected_responses.insert(sent_request.id, index);
             }
@@ -215,7 +215,7 @@ impl CompletionList {
         self.result_list
             .draw(ctx, |result, theme| (result.label(), theme.normal));
 
-        let Some(selected_result) = self.result_list.get_selected_result() else {
+        let Some(selected_result) = self.result_list.get_selected() else {
             return;
         };
 
@@ -325,7 +325,7 @@ impl CompletionList {
                     ..
                 },
             ..
-        }) = self.result_list.remove_selected_result()
+        }) = self.result_list.remove_selected()
         {
             self.popup_cache = CompletionPopupCache::PreviousItem {
                 detail,
@@ -439,7 +439,7 @@ impl CompletionList {
         doc: &mut Doc,
         ctx: &mut Ctx,
     ) -> Option<CompletionListResult> {
-        let result = self.result_list.remove_selected_result()?;
+        let result = self.result_list.remove_selected()?;
 
         match result {
             CompletionResult::SimpleCompletion(text) => {

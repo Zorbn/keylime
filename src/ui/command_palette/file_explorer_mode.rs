@@ -59,7 +59,7 @@ impl FileExplorerMode {
     }
 
     fn begin_renaming(&mut self, command_palette: &mut CommandPalette, ctx: &mut Ctx) {
-        let selected_result_index = command_palette.result_list.selected_result_index();
+        let selected_result_index = command_palette.result_list.selected_index();
 
         self.renaming_result_index = Some(selected_result_index);
         self.input_backup.clear();
@@ -72,7 +72,7 @@ impl FileExplorerMode {
             Position::ZERO,
             command_palette
                 .result_list
-                .get_selected_result()
+                .get_selected()
                 .map(|result| result.text.as_str())
                 .unwrap_or_default(),
             ctx,
@@ -102,7 +102,7 @@ impl FileExplorerMode {
 
         self.renaming_result_index = None;
 
-        let selected_result_index = command_palette.result_list.selected_result_index();
+        let selected_result_index = command_palette.result_list.selected_index();
         self.update_results(command_palette, Some(selected_result_index), None);
     }
 
@@ -173,7 +173,7 @@ impl FileExplorerMode {
         if let Some(selected_result_index) = selected_result_index.or(self.renaming_result_index) {
             command_palette
                 .result_list
-                .set_selected_result_index(selected_result_index);
+                .set_selected_index(selected_result_index);
         }
     }
 }
@@ -255,13 +255,13 @@ impl CommandPaletteMode for FileExplorerMode {
                 true
             }
             action_name!(DeleteForward) if cursor.position == command_doc.end() => {
-                let selected_result_index = command_palette.result_list.selected_result_index();
+                let selected_result_index = command_palette.result_list.selected_index();
                 let mut deleted_path = None;
 
                 if let Some(CommandPaletteResult {
                     meta_data: CommandPaletteMetaData::Path(path),
                     ..
-                }) = command_palette.result_list.remove_selected_result()
+                }) = command_palette.result_list.remove_selected()
                 {
                     if path.exists() && recycle(&path).is_ok() {
                         deleted_path = Some(path);
@@ -282,7 +282,7 @@ impl CommandPaletteMode for FileExplorerMode {
                 if let Some(CommandPaletteResult {
                     meta_data: CommandPaletteMetaData::Path(path),
                     ..
-                }) = command_palette.result_list.get_selected_result()
+                }) = command_palette.result_list.get_selected()
                 {
                     self.clipboard_path.push(path);
 
@@ -298,7 +298,7 @@ impl CommandPaletteMode for FileExplorerMode {
             action_name!(Paste) => match self.clipboard_state {
                 FileClipboardState::Empty => false,
                 FileClipboardState::Copy | FileClipboardState::Cut => {
-                    let selected_result_index = command_palette.result_list.selected_result_index();
+                    let selected_result_index = command_palette.result_list.selected_index();
 
                     let input = command_palette.get_input();
                     let mut path = PathBuf::new();
@@ -392,7 +392,7 @@ impl CommandPaletteMode for FileExplorerMode {
             return;
         }
 
-        let Some(result) = command_palette.result_list.get_selected_result() else {
+        let Some(result) = command_palette.result_list.get_selected() else {
             return;
         };
 

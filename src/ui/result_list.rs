@@ -34,8 +34,8 @@ pub enum ResultListInput {
 
 pub struct ResultList<T> {
     pub results: Vec<T>,
-    selected_result_index: usize,
-    handled_selected_result_index: Option<usize>,
+    selected_index: usize,
+    handled_selected_index: Option<usize>,
 
     max_visible_results: usize,
     result_bounds: Rect,
@@ -48,8 +48,8 @@ impl<T> ResultList<T> {
     pub fn new(max_visible_results: usize) -> Self {
         Self {
             results: Vec::new(),
-            selected_result_index: 0,
-            handled_selected_result_index: None,
+            selected_index: 0,
+            handled_selected_index: None,
 
             max_visible_results,
             result_bounds: Rect::ZERO,
@@ -85,8 +85,8 @@ impl<T> ResultList<T> {
     ) -> ResultListInput {
         let mut input = ResultListInput::None;
 
-        self.selected_result_index = self
-            .selected_result_index
+        self.selected_index = self
+            .selected_index
             .clamp(0, self.results.len().saturating_sub(1));
 
         if can_be_visible && widget.is_visible() {
@@ -135,8 +135,8 @@ impl<T> ResultList<T> {
                 continue;
             }
 
-            self.selected_result_index = clicked_result_index;
-            self.mark_selected_result_handled();
+            self.selected_index = clicked_result_index;
+            self.mark_selected_handled();
 
             if mousebind.button.is_some() {
                 let kind = if mods.contains(Mod::Shift) {
@@ -188,13 +188,13 @@ impl<T> ResultList<T> {
                 }
                 action_keybind!(key: Tab, mods: Mods::NONE) => *input = ResultListInput::Complete,
                 action_keybind!(key: Up, mods: Mods::NONE) => {
-                    if self.selected_result_index > 0 {
-                        self.selected_result_index -= 1;
+                    if self.selected_index > 0 {
+                        self.selected_index -= 1;
                     }
                 }
                 action_keybind!(key: Down, mods: Mods::NONE) => {
-                    if self.selected_result_index < self.results.len() - 1 {
-                        self.selected_result_index += 1;
+                    if self.selected_index < self.results.len() - 1 {
+                        self.selected_index += 1;
                     }
                 }
                 _ => action_handler.unprocessed(window, action),
@@ -204,7 +204,7 @@ impl<T> ResultList<T> {
 
     pub fn update_camera(&mut self, dt: f32) {
         let target_y =
-            (self.selected_result_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
+            (self.selected_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
         let max_y = (self.results.len() as f32 * self.result_bounds.height
             - self.results_bounds.height)
             .max(0.0);
@@ -212,8 +212,8 @@ impl<T> ResultList<T> {
         let scroll_border_top = self.result_bounds.height * RECENTER_DISTANCE as f32;
         let scroll_border_bottom = self.results_bounds.height - scroll_border_top;
 
-        let can_recenter = Some(self.selected_result_index) != self.handled_selected_result_index;
-        self.mark_selected_result_handled();
+        let can_recenter = Some(self.selected_index) != self.handled_selected_index;
+        self.mark_selected_handled();
 
         self.camera.vertical.update(
             target_y,
@@ -257,7 +257,7 @@ impl<T> ResultList<T> {
             let result = &self.results[y];
             let (text, color) = display_result(result, theme);
 
-            if y == self.selected_result_index {
+            if y == self.selected_index {
                 gfx.add_rect(
                     Rect::new(
                         0.0,
@@ -276,27 +276,27 @@ impl<T> ResultList<T> {
         gfx.end();
     }
 
-    pub fn reset_selected_result(&mut self) {
-        self.selected_result_index = 0;
-        self.handled_selected_result_index = None;
+    pub fn reset_selected(&mut self) {
+        self.selected_index = 0;
+        self.handled_selected_index = None;
     }
 
     pub fn drain(&mut self) -> Drain<T> {
-        self.reset_selected_result();
+        self.reset_selected();
         self.camera.reset();
 
         self.results.drain(..)
     }
 
-    pub fn set_selected_result_index(&mut self, index: usize) {
-        self.selected_result_index = index;
-        self.clamp_selected_result_index();
+    pub fn set_selected_index(&mut self, index: usize) {
+        self.selected_index = index;
+        self.clamp_selected_index();
     }
 
-    pub fn remove_selected_result(&mut self) -> Option<T> {
-        if self.selected_result_index < self.results.len() {
-            let result = self.results.remove(self.selected_result_index);
-            self.clamp_selected_result_index();
+    pub fn remove_selected(&mut self) -> Option<T> {
+        if self.selected_index < self.results.len() {
+            let result = self.results.remove(self.selected_index);
+            self.clamp_selected_index();
 
             Some(result)
         } else {
@@ -304,24 +304,24 @@ impl<T> ResultList<T> {
         }
     }
 
-    fn clamp_selected_result_index(&mut self) {
-        self.selected_result_index = self.selected_result_index.clamp(0, self.results.len());
+    fn clamp_selected_index(&mut self) {
+        self.selected_index = self.selected_index.clamp(0, self.results.len());
     }
 
-    pub fn selected_result_index(&self) -> usize {
-        self.selected_result_index
+    pub fn selected_index(&self) -> usize {
+        self.selected_index
     }
 
-    pub fn get_selected_result(&self) -> Option<&T> {
-        self.results.get(self.selected_result_index)
+    pub fn get_selected(&self) -> Option<&T> {
+        self.results.get(self.selected_index)
     }
 
-    pub fn get_selected_result_mut(&mut self) -> Option<&mut T> {
-        self.results.get_mut(self.selected_result_index)
+    pub fn get_selected_mut(&mut self) -> Option<&mut T> {
+        self.results.get_mut(self.selected_index)
     }
 
-    pub fn mark_selected_result_handled(&mut self) {
-        self.handled_selected_result_index = Some(self.selected_result_index);
+    pub fn mark_selected_handled(&mut self) {
+        self.handled_selected_index = Some(self.selected_index);
     }
 
     pub fn bounds(&self) -> Rect {

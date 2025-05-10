@@ -79,7 +79,7 @@ impl FindInFilesMode {
         let Some(CommandPaletteResult {
             meta_data: CommandPaletteMetaData::PathWithPosition { path, position },
             ..
-        }) = command_palette.result_list.get_selected_result()
+        }) = command_palette.result_list.get_selected()
         else {
             return CommandPaletteAction::Stay;
         };
