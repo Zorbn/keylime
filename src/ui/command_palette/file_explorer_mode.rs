@@ -37,6 +37,9 @@ enum FileClipboardState {
 pub struct FileExplorerMode {
     clipboard_path: PathBuf,
     clipboard_state: FileClipboardState,
+
+    renaming_result_index: Option<usize>,
+    input_backup: String,
 }
 
 impl FileExplorerMode {
@@ -44,6 +47,9 @@ impl FileExplorerMode {
         Self {
             clipboard_path: PathBuf::new(),
             clipboard_state: FileClipboardState::Empty,
+
+            renaming_result_index: None,
+            input_backup: String::new(),
         }
     }
 
@@ -52,16 +58,70 @@ impl FileExplorerMode {
         self.clipboard_state = FileClipboardState::Empty;
     }
 
+    fn begin_renaming(&mut self, command_palette: &mut CommandPalette, ctx: &mut Ctx) {
+        let selected_result_index = command_palette.result_list.selected_result_index();
+
+        self.renaming_result_index = Some(selected_result_index);
+        self.input_backup.clear();
+
+        let command_doc = &mut command_palette.doc;
+        command_doc.collect_string(Position::ZERO, command_doc.end(), &mut self.input_backup);
+        command_doc.clear(ctx);
+
+        command_doc.insert(
+            Position::ZERO,
+            command_palette
+                .result_list
+                .get_selected_result()
+                .map(|result| result.text.as_str())
+                .unwrap_or_default(),
+            ctx,
+        );
+    }
+
+    fn end_renaming(&mut self, command_palette: &mut CommandPalette, ctx: &mut Ctx) {
+        let Some(renaming_index) = self.renaming_result_index else {
+            return;
+        };
+
+        if let Some(CommandPaletteResult {
+            text,
+            meta_data: CommandPaletteMetaData::Path(path),
+        }) = command_palette.result_list.results.get(renaming_index)
+        {
+            let mut new_path = path.clone();
+            new_path.set_file_name(text);
+
+            let _ = rename(path, new_path);
+        }
+
+        command_palette.doc.clear(ctx);
+        command_palette
+            .doc
+            .insert(Position::ZERO, &self.input_backup, ctx);
+
+        self.renaming_result_index = None;
+
+        let selected_result_index = command_palette.result_list.selected_result_index();
+        self.update_results(command_palette, Some(selected_result_index), None);
+    }
+
     fn update_results(
-        &mut self,
+        &self,
         command_palette: &mut CommandPalette,
         selected_result_index: Option<usize>,
         deleted_path: Option<PathBuf>,
     ) {
         command_palette.result_list.drain();
 
+        let input = if self.renaming_result_index.is_some() {
+            &self.input_backup
+        } else {
+            command_palette.get_input()
+        };
+
         let mut path = PathBuf::new();
-        let dir = get_command_palette_dir(command_palette, &mut path);
+        let dir = get_input_dir(input, &mut path);
 
         let Ok(entries) = read_dir(dir) else {
             return;
@@ -99,7 +159,18 @@ impl FileExplorerMode {
             }
         }
 
-        if let Some(selected_result_index) = selected_result_index {
+        if let Some(renaming_result) = self
+            .renaming_result_index
+            .and_then(|index| command_palette.result_list.results.get_mut(index))
+        {
+            renaming_result.text = command_palette
+                .doc
+                .get_line(0)
+                .unwrap_or_default()
+                .to_owned();
+        }
+
+        if let Some(selected_result_index) = selected_result_index.or(self.renaming_result_index) {
             command_palette
                 .result_list
                 .set_selected_result_index(selected_result_index);
@@ -109,7 +180,11 @@ impl FileExplorerMode {
 
 impl CommandPaletteMode for FileExplorerMode {
     fn title(&self) -> &str {
-        "File Explorer"
+        if self.renaming_result_index.is_some() {
+            "File Explorer: Renaming"
+        } else {
+            "File Explorer"
+        }
     }
 
     fn on_open(&mut self, command_palette: &mut CommandPalette, args: CommandPaletteEventArgs) {
@@ -154,20 +229,28 @@ impl CommandPaletteMode for FileExplorerMode {
         args: CommandPaletteEventArgs,
         action: Action,
     ) -> bool {
-        let command_doc = &command_palette.doc;
+        if self.renaming_result_index.is_some() {
+            return false;
+        }
+
+        let command_doc = &mut command_palette.doc;
         let cursor = command_doc.get_cursor(CursorIndex::Main);
+
+        if command_doc.cursors_len() != 1 {
+            return false;
+        }
 
         match action {
             action_name!(DeleteBackward) => {
                 let end = cursor.position;
-                let mut start = command_palette.doc.move_position(end, -1, 0, args.ctx.gfx);
+                let mut start = command_doc.move_position(end, -1, 0, args.ctx.gfx);
 
                 if !is_grapheme_path_separator(command_doc.get_grapheme(start)) {
                     return false;
                 }
 
-                start = find_path_component_start(&command_palette.doc, start, args.ctx.gfx);
-                command_palette.doc.delete(start, end, args.ctx);
+                start = find_path_component_start(command_doc, start, args.ctx.gfx);
+                command_doc.delete(start, end, args.ctx);
 
                 true
             }
@@ -217,8 +300,9 @@ impl CommandPaletteMode for FileExplorerMode {
                 FileClipboardState::Copy | FileClipboardState::Cut => {
                     let selected_result_index = command_palette.result_list.selected_result_index();
 
+                    let input = command_palette.get_input();
                     let mut path = PathBuf::new();
-                    get_command_palette_dir(command_palette, &mut path);
+                    get_input_dir(input, &mut path);
 
                     let Some(file_name) = self.clipboard_path.file_name() else {
                         return true;
@@ -243,6 +327,11 @@ impl CommandPaletteMode for FileExplorerMode {
                     true
                 }
             },
+            action_name!(Rename) => {
+                self.begin_renaming(command_palette, args.ctx);
+
+                true
+            }
             _ => false,
         }
     }
@@ -253,9 +342,14 @@ impl CommandPaletteMode for FileExplorerMode {
         args: CommandPaletteEventArgs,
         _: ResultListSubmitKind,
     ) -> CommandPaletteAction {
-        let path = get_command_palette_path(command_palette);
+        if self.renaming_result_index.is_some() {
+            self.end_renaming(command_palette, args.ctx);
+
+            return CommandPaletteAction::Stay;
+        }
 
         let input = command_palette.get_input();
+        let path = get_input_path(input);
         let is_dir = ends_with_path_separator(input);
 
         if !path.exists() {
@@ -294,6 +388,10 @@ impl CommandPaletteMode for FileExplorerMode {
         command_palette: &mut CommandPalette,
         args: CommandPaletteEventArgs,
     ) {
+        if self.renaming_result_index.is_some() {
+            return;
+        }
+
         let Some(result) = command_palette.result_list.get_selected_result() else {
             return;
         };
@@ -338,8 +436,7 @@ impl CommandPaletteMode for FileExplorerMode {
     }
 }
 
-fn get_command_palette_path(command_palette: &CommandPalette) -> &Path {
-    let input = command_palette.get_input();
+fn get_input_path(input: &str) -> &Path {
     // Trim trailing whitespace, this allows entering "/path/to/file " to create "file"
     // when just "/path/to/file" could auto-complete to another result like "/path/to/filewithlongername"
     let input = input.trim_end();
@@ -347,12 +444,7 @@ fn get_command_palette_path(command_palette: &CommandPalette) -> &Path {
     Path::new(input)
 }
 
-fn get_command_palette_dir<'a>(
-    command_palette: &CommandPalette,
-    path: &'a mut PathBuf,
-) -> &'a Path {
-    let input = command_palette.get_input();
-
+fn get_input_dir<'a>(input: &str, path: &'a mut PathBuf) -> &'a Path {
     path.clear();
     path.push(".");
     path.push(input);
