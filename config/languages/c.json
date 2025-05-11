@@ -84,7 +84,7 @@
             },
             {
                 "kind": "Meta",
-                "pattern": "#%.*"
+                "pattern": "#%w*"
             },
             {
                 "kind": "Function",
