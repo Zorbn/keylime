@@ -10,7 +10,7 @@ use signature_help_popup::SignatureHelpPopup;
 
 use crate::{
     ctx::Ctx,
-    geometry::{rect::Rect, visual_position::VisualPosition},
+    geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
         action::{action_keybind, action_name},
         mods::Mods,
@@ -49,6 +49,7 @@ pub struct Editor {
     panes: FocusList<EditorPane>,
     current_dir: Option<PathBuf>,
 
+    handled_position: Option<Position>,
     do_show_diagnostic_popup: bool,
     pub signature_help_popup: SignatureHelpPopup,
     pub completion_list: CompletionList,
@@ -62,6 +63,7 @@ impl Editor {
             panes: FocusList::new(),
             current_dir: current_dir().ok(),
 
+            handled_position: None,
             do_show_diagnostic_popup: false,
             signature_help_popup: SignatureHelpPopup::new(),
             completion_list: CompletionList::new(),
@@ -117,6 +119,25 @@ impl Editor {
             self.signature_help_popup
                 .get_triggers(&self.widget, ui, doc, ctx);
 
+        self.handle_mousebinds(ui, ctx);
+        self.handle_actions(ui, ctx);
+
+        self.pre_pane_update(ui, ctx);
+
+        let pane = self.panes.get_focused_mut().unwrap();
+        pane.update(&self.widget, ui, &mut self.doc_list, ctx);
+        self.panes.remove_excess(|pane| pane.tabs.is_empty());
+
+        self.post_pane_update(signature_help_triggers, ctx);
+
+        if !ui.is_focused(&self.widget) {
+            self.do_show_diagnostic_popup = false;
+            self.completion_list.clear();
+            self.signature_help_popup.clear();
+        }
+    }
+
+    fn handle_mousebinds(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
         let mut mousebind_handler = ui.get_mousebind_handler(&self.widget, ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
@@ -144,7 +165,9 @@ impl Editor {
                 _ => mousebind_handler.unprocessed(ctx.window, mousebind),
             }
         }
+    }
 
+    fn handle_actions(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
         let mut action_handler = ui.get_action_handler(&self.widget, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
@@ -200,33 +223,34 @@ impl Editor {
                 _ => action_handler.unprocessed(ctx.window, action),
             }
         }
+    }
 
+    fn pre_pane_update(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
         let is_cursor_visible = self.is_cursor_visible(ctx.gfx);
         let pane = self.panes.get_focused_mut().unwrap();
         let focused_tab_index = pane.focused_tab_index();
 
-        let handled_position = if let Some((_, doc)) =
-            pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
-        {
-            let handled_position = doc.get_cursor(CursorIndex::Main).position;
+        self.handled_position = None;
 
-            let result = self
-                .completion_list
-                .update(ui, &self.widget, doc, is_cursor_visible, ctx);
-
-            self.handle_completion_list_result(result, ctx);
-
-            Some(handled_position)
-        } else {
-            None
+        let Some((_, doc)) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
+        else {
+            return;
         };
 
-        let pane = self.panes.get_focused_mut().unwrap();
+        self.handled_position = Some(doc.get_cursor(CursorIndex::Main).position);
 
-        pane.update(&self.widget, ui, &mut self.doc_list, ctx);
+        let result = self
+            .completion_list
+            .update(ui, &self.widget, doc, is_cursor_visible, ctx);
 
-        self.panes.remove_excess(|pane| pane.tabs.is_empty());
+        self.handle_completion_list_result(result, ctx);
+    }
 
+    fn post_pane_update(
+        &mut self,
+        signature_help_triggers: (Option<char>, Option<char>),
+        ctx: &mut Ctx,
+    ) {
         let pane = self.panes.get_focused_mut().unwrap();
         let focused_tab_index = pane.focused_tab_index();
 
@@ -242,7 +266,7 @@ impl Editor {
             .update(signature_help_triggers, doc, ctx);
 
         self.completion_list
-            .update_results(doc, handled_position, ctx);
+            .update_results(doc, self.handled_position, ctx);
 
         let position = doc.get_cursor(CursorIndex::Main).position;
 
