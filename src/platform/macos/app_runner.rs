@@ -4,7 +4,7 @@ use objc2_app_kit::{
 };
 use objc2_foundation::ns_string;
 
-use super::{platform_impl::delegate::AppDelegate, result::Result};
+use super::{delegate::AppDelegate, result::Result};
 
 macro_rules! add_menu_item {
     ($title:expr, $action:expr, $mods:expr, $c:expr, $menu:expr, $mtm:expr) => {{
