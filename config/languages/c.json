@@ -4,7 +4,7 @@
         "c"
     ],
     "indent_width": 4,
-    "language_server_command": "clangd",
+    "language_server_command": "clangd --log=error",
     "lsp_language_id": "c",
     "syntax": {
         "keywords": [
