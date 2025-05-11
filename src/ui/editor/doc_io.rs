@@ -75,7 +75,6 @@ pub fn open_or_reuse(
     }
 
     let mut doc = Doc::new(Some(path), &mut ctx.buffers.lines, None, DocKind::MultiLine);
-
     doc.load(ctx)?;
 
     Ok(doc_list.add(doc))

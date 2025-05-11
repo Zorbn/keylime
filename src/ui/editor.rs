@@ -353,7 +353,7 @@ impl Editor {
         self.doc_list
             .iter_mut()
             .flatten()
-            .find(|doc| doc.path().on_drive() == Some(path))
+            .find(|doc| doc.path().some() == Some(path))
     }
 
     // Necessary when syntax highlighting rules change.

@@ -2122,10 +2122,10 @@ impl Doc {
         true
     }
 
-    fn lsp_did_open(&mut self, text: &str, ctx: &mut Ctx) -> Option<()> {
+    pub fn lsp_did_open(&mut self, text: &str, ctx: &mut Ctx) -> Option<()> {
         let (language, language_server) = self.get_language_server_mut(ctx)?;
         let language_id = language.lsp_language_id.as_ref()?;
-        let path = self.path.on_drive()?;
+        let path = self.path.some()?;
 
         language_server.did_open(path, language_id, self.version, text);
         self.lsp_diagnostic(ctx);
@@ -2141,7 +2141,7 @@ impl Doc {
         ctx: &mut Ctx,
     ) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
-        let path = self.path.on_drive()?;
+        let path = self.path.some()?;
 
         language_server.did_change(path, self.version, start, end, text, self);
 
@@ -2157,7 +2157,7 @@ impl Doc {
         }
 
         let (_, language_server) = self.get_language_server_mut(ctx)?;
-        let path = self.path.on_drive()?;
+        let path = self.path.some()?;
 
         let sent_request = language_server.diagnostic(path)?;
         self.lsp_add_expected_response(sent_request, None);
@@ -2176,7 +2176,7 @@ impl Doc {
         self.get_completion_prefix(ctx.gfx)?;
 
         let (_, language_server) = self.get_language_server_mut(ctx)?;
-        let path = self.path.on_drive()?;
+        let path = self.path.some()?;
         let position = self.get_cursor(CursorIndex::Main).position;
 
         let sent_request = language_server.completion(path, position, self);
@@ -2187,7 +2187,7 @@ impl Doc {
 
     pub fn lsp_code_action(&mut self, ctx: &mut Ctx) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
-        let path = self.path.on_drive()?;
+        let path = self.path.some()?;
 
         let cursor = self.get_cursor(CursorIndex::Main);
 
@@ -2205,7 +2205,7 @@ impl Doc {
 
     pub fn lsp_prepare_rename(&mut self, ctx: &mut Ctx) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
-        let path = self.path.on_drive()?;
+        let path = self.path.some()?;
         let position = self.get_cursor(CursorIndex::Main).position;
 
         let sent_request = language_server.prepare_rename(path, position, self);
@@ -2216,7 +2216,7 @@ impl Doc {
 
     pub fn lsp_rename(&self, new_name: &str, ctx: &mut Ctx) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
-        let path = self.path.on_drive()?;
+        let path = self.path.some()?;
         let position = self.get_cursor(CursorIndex::Main).position;
 
         language_server.rename(new_name, path, position, self);
@@ -2226,7 +2226,7 @@ impl Doc {
 
     pub fn lsp_references(&mut self, ctx: &mut Ctx) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
-        let path = self.path.on_drive()?;
+        let path = self.path.some()?;
         let position = self.get_cursor(CursorIndex::Main).position;
 
         let sent_request = language_server.references(path, position, self);
@@ -2237,7 +2237,7 @@ impl Doc {
 
     pub fn lsp_definition(&mut self, position: Position, ctx: &mut Ctx) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
-        let path = self.path.on_drive()?;
+        let path = self.path.some()?;
 
         let sent_request = language_server.definition(path, position, self);
         self.lsp_add_expected_response(sent_request, None);
@@ -2252,7 +2252,7 @@ impl Doc {
         ctx: &mut Ctx,
     ) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
-        let path = self.path.on_drive()?;
+        let path = self.path.some()?;
         let position = self.get_cursor(CursorIndex::Main).position;
 
         let sent_request =
@@ -2266,7 +2266,7 @@ impl Doc {
         let indent_width = ctx.config.get_indent_width_for_doc(self);
 
         let (_, language_server) = self.get_language_server_mut(ctx)?;
-        let path = self.path.on_drive()?;
+        let path = self.path.some()?;
 
         language_server.formatting(path, indent_width);
 
@@ -2279,7 +2279,7 @@ impl Doc {
         ctx: &mut Ctx,
     ) -> Option<()> {
         let (_, language_server) = self.get_language_server_mut(ctx)?;
-        let path = self.path.on_drive()?;
+        let path = self.path.some()?;
 
         language_server.text_document_notification(path, method);
 

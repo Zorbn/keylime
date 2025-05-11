@@ -99,7 +99,10 @@ impl EditorPane {
         ctx: &mut Ctx,
     ) -> io::Result<()> {
         let path = path.and_then(|path| absolute(path).ok());
-        let doc = Doc::new(path, &mut ctx.buffers.lines, None, DocKind::MultiLine);
+
+        let mut doc = Doc::new(path, &mut ctx.buffers.lines, None, DocKind::MultiLine);
+        doc.lsp_did_open("", ctx);
+
         let doc_index = doc_list.add(doc);
 
         self.add_tab(doc_index, doc_list, ctx);

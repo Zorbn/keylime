@@ -231,7 +231,7 @@ impl Lsp {
             }
             MessageResult::Diagnostic(diagnostics) => {
                 let doc = doc?;
-                let path = doc.path().on_drive()?.to_owned();
+                let path = doc.path().some()?.to_owned();
 
                 server.set_diagnostics(path, diagnostics);
             }

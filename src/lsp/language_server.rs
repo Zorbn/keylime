@@ -192,7 +192,7 @@ impl LanguageServer {
     }
 
     pub fn get_diagnostics_mut(&mut self, doc: &Doc) -> &mut [Diagnostic] {
-        let Some(path) = doc.path().on_drive() else {
+        let Some(path) = doc.path().some() else {
             return &mut [];
         };
 
@@ -552,7 +552,7 @@ impl LanguageServer {
 
     pub fn completion_item_resolve(&mut self, item: CompletionItem, doc: &Doc) -> LspSentRequest {
         self.send_request(
-            doc.path().on_drive(),
+            doc.path().some(),
             "completionItem/resolve",
             json!(item.encode(self.position_encoding, doc)),
         )

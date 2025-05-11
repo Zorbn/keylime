@@ -52,7 +52,7 @@ impl FindInFilesMode {
 
         let relative_path = doc
             .path()
-            .on_drive()
+            .some()
             .and_then(|path| path.strip_prefix(root).ok())?;
 
         let text = format!(
