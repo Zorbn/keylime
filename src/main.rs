@@ -26,11 +26,6 @@ use platform::app_runner::run_app;
  * Add LSP hover documentation support.
  * Consider renaming DocKind::Output to DocKind::Raw
  * Consider making DocKinds predefined BitFields that store a list of features such action history, position shifting, multi line, etc.
- * Adding the following pattern to cpp.json causes a stack overflow when opening a file that contains "#include <cstdio>"
- * {
- *     "kind": "String",
- *     "pattern": "#include%s+(%.*)"
- * },
  */
 
 fn main() {

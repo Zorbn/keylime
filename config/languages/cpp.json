@@ -151,6 +151,10 @@
                 "pattern": "//%.*"
             },
             {
+                "kind": "String",
+                "pattern": "#include%s+(%.+)"
+            },
+            {
                 "kind": "Meta",
                 "pattern": "#%w*"
             },

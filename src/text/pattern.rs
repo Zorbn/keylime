@@ -71,8 +71,8 @@ impl Pattern {
     pub fn parse(code: String) -> Result<Self, &'static str> {
         let mut parts = Vec::new();
 
-        let mut has_capture_start = false;
-        let mut has_capture_end = false;
+        let mut capture_start = None;
+        let mut capture_end = None;
         let mut is_escaped = false;
 
         let mut grapheme_cursor = GraphemeCursor::new(0, code.len());
@@ -98,20 +98,20 @@ impl Pattern {
                 "%" => is_escaped = true,
                 "^" => parts.push(PatternPart::TextStart),
                 "(" => {
-                    if has_capture_start {
+                    if capture_start.is_some() {
                         return Err("only one capture is allowed");
                     }
 
-                    has_capture_start = true;
+                    capture_start = Some(parts.len());
 
                     parts.push(PatternPart::CaptureStart);
                 }
                 ")" => {
-                    if !has_capture_start || has_capture_end {
+                    if capture_start.is_none() || capture_end.is_some() {
                         return Err("mismatched capture end");
                     }
 
-                    has_capture_end = true;
+                    capture_end = Some(parts.len());
 
                     parts.push(PatternPart::CaptureEnd);
                 }
@@ -150,7 +150,7 @@ impl Pattern {
             grapheme_cursor.next_boundary(&code);
         }
 
-        if has_capture_start && !has_capture_end {
+        if capture_start.is_some() && capture_end.is_none() {
             return Err("unterminated capture");
         }
 
@@ -158,7 +158,44 @@ impl Pattern {
             return Err("expected another character after an escape character");
         }
 
+        Self::ensure_captures_something(&parts, capture_start, capture_end)?;
+
         Ok(Self { code, parts })
+    }
+
+    fn ensure_captures_something(
+        parts: &[PatternPart],
+        capture_start: Option<usize>,
+        capture_end: Option<usize>,
+    ) -> Result<(), &'static str> {
+        let capture_start = capture_start.unwrap_or_default();
+        let capture_end = capture_end.unwrap_or(parts.len());
+
+        let mut capture_parts = parts[capture_start..capture_end].iter();
+        let mut will_capture_nothing = true;
+
+        while let Some(part) = capture_parts.next() {
+            match part {
+                PatternPart::Literal(..) | PatternPart::Class(..) => {
+                    will_capture_nothing = false;
+                    break;
+                }
+                PatternPart::Modifier(
+                    PatternModifier::ZeroOrMoreFrugal
+                    | PatternModifier::ZeroOrMoreGreedy
+                    | PatternModifier::ZeroOrOne,
+                ) => {
+                    capture_parts.next();
+                }
+                _ => {}
+            }
+        }
+
+        if will_capture_nothing {
+            Err("may capture nothing")
+        } else {
+            Ok(())
+        }
     }
 
     fn parse_class(
