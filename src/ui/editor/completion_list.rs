@@ -192,7 +192,7 @@ impl CompletionList {
         doc: &mut Doc,
         ctx: &mut Ctx,
     ) -> Option<LspSentRequest> {
-        let (_, language_server) = doc.get_language_server_mut(ctx)?;
+        let language_server = doc.get_language_server_mut(ctx)?;
 
         Some(language_server.completion_item_resolve(item.clone(), doc))
     }

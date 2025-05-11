@@ -107,9 +107,8 @@ impl SignatureHelpPopup {
         let mut trigger_char = None;
         let mut retrigger_char = None;
 
-        let Some(language_server) = doc
-            .and_then(|doc| ctx.config.get_language_for_doc(doc))
-            .and_then(|language| ctx.lsp.get_language_server_mut(language))
+        let Some(language_server) =
+            doc.and_then(|doc| ctx.lsp.get_language_server_mut(doc, ctx.config))
         else {
             return (trigger_char, retrigger_char);
         };

@@ -14,7 +14,7 @@ use types::{Diagnostic, LspMessage, TextEdit};
 use uri::uri_to_path;
 
 use crate::{
-    config::language::Language,
+    config::Config,
     ctx::Ctx,
     geometry::position::Position,
     platform::process::Process,
@@ -258,8 +258,22 @@ impl Lsp {
         self.servers.values_mut().flatten()
     }
 
-    pub fn get_language_server_mut(&mut self, language: &Language) -> Option<&mut LanguageServer> {
+    pub fn get_language_server_mut(
+        &mut self,
+        doc: &Doc,
+        config: &Config,
+    ) -> Option<&mut LanguageServer> {
         let current_dir = self.current_dir.as_ref()?;
+
+        if doc
+            .path()
+            .some()
+            .is_none_or(|path| !path.starts_with(current_dir))
+        {
+            return None;
+        }
+
+        let language = config.get_language_for_doc(doc)?;
 
         if let Entry::Vacant(entry) = self.servers.entry(language.index) {
             let language_server_command = language.language_server_command.as_ref()?;

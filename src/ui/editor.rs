@@ -294,7 +294,7 @@ impl Editor {
 
         let command = result.command?;
         let (_, doc) = self.get_focused_tab_and_doc_mut()?;
-        let (_, language_server) = doc.get_language_server_mut(ctx)?;
+        let language_server = doc.get_language_server_mut(ctx)?;
 
         language_server.execute_command(&command.command, &command.arguments);
 

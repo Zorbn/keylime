@@ -1,5 +1,4 @@
 use crate::{
-    config::language::Language,
     ctx::Ctx,
     geometry::position::Position,
     lsp::{language_server::LanguageServer, LspExpectedResponse, LspSentRequest},
@@ -10,18 +9,12 @@ use crate::text::cursor_index::CursorIndex;
 use super::{Doc, DocKind};
 
 impl Doc {
-    pub fn get_language_server_mut<'a>(
-        &self,
-        ctx: &'a mut Ctx,
-    ) -> Option<(&'a Language, &'a mut LanguageServer)> {
+    pub fn get_language_server_mut<'a>(&self, ctx: &'a mut Ctx) -> Option<&'a mut LanguageServer> {
         if self.kind == DocKind::Output {
             return None;
         }
 
-        let language = ctx.config.get_language_for_doc(self)?;
-        let language_server = ctx.lsp.get_language_server_mut(language)?;
-
-        Some((language, language_server))
+        ctx.lsp.get_language_server_mut(self, ctx.config)
     }
 
     fn lsp_add_expected_response(
@@ -90,7 +83,8 @@ impl Doc {
             return None;
         }
 
-        let (language, language_server) = self.get_language_server_mut(ctx)?;
+        let language = ctx.config.get_language_for_doc(self)?;
+        let language_server = self.get_language_server_mut(ctx)?;
         let language_id = language.lsp_language_id.as_ref()?;
         let path = self.path.some()?;
 
@@ -125,7 +119,7 @@ impl Doc {
             return None;
         }
 
-        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
 
         language_server.did_change(path, self.version, start, end, text, self);
@@ -142,7 +136,7 @@ impl Doc {
             return None;
         }
 
-        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
 
         let sent_request = language_server.diagnostic(path)?;
@@ -162,7 +156,7 @@ impl Doc {
 
         self.get_completion_prefix(ctx.gfx)?;
 
-        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
         let position = self.get_cursor(CursorIndex::Main).position;
 
@@ -177,7 +171,7 @@ impl Doc {
             return None;
         }
 
-        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
 
         let cursor = self.get_cursor(CursorIndex::Main);
@@ -199,7 +193,7 @@ impl Doc {
             return None;
         }
 
-        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
         let position = self.get_cursor(CursorIndex::Main).position;
 
@@ -214,7 +208,7 @@ impl Doc {
             return None;
         }
 
-        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
         let position = self.get_cursor(CursorIndex::Main).position;
 
@@ -228,7 +222,7 @@ impl Doc {
             return None;
         }
 
-        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
         let position = self.get_cursor(CursorIndex::Main).position;
 
@@ -243,7 +237,7 @@ impl Doc {
             return None;
         }
 
-        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
 
         let sent_request = language_server.definition(path, position, self);
@@ -262,7 +256,7 @@ impl Doc {
             return None;
         }
 
-        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
         let position = self.get_cursor(CursorIndex::Main).position;
 
@@ -280,7 +274,7 @@ impl Doc {
 
         let indent_width = ctx.config.get_indent_width_for_doc(self);
 
-        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
 
         language_server.formatting(path, indent_width);
@@ -297,7 +291,7 @@ impl Doc {
             return None;
         }
 
-        let (_, language_server) = self.get_language_server_mut(ctx)?;
+        let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
 
         language_server.text_document_notification(path, method);
