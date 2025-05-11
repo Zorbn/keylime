@@ -1,10 +1,8 @@
-use std::{
-    io,
-    path::{absolute, Path},
-};
+use std::{io, path::Path};
 
 use crate::{
     ctx::Ctx,
+    normalizable::Normalizable,
     platform::dialog::{find_file, message, FindFileKind, MessageKind, MessageResponse},
     text::doc::{Doc, DocKind},
     ui::slot_list::SlotList,
@@ -66,7 +64,7 @@ pub fn open_or_reuse(
     path: &Path,
     ctx: &mut Ctx,
 ) -> io::Result<usize> {
-    let path = absolute(path)?;
+    let path = path.normalized()?;
 
     for (i, doc) in doc_list.iter().enumerate() {
         if doc.as_ref().and_then(|doc| doc.path().some()) == Some(&path) {

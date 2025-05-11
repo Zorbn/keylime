@@ -1,11 +1,12 @@
 use std::{
     io,
     ops::{Deref, DerefMut},
-    path::{absolute, Path},
+    path::Path,
 };
 
 use crate::{
     ctx::Ctx,
+    normalizable::Normalizable,
     platform::dialog::{find_file, message, FindFileKind, MessageKind},
     text::{
         doc::{Doc, DocKind},
@@ -98,7 +99,7 @@ impl EditorPane {
         doc_list: &mut SlotList<Doc>,
         ctx: &mut Ctx,
     ) -> io::Result<()> {
-        let path = path.and_then(|path| absolute(path).ok());
+        let path = path.and_then(|path| path.normalized().ok());
 
         let mut doc = Doc::new(path, &mut ctx.buffers.lines, None, DocKind::MultiLine);
         doc.lsp_did_open("", ctx);

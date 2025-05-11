@@ -9,6 +9,8 @@ use std::{
 use libc::{kevent, EVFILT_VNODE, EV_ADD, EV_CLEAR, EV_DELETE, NOTE_WRITE, O_EVTONLY};
 use objc2::rc::Retained;
 
+use crate::normalizable::Normalizable;
+
 use super::{
     result::Result,
     view::{View, ViewRef},
@@ -190,7 +192,10 @@ impl FileWatcher {
                     let path = PathBuf::from(path.to_str().unwrap());
 
                     let mut changed_files = changed_files.lock().unwrap();
-                    changed_files.push(path);
+
+                    if let Ok(path) = path.normalized() {
+                        changed_files.push(path);
+                    }
                 }
 
                 unsafe {

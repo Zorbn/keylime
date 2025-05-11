@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use crate::normalizable::Normalizable;
+
 use super::platform_impl;
 
 pub struct FileWatcher {
@@ -14,6 +16,10 @@ impl FileWatcher {
     }
 
     pub fn get_changed_files(&mut self) -> &[PathBuf] {
-        self.inner.get_changed_files()
+        let changed_files = self.inner.get_changed_files();
+
+        assert!(changed_files.iter().all(|path| path.is_normal()));
+
+        changed_files
     }
 }

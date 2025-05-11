@@ -1,0 +1,187 @@
+{
+    "name": "C++",
+    "extensions": [
+        "cpp",
+        "hpp",
+        "h",
+        "mm"
+    ],
+    "indent_width": 4,
+    "language_server_command": "clangd",
+    "lsp_language_id": "cpp",
+    "syntax": {
+        "keywords": [
+            "alignas",
+            "alignof",
+            "and",
+            "and_eq",
+            "asm",
+            "atomic_cancel",
+            "atomic_commit",
+            "atomic_noexcept",
+            "auto",
+            "bitand",
+            "bitor",
+            "bool",
+            "break",
+            "case",
+            "catch",
+            "char",
+            "char8_t",
+            "char16_t",
+            "char32_t",
+            "class",
+            "compl",
+            "concept",
+            "const",
+            "consteval",
+            "constexpr",
+            "constinit",
+            "const_cast",
+            "continue",
+            "contract_assert",
+            "co_await",
+            "co_return",
+            "co_yield",
+            "decltype",
+            "default",
+            "delete",
+            "do",
+            "double",
+            "dynamic_cast",
+            "else",
+            "enum",
+            "explicit",
+            "export",
+            "extern",
+            "false",
+            "float",
+            "for",
+            "friend",
+            "goto",
+            "if",
+            "inline",
+            "int",
+            "long",
+            "mutable",
+            "namespace",
+            "new",
+            "noexcept",
+            "not",
+            "not_eq",
+            "nullptr",
+            "operator",
+            "or",
+            "or_eq",
+            "private",
+            "protected",
+            "public",
+            "reflexpr",
+            "register",
+            "reinterpret_cast",
+            "requires",
+            "return",
+            "short",
+            "signed",
+            "sizeof",
+            "static",
+            "static_assert",
+            "static_cast",
+            "struct",
+            "switch",
+            "synchronized",
+            "template",
+            "this",
+            "thread_local",
+            "throw",
+            "true",
+            "try",
+            "typedef",
+            "typeid",
+            "typename",
+            "union",
+            "unsigned",
+            "using",
+            "virtual",
+            "void",
+            "volatile",
+            "wchar_t",
+            "while",
+            "xor",
+            "xor_eq",
+            "final",
+            "override",
+            "transaction_safe",
+            "transaction_safe_dynamic",
+            "import",
+            "module",
+            "pre",
+            "post",
+            "trivially_relocatable_if_eligible",
+            "replaceable_if_eligible"
+        ],
+        "ranges": [
+            {
+                "end": "\"",
+                "escape": "\\",
+                "kind": "String",
+                "start": "\""
+            },
+            {
+                "end": "'",
+                "escape": "\\",
+                "kind": "String",
+                "start": "'"
+            },
+            {
+                "end": "`",
+                "escape": "\\",
+                "kind": "String",
+                "start": "`"
+            },
+            {
+                "end": "%*/",
+                "kind": "Comment",
+                "start": "/%*"
+            }
+        ],
+        "tokens": [
+            {
+                "kind": "Comment",
+                "pattern": "//%.*"
+            },
+            {
+                "kind": "Meta",
+                "pattern": "#%w*"
+            },
+            {
+                "kind": "Meta",
+                "pattern": "@%w*"
+            },
+            {
+                "kind": "Function",
+                "pattern": "([%a_][%w_]*)%s*%("
+            },
+            {
+                "kind": "Function",
+                "pattern": "([%a_][%w_]*)%s*<%.->%s*%("
+            },
+            {
+                "kind": "Number",
+                "pattern": "0x%x+"
+            },
+            {
+                "kind": "Number",
+                "pattern": "(%d+.?%d*)[^.]"
+            },
+            {
+                "kind": "Number",
+                "pattern": "%d+"
+            },
+            {
+                "kind": "Symbol",
+                "pattern": "[!=&,><./:@|;{}()%%%^%*%+%-%?%[%]]"
+            }
+        ]
+    }
+}

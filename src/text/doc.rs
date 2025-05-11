@@ -5,7 +5,7 @@ use std::{
     io::{self, Write},
     mem::take,
     ops::RangeInclusive,
-    path::{absolute, Path, PathBuf},
+    path::{Path, PathBuf},
 };
 
 use crate::{
@@ -13,6 +13,7 @@ use crate::{
     ctx::{ctx_with_time, Ctx},
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     lsp::{language_server::LanguageServer, types::TextEdit, LspExpectedResponse, LspSentRequest},
+    normalizable::Normalizable,
     platform::gfx::Gfx,
     temp_buffer::TempString,
     text::grapheme,
@@ -139,7 +140,7 @@ impl Doc {
         display_name: Option<&'static str>,
         kind: DocKind,
     ) -> Self {
-        assert!(path.as_ref().is_none_or(|path| path.is_absolute()));
+        assert!(path.as_ref().is_none_or(|path| path.is_normal()));
 
         let lines = vec![line_pool.pop()];
 
@@ -1669,10 +1670,10 @@ impl Doc {
     }
 
     fn set_path_on_drive(&mut self, path: PathBuf) -> io::Result<()> {
-        self.path = DocPath::OnDrive(if path.is_absolute() {
+        self.path = DocPath::OnDrive(if path.is_normal() {
             path
         } else {
-            absolute(path)?
+            path.normalized()?
         });
 
         Ok(())

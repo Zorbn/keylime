@@ -1,7 +1,7 @@
 use std::{
     fs::{self, copy, create_dir_all, read_dir, remove_file},
     io,
-    path::{absolute, Component, Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 use crate::{
@@ -9,6 +9,7 @@ use crate::{
     ctx::Ctx,
     geometry::position::Position,
     input::action::{action_name, Action},
+    normalizable::Normalizable,
     platform::{gfx::Gfx, recycle::recycle},
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{color::Color, editor::Editor, result_list::ResultListSubmitKind},
@@ -564,7 +565,7 @@ fn update_path_for_copy(path: &mut PathBuf, buffer: &mut String) {
 }
 
 fn rename(from: &Path, to: PathBuf, editor: &mut Editor, ctx: &mut Ctx) -> io::Result<()> {
-    let from = absolute(from)?;
+    let from = from.normalized()?;
 
     if let Some(doc) = editor.find_doc_mut(&from) {
         remove_file(&from)?;

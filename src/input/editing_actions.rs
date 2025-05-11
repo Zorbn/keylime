@@ -61,7 +61,7 @@ pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, ctx: &mut Ctx) {
         }
 
         if let Some(matching_grapheme) = matching_grapheme
-            .filter(|_| should_insert_matching_grapheme(next_grapheme, previous_grapheme))
+            .filter(|_| should_insert_matching_grapheme(grapheme, next_grapheme, previous_grapheme))
         {
             doc.insert_at_cursor(index, grapheme, ctx);
             doc.insert_at_cursor(index, matching_grapheme, ctx);
@@ -74,9 +74,14 @@ pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, ctx: &mut Ctx) {
     }
 }
 
-fn should_insert_matching_grapheme(next_grapheme: &str, previous_grapheme: &str) -> bool {
+fn should_insert_matching_grapheme(
+    grapheme: &str,
+    next_grapheme: &str,
+    previous_grapheme: &str,
+) -> bool {
     let is_next_clear = !grapheme::is_alphanumeric(next_grapheme);
-    let is_previous_clear = !grapheme::is_alphanumeric(previous_grapheme);
+    let is_previous_clear =
+        !matches!(grapheme, "'" | "\"") || !grapheme::is_alphanumeric(previous_grapheme);
 
     is_next_clear && is_previous_clear
 }

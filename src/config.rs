@@ -5,7 +5,7 @@ use std::{
     collections::{HashMap, HashSet},
     env::current_exe,
     fs::{read_dir, read_to_string},
-    path::{absolute, Path, PathBuf},
+    path::{Path, PathBuf},
 };
 
 use language::{IndentWidth, Language};
@@ -13,6 +13,7 @@ use serde::Deserialize;
 use theme::Theme;
 
 use crate::{
+    normalizable::Normalizable,
     platform::dialog::{message, MessageKind},
     text::{
         doc::Doc,
@@ -245,7 +246,7 @@ impl Config {
             CONFIG_DIR
         };
 
-        absolute(relative_dir).unwrap()
+        relative_dir.normalized().unwrap()
     }
 }
 

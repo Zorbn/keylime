@@ -4,6 +4,8 @@ use std::{
     str::{self, Chars},
 };
 
+use crate::normalizable::Normalizable;
+
 const URI_SCHEME: &str = "file:///";
 
 pub fn uri_to_path(uri: &str, mut result: String) -> Option<PathBuf> {
@@ -54,7 +56,7 @@ fn decode_uri_char(chars: &mut Peekable<Chars>) -> Option<char> {
 }
 
 pub fn path_to_uri(path: &Path, result: &mut String) {
-    assert!(path.is_absolute());
+    assert!(path.is_normal());
 
     result.push_str(URI_SCHEME);
 

@@ -15,6 +15,8 @@ use windows::{
     },
 };
 
+use crate::normalizable::Normalizable;
+
 pub struct DirWatchHandles {
     overlapped: OVERLAPPED,
     dir_handle: HANDLE,
@@ -86,7 +88,9 @@ impl FileWatcher {
             path.push(&handles.path);
             path.push(String::from_utf16_lossy(file_name));
 
-            self.changed_files.push(path);
+            if let Ok(path) = path.normalized() {
+                changed_files.push(path);
+            }
 
             buffer_offset += info.NextEntryOffset as usize;
 
