@@ -57,7 +57,7 @@ impl CompletionResult {
 enum CompletionPopupCache {
     PreviousIndex(usize),
     PreviousItem {
-        detail: Option<String>,
+        detail: Option<Pooled<String>>,
         documentation: Option<Documentation>,
     },
     None,

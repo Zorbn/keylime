@@ -66,7 +66,7 @@ impl FindInFilesMode {
         Some(CommandPaletteResult {
             text,
             meta_data: CommandPaletteMetaData::PathWithPosition {
-                path: PATH_POOL.init_item(|path| path.push(relative_path)),
+                path: relative_path.into(),
                 position,
             },
         })
@@ -130,7 +130,7 @@ impl FindInFilesMode {
             return;
         }
 
-        let path = Pooled::from(path, &PATH_POOL);
+        let path = Pooled::new(path, &PATH_POOL);
         let mut doc = Doc::new(Some(path), None, DocKind::Output);
 
         if doc.load(ctx).is_ok() {

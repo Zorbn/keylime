@@ -18,6 +18,7 @@ use crate::{
     ctx::Ctx,
     geometry::position::Position,
     platform::process::Process,
+    pool::STRING_POOL,
     text::doc::Doc,
     ui::{
         command_palette::{
@@ -135,11 +136,7 @@ impl Lsp {
                 let (start, end) = range.decode(encoding, doc);
 
                 let placeholder = placeholder.unwrap_or_else(|| {
-                    let mut placeholder = String::new();
-
-                    doc.collect_string(start, end, &mut placeholder);
-
-                    placeholder
+                    STRING_POOL.init_item(|placeholder| doc.collect_string(start, end, placeholder))
                 });
 
                 command_palette.open(ui, Box::new(RenameMode::new(placeholder)), editor, ctx);

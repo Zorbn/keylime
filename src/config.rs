@@ -15,7 +15,7 @@ use theme::Theme;
 use crate::{
     normalizable::Normalizable,
     platform::dialog::{message, MessageKind},
-    pool::{format_pooled, Pooled, PATH_POOL},
+    pool::{format_pooled, Pooled, PATH_POOL, STRING_POOL},
     text::{
         doc::Doc,
         syntax::{Syntax, SyntaxRange, SyntaxToken},
@@ -24,15 +24,15 @@ use crate::{
 
 const CONFIG_FILE: &str = "config.json";
 const CONFIG_DIR: &str = "config";
-const DEFAULT_COMMENT: fn() -> String = || "//".to_owned();
+const DEFAULT_COMMENT: fn() -> Pooled<String> = || "//".into();
 const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
 const DEFAULT_FORMAT_ON_SAVE: fn() -> bool = || true;
 const DEFAULT_TERMINAL_HEIGHT: fn() -> f32 = || 12.0;
-const DEFAULT_IGNORED_DIRS: fn() -> Vec<String> = || {
+const DEFAULT_IGNORED_DIRS: fn() -> Vec<Pooled<String>> = || {
     ["target", "build", "out", ".git"]
         .iter()
         .copied()
-        .map(str::to_owned)
+        .map(|str| str.into())
         .collect()
 };
 
@@ -64,21 +64,21 @@ impl SyntaxDesc<'_> {
 
 #[derive(Deserialize, Debug)]
 struct LanguageDesc<'a> {
-    name: String,
-    extensions: Vec<String>,
+    name: Pooled<String>,
+    extensions: Vec<Pooled<String>>,
     #[serde(default)]
     indent_width: IndentWidth,
     #[serde(default = "DEFAULT_COMMENT")]
-    comment: String,
-    lsp_language_id: Option<String>,
-    language_server_command: Option<String>,
+    comment: Pooled<String>,
+    lsp_language_id: Option<Pooled<String>>,
+    language_server_command: Option<Pooled<String>>,
     #[serde(borrow)]
     syntax: Option<SyntaxDesc<'a>>,
 }
 
 #[derive(Deserialize, Debug)]
 struct ConfigDesc<'a> {
-    font: String,
+    font: Pooled<String>,
     font_size: f32,
     #[serde(default = "DEFAULT_TRIM_TRAILING_WHITESPACE")]
     trim_trailing_whitespace: bool,
@@ -88,7 +88,7 @@ struct ConfigDesc<'a> {
     terminal_height: f32,
     theme: &'a str,
     #[serde(default = "DEFAULT_IGNORED_DIRS")]
-    ignored_dirs: Vec<String>,
+    ignored_dirs: Vec<Pooled<String>>,
 }
 
 pub struct ConfigError {
@@ -107,15 +107,15 @@ impl ConfigError {
 }
 
 pub struct Config {
-    pub font: String,
+    pub font: Pooled<String>,
     pub font_size: f32,
     pub trim_trailing_whitespace: bool,
     pub format_on_save: bool,
     pub terminal_height: f32,
     pub theme: Theme,
     pub languages: Vec<Language>,
-    pub extension_languages: HashMap<String, usize>,
-    pub ignored_dirs: HashSet<String>,
+    pub extension_languages: HashMap<Pooled<String>, usize>,
+    pub ignored_dirs: HashSet<Pooled<String>>,
 }
 
 impl Config {
@@ -254,7 +254,7 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            font: String::new(),
+            font: STRING_POOL.new_item(),
             font_size: 13.0,
             trim_trailing_whitespace: DEFAULT_TRIM_TRAILING_WHITESPACE(),
             format_on_save: DEFAULT_FORMAT_ON_SAVE(),

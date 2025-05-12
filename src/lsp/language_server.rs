@@ -21,7 +21,7 @@ use crate::{
         gfx::TAB_WIDTH,
         process::{Process, ProcessKind},
     },
-    pool::{format_pooled, Pooled, PATH_POOL},
+    pool::{format_pooled, Pooled},
     text::doc::Doc,
 };
 
@@ -68,12 +68,12 @@ enum MessageParseState {
 pub(super) enum MessageResult<'a> {
     Completion(Vec<LspCompletionItem>),
     CompletionItemResolve(LspCompletionItem),
-    CodeAction(Vec<LspCodeActionResult<'a>>),
+    CodeAction(Vec<LspCodeActionResult>),
     PrepareRename {
         range: LspRange,
-        placeholder: Option<String>,
+        placeholder: Option<Pooled<String>>,
     },
-    Rename(LspWorkspaceEdit<'a>),
+    Rename(LspWorkspaceEdit),
     References(Vec<LspLocation<'a>>),
     Definition {
         path: Pooled<PathBuf>,
@@ -269,7 +269,7 @@ impl LanguageServer {
             return (path, Some(method));
         }
 
-        (None, message.method.as_deref())
+        (None, message.method.as_ref().map(|method| method.as_str()))
     }
 
     pub(super) fn handle_message<'a>(
@@ -708,7 +708,7 @@ impl LanguageServer {
         let id = self.next_request_id;
         self.next_request_id += 1;
 
-        let path = path.map(|path| PATH_POOL.init_item(|new_path| new_path.push(path)));
+        let path = path.map(Pooled::<PathBuf>::from);
 
         self.pending_requests.insert(id, (path, method));
 

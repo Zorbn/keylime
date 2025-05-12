@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{value::RawValue, Value};
 
-use crate::{config::theme::Theme, geometry::position::Position, text::doc::Doc, ui::color::Color};
+use crate::{
+    config::theme::Theme, geometry::position::Position, pool::Pooled, text::doc::Doc,
+    ui::color::Color,
+};
 
 use super::position_encoding::PositionEncoding;
 
@@ -91,7 +94,7 @@ impl LspRange {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(super) struct LspDiagnostic {
-    message: String,
+    message: Pooled<String>,
     range: LspRange,
     #[serde(default = "DEFAULT_SEVERITY")]
     pub severity: usize,
@@ -109,7 +112,7 @@ impl LspDiagnostic {
 
 #[derive(Debug, Deserialize)]
 pub(super) struct LspPublishDiagnosticsParams {
-    pub uri: String,
+    pub uri: Pooled<String>,
     pub diagnostics: Vec<LspDiagnostic>,
 }
 
@@ -122,7 +125,7 @@ pub(super) struct LspFullDocumentDiagnosticParams {
 #[serde(rename_all = "camelCase")]
 pub(super) struct LspTextEdit {
     range: LspRange,
-    new_text: String,
+    new_text: Pooled<String>,
 }
 
 impl LspTextEdit {
@@ -137,14 +140,14 @@ impl LspTextEdit {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct LspCompletionItem {
-    label: String,
-    sort_text: Option<String>,
-    filter_text: Option<String>,
-    insert_text: Option<String>,
+    label: Pooled<String>,
+    sort_text: Option<Pooled<String>>,
+    filter_text: Option<Pooled<String>>,
+    insert_text: Option<Pooled<String>>,
     text_edit: Option<LspTextEdit>,
     #[serde(default)]
     additional_text_edits: Vec<LspTextEdit>,
-    detail: Option<String>,
+    detail: Option<Pooled<String>>,
     documentation: Option<Documentation>,
     data: Option<Value>,
 }
@@ -211,9 +214,9 @@ pub(super) enum LspDefinitionResult<'a> {
 #[serde(rename_all = "camelCase")]
 pub(super) struct LspSignatureHelpOptions {
     #[serde(default)]
-    pub trigger_characters: Vec<String>,
+    pub trigger_characters: Vec<Pooled<String>>,
     #[serde(default)]
-    pub retrigger_characters: Vec<String>,
+    pub retrigger_characters: Vec<Pooled<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -244,33 +247,31 @@ pub(super) struct LspRegistrationParams<'a> {
 #[derive(Debug, Deserialize)]
 pub(super) struct LspMessage {
     pub id: Option<usize>,
-    pub method: Option<String>,
+    pub method: Option<Pooled<String>>,
     pub result: Option<Box<RawValue>>,
     pub params: Option<Box<RawValue>>,
 }
 
 #[derive(Debug, Deserialize)]
-struct LspTextDocumentIdentifier<'a> {
-    uri: &'a str,
+struct LspTextDocumentIdentifier {
+    uri: Pooled<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct LspTextDocumentEdit<'a> {
-    #[serde(borrow)]
-    text_document: LspTextDocumentIdentifier<'a>,
+struct LspTextDocumentEdit {
+    text_document: LspTextDocumentIdentifier,
     edits: Vec<LspTextEdit>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct LspWorkspaceEdit<'a> {
-    #[serde(borrow)]
-    changes: Option<HashMap<&'a str, Vec<LspTextEdit>>>,
-    document_changes: Option<Vec<LspTextDocumentEdit<'a>>>,
+pub(super) struct LspWorkspaceEdit {
+    changes: Option<HashMap<Pooled<String>, Vec<LspTextEdit>>>,
+    document_changes: Option<Vec<LspTextDocumentEdit>>,
 }
 
-impl LspWorkspaceEdit<'_> {
+impl LspWorkspaceEdit {
     pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> Vec<EditList> {
         let mut edit = Vec::new();
 
@@ -283,7 +284,7 @@ impl LspWorkspaceEdit<'_> {
                     .collect();
 
                 edit.push(EditList {
-                    uri: change.text_document.uri.to_string(),
+                    uri: change.text_document.uri,
                     edits,
                 });
             }
@@ -294,10 +295,7 @@ impl LspWorkspaceEdit<'_> {
                     .map(|text_edit| text_edit.decode(encoding, doc))
                     .collect();
 
-                edit.push(EditList {
-                    uri: uri.to_string(),
-                    edits,
-                });
+                edit.push(EditList { uri, edits });
             }
         }
 
@@ -311,7 +309,7 @@ pub(super) enum LspPrepareRenameResult {
     Range(LspRange),
     RangeWithPlaceholder {
         range: LspRange,
-        placeholder: String,
+        placeholder: Pooled<String>,
     },
     #[default]
     Invalid,
@@ -319,24 +317,23 @@ pub(super) enum LspPrepareRenameResult {
 
 #[derive(Debug, Deserialize)]
 pub struct Command {
-    pub title: String,
-    pub command: String,
+    pub title: Pooled<String>,
+    pub command: Pooled<String>,
     #[serde(default)]
     pub arguments: Vec<Box<RawValue>>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct LspCodeAction<'a> {
-    title: String,
-    #[serde(borrow)]
-    edit: Option<LspWorkspaceEdit<'a>>,
+pub(super) struct LspCodeAction {
+    title: Pooled<String>,
+    edit: Option<LspWorkspaceEdit>,
     command: Option<Command>,
     #[serde(default)]
     is_preferred: bool,
 }
 
-impl LspCodeAction<'_> {
+impl LspCodeAction {
     pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> CodeAction {
         let edit_lists = self
             .edit
@@ -354,14 +351,13 @@ impl LspCodeAction<'_> {
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
-pub(super) enum LspCodeActionResult<'a> {
+pub(super) enum LspCodeActionResult {
     Command(Command),
-    #[serde(borrow)]
-    CodeAction(LspCodeAction<'a>),
+    CodeAction(LspCodeAction),
     None,
 }
 
-impl LspCodeActionResult<'_> {
+impl LspCodeActionResult {
     pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> CodeActionResult {
         match self {
             LspCodeActionResult::Command(command) => CodeActionResult::Command(command),
@@ -375,7 +371,7 @@ impl LspCodeActionResult<'_> {
 
 #[derive(Debug, Clone)]
 pub struct Diagnostic {
-    pub message: String,
+    pub message: Pooled<String>,
     pub range: (Position, Position),
     pub severity: usize,
 }
@@ -412,7 +408,7 @@ impl Diagnostic {
 #[derive(Debug, Clone)]
 pub struct TextEdit {
     pub range: (Position, Position),
-    pub new_text: String,
+    pub new_text: Pooled<String>,
 }
 
 impl TextEdit {
@@ -427,8 +423,11 @@ impl TextEdit {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum Documentation {
-    PlainText(String),
-    MarkupContent { kind: String, value: String },
+    PlainText(Pooled<String>),
+    MarkupContent {
+        kind: Pooled<String>,
+        value: Pooled<String>,
+    },
 }
 
 impl Documentation {
@@ -442,13 +441,13 @@ impl Documentation {
 
 #[derive(Debug, Clone)]
 pub struct CompletionItem {
-    pub label: String,
-    sort_text: Option<String>,
-    filter_text: Option<String>,
-    pub insert_text: Option<String>,
+    pub label: Pooled<String>,
+    sort_text: Option<Pooled<String>>,
+    filter_text: Option<Pooled<String>>,
+    pub insert_text: Option<Pooled<String>>,
     pub text_edit: Option<TextEdit>,
     pub additional_text_edits: Vec<TextEdit>,
-    pub detail: Option<String>,
+    pub detail: Option<Pooled<String>>,
     pub documentation: Option<Documentation>,
     data: Option<Value>,
 }
@@ -497,13 +496,13 @@ impl CompletionItem {
 
 #[derive(Debug)]
 pub struct EditList {
-    pub uri: String,
+    pub uri: Pooled<String>,
     pub edits: Vec<TextEdit>,
 }
 
 #[derive(Debug)]
 pub struct CodeAction {
-    pub title: String,
+    pub title: Pooled<String>,
     pub edit_lists: Vec<EditList>,
     pub command: Option<Command>,
     pub is_preferred: bool,
@@ -517,7 +516,7 @@ pub enum CodeActionResult {
 
 #[derive(Debug, Deserialize)]
 pub struct SignatureInformation {
-    pub label: String,
+    pub label: Pooled<String>,
     pub documentation: Option<Documentation>,
 }
 

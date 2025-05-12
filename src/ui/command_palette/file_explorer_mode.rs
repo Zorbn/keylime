@@ -155,13 +155,13 @@ impl FileExplorerMode {
                 if let Some(mut text) = entry_path
                     .file_name()
                     .and_then(|name| name.to_str())
-                    .map(|str| STRING_POOL.init_item(|text| text.push_str(str)))
+                    .map(Pooled::<String>::from)
                 {
                     if entry_path.is_dir() {
                         text.push_str(PREFERRED_PATH_SEPARATOR);
                     }
 
-                    let entry_path = Pooled::from(entry_path, &PATH_POOL);
+                    let entry_path = Pooled::new(entry_path, &PATH_POOL);
 
                     command_palette
                         .result_list
@@ -182,9 +182,7 @@ impl FileExplorerMode {
             .renaming_result_index
             .and_then(|index| command_palette.result_list.get_mut(index))
         {
-            renaming_result.text = STRING_POOL.init_item(|text| {
-                text.push_str(command_palette.doc.get_line(0).unwrap_or_default())
-            });
+            renaming_result.text = command_palette.doc.get_line(0).unwrap_or_default().into();
         }
 
         if let Some(focused_result_index) = focused_result_index.or(self.renaming_result_index) {

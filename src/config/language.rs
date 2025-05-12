@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use crate::{platform::gfx::Gfx, text::syntax::Syntax};
+use crate::{platform::gfx::Gfx, pool::Pooled, text::syntax::Syntax};
 
 use super::LanguageDesc;
 
@@ -34,12 +34,12 @@ impl IndentWidth {
 
 pub struct Language {
     pub index: usize,
-    pub name: String,
+    pub name: Pooled<String>,
     pub indent_width: IndentWidth,
     pub syntax: Option<Syntax>,
-    pub comment: String,
-    pub lsp_language_id: Option<String>,
-    pub language_server_command: Option<String>,
+    pub comment: Pooled<String>,
+    pub lsp_language_id: Option<Pooled<String>>,
+    pub language_server_command: Option<Pooled<String>>,
 }
 
 impl Language {

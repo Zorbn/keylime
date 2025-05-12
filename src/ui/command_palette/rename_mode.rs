@@ -1,4 +1,4 @@
-use crate::ui::result_list::ResultListSubmitKind;
+use crate::{pool::Pooled, ui::result_list::ResultListSubmitKind};
 
 use super::{
     mode::{CommandPaletteEventArgs, CommandPaletteMode},
@@ -6,11 +6,11 @@ use super::{
 };
 
 pub struct RenameMode {
-    placeholder: String,
+    placeholder: Pooled<String>,
 }
 
 impl RenameMode {
-    pub fn new(placeholder: String) -> Self {
+    pub fn new(placeholder: Pooled<String>) -> Self {
         Self { placeholder }
     }
 }

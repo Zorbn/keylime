@@ -12,7 +12,7 @@ use crate::{
         mousebind::{MouseClickKind, Mousebind},
     },
     platform::gfx::Gfx,
-    pool::STRING_POOL,
+    pool::Pooled,
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
@@ -100,7 +100,7 @@ impl Tab {
         let mut grapheme_handler = ui.get_grapheme_handler(widget, ctx.window);
 
         while let Some(grapheme) = grapheme_handler.next(ctx.window) {
-            let grapheme = STRING_POOL.init_item(|string| string.push_str(grapheme));
+            let grapheme: Pooled<String> = grapheme.into();
 
             handle_grapheme(&grapheme, doc, ctx);
         }

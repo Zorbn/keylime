@@ -974,14 +974,14 @@ impl Doc {
                 Action::Delete { start, text_start } => {
                     were_cursors_reset = false;
 
-                    let mut undo_buffer = STRING_POOL.new_item();
+                    let mut undone_text = STRING_POOL.new_item();
 
-                    undo_buffer
+                    undone_text
                         .push_str(&action_history!(self, action_kind).deleted_text[text_start..]);
 
                     self.insert_as_action_kind(
                         start,
-                        &undo_buffer,
+                        &undone_text,
                         reverse_action_kind,
                         ctx_with_time!(ctx, popped_action.time),
                     );
@@ -1058,15 +1058,15 @@ impl Doc {
             self.add_cursors_to_action_history(action_kind, ctx.time);
         }
 
-        let mut undo_buffer = STRING_POOL.new_item();
-        self.collect_string(start, end, &mut undo_buffer);
-
         if self.kind != DocKind::Output {
+            let mut undone_text = STRING_POOL.new_item();
+            self.collect_string(start, end, &mut undone_text);
+
             let deleted_text_start = action_history!(self, action_kind).deleted_text.len();
 
             action_history!(self, action_kind)
                 .deleted_text
-                .push_str(&undo_buffer);
+                .push_str(&undone_text);
 
             action_history!(self, action_kind).push_delete(start, deleted_text_start, ctx.time);
         }

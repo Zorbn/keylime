@@ -1,5 +1,7 @@
 use serde::{de::Error, Deserialize, Deserializer};
 
+use crate::pool::Pooled;
+
 use super::grapheme::{self, GraphemeCursor};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,12 +65,12 @@ enum PatternPart {
 
 #[derive(Debug)]
 pub struct Pattern {
-    code: String,
+    code: Pooled<String>,
     parts: Vec<PatternPart>,
 }
 
 impl Pattern {
-    pub fn parse(code: String) -> Result<Self, &'static str> {
+    pub fn parse(code: Pooled<String>) -> Result<Self, &'static str> {
         let mut parts = Vec::new();
 
         let mut capture_start = None;
@@ -510,7 +512,7 @@ impl<'de> Deserialize<'de> for Pattern {
     where
         D: Deserializer<'de>,
     {
-        let s: String = Deserialize::deserialize(deserializer)?;
+        let s: Pooled<String> = Deserialize::deserialize(deserializer)?;
 
         Pattern::parse(s).map_err(D::Error::custom)
     }

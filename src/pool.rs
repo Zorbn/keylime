@@ -1,14 +1,15 @@
 use std::{
+    borrow::Borrow,
     cell::RefCell,
     ffi::OsStr,
-    fmt::Debug,
+    fmt::{Debug, Display},
     hash::{Hash, Hasher},
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
     thread::LocalKey,
 };
 
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 macro_rules! define_pool {
     ($name:ident, $items_name:ident, $type_name:ty) => {
@@ -78,14 +79,7 @@ pub struct Pooled<T: Default + Poolable + 'static> {
 }
 
 impl<T: Default + Poolable + 'static> Pooled<T> {
-    pub fn new(pool: &'static Pool<T>) -> Self {
-        Self {
-            pool,
-            item: Some(Default::default()),
-        }
-    }
-
-    pub fn from(item: T, pool: &'static Pool<T>) -> Self {
+    pub fn new(item: T, pool: &'static Pool<T>) -> Self {
         Self {
             pool,
             item: Some(item),
@@ -106,7 +100,7 @@ impl<T: Default + Poolable + 'static> Drop for Pooled<T> {
 
 impl<T: Default + Poolable + 'static> Clone for Pooled<T> {
     fn clone(&self) -> Self {
-        let mut clone = Self::new(self.pool);
+        let mut clone = Self::new(Default::default(), self.pool);
         clone.push(self);
 
         clone
@@ -128,6 +122,12 @@ impl<T: Default + Poolable + 'static> DerefMut for Pooled<T> {
 }
 
 impl<T: Debug + Default + Poolable + 'static> Debug for Pooled<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+
+impl<T: Display + Default + Poolable + 'static> Display for Pooled<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.deref().fmt(f)
     }
@@ -156,15 +156,45 @@ impl<T: Serialize + Debug + Default + Poolable + 'static> Serialize for Pooled<T
     }
 }
 
+impl<'de> Deserialize<'de> for Pooled<String> {
+    fn deserialize<D>(deserializer: D) -> Result<Pooled<String>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let mut s = STRING_POOL.new_item();
+        String::deserialize_in_place(deserializer, &mut s)?;
+
+        Ok(s)
+    }
+}
+
 impl AsRef<Path> for Pooled<PathBuf> {
     fn as_ref(&self) -> &Path {
         self.deref()
     }
 }
 
+impl From<&Path> for Pooled<PathBuf> {
+    fn from(value: &Path) -> Self {
+        PATH_POOL.init_item(|path| path.push(value))
+    }
+}
+
 impl AsRef<OsStr> for Pooled<String> {
     fn as_ref(&self) -> &OsStr {
         OsStr::new(self.deref())
+    }
+}
+
+impl Borrow<str> for Pooled<String> {
+    fn borrow(&self) -> &str {
+        self.deref().borrow()
+    }
+}
+
+impl From<&str> for Pooled<String> {
+    fn from(value: &str) -> Self {
+        STRING_POOL.init_item(|string| string.push_str(value))
     }
 }
 
@@ -185,13 +215,10 @@ impl<T: Default + Poolable + 'static> Pool<T> {
             item = items.pop();
         });
 
-        if let Some(mut item) = item {
-            item.clear();
+        let mut item = item.unwrap_or_default();
+        item.clear();
 
-            return Pooled::<T>::from(item, self);
-        }
-
-        Pooled::<T>::new(self)
+        Pooled::<T>::new(item, self)
     }
 
     pub fn init_item(&'static self, mut init_fn: impl FnMut(&mut Pooled<T>)) -> Pooled<T> {

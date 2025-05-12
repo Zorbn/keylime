@@ -9,10 +9,7 @@ use std::{
 use libc::{kevent, EVFILT_VNODE, EV_ADD, EV_CLEAR, EV_DELETE, NOTE_WRITE, O_EVTONLY};
 use objc2::rc::Retained;
 
-use crate::{
-    normalizable::Normalizable,
-    pool::{Pooled, PATH_POOL},
-};
+use crate::{normalizable::Normalizable, pool::Pooled};
 
 use super::{
     result::Result,
@@ -192,8 +189,7 @@ impl FileWatcher {
                     let event = event_list[i as usize];
 
                     let path = unsafe { CStr::from_ptr(event.udata as *const c_char) };
-                    let path =
-                        PATH_POOL.init_item(|new_path| new_path.push(path.to_str().unwrap()));
+                    let path: Pooled<String> = path.to_str().unwrap().into();
 
                     let mut changed_files = changed_files.lock().unwrap();
 
