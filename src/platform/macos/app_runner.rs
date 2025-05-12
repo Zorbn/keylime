@@ -62,7 +62,7 @@ fn add_menu_items(app: &NSApplication, mtm: MainThreadMarker) {
 
     add_menu_item!(
         "Close Window",
-        Some(sel!(closeWindow)),
+        Some(sel!(performClose:)),
         Some(NSEventModifierFlags::Command | NSEventModifierFlags::Shift),
         "w",
         file_menu,

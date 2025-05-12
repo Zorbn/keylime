@@ -41,29 +41,14 @@ define_class!(
             window_delegates.push(WindowDelegate::new(mtm));
         }
 
-        #[unsafe(method(closeWindow))]
-        fn close_window(&self) {
+        #[unsafe(method(onWindowShouldClose))]
+        fn on_window_should_close(&self) {
             let mut window_delegates = self.ivars().window_delegates.borrow_mut();
 
-            for i in 0..window_delegates.len() {
-                let ns_window = {
-                    let window = window_delegates[i].ivars().window.borrow();
-
-                    window.inner.ns_window.clone()
-                };
-
-                if unsafe { !ns_window.isMainWindow() } {
-                    continue;
-                }
-
-                unsafe {
-                    ns_window.performClose(None);
-                }
-
-                window_delegates.remove(i);
-
-                break;
-            }
+            window_delegates.retain(|window_delegate| {
+                let window = window_delegate.ivars().window.borrow();
+                window.inner.is_running
+            });
         }
     }
 
@@ -150,6 +135,15 @@ define_class!(
         #[unsafe(method(windowShouldClose:))]
         unsafe fn window_should_close(&self, _sender: &NSWindow) -> bool {
             self.on_close();
+
+            let mtm = MainThreadMarker::from(self);
+            let app = NSApplication::sharedApplication(mtm);
+
+            unsafe {
+                if let Some(app_delegate) = app.delegate() {
+                    let _: () = msg_send![&app_delegate, onWindowShouldClose];
+                }
+            }
 
             true
         }
