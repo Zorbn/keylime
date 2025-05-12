@@ -11,7 +11,6 @@ mod lsp;
 mod normalizable;
 mod platform;
 mod pool;
-mod temp_buffer;
 mod text;
 mod ui;
 

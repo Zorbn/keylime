@@ -19,7 +19,7 @@ use crate::{
         mousebind::{MouseClickCount, MouseClickKind, Mousebind},
     },
     platform::aliases::{AnyFileWatcher, AnyProcess, AnyWindow},
-    temp_buffer::TempBuffer,
+    pool::UTF16_POOL,
     text::grapheme::GraphemeCursor,
 };
 
@@ -46,8 +46,6 @@ pub struct Window {
     pub is_running: bool,
     pub time: f32,
     last_queried_time: Option<f64>,
-
-    wide_text_buffer: TempBuffer<u16>,
 
     keymaps: HashMap<Keybind, ActionName>,
     pub graphemes_typed: String,
@@ -102,8 +100,6 @@ impl Window {
             last_queried_time: None,
 
             scale,
-
-            wide_text_buffer: TempBuffer::new(),
 
             keymaps: new_keymaps(),
             graphemes_typed: String::new(),
@@ -370,15 +366,15 @@ impl Window {
     }
 
     pub fn handle_chars(&mut self, chars: Retained<NSString>) {
-        let wide_text_buffer = self.wide_text_buffer.get_mut();
+        let mut wide_text = UTF16_POOL.new_item();
 
         for i in 0..chars.length() {
             let wide_char = unsafe { chars.characterAtIndex(i) };
 
-            wide_text_buffer.push(wide_char);
+            wide_text.push(wide_char);
         }
 
-        for c in char::decode_utf16(wide_text_buffer.iter().copied()) {
+        for c in char::decode_utf16(wide_text.iter().copied()) {
             let Ok(c) = c else {
                 continue;
             };
@@ -428,7 +424,7 @@ impl Window {
     }
 
     pub fn set_clipboard(&mut self, text: &str, was_copy_implicit: bool) -> Result<()> {
-        let wide_text_buffer = self.wide_text_buffer.get_mut();
+        let mut wide_text = UTF16_POOL.new_item();
 
         for c in text.chars() {
             if !AnyWindow::is_char_copy_pastable(c) {
@@ -438,16 +434,16 @@ impl Window {
             let mut dst = [0u16; 2];
 
             for wide_c in c.encode_utf16(&mut dst) {
-                wide_text_buffer.push(*wide_c);
+                wide_text.push(*wide_c);
             }
         }
 
-        let wide_text_ptr = NonNull::new(wide_text_buffer.as_mut_ptr()).unwrap();
+        let wide_text_ptr = NonNull::new(wide_text.as_mut_ptr()).unwrap();
 
         let mtm = MainThreadMarker::new().unwrap();
 
         let text = unsafe {
-            NSString::initWithCharacters_length(mtm.alloc(), wide_text_ptr, wide_text_buffer.len())
+            NSString::initWithCharacters_length(mtm.alloc(), wide_text_ptr, wide_text.len())
         };
 
         let protocol_object = ProtocolObject::from_retained(text);
@@ -482,15 +478,15 @@ impl Window {
             return Err("Failed to get pasteboard content");
         };
 
-        let wide_text_buffer = self.wide_text_buffer.get_mut();
+        let mut wide_text = UTF16_POOL.new_item();
 
         for i in 0..pasteboard_string.length() {
             let wide_char = unsafe { pasteboard_string.characterAtIndex(i) };
 
-            wide_text_buffer.push(wide_char);
+            wide_text.push(wide_char);
         }
 
-        for c in char::decode_utf16(wide_text_buffer.iter().copied()) {
+        for c in char::decode_utf16(wide_text.iter().copied()) {
             let Ok(c) = c else {
                 continue;
             };

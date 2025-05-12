@@ -11,7 +11,7 @@ use std::{
 use serde::{Serialize, Serializer};
 
 macro_rules! define_pool {
-    ($name:ident, $items_name:ident, $type_name:ident) => {
+    ($name:ident, $items_name:ident, $type_name:ty) => {
         thread_local! {
             static $items_name: RefCell<Vec<$type_name>> = RefCell::new(Vec::new());
         }
@@ -22,6 +22,7 @@ macro_rules! define_pool {
 
 define_pool!(STRING_POOL, STRING_POOL_ITEMS, String);
 define_pool!(PATH_POOL, PATH_POOL_ITEMS, PathBuf);
+define_pool!(UTF16_POOL, UTF16_POOL_ITEMS, Vec<u16>);
 
 macro_rules! format_pooled {
     ($($arg:tt)*) => {{
@@ -58,6 +59,16 @@ impl Poolable for PathBuf {
 
     fn push(&mut self, other: &Self) {
         self.push(other);
+    }
+}
+
+impl Poolable for Vec<u16> {
+    fn clear(&mut self) {
+        self.clear();
+    }
+
+    fn push(&mut self, other: &Self) {
+        self.extend_from_slice(other);
     }
 }
 

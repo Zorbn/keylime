@@ -24,12 +24,9 @@ use windows_core::{IUnknown, Ref, BOOL};
 use windows_numerics::{Matrix3x2, Vector2};
 use Common::{D2D1_ALPHA_MODE_IGNORE, D2D1_ALPHA_MODE_PREMULTIPLIED};
 
-use crate::{
-    platform::{
-        text::GlyphFn,
-        text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
-    },
-    temp_buffer::TempBuffer,
+use crate::platform::{
+    text::GlyphFn,
+    text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
 };
 
 const LOCALE: PCWSTR = w!("en-us");
@@ -59,8 +56,6 @@ pub struct Text {
 
     text_format: IDWriteTextFormat,
     text_rendering_params: IDWriteRenderingParams3,
-
-    wide_characters: TempBuffer<u16>,
 
     glyph_width: f32,
     line_height: f32,
@@ -172,8 +167,6 @@ impl Text {
 
             text_format,
             text_rendering_params,
-
-            wide_characters: TempBuffer::new(),
 
             glyph_width,
             line_height,
@@ -386,19 +379,19 @@ impl Text {
         text: &str,
         glyph_fn: GlyphFn,
     ) -> GlyphCacheResult {
-        let wide_characters = self.wide_characters.get_mut();
+        let mut wide_text = UTF16_POOL.new_item();
 
         for c in text.chars() {
             let mut dst = [0u16; 2];
 
             for wide_c in c.encode_utf16(&mut dst) {
-                wide_characters.push(*wide_c);
+                wide_text.push(*wide_c);
             }
         }
 
         let text_layout = self
             .dwrite_factory
-            .CreateTextLayout(wide_characters, &self.text_format, f32::MAX, f32::MAX)
+            .CreateTextLayout(wide_text, &self.text_format, f32::MAX, f32::MAX)
             .unwrap();
 
         let text_renderer = self.text_renderer.take().unwrap();

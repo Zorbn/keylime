@@ -47,7 +47,6 @@ use crate::{
         mousebind::{MouseClickCount, MouseClickKind, Mousebind},
     },
     platform::aliases::{AnyFileWatcher, AnyProcess, AnyWindow},
-    temp_buffer::TempBuffer,
     text::grapheme::GraphemeCursor,
 };
 
@@ -89,8 +88,6 @@ pub struct Window {
     y: i32,
     pub(super) width: i32,
     pub(super) height: i32,
-
-    wide_text_buffer: TempBuffer<u16>,
 
     // Keep track of which mouse buttons have been pressed since the window was
     // last focused, so that we can skip stray mouse drag events that may happen
@@ -138,8 +135,6 @@ impl Window {
             y: 0,
             width: DEFAULT_WIDTH,
             height: DEFAULT_HEIGHT,
-
-            wide_text_buffer: TempBuffer::new(),
 
             draggable_buttons: HashSet::new(),
             current_click: None,
@@ -307,7 +302,7 @@ impl Window {
         self.was_copy_implicit = was_copy_implicit;
         self.did_just_copy = true;
 
-        let wide_text_buffer = self.wide_text_buffer.get_mut();
+        let mut wide_text = UTF16_POOL.new_item();
 
         for c in text.chars() {
             if !AnyWindow::is_char_copy_pastable(c) {
@@ -317,11 +312,11 @@ impl Window {
             let mut dst = [0u16; 2];
 
             for wide_c in c.encode_utf16(&mut dst) {
-                wide_text_buffer.push(*wide_c);
+                wide_text.push(*wide_c);
             }
         }
 
-        wide_text_buffer.push(0);
+        wide_text.push(0);
 
         unsafe {
             OpenClipboard(Some(self.hwnd))?;
@@ -330,7 +325,7 @@ impl Window {
                 let _ = CloseClipboard();
             });
 
-            let hglobal = GlobalAlloc(GMEM_MOVEABLE, wide_text_buffer.len() * size_of::<u16>())?;
+            let hglobal = GlobalAlloc(GMEM_MOVEABLE, wide_text.len() * size_of::<u16>())?;
 
             defer!({
                 let _ = GlobalFree(Some(hglobal));
@@ -338,7 +333,7 @@ impl Window {
 
             let memory = GlobalLock(hglobal) as *mut u16;
 
-            copy_nonoverlapping(wide_text_buffer.as_ptr(), memory, wide_text_buffer.len());
+            copy_nonoverlapping(wide_text.as_ptr(), memory, wide_text.len());
 
             let _ = GlobalUnlock(hglobal);
 
@@ -349,7 +344,7 @@ impl Window {
     }
 
     pub fn get_clipboard(&mut self, text: &mut String) -> Result<()> {
-        let wide_text_buffer = self.wide_text_buffer.get_mut();
+        let mut wide_text = UTF16_POOL.new_item();
 
         unsafe {
             OpenClipboard(Some(self.hwnd))?;
@@ -358,7 +353,7 @@ impl Window {
                 let _ = CloseClipboard();
             });
 
-            let hglobal = GlobalAlloc(GMEM_MOVEABLE, wide_text_buffer.len() * size_of::<u16>())?;
+            let hglobal = GlobalAlloc(GMEM_MOVEABLE, wide_text.len() * size_of::<u16>())?;
 
             defer!({
                 let _ = GlobalFree(Some(hglobal));
@@ -370,7 +365,7 @@ impl Window {
 
             if !memory.is_null() {
                 while *memory != 0 {
-                    wide_text_buffer.push(*memory);
+                    wide_text.push(*memory);
                     memory = memory.add(1);
                 }
             }
@@ -378,7 +373,7 @@ impl Window {
             let _ = GlobalUnlock(hglobal);
         }
 
-        for c in char::decode_utf16(wide_text_buffer.iter().copied()) {
+        for c in char::decode_utf16(wide_text.iter().copied()) {
             let c = c.unwrap_or('?');
 
             if !AnyWindow::is_char_copy_pastable(c) {
