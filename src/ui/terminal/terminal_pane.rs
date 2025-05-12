@@ -2,7 +2,6 @@ use std::ops::{Deref, DerefMut};
 
 use crate::{
     ctx::Ctx,
-    text::line_pool::LinePool,
     ui::{
         core::{Ui, Widget},
         pane::Pane,
@@ -17,13 +16,13 @@ pub struct TerminalPane {
 }
 
 impl TerminalPane {
-    pub fn new(term_list: &mut SlotList<Term>, line_pool: &mut LinePool) -> Self {
+    pub fn new(term_list: &mut SlotList<Term>) -> Self {
         let mut inner = Pane::<Term>::new(
             |(docs, emulator)| emulator.get_doc(docs),
             |(docs, emulator)| emulator.get_doc_mut(docs),
         );
 
-        let term = Self::new_term(line_pool);
+        let term = Self::new_term();
         let doc_index = term_list.add(term);
         inner.add_tab(doc_index, term_list);
 
@@ -42,7 +41,7 @@ impl TerminalPane {
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
                 action_name!(NewTab) => {
-                    let term = Self::new_term(&mut ctx.buffers.lines);
+                    let term = Self::new_term();
                     let term_index = term_list.add(term);
 
                     self.add_tab(term_index, term_list);
@@ -67,8 +66,8 @@ impl TerminalPane {
         self.inner.update(widget, ui, ctx.window);
     }
 
-    fn new_term(line_pool: &mut LinePool) -> Term {
-        (TerminalDocs::new(line_pool), TerminalEmulator::new())
+    fn new_term() -> Term {
+        (TerminalDocs::new(), TerminalEmulator::new())
     }
 }
 

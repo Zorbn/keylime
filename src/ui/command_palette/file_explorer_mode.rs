@@ -11,6 +11,7 @@ use crate::{
     input::action::{action_name, Action},
     normalizable::Normalizable,
     platform::{gfx::Gfx, recycle::recycle},
+    pool::{Pooled, PATH_POOL, STRING_POOL},
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{color::Color, editor::Editor, result_list::ResultListSubmitKind},
 };
@@ -122,7 +123,7 @@ impl FileExplorerMode {
         &self,
         command_palette: &mut CommandPalette,
         focused_result_index: Option<usize>,
-        deleted_path: Option<PathBuf>,
+        deleted_path: Option<Pooled<PathBuf>>,
     ) {
         command_palette.result_list.drain();
 
@@ -132,7 +133,7 @@ impl FileExplorerMode {
             command_palette.get_input()
         };
 
-        let mut path = PathBuf::new();
+        let mut path = PATH_POOL.new_item();
         let dir = get_input_dir(input, &mut path);
 
         let Ok(entries) = read_dir(dir) else {
@@ -146,25 +147,27 @@ impl FileExplorerMode {
 
             let entry_path = entry.path();
 
-            if Some(&entry_path) == deleted_path.as_ref() {
+            if Some(&entry_path) == deleted_path.as_deref() {
                 continue;
             }
 
             if does_path_match_prefix(&path, &entry_path) {
-                if let Some(mut result_text) = entry_path
+                if let Some(mut text) = entry_path
                     .file_name()
                     .and_then(|name| name.to_str())
-                    .map(|str| str.to_owned())
+                    .map(|str| STRING_POOL.init_item(|text| text.push_str(str)))
                 {
                     if entry_path.is_dir() {
-                        result_text.push_str(PREFERRED_PATH_SEPARATOR);
+                        text.push_str(PREFERRED_PATH_SEPARATOR);
                     }
+
+                    let entry_path = Pooled::from(entry_path, &PATH_POOL);
 
                     command_palette
                         .result_list
                         .results
                         .push(CommandPaletteResult {
-                            text: result_text,
+                            text,
                             meta_data: CommandPaletteMetaData::Path(entry_path),
                         });
                 }
@@ -179,11 +182,9 @@ impl FileExplorerMode {
             .renaming_result_index
             .and_then(|index| command_palette.result_list.get_mut(index))
         {
-            renaming_result.text = command_palette
-                .doc
-                .get_line(0)
-                .unwrap_or_default()
-                .to_owned();
+            renaming_result.text = STRING_POOL.init_item(|text| {
+                text.push_str(command_palette.doc.get_line(0).unwrap_or_default())
+            });
         }
 
         if let Some(focused_result_index) = focused_result_index.or(self.renaming_result_index) {
@@ -318,7 +319,7 @@ impl CommandPaletteMode for FileExplorerMode {
                     let focused_result_index = command_palette.result_list.focused_index();
 
                     let input = command_palette.get_input();
-                    let mut path = PathBuf::new();
+                    let mut path = PATH_POOL.new_item();
                     get_input_dir(input, &mut path);
 
                     let Some(file_name) = self.clipboard_path.file_name() else {
@@ -328,7 +329,7 @@ impl CommandPaletteMode for FileExplorerMode {
                     path.push(file_name);
 
                     let is_ok = if self.clipboard_state == FileClipboardState::Copy {
-                        update_path_for_copy(&mut path, args.ctx.buffers.text.get_mut());
+                        update_path_for_copy(&mut path);
 
                         copy(&self.clipboard_path, path).is_ok()
                     } else {
@@ -444,7 +445,7 @@ impl CommandPaletteMode for FileExplorerMode {
             ..
         } = result
         {
-            if path == &self.clipboard_path {
+            if path.as_path() == self.clipboard_path {
                 return (&result.text, theme.subtle);
             }
         }
@@ -462,7 +463,6 @@ fn get_input_path(input: &str) -> &Path {
 }
 
 fn get_input_dir<'a>(input: &str, path: &'a mut PathBuf) -> &'a Path {
-    path.clear();
     path.push(".");
     path.push(input);
 
@@ -544,7 +544,7 @@ fn does_path_match_prefix(prefix: &Path, path: &Path) -> bool {
     true
 }
 
-fn update_path_for_copy(path: &mut PathBuf, buffer: &mut String) {
+fn update_path_for_copy(path: &mut PathBuf) {
     if !path.exists() {
         return;
     }
@@ -553,22 +553,24 @@ fn update_path_for_copy(path: &mut PathBuf, buffer: &mut String) {
         return;
     };
 
-    buffer.push_str(file_stem);
-    buffer.push_str(" (copy)");
+    let mut file_name = STRING_POOL.new_item();
+
+    file_name.push_str(file_stem);
+    file_name.push_str(" (copy)");
 
     if let Some(extension) = path.extension().and_then(|extension| extension.to_str()) {
-        buffer.push('.');
-        buffer.push_str(extension);
+        file_name.push('.');
+        file_name.push_str(extension);
     }
 
-    path.set_file_name(buffer);
+    path.set_file_name(file_name);
 }
 
-fn rename(from: &Path, to: PathBuf, editor: &mut Editor, ctx: &mut Ctx) -> io::Result<()> {
+fn rename(from: &Path, to: Pooled<PathBuf>, editor: &mut Editor, ctx: &mut Ctx) -> io::Result<()> {
     let from = from.normalized()?;
 
     if let Some(doc) = editor.find_doc_mut(&from) {
-        remove_file(&from)?;
+        remove_file(from)?;
         doc.save(Some(to), ctx)?;
 
         return Ok(());

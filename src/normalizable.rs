@@ -3,15 +3,17 @@ use std::{
     path::{absolute, Component, Path, PathBuf},
 };
 
+use crate::pool::{Pooled, PATH_POOL};
+
 pub trait Normalizable {
-    fn normalized(&self) -> io::Result<PathBuf>;
+    fn normalized(&self) -> io::Result<Pooled<PathBuf>>;
     fn is_normal(&self) -> bool;
 }
 
 impl<P: AsRef<Path>> Normalizable for P {
-    fn normalized(&self) -> io::Result<PathBuf> {
+    fn normalized(&self) -> io::Result<Pooled<PathBuf>> {
         let absolute_path = absolute(self)?;
-        let mut normal_path = PathBuf::new();
+        let mut normal_path = PATH_POOL.new_item();
 
         for component in absolute_path.components() {
             match component {

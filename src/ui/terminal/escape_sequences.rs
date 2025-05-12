@@ -1,9 +1,10 @@
-use core::str;
+use std::str;
 
 use crate::{
     config::theme::Theme,
     ctx::Ctx,
     geometry::position::Position,
+    pool::format_pooled,
     text::{
         doc::Doc,
         syntax_highlighter::{HighlightKind, TerminalHighlightKind},
@@ -225,7 +226,8 @@ impl TerminalEmulator {
                             _ => return None,
                         };
 
-                        let response = format!("\u{1B}[>{}m", default_value);
+                        let response = format_pooled!("\u{1B}[>{}m", default_value);
+
                         input.extend(response.bytes());
 
                         Some(&output[1..])
@@ -609,7 +611,9 @@ impl TerminalEmulator {
                 if parameters.first() == Some(&6) {
                     // Report cursor position (1-based).
                     let char_x = self.grid_position_byte_to_char(self.grid_cursor, doc);
-                    let response = format!("\u{1B}[{};{}R", self.grid_cursor.y + 1, char_x + 1);
+
+                    let response =
+                        format_pooled!("\u{1B}[{};{}R", self.grid_cursor.y + 1, char_x + 1);
 
                     input.extend(response.bytes());
 
@@ -656,9 +660,12 @@ impl TerminalEmulator {
 
                 let color = theme.highlight_kind_to_color(HighlightKind::Terminal(color));
 
-                let response = format!(
+                let response = format_pooled!(
                     "\u{1B}]{};rgb:{:2X}{:2X}{:2X}\u{07}",
-                    kind, color.r, color.g, color.b
+                    kind,
+                    color.r,
+                    color.g,
+                    color.b
                 );
 
                 input.extend(response.bytes());

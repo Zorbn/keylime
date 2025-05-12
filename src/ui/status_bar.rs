@@ -5,6 +5,7 @@ use crate::{
     ctx::Ctx,
     geometry::{rect::Rect, sides::Sides},
     platform::gfx::Gfx,
+    pool::{Pooled, STRING_POOL},
     text::{cursor_index::CursorIndex, doc::LineEnding},
 };
 
@@ -33,15 +34,8 @@ impl StatusBar {
     }
 
     pub fn draw(&mut self, editor: &Editor, ctx: &mut Ctx) {
-        let status_text = Self::get_status_text(editor, ctx.config, ctx.buffers.text.get_mut())
-            .unwrap_or_default();
-
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
-
-        let status_text_x = self.widget.bounds().width
-            - (gfx.measure_text(status_text) + 1) as f32 * gfx.glyph_width();
-        let status_text_y = gfx.tab_padding_y();
 
         gfx.begin(Some(self.widget.bounds()));
 
@@ -52,18 +46,22 @@ impl StatusBar {
             theme.border,
         );
 
-        gfx.add_text(status_text, status_text_x, status_text_y, theme.subtle);
+        if let Some(status_text) = Self::get_status_text(editor, ctx.config) {
+            let status_text_x = self.widget.bounds().width
+                - (gfx.measure_text(&status_text) + 1) as f32 * gfx.glyph_width();
+            let status_text_y = gfx.tab_padding_y();
+
+            gfx.add_text(&status_text, status_text_x, status_text_y, theme.subtle);
+        }
 
         gfx.end();
     }
 
-    fn get_status_text<'a>(
-        editor: &Editor,
-        config: &Config,
-        text_buffer: &'a mut String,
-    ) -> Option<&'a str> {
+    fn get_status_text(editor: &Editor, config: &Config) -> Option<Pooled<String>> {
         let (_, doc) = editor.get_focused_tab_and_doc()?;
         let position = doc.get_cursor(CursorIndex::Main).position;
+
+        let mut status_text = STRING_POOL.new_item();
 
         if let Some(path) = doc
             .path()
@@ -71,11 +69,11 @@ impl StatusBar {
             .zip(editor.current_dir())
             .and_then(|(path, current_dir)| path.strip_prefix(current_dir).ok())
         {
-            write!(text_buffer, "{}, ", path.display()).ok()?;
+            write!(&mut status_text, "{}, ", path.display()).ok()?;
         }
 
         if let Some(language) = config.get_language_for_doc(doc) {
-            write!(text_buffer, "{}, ", language.name).ok()?;
+            write!(&mut status_text, "{}, ", language.name).ok()?;
         }
 
         let line_ending_text = match doc.line_ending() {
@@ -84,7 +82,7 @@ impl StatusBar {
         };
 
         write!(
-            text_buffer,
+            &mut status_text,
             "{}, Ln {:02}, Col {:02}",
             line_ending_text,
             position.y + 1,
@@ -92,6 +90,6 @@ impl StatusBar {
         )
         .ok()?;
 
-        Some(text_buffer)
+        Some(status_text)
     }
 }

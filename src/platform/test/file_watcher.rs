@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use crate::pool::Pooled;
+
 pub struct FileWatcher;
 
 impl FileWatcher {
@@ -7,7 +9,7 @@ impl FileWatcher {
         Self
     }
 
-    pub fn get_changed_files(&mut self) -> &[PathBuf] {
+    pub fn get_changed_files(&mut self) -> &[Pooled<PathBuf>] {
         &[]
     }
 }

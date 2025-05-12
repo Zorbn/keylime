@@ -2,7 +2,7 @@ use std::ops::RangeInclusive;
 
 use serde::Deserialize;
 
-use crate::ui::color::Color;
+use crate::{pool::Pooled, ui::color::Color};
 
 use super::{
     grapheme::{self, GraphemeCursor},
@@ -189,7 +189,13 @@ impl SyntaxHighlighter {
         }
     }
 
-    pub fn update(&mut self, lines: &[String], syntax: &Syntax, start_y: usize, end_y: usize) {
+    pub fn update(
+        &mut self,
+        lines: &[Pooled<String>],
+        syntax: &Syntax,
+        start_y: usize,
+        end_y: usize,
+    ) {
         if self.highlighted_lines.len() < lines.len() {
             self.highlighted_lines
                 .resize(lines.len(), HighlightedLine::new());

@@ -6,7 +6,11 @@ use std::{
     time::Instant,
 };
 
-use crate::{ctx::Ctx, ui::result_list::ResultListSubmitKind};
+use crate::{
+    ctx::Ctx,
+    pool::{format_pooled, Pooled, PATH_POOL, STRING_POOL},
+    ui::result_list::ResultListSubmitKind,
+};
 
 use super::{
     mode::{CommandPaletteEventArgs, CommandPaletteMode},
@@ -33,7 +37,7 @@ impl AllFilesMode {
     }
 
     fn handle_entry(&mut self, entry: DirEntry, ctx: &mut Ctx) {
-        let path = entry.path();
+        let path = Pooled::from(entry.path(), &PATH_POOL);
 
         if path.is_dir() {
             let is_ignored = path
@@ -61,18 +65,18 @@ impl AllFilesMode {
             return;
         };
 
-        let result_text = if let Some(parent) = parent
+        let text = if let Some(parent) = parent
             .strip_prefix(&self.root)
             .ok()
             .filter(|parent| !parent.as_os_str().is_empty())
         {
-            format!("{}: {}", file_name, parent.display())
+            format_pooled!("{}: {}", file_name, parent.display())
         } else {
-            file_name.into()
+            STRING_POOL.init_item(|text| text.push_str(file_name))
         };
 
         self.pending_results.push(CommandPaletteResult {
-            text: result_text,
+            text,
             meta_data: CommandPaletteMetaData::Path(path),
         });
     }

@@ -89,10 +89,6 @@ impl Lsp {
 
         let mut doc = path.as_ref().and_then(|path| editor.find_doc_mut(path));
 
-        if let Some(path) = path {
-            server.push_path(path);
-        }
-
         if let Some(ref mut doc) = doc {
             if !doc.lsp_is_response_expected(method, message.id, ctx) {
                 return None;
@@ -163,11 +159,11 @@ impl Lsp {
                 while let Some(result) = results.peek() {
                     let current_uri = result.uri;
 
-                    let Some(path) = uri_to_path(current_uri, String::new()) else {
+                    let Some(path) = uri_to_path(current_uri) else {
                         continue;
                     };
 
-                    editor.with_doc(path.clone(), ctx, |doc, ctx| {
+                    editor.with_doc(path, ctx, |doc, ctx| {
                         while let Some(result) = results.peek() {
                             let Some(root) = ctx.lsp.current_dir.as_ref() else {
                                 break;
@@ -231,7 +227,7 @@ impl Lsp {
             }
             MessageResult::Diagnostic(diagnostics) => {
                 let doc = doc?;
-                let path = doc.path().some()?.to_owned();
+                let path = doc.path().some()?.clone();
 
                 server.set_diagnostics(path, diagnostics);
             }

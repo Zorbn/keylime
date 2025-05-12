@@ -3,10 +3,10 @@ use std::path::{Path, PathBuf};
 use crate::{
     config::{Config, ConfigError},
     ctx::Ctx,
-    editor_buffers::EditorBuffers,
     geometry::rect::Rect,
     lsp::Lsp,
     platform::{file_watcher::FileWatcher, gfx::Gfx, process::Process, window::Window},
+    pool::Pooled,
     ui::{
         command_palette::CommandPalette, core::Ui, editor::Editor, status_bar::StatusBar,
         terminal::Terminal,
@@ -19,7 +19,6 @@ macro_rules! ctx_for_app {
             window: $window,
             gfx: $gfx,
             config: &$self.config,
-            buffers: &mut $self.buffers,
             lsp: &mut $self.lsp,
             time: $time,
         }
@@ -27,8 +26,6 @@ macro_rules! ctx_for_app {
 }
 
 pub struct App {
-    buffers: EditorBuffers,
-
     ui: Ui,
     editor: Editor,
     terminal: Terminal,
@@ -38,15 +35,13 @@ pub struct App {
     file_watcher: FileWatcher,
     lsp: Lsp,
 
-    config_dir: PathBuf,
+    config_dir: Pooled<PathBuf>,
     config: Config,
     config_error: Option<ConfigError>,
 }
 
 impl App {
     pub fn new() -> Self {
-        let mut buffers = EditorBuffers::new();
-
         let config_dir = Config::get_dir();
 
         let (config, config_error) = match Config::load(&config_dir) {
@@ -57,13 +52,11 @@ impl App {
         let mut ui = Ui::new();
 
         Self {
-            editor: Editor::new(&mut ui, &mut buffers.lines),
-            terminal: Terminal::new(&mut ui, &mut buffers.lines),
+            editor: Editor::new(&mut ui),
+            terminal: Terminal::new(&mut ui),
             status_bar: StatusBar::new(&mut ui),
-            command_palette: CommandPalette::new(&mut ui, &mut buffers.lines),
+            command_palette: CommandPalette::new(&mut ui),
             ui,
-
-            buffers,
 
             file_watcher: FileWatcher::new(),
             lsp: Lsp::new(),

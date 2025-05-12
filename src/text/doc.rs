@@ -16,7 +16,7 @@ use crate::{
     lsp::{types::TextEdit, LspExpectedResponse},
     normalizable::Normalizable,
     platform::gfx::Gfx,
-    temp_buffer::TempString,
+    pool::{Pooled, STRING_POOL},
     text::grapheme,
 };
 
@@ -26,7 +26,6 @@ use super::{
     cursor_index::{CursorIndex, CursorIndices},
     grapheme::{CharCursor, CharIterator, GraphemeCursor, GraphemeIterator},
     grapheme_category::GraphemeCategory,
-    line_pool::LinePool,
     selection::Selection,
     syntax::Syntax,
     syntax_highlighter::{HighlightedLine, SyntaxHighlighter, TerminalHighlightKind},
@@ -70,17 +69,21 @@ pub enum DocKind {
 pub enum DocPath {
     #[default]
     None,
-    InMemory(PathBuf),
-    OnDrive(PathBuf),
+    InMemory(Pooled<PathBuf>),
+    OnDrive(Pooled<PathBuf>),
 }
 
 impl DocPath {
-    pub fn some(&self) -> Option<&Path> {
+    pub fn some(&self) -> Option<&Pooled<PathBuf>> {
         match &self {
             DocPath::None => None,
             DocPath::InMemory(path) => Some(path),
             DocPath::OnDrive(path) => Some(path),
         }
+    }
+
+    pub fn some_path(&self) -> Option<&Path> {
+        self.some().map(|path| path.as_path())
     }
 
     pub fn is_none(&self) -> bool {
@@ -113,13 +116,12 @@ pub struct Doc {
     usages: usize,
     do_skip_shifting: bool,
 
-    lines: Vec<String>,
+    lines: Vec<Pooled<String>>,
     cursors: Vec<Cursor>,
     line_ending: LineEnding,
 
     undo_history: ActionHistory,
     redo_history: ActionHistory,
-    undo_buffer: Option<TempString>,
 
     cursor_position_undo_history: Vec<Position>,
     cursor_position_redo_history: Vec<Position>,
@@ -137,14 +139,13 @@ pub struct Doc {
 
 impl Doc {
     pub fn new(
-        path: Option<PathBuf>,
-        line_pool: &mut LinePool,
+        path: Option<Pooled<PathBuf>>,
         display_name: Option<&'static str>,
         kind: DocKind,
     ) -> Self {
         assert!(path.as_ref().is_none_or(|path| path.is_normal()));
 
-        let lines = vec![line_pool.pop()];
+        let lines = vec![STRING_POOL.new_item()];
 
         let (path, is_saved) = match path {
             Some(path) => (DocPath::InMemory(path), false),
@@ -166,7 +167,6 @@ impl Doc {
 
             undo_history: ActionHistory::new(),
             redo_history: ActionHistory::new(),
-            undo_buffer: Some(TempString::new()),
 
             cursor_position_undo_history: Vec::new(),
             cursor_position_redo_history: Vec::new(),
@@ -907,7 +907,7 @@ impl Doc {
         self.cursors.len() - 1
     }
 
-    pub fn lines(&self) -> &[String] {
+    pub fn lines(&self) -> &[Pooled<String>] {
         &self.lines
     }
 
@@ -974,20 +974,17 @@ impl Doc {
                 Action::Delete { start, text_start } => {
                     were_cursors_reset = false;
 
-                    let mut owned_undo_buffer = self.undo_buffer.take().unwrap();
-                    let undo_buffer = owned_undo_buffer.get_mut();
+                    let mut undo_buffer = STRING_POOL.new_item();
 
                     undo_buffer
                         .push_str(&action_history!(self, action_kind).deleted_text[text_start..]);
 
                     self.insert_as_action_kind(
                         start,
-                        undo_buffer,
+                        &undo_buffer,
                         reverse_action_kind,
                         ctx_with_time!(ctx, popped_action.time),
                     );
-
-                    self.undo_buffer = Some(owned_undo_buffer);
 
                     action_history!(self, action_kind)
                         .deleted_text
@@ -1061,22 +1058,18 @@ impl Doc {
             self.add_cursors_to_action_history(action_kind, ctx.time);
         }
 
-        let mut owned_undo_buffer = self.undo_buffer.take().unwrap();
-        let undo_buffer = owned_undo_buffer.get_mut();
-
-        self.collect_string(start, end, undo_buffer);
+        let mut undo_buffer = STRING_POOL.new_item();
+        self.collect_string(start, end, &mut undo_buffer);
 
         if self.kind != DocKind::Output {
             let deleted_text_start = action_history!(self, action_kind).deleted_text.len();
 
             action_history!(self, action_kind)
                 .deleted_text
-                .push_str(undo_buffer);
+                .push_str(&undo_buffer);
 
             action_history!(self, action_kind).push_delete(start, deleted_text_start, ctx.time);
         }
-
-        self.undo_buffer = Some(owned_undo_buffer);
 
         if start.y == end.y {
             self.lines[start.y].drain(start.x..end.x);
@@ -1088,11 +1081,9 @@ impl Doc {
 
             start_line.truncate(start.x);
             start_line.push_str(&end_line[end.x..]);
-            ctx.buffers.lines.push(self.lines.remove(end.y));
 
-            for removed_line in self.lines.drain(start.y + 1..end.y) {
-                ctx.buffers.lines.push(removed_line);
-            }
+            self.lines.remove(end.y);
+            self.lines.drain(start.y + 1..end.y);
         }
 
         if self.do_shift() {
@@ -1147,7 +1138,7 @@ impl Doc {
                     position.y += 1;
                     position.x = 0;
 
-                    self.lines.insert(new_y, ctx.buffers.lines.pop());
+                    self.lines.insert(new_y, STRING_POOL.new_item());
 
                     let (old, new) = self.lines.split_at_mut(new_y);
 
@@ -1526,11 +1517,8 @@ impl Doc {
         self.mark_line_dirty(0);
         self.reset_edit_state();
 
-        self.lines.push(ctx.buffers.lines.pop());
-
-        for line in self.lines.drain(..self.lines.len() - 1) {
-            ctx.buffers.lines.push(line);
-        }
+        self.lines.push(STRING_POOL.new_item());
+        self.lines.drain(..self.lines.len() - 1);
 
         self.lsp_did_close(ctx);
     }
@@ -1545,11 +1533,11 @@ impl Doc {
         }
     }
 
-    pub fn save(&mut self, path: Option<PathBuf>, ctx: &mut Ctx) -> io::Result<()> {
+    pub fn save(&mut self, path: Option<Pooled<PathBuf>>, ctx: &mut Ctx) -> io::Result<()> {
         if self.is_saved
             && path
                 .as_ref()
-                .is_none_or(|path| Some(path.as_path()) == self.path.some())
+                .is_none_or(|path| Some(path) == self.path.some())
         {
             return Ok(());
         }
@@ -1672,7 +1660,7 @@ impl Doc {
         (LineEnding::default(), string.len())
     }
 
-    fn set_path_on_drive(&mut self, path: PathBuf) -> io::Result<()> {
+    fn set_path_on_drive(&mut self, path: Pooled<PathBuf>) -> io::Result<()> {
         self.path = DocPath::OnDrive(if path.is_normal() {
             path
         } else {

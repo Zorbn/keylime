@@ -5,7 +5,6 @@ macro_rules! test_with_doc {
             let mut window = crate::platform::window::Window::new();
             let mut gfx = crate::platform::gfx::Gfx::new();
             let config = crate::config::Config::default();
-            let mut buffers = crate::editor_buffers::EditorBuffers::new();
             let mut lsp = crate::lsp::Lsp::new();
             let time = 0.0;
 
@@ -13,17 +12,12 @@ macro_rules! test_with_doc {
                 window: &mut window,
                 gfx: &mut gfx,
                 config: &config,
-                buffers: &mut buffers,
                 lsp: &mut lsp,
                 time,
             };
 
-            let mut doc = crate::text::doc::Doc::new(
-                None,
-                &mut ctx.buffers.lines,
-                None,
-                crate::text::doc::DocKind::MultiLine,
-            );
+            let mut doc =
+                crate::text::doc::Doc::new(None, None, crate::text::doc::DocKind::MultiLine);
 
             doc.insert(crate::geometry::position::Position::ZERO, $text, ctx);
 

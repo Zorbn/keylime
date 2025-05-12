@@ -4,6 +4,7 @@ use crate::{
     ctx::Ctx,
     geometry::position::Position,
     platform::gfx::Gfx,
+    pool::STRING_POOL,
     text::{
         action_history::ActionKind,
         cursor_index::CursorIndex,
@@ -351,15 +352,15 @@ fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
         let indent_line = doc.get_line(indent_y).unwrap_or_default();
         let indent_line_start = doc.get_line_start(indent_y);
 
-        let mut text_buffer = ctx.buffers.text.pop();
-        text_buffer.push_str(&indent_line[..indent_line_start]);
+        let mut indent_text = STRING_POOL.new_item();
+        indent_text.push_str(&indent_line[..indent_line_start]);
 
         let previous_position = doc.move_position(cursor.position, -1, 0, ctx.gfx);
         let do_start_block = doc.get_grapheme(previous_position) == "{";
         let do_end_block = do_start_block && doc.get_grapheme(cursor.position) == "}";
 
         doc.insert_at_cursor(index, "\n", ctx);
-        doc.insert_at_cursor(index, &text_buffer, ctx);
+        doc.insert_at_cursor(index, &indent_text, ctx);
 
         if do_start_block {
             doc.indent_at_cursor(index, ctx);
@@ -369,12 +370,10 @@ fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
             let cursor_position = doc.get_cursor(index).position;
 
             doc.insert_at_cursor(index, "\n", ctx);
-            doc.insert_at_cursor(index, &text_buffer, ctx);
+            doc.insert_at_cursor(index, &indent_text, ctx);
 
             doc.jump_cursor(index, cursor_position, false, ctx.gfx);
         }
-
-        ctx.buffers.text.push(text_buffer);
     }
 }
 
@@ -418,10 +417,10 @@ fn handle_end(should_select: bool, doc: &mut Doc, gfx: &mut Gfx) {
 }
 
 fn handle_cut(doc: &mut Doc, ctx: &mut Ctx) {
-    let text_buffer = ctx.buffers.text.get_mut();
-    let was_copy_implicit = doc.copy_at_cursors(text_buffer);
+    let mut text = STRING_POOL.new_item();
+    let was_copy_implicit = doc.copy_at_cursors(&mut text);
 
-    let _ = ctx.window.set_clipboard(text_buffer, was_copy_implicit);
+    let _ = ctx.window.set_clipboard(&text, was_copy_implicit);
 
     for index in doc.cursor_indices() {
         let cursor = doc.get_cursor(index);
@@ -436,21 +435,19 @@ fn handle_cut(doc: &mut Doc, ctx: &mut Ctx) {
 }
 
 pub fn handle_copy(doc: &mut Doc, ctx: &mut Ctx) {
-    let text_buffer = ctx.buffers.text.get_mut();
-    let was_copy_implicit = doc.copy_at_cursors(text_buffer);
+    let mut text = STRING_POOL.new_item();
+    let was_copy_implicit = doc.copy_at_cursors(&mut text);
 
-    let _ = ctx.window.set_clipboard(text_buffer, was_copy_implicit);
+    let _ = ctx.window.set_clipboard(&text, was_copy_implicit);
 }
 
 fn handle_paste(doc: &mut Doc, ctx: &mut Ctx) {
     let was_copy_implicit = ctx.window.was_copy_implicit();
 
-    let mut text = ctx.buffers.text.pop();
+    let mut text = STRING_POOL.new_item();
     let _ = ctx.window.get_clipboard(&mut text);
 
     doc.paste_at_cursors(&text, was_copy_implicit, ctx);
-
-    ctx.buffers.text.push(text);
 }
 
 fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx) {
@@ -481,21 +478,20 @@ fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx) {
             Ordering::Equal => continue,
         };
 
+        let mut text = STRING_POOL.new_item();
+
+        if direction > 0 {
+            text.push('\n');
+        }
+
         let selection = cursor_selection.trim();
-
-        let mut text_buffer = ctx.buffers.text.pop();
-
         let mut start = Position::new(0, selection.start.y);
         let mut end = doc.get_line_end(selection.end.y);
 
-        if direction > 0 {
-            text_buffer.push('\n');
-        }
-
-        doc.collect_string(start, end, &mut text_buffer);
+        doc.collect_string(start, end, &mut text);
 
         if direction < 0 {
-            text_buffer.push('\n');
+            text.push('\n');
         }
 
         if end.y == doc.lines().len() - 1 {
@@ -512,9 +508,7 @@ fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx) {
             doc.get_line_end(selection.start.y)
         };
 
-        doc.insert(insert_start, &text_buffer, ctx);
-
-        ctx.buffers.text.push(text_buffer);
+        doc.insert(insert_start, &text, ctx);
 
         // Reset the selection to prevent it being expanded by the latest insert.
         if had_selection {

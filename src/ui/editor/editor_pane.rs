@@ -8,10 +8,7 @@ use crate::{
     ctx::Ctx,
     normalizable::Normalizable,
     platform::dialog::{find_file, message, FindFileKind, MessageKind},
-    text::{
-        doc::{Doc, DocKind},
-        line_pool::LinePool,
-    },
+    text::doc::{Doc, DocKind},
     ui::{
         core::{Ui, Widget},
         pane::Pane,
@@ -29,10 +26,10 @@ pub struct EditorPane {
 }
 
 impl EditorPane {
-    pub fn new(doc_list: &mut SlotList<Doc>, line_pool: &mut LinePool) -> Self {
+    pub fn new(doc_list: &mut SlotList<Doc>) -> Self {
         let mut inner = Pane::new(|doc| doc, |doc| doc);
 
-        let doc_index = doc_list.add(Doc::new(None, line_pool, None, DocKind::MultiLine));
+        let doc_index = doc_list.add(Doc::new(None, None, DocKind::MultiLine));
         inner.add_tab(doc_index, doc_list);
 
         Self { inner }
@@ -51,7 +48,7 @@ impl EditorPane {
             match action {
                 action_name!(OpenFile) => {
                     if let Ok(path) = find_file(FindFileKind::OpenFile) {
-                        if let Err(err) = self.open_file(path.as_path(), doc_list, ctx) {
+                        if let Err(err) = self.open_file(&path, doc_list, ctx) {
                             message("Error Opening File", &err.to_string(), MessageKind::Ok);
                         }
                     }
@@ -101,7 +98,7 @@ impl EditorPane {
     ) -> io::Result<()> {
         let path = path.and_then(|path| path.normalized().ok());
 
-        let mut doc = Doc::new(path, &mut ctx.buffers.lines, None, DocKind::MultiLine);
+        let mut doc = Doc::new(path, None, DocKind::MultiLine);
         doc.lsp_did_open("", ctx);
 
         let doc_index = doc_list.add(doc);

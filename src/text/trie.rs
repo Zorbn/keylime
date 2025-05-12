@@ -1,4 +1,6 @@
-use super::{grapheme::CharCursor, line_pool::LinePool};
+use crate::pool::{Pooled, STRING_POOL};
+
+use super::grapheme::CharCursor;
 
 struct TrieNode {
     start: usize,
@@ -24,13 +26,8 @@ impl Trie {
         self.insert_at_node(0, text);
     }
 
-    pub fn traverse(
-        &self,
-        prefix: &str,
-        result_pool: &mut LinePool,
-        mut result_fn: impl FnMut(String),
-    ) {
-        self.traverse_with_prefix_at_node(0, prefix, prefix, result_pool, &mut result_fn);
+    pub fn traverse(&self, prefix: &str, mut result_fn: impl FnMut(Pooled<String>)) {
+        self.traverse_with_prefix_at_node(0, prefix, prefix, &mut result_fn);
     }
 
     pub fn clear(&mut self) {
@@ -58,8 +55,7 @@ impl Trie {
         index: usize,
         prefix: &str,
         remaining: &str,
-        result_pool: &mut LinePool,
-        result_fn: &mut impl FnMut(String),
+        result_fn: &mut impl FnMut(Pooled<String>),
     ) {
         let node = &self.nodes[index];
 
@@ -67,11 +63,11 @@ impl Trie {
             for i in 0..node.len {
                 let child = &self.data[node.start + i];
 
-                let mut new_prefix = result_pool.pop();
+                let mut new_prefix = STRING_POOL.new_item();
                 new_prefix.push_str(prefix);
                 new_prefix.push(child.0);
 
-                self.traverse_at_node(child.1, new_prefix, result_pool, result_fn);
+                self.traverse_at_node(child.1, new_prefix, result_fn);
             }
 
             return;
@@ -87,13 +83,7 @@ impl Trie {
             let child = &self.data[node.start + i];
 
             if child.0 == c {
-                self.traverse_with_prefix_at_node(
-                    child.1,
-                    prefix,
-                    remaining,
-                    result_pool,
-                    result_fn,
-                );
+                self.traverse_with_prefix_at_node(child.1, prefix, remaining, result_fn);
             }
         }
     }
@@ -102,14 +92,13 @@ impl Trie {
     fn traverse_at_node(
         &self,
         index: usize,
-        prefix: String,
-        result_pool: &mut LinePool,
-        result_fn: &mut impl FnMut(String),
+        prefix: Pooled<String>,
+        result_fn: &mut impl FnMut(Pooled<String>),
     ) {
         let node = &self.nodes[index];
 
         let prefix = if node.is_terminal {
-            let mut new_prefix = result_pool.pop();
+            let mut new_prefix = STRING_POOL.new_item();
             new_prefix.push_str(&prefix);
 
             result_fn(prefix);
@@ -120,14 +109,12 @@ impl Trie {
         };
 
         for child in &self.data[node.start..node.start + node.len] {
-            let mut new_prefix = result_pool.pop();
+            let mut new_prefix = STRING_POOL.new_item();
             new_prefix.push_str(&prefix);
             new_prefix.push(child.0);
 
-            self.traverse_at_node(child.1, new_prefix, result_pool, result_fn);
+            self.traverse_at_node(child.1, new_prefix, result_fn);
         }
-
-        result_pool.push(prefix);
     }
 
     fn new_node(&mut self) -> TrieNode {

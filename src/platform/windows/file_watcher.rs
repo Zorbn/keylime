@@ -84,7 +84,7 @@ impl FileWatcher {
                 info.FileNameLength as usize / size_of::<u16>(),
             );
 
-            let mut path = PathBuf::new();
+            let mut path = PATH_POOL.new_item();
             path.push(&handles.path);
             path.push(String::from_utf16_lossy(file_name));
 

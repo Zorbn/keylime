@@ -1,3 +1,5 @@
+use crate::pool::Pooled;
+
 use super::{
     grapheme::{self, GraphemeCursor},
     trie::Trie,
@@ -14,7 +16,7 @@ impl Tokenizer {
         }
     }
 
-    pub fn tokenize(&mut self, lines: &[String]) {
+    pub fn tokenize(&mut self, lines: &[Pooled<String>]) {
         self.tokens.clear();
 
         for line in lines {

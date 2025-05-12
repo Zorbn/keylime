@@ -12,7 +12,8 @@ use crate::{
         LspSentRequest,
     },
     platform::gfx::Gfx,
-    text::{cursor_index::CursorIndex, doc::Doc, line_pool::LinePool},
+    pool::Pooled,
+    text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
         core::{Ui, Widget},
         popup::{draw_popup, PopupAlignment},
@@ -31,7 +32,7 @@ enum CompletionResolveState {
 
 #[derive(Debug)]
 enum CompletionResult {
-    SimpleCompletion(String),
+    SimpleCompletion(Pooled<String>),
     Completion {
         item: CompletionItem,
         resolve_state: CompletionResolveState,
@@ -72,7 +73,6 @@ pub struct CompletionList {
     result_list: ResultList<CompletionResult>,
     // Prevents the result list from shrinking as it's being scrolled through.
     min_width: f32,
-    pool: LinePool,
     prefix: String,
 
     should_open: bool,
@@ -88,7 +88,6 @@ impl CompletionList {
         Self {
             result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS),
             min_width: 0.0,
-            pool: LinePool::new(),
             prefix: String::new(),
 
             should_open: false,
@@ -391,7 +390,7 @@ impl CompletionList {
         let position = doc.get_cursor(CursorIndex::Main).position;
         let is_position_different = Some(position) != handled_position;
         let is_path_different =
-            self.has_handled_path.then_some(self.handled_path.as_path()) != doc.path().some();
+            self.has_handled_path.then_some(self.handled_path.as_path()) != doc.path().some_path();
 
         self.handled_path.clear();
         self.has_handled_path = false;
@@ -429,12 +428,11 @@ impl CompletionList {
         self.clear();
 
         if !self.prefix.is_empty() {
-            doc.tokens()
-                .traverse(&self.prefix, &mut self.pool, |result| {
-                    self.result_list
-                        .results
-                        .push(CompletionResult::SimpleCompletion(result));
-                });
+            doc.tokens().traverse(&self.prefix, |result| {
+                self.result_list
+                    .results
+                    .push(CompletionResult::SimpleCompletion(result));
+            });
         }
 
         Some(())

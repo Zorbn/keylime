@@ -23,10 +23,10 @@ use crate::{
         file_watcher::FileWatcher,
         gfx::Gfx,
     },
+    pool::Pooled,
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
-        line_pool::LinePool,
     },
 };
 
@@ -57,7 +57,7 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(ui: &mut Ui, line_pool: &mut LinePool) -> Self {
+    pub fn new(ui: &mut Ui) -> Self {
         let mut editor = Self {
             doc_list: SlotList::new(),
             panes: FocusList::new(),
@@ -70,7 +70,7 @@ impl Editor {
             widget: Widget::new(ui, true),
         };
 
-        editor.add_pane(line_pool);
+        editor.add_pane();
 
         editor
     }
@@ -182,7 +182,7 @@ impl Editor {
                         }
                     }
                 }
-                action_name!(NewPane) => self.add_pane(&mut ctx.buffers.lines),
+                action_name!(NewPane) => self.add_pane(),
                 action_name!(ClosePane) => self.close_pane(ctx),
                 action_name!(PreviousPane) => self.panes.focus_previous(),
                 action_name!(NextPane) => self.panes.focus_next(),
@@ -303,7 +303,7 @@ impl Editor {
 
     pub fn apply_edit_lists(&mut self, edit_lists: Vec<EditList>, ctx: &mut Ctx) -> Option<()> {
         for mut edit_list in edit_lists {
-            let path = uri_to_path(&edit_list.uri, String::new())?;
+            let path = uri_to_path(&edit_list.uri)?;
 
             self.with_doc(path, ctx, |doc, ctx| {
                 let edits = &mut edit_list.edits;
@@ -317,7 +317,7 @@ impl Editor {
 
     pub fn with_doc(
         &mut self,
-        path: PathBuf,
+        path: Pooled<PathBuf>,
         ctx: &mut Ctx,
         mut doc_fn: impl FnMut(&mut Doc, &mut Ctx),
     ) {
@@ -326,12 +326,7 @@ impl Editor {
         let mut loaded_doc = None;
 
         let doc = doc.or_else(|| {
-            loaded_doc = Some(Doc::new(
-                Some(path),
-                &mut ctx.buffers.lines,
-                None,
-                DocKind::Output,
-            ));
+            loaded_doc = Some(Doc::new(Some(path), None, DocKind::Output));
 
             let doc = loaded_doc.as_mut()?;
             doc.load(ctx).ok()?;
@@ -353,7 +348,7 @@ impl Editor {
         self.doc_list
             .iter_mut()
             .flatten()
-            .find(|doc| doc.path().some() == Some(path))
+            .find(|doc| doc.path().some_path() == Some(path))
     }
 
     // Necessary when syntax highlighting rules change.
@@ -464,8 +459,8 @@ impl Editor {
         tab.doc_bounds().contains_position(cursor_visual_position)
     }
 
-    fn add_pane(&mut self, line_pool: &mut LinePool) {
-        let pane = EditorPane::new(&mut self.doc_list, line_pool);
+    fn add_pane(&mut self) {
+        let pane = EditorPane::new(&mut self.doc_list);
 
         self.panes.add(pane);
     }

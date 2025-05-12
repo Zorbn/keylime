@@ -8,11 +8,14 @@ use objc2_app_kit::{
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{ns_string, MainThreadMarker, NSRect, NSString, NSURL};
 
-use crate::platform::dialog::{FindFileKind, MessageKind, MessageResponse};
+use crate::{
+    platform::dialog::{FindFileKind, MessageKind, MessageResponse},
+    pool::{Pooled, PATH_POOL},
+};
 
 use super::result::Result;
 
-pub fn find_file(kind: FindFileKind) -> Result<PathBuf> {
+pub fn find_file(kind: FindFileKind) -> Result<Pooled<PathBuf>> {
     assert_app_launched();
 
     let mtm = MainThreadMarker::new().unwrap();
@@ -32,7 +35,7 @@ pub fn find_file(kind: FindFileKind) -> Result<PathBuf> {
             .path()
             .ok_or("URL doesn't correspond to a path")?;
 
-        Ok(PathBuf::from(path.to_string()))
+        Ok(PATH_POOL.init_item(|new_path| new_path.push(path.to_string())))
     }
 }
 

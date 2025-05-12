@@ -8,6 +8,7 @@ use std::{
 use crate::{
     ctx::Ctx,
     geometry::position::Position,
+    pool::{format_pooled, Pooled, PATH_POOL},
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
@@ -55,7 +56,7 @@ impl FindInFilesMode {
             .some()
             .and_then(|path| path.strip_prefix(root).ok())?;
 
-        let text = format!(
+        let text = format_pooled!(
             "{}:{}: {}",
             relative_path.display(),
             position.y + 1,
@@ -65,7 +66,7 @@ impl FindInFilesMode {
         Some(CommandPaletteResult {
             text,
             meta_data: CommandPaletteMetaData::PathWithPosition {
-                path: relative_path.to_owned(),
+                path: PATH_POOL.init_item(|path| path.push(relative_path)),
                 position,
             },
         })
@@ -129,7 +130,8 @@ impl FindInFilesMode {
             return;
         }
 
-        let mut doc = Doc::new(Some(path), &mut ctx.buffers.lines, None, DocKind::Output);
+        let path = Pooled::from(path, &PATH_POOL);
+        let mut doc = Doc::new(Some(path), None, DocKind::Output);
 
         if doc.load(ctx).is_ok() {
             self.pending_doc = Some(doc);

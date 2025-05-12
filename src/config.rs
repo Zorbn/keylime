@@ -15,6 +15,7 @@ use theme::Theme;
 use crate::{
     normalizable::Normalizable,
     platform::dialog::{message, MessageKind},
+    pool::{format_pooled, Pooled, PATH_POOL},
     text::{
         doc::Doc,
         syntax::{Syntax, SyntaxRange, SyntaxToken},
@@ -92,11 +93,11 @@ struct ConfigDesc<'a> {
 
 pub struct ConfigError {
     title: &'static str,
-    text: String,
+    text: Pooled<String>,
 }
 
 impl ConfigError {
-    pub fn new(title: &'static str, text: String) -> Self {
+    pub fn new(title: &'static str, text: Pooled<String>) -> Self {
         Self { title, text }
     }
 
@@ -119,8 +120,7 @@ pub struct Config {
 
 impl Config {
     pub fn load(dir: &Path) -> Result<Config, ConfigError> {
-        let mut path = PathBuf::new();
-
+        let mut path = PATH_POOL.new_item();
         path.push(dir);
         path.push("languages");
 
@@ -189,7 +189,7 @@ impl Config {
             Ok(string) => Ok(string),
             Err(err) => Err(ConfigError::new(
                 "Error Opening Config",
-                format!("Unable to open \"{}\": {}", file_name, err),
+                format_pooled!("Unable to open \"{}\": {}", file_name, err),
             )),
         }
     }
@@ -207,7 +207,7 @@ impl Config {
             Ok(data) => Ok(data),
             Err(err) => Err(ConfigError::new(
                 "Error Loading Config",
-                format!("Unable to load \"{}\": {}", file_name, err),
+                format_pooled!("Unable to load \"{}\": {}", file_name, err),
             )),
         }
     }
@@ -232,10 +232,11 @@ impl Config {
             .unwrap_or_default()
     }
 
-    pub fn get_dir() -> PathBuf {
+    pub fn get_dir() -> Pooled<PathBuf> {
         let relative_dir = {
             if let Some(exe_dir) = current_exe().as_ref().ok().and_then(|exe| exe.parent()) {
-                let mut config_path = exe_dir.to_owned();
+                let mut config_path = PATH_POOL.new_item();
+                config_path.push(exe_dir);
                 config_path.push(CONFIG_DIR);
 
                 if config_path.exists() {

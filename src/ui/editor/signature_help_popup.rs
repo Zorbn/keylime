@@ -33,7 +33,7 @@ impl SignatureHelpPopup {
         doc: &mut Doc,
         ctx: &mut Ctx,
     ) {
-        if Some(self.help_path.as_path()) != doc.path().some() {
+        if Some(self.help_path.as_path()) != doc.path().some_path() {
             self.clear();
         }
 

@@ -9,7 +9,10 @@ use std::{
 use libc::{kevent, EVFILT_VNODE, EV_ADD, EV_CLEAR, EV_DELETE, NOTE_WRITE, O_EVTONLY};
 use objc2::rc::Retained;
 
-use crate::normalizable::Normalizable;
+use crate::{
+    normalizable::Normalizable,
+    pool::{Pooled, PATH_POOL},
+};
 
 use super::{
     result::Result,
@@ -38,9 +41,9 @@ pub struct FileWatcher {
 
     watched_paths: Vec<WatchedPath>,
     watch_thread_join: Option<JoinHandle<()>>,
-    watch_thread_changed_files: Arc<Mutex<Vec<PathBuf>>>,
+    watch_thread_changed_files: Arc<Mutex<Vec<Pooled<PathBuf>>>>,
 
-    changed_files: Vec<PathBuf>,
+    changed_files: Vec<Pooled<PathBuf>>,
 }
 
 impl FileWatcher {
@@ -133,7 +136,7 @@ impl FileWatcher {
         Ok(())
     }
 
-    pub fn get_changed_files(&mut self) -> &[PathBuf] {
+    pub fn get_changed_files(&mut self) -> &[Pooled<PathBuf>] {
         let mut watch_thread_changed_files = self.watch_thread_changed_files.lock().unwrap();
 
         self.changed_files
@@ -156,7 +159,7 @@ impl FileWatcher {
 
     fn run_watch_thread(
         kq: i32,
-        changed_files: Arc<Mutex<Vec<PathBuf>>>,
+        changed_files: Arc<Mutex<Vec<Pooled<PathBuf>>>>,
         view: ViewRef,
     ) -> JoinHandle<()> {
         thread::spawn(move || {
@@ -189,7 +192,8 @@ impl FileWatcher {
                     let event = event_list[i as usize];
 
                     let path = unsafe { CStr::from_ptr(event.udata as *const c_char) };
-                    let path = PathBuf::from(path.to_str().unwrap());
+                    let path =
+                        PATH_POOL.init_item(|new_path| new_path.push(path.to_str().unwrap()));
 
                     let mut changed_files = changed_files.lock().unwrap();
 

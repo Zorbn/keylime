@@ -4,6 +4,7 @@ use crate::{
     ctx::Ctx,
     normalizable::Normalizable,
     platform::dialog::{find_file, message, FindFileKind, MessageKind, MessageResponse},
+    pool::format_pooled,
     text::doc::{Doc, DocKind},
     ui::slot_list::SlotList,
 };
@@ -12,7 +13,7 @@ pub fn confirm_close(doc: &mut Doc, reason: &str, is_cancelable: bool, ctx: &mut
     if doc.is_saved() {
         true
     } else {
-        let text = format!(
+        let text = format_pooled!(
             "{} has unsaved changes. Do you want to save it before {}?",
             doc.file_name(),
             reason
@@ -72,7 +73,7 @@ pub fn open_or_reuse(
         }
     }
 
-    let mut doc = Doc::new(Some(path), &mut ctx.buffers.lines, None, DocKind::MultiLine);
+    let mut doc = Doc::new(Some(path), None, DocKind::MultiLine);
     doc.load(ctx)?;
 
     Ok(doc_list.add(doc))

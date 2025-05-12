@@ -18,10 +18,8 @@ use crate::{
     },
     input::action::action_name,
     platform::gfx::Gfx,
-    text::{
-        doc::{Doc, DocKind},
-        line_pool::LinePool,
-    },
+    pool::Pooled,
+    text::doc::{Doc, DocKind},
 };
 
 use super::{
@@ -39,13 +37,16 @@ use mode::{CommandPaletteEventArgs, CommandPaletteMode};
 use search_mode::{SearchAndReplaceMode, SearchMode};
 
 pub struct CommandPaletteResult {
-    pub text: String,
+    pub text: Pooled<String>,
     pub meta_data: CommandPaletteMetaData,
 }
 
 pub enum CommandPaletteMetaData {
-    Path(PathBuf),
-    PathWithPosition { path: PathBuf, position: Position },
+    Path(Pooled<PathBuf>),
+    PathWithPosition {
+        path: Pooled<PathBuf>,
+        position: Position,
+    },
 }
 
 pub enum CommandPaletteAction {
@@ -70,11 +71,11 @@ pub struct CommandPalette {
 }
 
 impl CommandPalette {
-    pub fn new(ui: &mut Ui, line_pool: &mut LinePool) -> Self {
+    pub fn new(ui: &mut Ui) -> Self {
         Self {
             mode: None,
             tab: Tab::new(0),
-            doc: Doc::new(None, line_pool, None, DocKind::SingleLine),
+            doc: Doc::new(None, None, DocKind::SingleLine),
             last_updated_version: None,
 
             result_list: ResultList::new(MAX_VISIBLE_RESULTS),

@@ -12,6 +12,7 @@ use crate::{
         mousebind::{MouseClickKind, Mousebind},
     },
     platform::gfx::Gfx,
+    pool::STRING_POOL,
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
@@ -99,12 +100,9 @@ impl Tab {
         let mut grapheme_handler = ui.get_grapheme_handler(widget, ctx.window);
 
         while let Some(grapheme) = grapheme_handler.next(ctx.window) {
-            let mut text_buffer = ctx.buffers.text.pop();
-            text_buffer.push_str(grapheme);
+            let grapheme = STRING_POOL.init_item(|string| string.push_str(grapheme));
 
-            handle_grapheme(&text_buffer, doc, ctx);
-
-            ctx.buffers.text.push(text_buffer);
+            handle_grapheme(&grapheme, doc, ctx);
         }
 
         let mut mousebind_handler = ui.get_mousebind_handler(widget, ctx.window);

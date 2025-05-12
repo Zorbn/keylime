@@ -7,10 +7,7 @@ use crate::{
     geometry::rect::Rect,
     input::action::action_name,
     platform::{gfx::Gfx, process::Process},
-    text::{
-        doc::{Doc, DocKind},
-        line_pool::LinePool,
-    },
+    text::doc::{Doc, DocKind},
 };
 
 use super::{
@@ -29,12 +26,12 @@ pub struct TerminalDocs {
 }
 
 impl TerminalDocs {
-    pub fn new(line_pool: &mut LinePool) -> Self {
+    pub fn new() -> Self {
         const TERMINAL_DISPLAY_NAME: Option<&str> = Some("Terminal");
 
         Self {
-            normal: Doc::new(None, line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
-            alternate: Doc::new(None, line_pool, TERMINAL_DISPLAY_NAME, DocKind::Output),
+            normal: Doc::new(None, TERMINAL_DISPLAY_NAME, DocKind::Output),
+            alternate: Doc::new(None, TERMINAL_DISPLAY_NAME, DocKind::Output),
         }
     }
 
@@ -54,10 +51,10 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn new(ui: &mut Ui, line_pool: &mut LinePool) -> Self {
+    pub fn new(ui: &mut Ui) -> Self {
         let mut term_list = SlotList::new();
 
-        let pane = TerminalPane::new(&mut term_list, line_pool);
+        let pane = TerminalPane::new(&mut term_list);
 
         Self {
             pane,

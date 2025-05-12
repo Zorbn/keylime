@@ -17,6 +17,7 @@ use crate::{
         gfx::Gfx,
         process::{Process, ProcessKind},
     },
+    pool::STRING_POOL,
     text::{
         doc::Doc,
         grapheme::{CharCursor, CharIterator},
@@ -210,8 +211,8 @@ impl TerminalEmulator {
                     handle_copy(doc, ctx);
                 }
                 action_name!(Paste) => {
-                    let text = ctx.buffers.text.get_mut();
-                    let _ = ctx.window.get_clipboard(text);
+                    let mut text = STRING_POOL.new_item();
+                    let _ = ctx.window.get_clipboard(&mut text);
 
                     pty.input().extend(text.bytes());
                 }
