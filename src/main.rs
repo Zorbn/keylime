@@ -25,7 +25,6 @@ use platform::app_runner::run_app;
  * Add LSP hover documentation support.
  * Consider renaming DocKind::Output to DocKind::Raw
  * Consider making DocKinds predefined BitFields that store a list of features such action history, position shifting, multi line, etc.
- * Update windows platform to use Pooled items where necessary.
  */
 
 fn main() {
