@@ -153,6 +153,7 @@ impl FindInFilesMode {
             command_palette.get_input(),
             doc.get_cursor(CursorIndex::Main).position,
             false,
+            ctx.gfx,
         ) {
             // Ignore additional results on the same line.
             doc.jump_cursor(

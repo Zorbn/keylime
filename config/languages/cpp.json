@@ -125,7 +125,7 @@
                 "end": "\"",
                 "escape": "\\",
                 "kind": "String",
-                "start": "\""
+                "start": "@?\""
             },
             {
                 "end": "'",
@@ -160,7 +160,7 @@
             },
             {
                 "kind": "Meta",
-                "pattern": "@%w*"
+                "pattern": "@%w+"
             },
             {
                 "kind": "Function",

@@ -230,14 +230,10 @@ impl Editor {
         let pane = self.panes.get_focused_mut().unwrap();
         let focused_tab_index = pane.focused_tab_index();
 
-        self.handled_position = None;
-
         let Some((_, doc)) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
         else {
             return;
         };
-
-        self.handled_position = Some(doc.get_cursor(CursorIndex::Main).position);
 
         let result = self
             .completion_list
@@ -269,6 +265,8 @@ impl Editor {
             .update_results(doc, self.handled_position, ctx);
 
         let position = doc.get_cursor(CursorIndex::Main).position;
+
+        self.handled_position = Some(position);
 
         if self.do_show_diagnostic_popup && ctx.lsp.get_diagnostic_at(position, doc).is_none() {
             self.do_show_diagnostic_popup = false;

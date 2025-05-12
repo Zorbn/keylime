@@ -1270,12 +1270,18 @@ impl Doc {
         if is_reverse {
             self.search_backward(text, start, true, gfx)
         } else {
-            self.search_forward(text, start, true)
+            self.search_forward(text, start, true, gfx)
         }
     }
 
-    pub fn search_forward(&self, text: &str, start: Position, do_wrap: bool) -> Option<Position> {
-        let start = self.clamp_position(start);
+    pub fn search_forward(
+        &self,
+        text: &str,
+        start: Position,
+        do_wrap: bool,
+        gfx: &mut Gfx,
+    ) -> Option<Position> {
+        let start = self.move_position(start, 1, 0, gfx);
 
         if text.is_empty() {
             return Some(start);
