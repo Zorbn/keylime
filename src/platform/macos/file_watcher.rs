@@ -7,7 +7,7 @@ use std::{
 };
 
 use libc::{kevent, EVFILT_VNODE, EV_ADD, EV_CLEAR, EV_DELETE, NOTE_WRITE, O_EVTONLY};
-use objc2::rc::Retained;
+use objc2::rc::Weak;
 
 use crate::{normalizable::Normalizable, pool::Pooled};
 
@@ -142,7 +142,7 @@ impl FileWatcher {
         &self.changed_files
     }
 
-    pub fn try_start(&mut self, view: &Retained<View>) {
+    pub fn try_start(&mut self, view: &Weak<View>) {
         if self.watch_thread_join.is_some() {
             return;
         }

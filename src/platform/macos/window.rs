@@ -1,6 +1,9 @@
 use std::{collections::HashMap, path::Path, ptr::NonNull};
 
-use objc2::{rc::Retained, runtime::ProtocolObject};
+use objc2::{
+    rc::{Retained, Weak},
+    runtime::ProtocolObject,
+};
 use objc2_app_kit::*;
 use objc2_foundation::*;
 
@@ -36,14 +39,13 @@ struct RecordedMouseClick {
 
 pub struct Window {
     pub ns_window: Retained<NSWindow>,
-    pub view: Option<Retained<View>>,
+    pub view: Weak<View>,
     pub width: f64,
     pub height: f64,
     pub scale: f64,
 
     pub was_shown: bool,
     pub is_focused: bool,
-    pub is_running: bool,
     pub time: f32,
     last_queried_time: Option<f64>,
 
@@ -68,34 +70,35 @@ impl Window {
             NSSize::new(DEFAULT_WIDTH, DEFAULT_HEIGHT),
         );
 
-        let ns_window = {
-            let style = NSWindowStyleMask::Closable
-                | NSWindowStyleMask::Resizable
-                | NSWindowStyleMask::Miniaturizable
-                | NSWindowStyleMask::Titled;
+        let style = NSWindowStyleMask::Closable
+            | NSWindowStyleMask::Resizable
+            | NSWindowStyleMask::Miniaturizable
+            | NSWindowStyleMask::Titled;
 
-            unsafe {
-                NSWindow::initWithContentRect_styleMask_backing_defer(
-                    mtm.alloc(),
-                    content_rect,
-                    style,
-                    NSBackingStoreType::Buffered,
-                    false,
-                )
-            }
+        let ns_window = unsafe {
+            let ns_window = NSWindow::initWithContentRect_styleMask_backing_defer(
+                mtm.alloc(),
+                content_rect,
+                style,
+                NSBackingStoreType::Buffered,
+                false,
+            );
+
+            ns_window.setReleasedWhenClosed(false);
+
+            ns_window
         };
 
         let scale = ns_window.backingScaleFactor();
 
         let mut window = Self {
             ns_window,
-            view: None,
+            view: Weak::default(),
             width: DEFAULT_WIDTH,
             height: DEFAULT_HEIGHT,
 
             was_shown: false,
             is_focused: true,
-            is_running: true,
             time: 0.0,
             last_queried_time: None,
 
@@ -180,13 +183,11 @@ impl Window {
     ) {
         self.clear_inputs();
 
-        if let Some(view) = &self.view {
-            for process in processes {
-                process.inner.try_start(view);
-            }
-
-            file_watcher.inner.try_start(view);
+        for process in processes {
+            process.inner.try_start(&self.view);
         }
+
+        file_watcher.inner.try_start(&self.view);
 
         file_watcher.inner.update(files).unwrap();
     }

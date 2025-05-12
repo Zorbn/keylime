@@ -3,10 +3,13 @@ use std::{
     ptr::{copy_nonoverlapping, NonNull},
 };
 
-use objc2::{rc::Retained, runtime::ProtocolObject, sel};
-use objc2_foundation::{ns_string, NSDefaultRunLoopMode, NSRunLoop};
+use objc2::{
+    rc::{Retained, Weak},
+    runtime::ProtocolObject,
+};
+use objc2_foundation::ns_string;
 use objc2_metal::*;
-use objc2_quartz_core::{CADisplayLink, CAMetalDrawable};
+use objc2_quartz_core::CAMetalDrawable;
 
 use crate::{
     app::App,
@@ -96,8 +99,7 @@ pub struct Gfx {
     device: Retained<ProtocolObject<dyn MTLDevice>>,
     command_queue: Retained<ProtocolObject<dyn MTLCommandQueue>>,
     pipeline_state: Retained<ProtocolObject<dyn MTLRenderPipelineState>>,
-    view: Retained<View>,
-    pub display_link: Retained<CADisplayLink>,
+    pub view: Weak<View>,
 
     vertices: Vec<VertexInput>,
     indices: Vec<u32>,
@@ -127,18 +129,10 @@ impl Gfx {
         app: &App,
         window: &AnyWindow,
         device: Retained<ProtocolObject<dyn MTLDevice>>,
-        view: Retained<View>,
     ) -> Result<Self> {
         let command_queue = device
             .newCommandQueue()
             .expect("Failed to create a command queue.");
-
-        let display_link = unsafe {
-            let display_link = view.displayLinkWithTarget_selector(&view, sel!(update));
-            display_link.addToRunLoop_forMode(&NSRunLoop::currentRunLoop(), NSDefaultRunLoopMode);
-
-            display_link
-        };
 
         let pipeline_descriptor = MTLRenderPipelineDescriptor::new();
 
@@ -199,8 +193,7 @@ impl Gfx {
             device,
             command_queue,
             pipeline_state,
-            view,
-            display_link,
+            view: Weak::default(),
 
             vertices: Vec::new(),
             indices: Vec::new(),
@@ -308,14 +301,13 @@ impl Gfx {
         }
     }
 
-    pub fn begin_frame(&mut self, clear_color: Color) {
+    pub fn begin_frame(&mut self, clear_color: Color) -> Option<()> {
         self.command_buffer = self.command_queue.commandBuffer();
 
-        let Some(command_buffer) = self.command_buffer.as_ref() else {
-            return;
-        };
+        let command_buffer = self.command_buffer.as_ref()?;
+        let view = self.view.load()?;
 
-        self.drawable = unsafe { self.view.next_drawable() };
+        self.drawable = unsafe { view.next_drawable() };
         let drawable = self.drawable.as_ref().unwrap();
 
         let color_attachment = MTLRenderPassColorAttachmentDescriptor::new();
@@ -343,25 +335,16 @@ impl Gfx {
 
         self.encoder = command_buffer.renderCommandEncoderWithDescriptor(&pass_descriptor);
 
-        let Some(encoder) = self.encoder.as_ref() else {
-            return;
-        };
-
+        let encoder = self.encoder.as_ref()?;
         encoder.setRenderPipelineState(&self.pipeline_state);
+
+        Some(())
     }
 
-    pub fn end_frame(&mut self) {
-        let Some(command_buffer) = self.command_buffer.as_ref() else {
-            return;
-        };
-
-        let Some(encoder) = self.encoder.as_ref() else {
-            return;
-        };
-
-        let Some(drawable) = self.drawable.as_ref() else {
-            return;
-        };
+    pub fn end_frame(&mut self) -> Option<()> {
+        let command_buffer = self.command_buffer.as_ref()?;
+        let encoder = self.encoder.as_ref()?;
+        let drawable = self.drawable.as_ref()?;
 
         encoder.endEncoding();
 
@@ -375,6 +358,8 @@ impl Gfx {
         self.next_buffer_index = 0;
 
         self.text.swap_caches();
+
+        Some(())
     }
 
     pub fn begin(&mut self, bounds: Option<Rect>) {
@@ -393,12 +378,10 @@ impl Gfx {
         }
     }
 
-    pub fn end(&mut self) {
+    pub fn end(&mut self) -> Option<()> {
         self.handle_glyph_cache_result();
 
-        let Some(encoder) = self.encoder.as_ref() else {
-            return;
-        };
+        let encoder = self.encoder.as_ref()?;
 
         encoder.setScissorRect(MTLScissorRect {
             x: self.bounds.x as usize,
@@ -424,23 +407,18 @@ impl Gfx {
         let buffer_index = self.next_buffer_index;
         self.next_buffer_index += 1;
 
-        let Some(index_buffer) =
-            Self::get_buffer_for_vec(&self.indices, &self.device, &mut self.buffers, buffer_index)
-        else {
-            return;
-        };
+        let index_buffer =
+            Self::get_buffer_for_vec(&self.indices, &self.device, &mut self.buffers, buffer_index)?;
 
         let buffer_index = self.next_buffer_index;
         self.next_buffer_index += 1;
 
-        let Some(vertex_buffer) = Self::get_buffer_for_vec(
+        let vertex_buffer = Self::get_buffer_for_vec(
             &self.vertices,
             &self.device,
             &mut self.buffers,
             buffer_index,
-        ) else {
-            return;
-        };
+        )?;
 
         unsafe {
             encoder.setVertexBytes_length_atIndex(
@@ -465,6 +443,8 @@ impl Gfx {
                 0,
             );
         }
+
+        Some(())
     }
 
     fn get_buffer_for_vec<T>(
@@ -577,9 +557,5 @@ impl Gfx {
 
     pub fn height(&self) -> f32 {
         self.height
-    }
-
-    pub fn view(&self) -> &Retained<View> {
-        &self.view
     }
 }

@@ -1,6 +1,6 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
-use std::{cell::RefCell, rc::Rc};
+use std::cell::RefCell;
 
 use objc2::{
     define_class, msg_send, rc::Retained, runtime::ProtocolObject, DefinedClass, MainThreadMarker,
@@ -21,7 +21,7 @@ use crate::{
 use super::{gfx::Gfx, window::Window};
 
 pub struct AppDelegateIvars {
-    window_delegates: Rc<RefCell<Vec<Retained<WindowDelegate>>>>,
+    window_delegates: RefCell<Vec<Retained<WindowDelegate>>>,
 }
 
 define_class!(
@@ -46,8 +46,7 @@ define_class!(
             let mut window_delegates = self.ivars().window_delegates.borrow_mut();
 
             window_delegates.retain(|window_delegate| {
-                let window = window_delegate.ivars().window.borrow();
-                window.inner.is_running
+                *window_delegate.ivars().is_running.borrow()
             });
         }
     }
@@ -73,13 +72,8 @@ define_class!(
                 app.activate();
 
                 for window_delegate in window_delegates.iter() {
-                    let view = {
-                        window_delegate.ivars().window.borrow_mut().inner.view.clone()
-                    };
-
-                    if let Some(view) = view {
-                        view.update();
-                    }
+                    let view = &window_delegate.ivars().view;
+                    view.update();
                 }
             }
         }
@@ -97,7 +91,7 @@ define_class!(
             let window_delegates = self.ivars().window_delegates.borrow();
 
             for window_delegate in window_delegates.iter() {
-                window_delegate.on_close();
+                window_delegate.ivars().view.on_close();
             }
 
             true
@@ -109,7 +103,7 @@ impl AppDelegate {
     pub fn new(mtm: MainThreadMarker) -> Retained<Self> {
         let this = mtm.alloc();
         let this = this.set_ivars(AppDelegateIvars {
-            window_delegates: Rc::new(RefCell::new(Vec::new())),
+            window_delegates: RefCell::new(Vec::new()),
         });
 
         unsafe { msg_send![super(this), init] }
@@ -117,9 +111,8 @@ impl AppDelegate {
 }
 
 pub struct WindowDelegateIvars {
-    app: Rc<RefCell<Option<App>>>,
-    window: Rc<RefCell<AnyWindow>>,
-    gfx: Rc<RefCell<Option<AnyGfx>>>,
+    is_running: RefCell<bool>,
+    view: Retained<View>,
 }
 
 define_class!(
@@ -134,7 +127,15 @@ define_class!(
     unsafe impl NSWindowDelegate for WindowDelegate {
         #[unsafe(method(windowShouldClose:))]
         unsafe fn window_should_close(&self, _sender: &NSWindow) -> bool {
-            self.on_close();
+            if let Ok(mut is_running) = self.ivars().is_running.try_borrow_mut() {
+                if !*is_running {
+                    return true.into();
+                }
+
+                *is_running = false;
+            }
+
+            self.ivars().view.on_close();
 
             let mtm = MainThreadMarker::from(self);
             let app = NSApplication::sharedApplication(mtm);
@@ -150,22 +151,22 @@ define_class!(
 
         #[unsafe(method(windowDidBecomeKey:))]
         unsafe fn window_did_become_key(&self, _notification: &NSNotification) {
-            self.on_focused_changed(true);
+            self.ivars().view.on_focused_changed(true);
         }
 
         #[unsafe(method(windowDidResignKey:))]
         unsafe fn window_did_resign_key(&self, _notification: &NSNotification) {
-            self.on_focused_changed(false);
+            self.ivars().view.on_focused_changed(false);
         }
 
         #[unsafe(method(windowWillEnterFullScreen:))]
         unsafe fn window_will_enter_fullscreen(&self, _notification: &NSNotification) {
-            self.on_fullscreen_changed(true);
+            self.ivars().view.on_fullscreen_changed(true);
         }
 
         #[unsafe(method(windowWillExitFullScreen:))]
         unsafe fn window_will_exit_fullscreen(&self, _notification: &NSNotification) {
-            self.on_fullscreen_changed(false);
+            self.ivars().view.on_fullscreen_changed(false);
         }
     }
 );
@@ -178,54 +179,31 @@ impl WindowDelegate {
             inner: Window::new(&app, mtm),
         };
 
-        let window = Rc::new(RefCell::new(window));
-        let app = Rc::new(RefCell::new(Some(app)));
-        let gfx = Rc::new(RefCell::new(None));
-
-        let (ns_window, width, height) = {
-            let window = window.borrow();
-
-            (
-                window.inner.ns_window.clone(),
-                window.inner.width,
-                window.inner.height,
-            )
-        };
-
-        ns_window.setAcceptsMouseMovedEvents(true);
-
         let device = MTLCreateSystemDefaultDevice().expect("Failed to get default system device.");
 
-        let view = View::new(
-            app.clone(),
-            window.clone(),
-            gfx.clone(),
-            mtm,
-            ns_window.frame(),
-            device.clone(),
-        );
-
-        window.borrow_mut().inner.view = Some(view.clone());
-
-        gfx.replace(Some(AnyGfx {
+        let gfx = AnyGfx {
             inner: {
-                let app = app.borrow();
-                let app = app.as_ref().unwrap();
-                let window = &*window.borrow();
-
-                let mut gfx = Gfx::new(app, window, device, view.clone()).unwrap();
-                gfx.resize(width, height).unwrap();
+                let mut gfx = Gfx::new(&app, &window, device.clone()).unwrap();
+                gfx.resize(window.inner.width, window.inner.height).unwrap();
 
                 gfx
             },
-        }));
+        };
 
+        let ns_window = window.inner.ns_window.clone();
+        ns_window.setAcceptsMouseMovedEvents(true);
+
+        let view = View::new(app, window, gfx, mtm, ns_window.frame(), device);
         ns_window.setContentView(Some(&view));
+
         ns_window.center();
         ns_window.setTitle(ns_string!("Keylime"));
 
         let this = mtm.alloc();
-        let this = this.set_ivars(WindowDelegateIvars { window, gfx, app });
+        let this = this.set_ivars(WindowDelegateIvars {
+            is_running: RefCell::new(true),
+            view,
+        });
 
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
 
@@ -233,54 +211,5 @@ impl WindowDelegate {
         ns_window.setDelegate(Some(&protocol_object));
 
         this
-    }
-
-    fn on_focused_changed(&self, is_focused: bool) -> Option<()> {
-        let mut window = self.ivars().window.try_borrow_mut().ok()?;
-
-        let mut gfx = self.ivars().gfx.try_borrow_mut().ok()?;
-        let gfx = gfx.as_mut()?;
-
-        window.inner.is_focused = is_focused;
-
-        let view = gfx.inner.view();
-
-        unsafe {
-            view.setNeedsDisplay(true);
-        }
-
-        Some(())
-    }
-
-    fn on_fullscreen_changed(&self, is_fullscreen: bool) -> Option<()> {
-        let mut gfx = self.ivars().gfx.try_borrow_mut().ok()?;
-        let gfx = gfx.as_mut()?;
-
-        gfx.inner.is_fullscreen = is_fullscreen;
-
-        Some(())
-    }
-
-    fn on_close(&self) {
-        let window = &mut *self.ivars().window.borrow_mut();
-        let mut gfx = self.ivars().gfx.borrow_mut();
-        let gfx = gfx.as_mut().unwrap();
-
-        if !window.inner.is_running {
-            return;
-        }
-
-        window.inner.is_running = false;
-
-        let mut app = self.ivars().app.borrow_mut();
-
-        {
-            let app = app.as_mut().unwrap();
-            let time = window.inner.time;
-
-            app.close(window, gfx, time);
-        }
-
-        app.take();
     }
 }

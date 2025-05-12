@@ -6,7 +6,7 @@ use std::{
 };
 
 use libc::{kevent, EVFILT_READ, EV_ADD, EV_CLEAR};
-use objc2::rc::Retained;
+use objc2::rc::Weak;
 
 use crate::platform::process::ProcessKind;
 
@@ -208,7 +208,7 @@ impl Process {
         }
     }
 
-    pub fn try_start(&mut self, view: &Retained<View>) {
+    pub fn try_start(&mut self, view: &Weak<View>) {
         if self.read_thread_join.is_some() {
             return;
         }
