@@ -47,6 +47,7 @@ use crate::{
         mousebind::{MouseClickCount, MouseClickKind, Mousebind},
     },
     platform::aliases::{AnyFileWatcher, AnyProcess, AnyWindow},
+    pool::UTF16_POOL,
     text::grapheme::GraphemeCursor,
 };
 

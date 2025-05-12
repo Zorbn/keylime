@@ -24,9 +24,12 @@ use windows_core::{IUnknown, Ref, BOOL};
 use windows_numerics::{Matrix3x2, Vector2};
 use Common::{D2D1_ALPHA_MODE_IGNORE, D2D1_ALPHA_MODE_PREMULTIPLIED};
 
-use crate::platform::{
-    text::GlyphFn,
-    text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
+use crate::{
+    platform::{
+        text::GlyphFn,
+        text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
+    },
+    pool::UTF16_POOL,
 };
 
 const LOCALE: PCWSTR = w!("en-us");
@@ -391,7 +394,7 @@ impl Text {
 
         let text_layout = self
             .dwrite_factory
-            .CreateTextLayout(wide_text, &self.text_format, f32::MAX, f32::MAX)
+            .CreateTextLayout(&wide_text, &self.text_format, f32::MAX, f32::MAX)
             .unwrap();
 
         let text_renderer = self.text_renderer.take().unwrap();

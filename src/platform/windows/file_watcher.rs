@@ -15,7 +15,10 @@ use windows::{
     },
 };
 
-use crate::normalizable::Normalizable;
+use crate::{
+    normalizable::Normalizable,
+    pool::{Pooled, PATH_POOL},
+};
 
 pub struct DirWatchHandles {
     overlapped: OVERLAPPED,
@@ -58,7 +61,7 @@ pub struct FileWatcher {
     // remain valid when DirWatchHandles is moved into the dir_watch_handles list or reordered.
     #[allow(clippy::vec_box)]
     dir_watch_handles: Vec<Box<DirWatchHandles>>,
-    changed_files: Vec<PathBuf>,
+    changed_files: Vec<Pooled<PathBuf>>,
 }
 
 impl FileWatcher {
@@ -89,7 +92,7 @@ impl FileWatcher {
             path.push(String::from_utf16_lossy(file_name));
 
             if let Ok(path) = path.normalized() {
-                changed_files.push(path);
+                self.changed_files.push(path);
             }
 
             buffer_offset += info.NextEntryOffset as usize;
@@ -177,7 +180,7 @@ impl FileWatcher {
         Ok(())
     }
 
-    pub fn get_changed_files(&mut self) -> &[PathBuf] {
+    pub fn get_changed_files(&mut self) -> &[Pooled<PathBuf>] {
         &self.changed_files
     }
 

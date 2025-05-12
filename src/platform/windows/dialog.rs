@@ -15,11 +15,14 @@ use windows::{
     },
 };
 
-use crate::platform::dialog::{FindFileKind, MessageKind, MessageResponse};
+use crate::{
+    platform::dialog::{FindFileKind, MessageKind, MessageResponse},
+    pool::{Pooled, PATH_POOL},
+};
 
 use super::deferred_call::defer;
 
-pub fn find_file(kind: FindFileKind) -> Result<PathBuf> {
+pub fn find_file(kind: FindFileKind) -> Result<Pooled<PathBuf>> {
     let dialog_id = match kind {
         FindFileKind::OpenFile | FindFileKind::OpenFolder => FileOpenDialog,
         FindFileKind::Save => FileSaveDialog,
@@ -39,7 +42,9 @@ pub fn find_file(kind: FindFileKind) -> Result<PathBuf> {
 
         defer!({ CoTaskMemFree(Some(wide_path.0 as _)) });
 
-        Ok(PathBuf::from(wide_path.to_string()?))
+        let wide_path = wide_path.to_string()?;
+
+        Ok(PATH_POOL.init_item(|path| path.push(&wide_path)))
     }
 }
 
