@@ -263,6 +263,11 @@ impl TerminalEmulator {
 
         self.pty = Some(pty);
 
+        tab.camera
+            .vertical
+            .jump_visual_distance(self.excess_lines_trimmed as f32 * -ctx.gfx.line_height());
+        self.excess_lines_trimmed = 0;
+
         if self.did_doc_cursors_move {
             tab.camera
                 .vertical

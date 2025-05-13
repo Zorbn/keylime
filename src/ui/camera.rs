@@ -129,6 +129,10 @@ impl CameraAxis {
         }
     }
 
+    pub fn jump_visual_distance(&mut self, visual_distance: f32) {
+        self.position += visual_distance;
+    }
+
     pub fn reset(&mut self) {
         self.position = 0.0;
         self.velocity = 0.0;
