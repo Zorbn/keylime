@@ -350,10 +350,10 @@ fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
         }
 
         let indent_line = doc.get_line(indent_y).unwrap_or_default();
-        let indent_line_start = doc.get_line_start(indent_y);
+        let indent_end = doc.get_line_start(indent_y).min(cursor.position.x);
 
         let mut indent_text = STRING_POOL.new_item();
-        indent_text.push_str(&indent_line[..indent_line_start]);
+        indent_text.push_str(&indent_line[..indent_end]);
 
         let previous_position = doc.move_position(cursor.position, -1, 0, ctx.gfx);
         let do_start_block = doc.get_grapheme(previous_position) == "{";
