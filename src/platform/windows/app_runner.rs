@@ -99,7 +99,7 @@ impl AppRunner {
                 continue;
             };
 
-            let (time, dt) = window.inner.get_time(is_animating);
+            let (time, dt) = window.inner.time(is_animating);
 
             app.update(window, gfx, time, dt);
             app.draw(window, gfx, time);
