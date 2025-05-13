@@ -16,12 +16,16 @@ impl<T> FocusList<T> {
     pub fn focus_next(&mut self) {
         if self.focused_index < self.items.len().saturating_sub(1) {
             self.focused_index += 1;
+        } else {
+            self.focused_index = 0;
         }
     }
 
     pub fn focus_previous(&mut self) {
         if self.focused_index > 0 {
             self.focused_index -= 1;
+        } else {
+            self.focused_index = self.items.len().saturating_sub(1);
         }
     }
 

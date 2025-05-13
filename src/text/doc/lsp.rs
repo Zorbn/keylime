@@ -1,7 +1,11 @@
 use crate::{
     ctx::Ctx,
     geometry::position::Position,
-    lsp::{language_server::LanguageServer, LspExpectedResponse, LspSentRequest},
+    lsp::{
+        language_server::LanguageServer,
+        types::{DecodedRange, DecodedTextEdit},
+        LspExpectedResponse, LspSentRequest,
+    },
 };
 
 use crate::text::cursor_index::CursorIndex;
@@ -284,5 +288,24 @@ impl Doc {
         language_server.text_document_notification(path, method);
 
         Some(())
+    }
+
+    pub fn lsp_apply_edit_list(&mut self, edits: &mut [DecodedTextEdit], ctx: &mut Ctx) {
+        for i in 0..edits.len() {
+            let current_edit = &edits[i];
+
+            let DecodedRange { start, end } = current_edit.range;
+
+            self.delete(start, end, ctx);
+            let insert_end = self.insert(start, &current_edit.new_text, ctx);
+
+            for DecodedTextEdit { range, .. } in edits.iter_mut().skip(i + 1) {
+                range.start = self.shift_position_by_delete(start, end, range.start);
+                range.end = self.shift_position_by_delete(start, end, range.end);
+
+                range.start = self.shift_position_by_insert(start, insert_end, range.start);
+                range.end = self.shift_position_by_insert(start, insert_end, range.end);
+            }
+        }
     }
 }

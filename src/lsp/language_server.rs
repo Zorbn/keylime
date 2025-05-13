@@ -11,9 +11,9 @@ use crate::{
     geometry::position::Position,
     lsp::{
         types::{
-            LspCodeActionResult, LspCompletionResult, LspDefinitionResult,
-            LspFullDocumentDiagnosticParams, LspInitializeResult, LspLocation, LspMessage,
-            LspPosition, LspPublishDiagnosticsParams, LspRegistrationParams,
+            EncodedDefinitionResult, EncodedFullDocumentDiagnosticParams, EncodedLocation,
+            EncodedPosition, EncodedPublishDiagnosticsParams, InitializeResult,
+            LspCodeActionResult, LspCompletionResult, Message, RegistrationParams,
         },
         uri::uri_to_path,
     },
@@ -28,8 +28,8 @@ use crate::{
 use super::{
     position_encoding::PositionEncoding,
     types::{
-        CompletionItem, Diagnostic, LspCompletionItem, LspDiagnostic, LspPrepareRenameResult,
-        LspRange, LspTextEdit, LspWorkspaceEdit, SignatureHelp,
+        DecodedCompletionItem, DecodedDiagnostic, EncodedCompletionItem, EncodedDiagnostic,
+        EncodedRange, EncodedTextEdit, EncodedWorkspaceEdit, LspPrepareRenameResult, SignatureHelp,
     },
     uri::path_to_uri,
     LspSentRequest,
@@ -37,12 +37,12 @@ use super::{
 
 #[derive(Debug, Default)]
 struct Diagnostics {
-    encoded: Vec<LspDiagnostic>,
-    decoded: Vec<Diagnostic>,
+    encoded: Vec<EncodedDiagnostic>,
+    decoded: Vec<DecodedDiagnostic>,
 }
 
 impl Diagnostics {
-    pub fn replace(&mut self, encoded: &mut Vec<LspDiagnostic>) {
+    pub fn replace(&mut self, encoded: &mut Vec<EncodedDiagnostic>) {
         self.decoded.clear();
         self.encoded.clear();
 
@@ -66,22 +66,22 @@ enum MessageParseState {
 
 #[derive(Debug)]
 pub(super) enum MessageResult<'a> {
-    Completion(Vec<LspCompletionItem>),
-    CompletionItemResolve(LspCompletionItem),
+    Completion(Vec<EncodedCompletionItem>),
+    CompletionItemResolve(EncodedCompletionItem),
     CodeAction(Vec<LspCodeActionResult>),
     PrepareRename {
-        range: LspRange,
+        range: EncodedRange,
         placeholder: Option<Pooled<String>>,
     },
-    Rename(LspWorkspaceEdit),
-    References(Vec<LspLocation<'a>>),
+    Rename(EncodedWorkspaceEdit),
+    References(Vec<EncodedLocation<'a>>),
     Definition {
         path: Pooled<PathBuf>,
-        range: LspRange,
+        range: EncodedRange,
     },
     SignatureHelp(Option<SignatureHelp>),
-    Formatting(Vec<LspTextEdit>),
-    Diagnostic(Vec<LspDiagnostic>),
+    Formatting(Vec<EncodedTextEdit>),
+    Diagnostic(Vec<EncodedDiagnostic>),
 }
 
 pub struct LanguageServer {
@@ -182,7 +182,7 @@ impl LanguageServer {
         Some(language_server)
     }
 
-    pub fn get_diagnostics_mut(&mut self, doc: &Doc) -> &mut [Diagnostic] {
+    pub fn get_diagnostics_mut(&mut self, doc: &Doc) -> &mut [DecodedDiagnostic] {
         let Some(path) = doc.path().some() else {
             return &mut [];
         };
@@ -196,7 +196,7 @@ impl LanguageServer {
             .unwrap_or_default()
     }
 
-    pub(super) fn poll(&mut self) -> Option<LspMessage> {
+    pub(super) fn poll(&mut self) -> Option<Message> {
         loop {
             let (_, output) = self.process.input_output();
             let mut output = output.lock().ok()?;
@@ -245,7 +245,7 @@ impl LanguageServer {
 
                     self.parse_state = MessageParseState::Idle;
 
-                    let message = serde_json::from_slice::<LspMessage>(&output[..content_len]);
+                    let message = serde_json::from_slice::<Message>(&output[..content_len]);
 
                     #[cfg(feature = "lsp_debug")]
                     println!("{:?}", message);
@@ -260,7 +260,7 @@ impl LanguageServer {
 
     pub(super) fn get_message_path_and_method<'a>(
         &mut self,
-        message: &'a LspMessage,
+        message: &'a Message,
     ) -> (Option<Pooled<PathBuf>>, Option<&'a str>) {
         if let Some((_, (path, method))) = message
             .id
@@ -275,13 +275,13 @@ impl LanguageServer {
     pub(super) fn handle_message<'a>(
         &mut self,
         method: &'a str,
-        message: &'a LspMessage,
+        message: &'a Message,
     ) -> Option<MessageResult<'a>> {
         match method {
             "initialize" => {
                 let result = message.result.as_ref()?;
 
-                if let Ok(result) = serde_json::from_str::<LspInitializeResult>(result.get()) {
+                if let Ok(result) = serde_json::from_str::<InitializeResult>(result.get()) {
                     if result.capabilities.position_encoding == "utf-8" {
                         self.position_encoding = PositionEncoding::Utf8;
                     }
@@ -319,7 +319,7 @@ impl LanguageServer {
             "textDocument/publishDiagnostics" => {
                 let params = message.params.as_ref()?;
                 let params =
-                    serde_json::from_str::<LspPublishDiagnosticsParams>(params.get()).ok()?;
+                    serde_json::from_str::<EncodedPublishDiagnosticsParams>(params.get()).ok()?;
 
                 let path = uri_to_path(&params.uri)?;
 
@@ -330,7 +330,8 @@ impl LanguageServer {
             "textDocument/diagnostic" => {
                 let result = message.result.as_ref()?;
                 let result =
-                    serde_json::from_str::<LspFullDocumentDiagnosticParams>(result.get()).ok()?;
+                    serde_json::from_str::<EncodedFullDocumentDiagnosticParams>(result.get())
+                        .ok()?;
 
                 Some(MessageResult::Diagnostic(result.items))
             }
@@ -352,7 +353,7 @@ impl LanguageServer {
             }
             "completionItem/resolve" => {
                 let result = message.result.as_ref()?;
-                let result = serde_json::from_str::<LspCompletionItem>(result.get()).ok()?;
+                let result = serde_json::from_str::<EncodedCompletionItem>(result.get()).ok()?;
 
                 Some(MessageResult::CompletionItemResolve(result))
             }
@@ -390,27 +391,29 @@ impl LanguageServer {
             }
             "textDocument/rename" => {
                 let result = message.result.as_ref()?;
-                let result = serde_json::from_str::<LspWorkspaceEdit>(result.get()).ok();
+                let result = serde_json::from_str::<EncodedWorkspaceEdit>(result.get()).ok();
 
                 result.map(MessageResult::Rename)
             }
             "textDocument/references" => {
                 let result = message.result.as_ref()?;
-                let result = serde_json::from_str::<Vec<LspLocation>>(result.get()).ok();
+                let result = serde_json::from_str::<Vec<EncodedLocation>>(result.get()).ok();
 
                 result.map(MessageResult::References)
             }
             "textDocument/definition" => {
                 let result = message.result.as_ref()?;
 
-                let result = serde_json::from_str::<LspDefinitionResult>(result.get())
+                let result = serde_json::from_str::<EncodedDefinitionResult>(result.get())
                     .ok()
                     .and_then(|result| match result {
-                        LspDefinitionResult::None => None,
-                        LspDefinitionResult::Location(location) => Some(location),
-                        LspDefinitionResult::Locations(locations) => locations.into_iter().nth(0),
-                        LspDefinitionResult::Links(links) => {
-                            links.into_iter().nth(0).map(|link| LspLocation {
+                        EncodedDefinitionResult::None => None,
+                        EncodedDefinitionResult::Location(location) => Some(location),
+                        EncodedDefinitionResult::Locations(locations) => {
+                            locations.into_iter().nth(0)
+                        }
+                        EncodedDefinitionResult::Links(links) => {
+                            links.into_iter().nth(0).map(|link| EncodedLocation {
                                 uri: link.target_uri,
                                 range: link.target_range,
                             })
@@ -434,13 +437,13 @@ impl LanguageServer {
             }
             "textDocument/formatting" => {
                 let result = message.result.as_ref()?;
-                let result = serde_json::from_str::<Vec<LspTextEdit>>(result.get()).ok();
+                let result = serde_json::from_str::<Vec<EncodedTextEdit>>(result.get()).ok();
 
                 result.map(MessageResult::Formatting)
             }
             "client/registerCapability" => {
                 let params = message.params.as_ref()?;
-                let params = serde_json::from_str::<LspRegistrationParams>(params.get()).ok()?;
+                let params = serde_json::from_str::<RegistrationParams>(params.get()).ok()?;
 
                 for registration in params.registrations {
                     if registration.method == "textDocument/diagnostic" {
@@ -459,7 +462,7 @@ impl LanguageServer {
     pub(super) fn set_diagnostics(
         &mut self,
         path: Pooled<PathBuf>,
-        mut diagnostics: Vec<LspDiagnostic>,
+        mut diagnostics: Vec<EncodedDiagnostic>,
     ) {
         let path_diagnostics = self.diagnostics.entry(path).or_default();
         path_diagnostics.replace(&mut diagnostics);
@@ -498,8 +501,8 @@ impl LanguageServer {
                 "contentChanges": [{
                     "text": text,
                     "range": {
-                        "start": LspPosition::encode(start, self.position_encoding, doc),
-                        "end": LspPosition::encode(end, self.position_encoding, doc),
+                        "start": EncodedPosition::encode(start, self.position_encoding, doc),
+                        "end": EncodedPosition::encode(end, self.position_encoding, doc),
                     }
                 }]
             }),
@@ -514,12 +517,16 @@ impl LanguageServer {
                 "textDocument": {
                     "uri": path_to_uri(path),
                 },
-                "position": LspPosition::encode(position, self.position_encoding, doc),
+                "position": EncodedPosition::encode(position, self.position_encoding, doc),
             }),
         )
     }
 
-    pub fn completion_item_resolve(&mut self, item: CompletionItem, doc: &Doc) -> LspSentRequest {
+    pub fn completion_item_resolve(
+        &mut self,
+        item: DecodedCompletionItem,
+        doc: &Doc,
+    ) -> LspSentRequest {
         self.send_request(
             doc.path().some_path(),
             "completionItem/resolve",
@@ -535,16 +542,12 @@ impl LanguageServer {
         doc: &Doc,
     ) -> LspSentRequest {
         let encoding = self.position_encoding;
-        let mut overlapping_diagnostic = None;
 
-        for diagnostic in self.get_diagnostics_mut(doc) {
-            let (diagnostic_start, diagnostic_end) = diagnostic.range;
-
-            if start <= diagnostic_end && end >= diagnostic_start {
-                overlapping_diagnostic = Some(diagnostic.encode(encoding, doc));
-                break;
-            }
-        }
+        let overlapping_diagnostic = self
+            .get_diagnostics_mut(doc)
+            .iter()
+            .find(|DecodedDiagnostic { range, .. }| start <= range.end && end >= range.start)
+            .map(|diagnostic| diagnostic.encode(encoding, doc));
 
         self.send_request(
             Some(path),
@@ -554,8 +557,8 @@ impl LanguageServer {
                     "uri": path_to_uri(path),
                 },
                 "range": {
-                    "start": LspPosition::encode(start, encoding, doc),
-                    "end": LspPosition::encode(end, encoding, doc),
+                    "start": EncodedPosition::encode(start, encoding, doc),
+                    "end": EncodedPosition::encode(end, encoding, doc),
                 },
                 "context": {
                     "diagnostics": overlapping_diagnostic.as_slice(),
@@ -572,7 +575,7 @@ impl LanguageServer {
                 "textDocument": {
                     "uri": path_to_uri(path),
                 },
-                "position": LspPosition::encode(position, self.position_encoding, doc),
+                "position": EncodedPosition::encode(position, self.position_encoding, doc),
             }),
         )
     }
@@ -591,7 +594,7 @@ impl LanguageServer {
                 "textDocument": {
                     "uri": path_to_uri(path),
                 },
-                "position": LspPosition::encode(position, self.position_encoding, doc),
+                "position": EncodedPosition::encode(position, self.position_encoding, doc),
                 "newName": new_name,
             }),
         )
@@ -605,7 +608,7 @@ impl LanguageServer {
                 "textDocument": {
                     "uri": path_to_uri(path),
                 },
-                "position": LspPosition::encode(position, self.position_encoding, doc),
+                "position": EncodedPosition::encode(position, self.position_encoding, doc),
                 "context": {
                     "includeDeclaration": true,
                 },
@@ -632,7 +635,7 @@ impl LanguageServer {
                 "textDocument": {
                     "uri": path_to_uri(path),
                 },
-                "position": LspPosition::encode(position, self.position_encoding, doc),
+                "position": EncodedPosition::encode(position, self.position_encoding, doc),
             }),
         )
     }
@@ -652,7 +655,7 @@ impl LanguageServer {
                 "textDocument": {
                     "uri": path_to_uri(path),
                 },
-                "position": LspPosition::encode(position, self.position_encoding, doc),
+                "position": EncodedPosition::encode(position, self.position_encoding, doc),
                 "context": {
                     "triggerKind": if trigger_char.is_some() {
                         2

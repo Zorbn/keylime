@@ -8,7 +8,10 @@ use crate::{
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::action::action_keybind,
     lsp::{
-        types::{CodeAction, CodeActionResult, Command, CompletionItem, Documentation, EditList},
+        types::{
+            Command, DecodedCodeAction, DecodedCodeActionResult, DecodedCompletionItem,
+            DecodedEditList, DecodedRange, Documentation,
+        },
         LspSentRequest,
     },
     platform::gfx::Gfx,
@@ -34,11 +37,11 @@ enum CompletionResolveState {
 enum CompletionResult {
     SimpleCompletion(Pooled<String>),
     Completion {
-        item: CompletionItem,
+        item: DecodedCompletionItem,
         resolve_state: CompletionResolveState,
     },
     Command(Command),
-    CodeAction(CodeAction),
+    CodeAction(DecodedCodeAction),
 }
 
 impl CompletionResult {
@@ -65,7 +68,7 @@ enum CompletionPopupCache {
 
 #[derive(Debug, Default)]
 pub struct CompletionListResult {
-    pub edit_lists: Vec<EditList>,
+    pub edit_lists: Vec<DecodedEditList>,
     pub command: Option<Command>,
 }
 
@@ -187,7 +190,7 @@ impl CompletionList {
     }
 
     fn lsp_completion_item_resolve(
-        item: &CompletionItem,
+        item: &DecodedCompletionItem,
         doc: &mut Doc,
         ctx: &mut Ctx,
     ) -> Option<LspSentRequest> {
@@ -231,7 +234,7 @@ impl CompletionList {
 
         let CompletionResult::Completion {
             item:
-                CompletionItem {
+                DecodedCompletionItem {
                     ref detail,
                     ref documentation,
                     ..
@@ -250,7 +253,7 @@ impl CompletionList {
             CompletionPopupCache::PreviousIndex(index) => {
                 if let Some(CompletionResult::Completion {
                     item:
-                        CompletionItem {
+                        DecodedCompletionItem {
                             detail,
                             documentation,
                             ..
@@ -303,7 +306,7 @@ impl CompletionList {
         }
     }
 
-    pub fn lsp_resolve_completion_item(&mut self, id: Option<usize>, item: CompletionItem) {
+    pub fn lsp_resolve_completion_item(&mut self, id: Option<usize>, item: DecodedCompletionItem) {
         let Some(id) = id else {
             return;
         };
@@ -326,10 +329,10 @@ impl CompletionList {
         *resolve_state = CompletionResolveState::Resolved;
     }
 
-    pub fn lsp_update_completion_results(&mut self, mut items: Vec<CompletionItem>) {
+    pub fn lsp_update_completion_results(&mut self, mut items: Vec<DecodedCompletionItem>) {
         if let Some(CompletionResult::Completion {
             item:
-                CompletionItem {
+                DecodedCompletionItem {
                     detail,
                     documentation,
                     ..
@@ -356,17 +359,17 @@ impl CompletionList {
         }
     }
 
-    pub fn lsp_update_code_action_results(&mut self, results: Vec<CodeActionResult>) {
+    pub fn lsp_update_code_action_results(&mut self, results: Vec<DecodedCodeActionResult>) {
         self.clear();
 
         for result in results {
             match result {
-                CodeActionResult::Command(command) => {
+                DecodedCodeActionResult::Command(command) => {
                     self.result_list
                         .results
                         .push(CompletionResult::Command(command));
                 }
-                CodeActionResult::CodeAction(code_action) => {
+                DecodedCodeActionResult::CodeAction(code_action) => {
                     let index = if code_action.is_preferred {
                         0
                     } else {
@@ -461,14 +464,14 @@ impl CompletionList {
             CompletionResult::Completion { mut item, .. } => {
                 let insert_text = item.insert_text();
 
-                if let Some((start, end)) = item.range() {
+                if let Some(DecodedRange { start, end }) = item.range() {
                     doc.delete(start, end, ctx);
                     doc.insert(start, insert_text, ctx);
                 } else {
                     doc.insert_at_cursors(&insert_text[self.prefix.len()..], ctx);
                 }
 
-                doc.apply_edit_list(&mut item.additional_text_edits, ctx);
+                doc.lsp_apply_edit_list(&mut item.additional_text_edits, ctx);
 
                 None
             }

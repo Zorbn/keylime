@@ -13,7 +13,7 @@ use std::{
 use crate::{
     ctx::{ctx_with_time, Ctx},
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
-    lsp::{types::TextEdit, LspExpectedResponse},
+    lsp::{types::DecodedDiagnostic, LspExpectedResponse},
     normalizable::Normalizable,
     platform::gfx::Gfx,
     pool::{Pooled, STRING_POOL},
@@ -1194,13 +1194,9 @@ impl Doc {
         }
 
         for language_server in ctx.lsp.iter_servers_mut() {
-            for diagnostic in language_server.get_diagnostics_mut(self) {
-                let (diagnostic_start, diagnostic_end) = diagnostic.range;
-
-                let diagnostic_start = shift_fn(self, start, end, diagnostic_start);
-                let diagnostic_end = shift_fn(self, start, end, diagnostic_end);
-
-                diagnostic.range = (diagnostic_start, diagnostic_end);
+            for DecodedDiagnostic { range, .. } in language_server.get_diagnostics_mut(self) {
+                range.start = shift_fn(self, start, end, range.start);
+                range.end = shift_fn(self, start, end, range.end);
             }
         }
     }
@@ -2020,29 +2016,6 @@ impl Doc {
 
         self.get_line(prefix_end.y)
             .map(|line| &line[prefix_start.x..prefix_end.x])
-    }
-
-    pub fn apply_edit_list(&mut self, edits: &mut [TextEdit], ctx: &mut Ctx) {
-        for i in 0..edits.len() {
-            let current_edit = &edits[i];
-
-            let (start, end) = current_edit.range;
-
-            self.delete(start, end, ctx);
-            let insert_end = self.insert(start, &current_edit.new_text, ctx);
-
-            for future_edit in edits.iter_mut().skip(i + 1) {
-                let (future_start, future_end) = future_edit.range;
-
-                let future_start = self.shift_position_by_delete(start, end, future_start);
-                let future_end = self.shift_position_by_delete(start, end, future_end);
-
-                let future_start = self.shift_position_by_insert(start, insert_end, future_start);
-                let future_end = self.shift_position_by_insert(start, insert_end, future_end);
-
-                future_edit.range = (future_start, future_end);
-            }
-        }
     }
 
     pub fn version(&self) -> usize {

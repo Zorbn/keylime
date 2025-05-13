@@ -17,7 +17,7 @@ use crate::{
         mouse_button::MouseButton,
         mousebind::{MouseClickKind, Mousebind},
     },
-    lsp::{types::EditList, uri::uri_to_path},
+    lsp::{types::DecodedEditList, uri::uri_to_path},
     platform::{
         dialog::{find_file, message, FindFileKind, MessageKind},
         file_watcher::FileWatcher,
@@ -239,7 +239,7 @@ impl Editor {
             .completion_list
             .update(ui, &self.widget, doc, is_cursor_visible, ctx);
 
-        self.handle_completion_list_result(result, ctx);
+        self.lsp_handle_completion_list_result(result, ctx);
     }
 
     fn post_pane_update(
@@ -281,14 +281,14 @@ impl Editor {
         self.completion_list.update_camera(dt);
     }
 
-    pub fn handle_completion_list_result(
+    pub fn lsp_handle_completion_list_result(
         &mut self,
         result: Option<CompletionListResult>,
         ctx: &mut Ctx,
     ) -> Option<()> {
         let result = result?;
 
-        self.apply_edit_lists(result.edit_lists, ctx);
+        self.lsp_apply_edit_lists(result.edit_lists, ctx);
 
         let command = result.command?;
         let (_, doc) = self.get_focused_tab_and_doc_mut()?;
@@ -299,14 +299,18 @@ impl Editor {
         Some(())
     }
 
-    pub fn apply_edit_lists(&mut self, edit_lists: Vec<EditList>, ctx: &mut Ctx) -> Option<()> {
+    pub fn lsp_apply_edit_lists(
+        &mut self,
+        edit_lists: Vec<DecodedEditList>,
+        ctx: &mut Ctx,
+    ) -> Option<()> {
         for mut edit_list in edit_lists {
             let path = uri_to_path(&edit_list.uri)?;
 
             self.with_doc(path, ctx, |doc, ctx| {
                 let edits = &mut edit_list.edits;
 
-                doc.apply_edit_list(edits, ctx);
+                doc.lsp_apply_edit_list(edits, ctx);
             });
         }
 
@@ -408,8 +412,7 @@ impl Editor {
             let gfx = &mut ctx.gfx;
             let theme = &ctx.config.theme;
 
-            let (start, _) = diagnostic.get_visible_range(doc);
-
+            let start = diagnostic.get_visible_range(doc).start;
             let mut position = doc.position_to_visual(start, tab.camera.position(), gfx);
             position = position.offset_by(tab.doc_bounds());
 

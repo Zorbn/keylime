@@ -10,7 +10,7 @@ use std::{
 };
 
 use language_server::{LanguageServer, MessageResult};
-use types::{Diagnostic, LspMessage, TextEdit};
+use types::{DecodedDiagnostic, DecodedRange, DecodedTextEdit, Message};
 use uri::uri_to_path;
 
 use crate::{
@@ -76,7 +76,7 @@ impl Lsp {
     }
 
     fn handle_message(
-        (language_index, message): (usize, LspMessage),
+        (language_index, message): (usize, Message),
         editor: &mut Editor,
         command_palette: &mut CommandPalette,
         ui: &mut Ui,
@@ -133,7 +133,7 @@ impl Lsp {
             }
             MessageResult::PrepareRename { range, placeholder } => {
                 let doc = doc?;
-                let (start, end) = range.decode(encoding, doc);
+                let DecodedRange { start, end } = range.decode(encoding, doc);
 
                 let placeholder = placeholder.unwrap_or_else(|| {
                     STRING_POOL.init_item(|placeholder| doc.collect_string(start, end, placeholder))
@@ -145,7 +145,7 @@ impl Lsp {
                 let doc = doc?;
                 let edit_lists = workspace_edit.decode(encoding, doc);
 
-                editor.apply_edit_lists(edit_lists, ctx);
+                editor.lsp_apply_edit_lists(edit_lists, ctx);
             }
             MessageResult::References(mut results) => {
                 results.sort_by(|a, b| a.uri.cmp(b.uri));
@@ -171,7 +171,7 @@ impl Lsp {
                             }
 
                             let next_result = results.next().unwrap();
-                            let (result_position, _) = next_result.range.decode(encoding, doc);
+                            let result_position = next_result.range.decode(encoding, doc).start;
 
                             let Some(result) =
                                 FindInFilesMode::position_to_result(result_position, root, doc)
@@ -201,7 +201,7 @@ impl Lsp {
                 let focused_tab_index = pane.focused_tab_index();
                 let (tab, doc) = pane.get_tab_with_data_mut(focused_tab_index, doc_list)?;
 
-                let (position, _) = range.decode(encoding, doc);
+                let position = range.decode(encoding, doc).start;
 
                 doc.jump_cursors(position, false, ctx.gfx);
                 tab.camera.recenter();
@@ -214,12 +214,12 @@ impl Lsp {
             MessageResult::Formatting(edits) => {
                 let doc = doc?;
 
-                let mut edits: Vec<TextEdit> = edits
+                let mut edits: Vec<DecodedTextEdit> = edits
                     .into_iter()
                     .map(|edit| edit.decode(encoding, doc))
                     .collect();
 
-                doc.apply_edit_list(&mut edits, ctx);
+                doc.lsp_apply_edit_list(&mut edits, ctx);
                 let _ = doc.save(None, ctx);
             }
             MessageResult::Diagnostic(diagnostics) => {
@@ -233,7 +233,7 @@ impl Lsp {
         Some(())
     }
 
-    fn poll(&mut self) -> Option<(usize, LspMessage)> {
+    fn poll(&mut self) -> Option<(usize, Message)> {
         for (index, server) in self.servers.iter_mut() {
             let Some(server) = server else {
                 continue;
@@ -283,7 +283,7 @@ impl Lsp {
         &'a mut self,
         position: Position,
         doc: &Doc,
-    ) -> Option<&'a mut Diagnostic> {
+    ) -> Option<&'a mut DecodedDiagnostic> {
         for language_server in self.iter_servers_mut() {
             for diagnostic in language_server.get_diagnostics_mut(doc) {
                 if !diagnostic.contains_position(position, doc) {

@@ -11,6 +11,7 @@ use crate::{
         mouse_button::MouseButton,
         mousebind::{MouseClickKind, Mousebind},
     },
+    lsp::types::DecodedRange,
     platform::gfx::Gfx,
     pool::Pooled,
     text::{
@@ -497,7 +498,7 @@ impl Tab {
             // Reversed so that more severe diagnostics are drawn on top.
             for diagnostic in language_server.get_diagnostics_mut(doc).iter().rev() {
                 let color = diagnostic.color(theme);
-                let (start, end) = diagnostic.get_visible_range(doc);
+                let DecodedRange { start, end } = diagnostic.get_visible_range(doc);
 
                 if start == end && start.y >= visible_lines.min_y && start.y <= visible_lines.max_y
                 {
@@ -676,7 +677,7 @@ impl Tab {
                 }
 
                 let color = diagnostic.color(theme);
-                let (start, end) = diagnostic.range;
+                let DecodedRange { start, end } = diagnostic.range;
 
                 gfx.add_rect(
                     self.doc_range_to_scrollbar_rect(start.y as f32, end.y as f32, doc, gfx),
