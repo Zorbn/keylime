@@ -21,7 +21,10 @@ use platform::app_runner::run_app;
 /*
  * TODO:
  * If the language server returns no completions for a request use simple completions instead.
- * Add LSP hover documentation support.
+ * Make performing completions work for all cursors when using multicursor?
+ * Add a command palette mode that lists all diagnostics and lets you jump to them.
+ * Add LSP hover documentation/diagnostic support.
+ * - Also, rename ShowDiagnostic to something else and make it so that it shows documentation if there is no diagnostic at the cursor.
  * Consider renaming DocKind::Output to DocKind::Raw
  * Consider making DocKinds predefined BitFields that store a list of features such action history, position shifting, multi line, etc.
  */
