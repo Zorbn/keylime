@@ -535,6 +535,16 @@ impl LanguageServer {
         doc: &Doc,
     ) -> LspSentRequest {
         let encoding = self.position_encoding;
+        let mut overlapping_diagnostic = None;
+
+        for diagnostic in self.get_diagnostics_mut(doc) {
+            let (diagnostic_start, diagnostic_end) = diagnostic.range;
+
+            if start <= diagnostic_end && end >= diagnostic_start {
+                overlapping_diagnostic = Some(diagnostic.encode(encoding, doc));
+                break;
+            }
+        }
 
         self.send_request(
             Some(path),
@@ -548,7 +558,7 @@ impl LanguageServer {
                     "end": LspPosition::encode(end, encoding, doc),
                 },
                 "context": {
-                    "diagnostics": [],
+                    "diagnostics": overlapping_diagnostic.as_slice(),
                 },
             }),
         )

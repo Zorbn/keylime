@@ -403,6 +403,14 @@ impl Diagnostic {
 
         position.x >= doc.get_line_start(position.y) && position >= start && position <= end
     }
+
+    pub(super) fn encode(&self, encoding: PositionEncoding, doc: &Doc) -> LspDiagnostic {
+        LspDiagnostic {
+            message: self.message.clone(),
+            range: LspRange::encode(self.range, encoding, doc),
+            severity: self.severity,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

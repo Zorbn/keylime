@@ -14,7 +14,7 @@ impl<T> FocusList<T> {
     }
 
     pub fn focus_next(&mut self) {
-        if self.focused_index < self.items.len() - 1 {
+        if self.focused_index < self.items.len().saturating_sub(1) {
             self.focused_index += 1;
         }
     }
@@ -26,9 +26,7 @@ impl<T> FocusList<T> {
     }
 
     fn clamp_focused(&mut self) {
-        if self.focused_index >= self.items.len() {
-            self.focused_index = self.items.len().saturating_sub(1);
-        }
+        self.focused_index = self.focused_index.min(self.items.len().saturating_sub(1));
     }
 
     pub fn add(&mut self, item: T) {
@@ -41,11 +39,11 @@ impl<T> FocusList<T> {
     }
 
     pub fn insert(&mut self, index: usize, item: T) {
-        self.items.insert(index, item);
-
-        if self.focused_index >= index {
+        if index < self.items.len() && self.focused_index >= index {
             self.focused_index += 1;
         }
+
+        self.items.insert(index, item);
     }
 
     pub fn push(&mut self, item: T) {

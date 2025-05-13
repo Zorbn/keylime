@@ -32,12 +32,7 @@ impl Doc {
         );
     }
 
-    pub fn lsp_is_response_expected(
-        &mut self,
-        method: &str,
-        id: Option<usize>,
-        ctx: &mut Ctx,
-    ) -> bool {
+    pub fn lsp_is_response_expected(&mut self, method: &str, id: Option<usize>) -> bool {
         let Some(id) = id else {
             // This was a notification so it's expected by default.
             return true;
@@ -64,14 +59,6 @@ impl Doc {
 
         if !is_position_expected || !is_version_expected {
             // We received the expected response, but the doc didn't match the expected state.
-            if method == "textDocument/completion" {
-                self.lsp_completion(ctx);
-            }
-
-            if method == "textDocument/diagnostic" {
-                self.lsp_diagnostic(ctx);
-            }
-
             return false;
         }
 
