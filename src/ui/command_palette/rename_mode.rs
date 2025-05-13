@@ -32,9 +32,9 @@ impl CommandPaletteMode for RenameMode {
         args: CommandPaletteEventArgs,
         _: ResultListSubmitKind,
     ) -> CommandPaletteAction {
-        let (pane, doc_list) = args.editor.get_focused_pane_and_doc_list();
+        let (pane, doc_list) = args.editor.focused_pane_and_doc_list();
         let focused_tab_index = pane.focused_tab_index();
-        let input = command_palette.get_input();
+        let input = command_palette.input();
 
         let Some((_, doc)) = pane.get_tab_with_data(focused_tab_index, doc_list) else {
             return CommandPaletteAction::Close;

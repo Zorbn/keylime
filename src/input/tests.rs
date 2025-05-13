@@ -13,11 +13,7 @@ test_with_doc!(
         doc.jump_cursor(CursorIndex::Main, Position::new(0, 1), false, ctx.gfx);
         handle_delete_backward(DeleteKind::Char, doc, ctx);
 
-        assert_eq!(
-            doc.get_cursor(CursorIndex::Main).position,
-            Position::new(11, 0)
-        );
-
+        assert_eq!(doc.cursor(CursorIndex::Main).position, Position::new(11, 0));
         assert_eq!(doc.get_line(0), Some("hello worldgoodbye world"));
         assert_eq!(doc.get_line(1), None);
     }

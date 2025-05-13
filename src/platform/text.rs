@@ -39,7 +39,7 @@ impl Text {
                 ref mut cache,
             } = text;
 
-            inner.get_glyphs(
+            inner.glyphs(
                 cache,
                 GlyphCacheResult::Miss,
                 "M",
@@ -53,7 +53,7 @@ impl Text {
         Ok(text)
     }
 
-    pub fn get_glyph_spans(&mut self, text: &str) -> (GlyphSpans, GlyphCacheResult) {
+    pub fn glyph_spans(&mut self, text: &str) -> (GlyphSpans, GlyphCacheResult) {
         let mut text_cache_data = self.cache.layout_data.borrow_mut();
 
         let data_start = text_cache_data.len();
@@ -83,7 +83,7 @@ impl Text {
                 &self.cache.last_glyph_spans[glyph_spans.spans_start..glyph_spans.spans_end],
             );
         } else {
-            result = result.worse(self.get_uncached_layout_glyph_spans(text));
+            result = result.worse(self.uncached_layout_glyph_spans(text));
         };
 
         let spans_end = self.cache.glyph_spans.len();
@@ -98,7 +98,7 @@ impl Text {
         (glyph_spans, result)
     }
 
-    fn get_uncached_layout_glyph_spans(&mut self, text: &str) -> GlyphCacheResult {
+    fn uncached_layout_glyph_spans(&mut self, text: &str) -> GlyphCacheResult {
         let Text { inner, cache } = self;
 
         let mut glyphs_start = 0;
@@ -160,12 +160,12 @@ impl Text {
         let glyph_text = &text[glyphs_start..char_cursor.cur_cursor()];
 
         unsafe {
-            inner.get_glyphs(
+            inner.glyphs(
                 cache,
                 GlyphCacheResult::Hit,
                 glyph_text,
                 |inner, cache, glyph, result| {
-                    let (glyph_span, glyph_cache_result) = cache.get_glyph_span(inner, glyph);
+                    let (glyph_span, glyph_cache_result) = cache.glyph_span(inner, glyph);
 
                     cache.glyph_spans.push(glyph_span);
                     result.worse(glyph_cache_result)
@@ -174,7 +174,7 @@ impl Text {
         }
     }
 
-    pub fn get_glyph_span(&mut self, index: usize) -> GlyphSpan {
+    pub fn glyph_span(&mut self, index: usize) -> GlyphSpan {
         self.cache.glyph_spans[index]
     }
 

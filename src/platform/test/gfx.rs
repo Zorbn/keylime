@@ -18,14 +18,14 @@ impl Gfx {
 
     pub fn end(&mut self) {}
 
-    pub fn get_glyph_spans(&mut self, _text: &str) -> GlyphSpans {
+    pub fn glyph_spans(&mut self, _text: &str) -> GlyphSpans {
         GlyphSpans {
             spans_start: 0,
             spans_end: 0,
         }
     }
 
-    pub fn get_glyph_span(&mut self, _index: usize) -> GlyphSpan {
+    pub fn glyph_span(&mut self, _index: usize) -> GlyphSpan {
         GlyphSpan::Space
     }
 

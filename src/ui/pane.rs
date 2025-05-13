@@ -79,7 +79,7 @@ impl<T> Pane<T> {
     }
 
     pub fn update(&mut self, widget: &Widget, ui: &mut Ui, window: &mut Window) {
-        let mut mousebind_handler = ui.get_mousebind_handler(widget, window);
+        let mut mousebind_handler = ui.mousebind_handler(widget, window);
 
         while let Some(mousebind) = mousebind_handler.next(window) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
@@ -152,7 +152,7 @@ impl<T> Pane<T> {
             }
         }
 
-        let mut action_handler = ui.get_action_handler(widget, window);
+        let mut action_handler = ui.action_handler(widget, window);
 
         while let Some(action) = action_handler.next(window) {
             match action {
@@ -301,14 +301,14 @@ impl<T> Pane<T> {
     ) -> Rect {
         let theme = &ctx.config.theme;
 
-        let text_color = Self::get_tab_color(doc, theme, ctx);
+        let text_color = Self::tab_color(doc, theme, ctx);
 
         let mut tab_bounds = tab.tab_bounds().unoffset_by(bounds);
         let mut tab_background = theme.background;
 
         if is_focused {
             if let Some(offset) = dragged_tab_offset {
-                tab_bounds.x += ctx.window.get_mouse_position().x - tab_bounds.x + offset;
+                tab_bounds.x += ctx.window.mouse_position().x - tab_bounds.x + offset;
             }
 
             if let Some(background) = background {
@@ -340,9 +340,9 @@ impl<T> Pane<T> {
         tab_bounds
     }
 
-    fn get_tab_color(doc: &Doc, theme: &Theme, ctx: &mut Ctx) -> Color {
+    fn tab_color(doc: &Doc, theme: &Theme, ctx: &mut Ctx) -> Color {
         for language_server in ctx.lsp.iter_servers_mut() {
-            for diagnostic in language_server.get_diagnostics_mut(doc) {
+            for diagnostic in language_server.diagnostics_mut(doc) {
                 if !diagnostic.is_problem() {
                     continue;
                 }

@@ -96,7 +96,7 @@ impl Editor {
             return;
         };
 
-        let cursor_position = doc.get_cursor(CursorIndex::Main).position;
+        let cursor_position = doc.cursor(CursorIndex::Main).position;
         let cursor_visual_position = doc
             .position_to_visual(cursor_position, tab.camera.position().floor(), gfx)
             .offset_by(tab.doc_bounds());
@@ -138,7 +138,7 @@ impl Editor {
     }
 
     fn handle_mousebinds(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        let mut mousebind_handler = ui.get_mousebind_handler(&self.widget, ctx.window);
+        let mut mousebind_handler = ui.mousebind_handler(&self.widget, ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position =
@@ -168,7 +168,7 @@ impl Editor {
     }
 
     fn handle_actions(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        let mut action_handler = ui.get_action_handler(&self.widget, ctx.window);
+        let mut action_handler = ui.action_handler(&self.widget, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
@@ -206,7 +206,7 @@ impl Editor {
                 }
                 action_keybind!(key: Escape, mods: Mods::NONE) => {
                     if let Some((_, doc)) = self.get_focused_tab_and_doc() {
-                        let position = doc.get_cursor(CursorIndex::Main).position;
+                        let position = doc.cursor(CursorIndex::Main).position;
 
                         if self.signature_help_popup.is_open() {
                             self.signature_help_popup.clear();
@@ -264,7 +264,7 @@ impl Editor {
         self.completion_list
             .update_results(doc, self.handled_position, ctx);
 
-        let position = doc.get_cursor(CursorIndex::Main).position;
+        let position = doc.cursor(CursorIndex::Main).position;
 
         self.handled_position = Some(position);
 
@@ -361,7 +361,7 @@ impl Editor {
     }
 
     fn reload_changed_files(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
-        let changed_files = file_watcher.get_changed_files();
+        let changed_files = file_watcher.changed_files();
 
         for path in changed_files {
             for doc in self.doc_list.iter_mut().flatten() {
@@ -406,13 +406,13 @@ impl Editor {
     }
 
     fn draw_diagnostic_popup(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
-        let position = doc.get_cursor(CursorIndex::Main).position;
+        let position = doc.cursor(CursorIndex::Main).position;
 
         if let Some(diagnostic) = ctx.lsp.get_diagnostic_at(position, doc) {
             let gfx = &mut ctx.gfx;
             let theme = &ctx.config.theme;
 
-            let start = diagnostic.get_visible_range(doc).start;
+            let start = diagnostic.visible_range(doc).start;
             let mut position = doc.position_to_visual(start, tab.camera.position(), gfx);
             position = position.offset_by(tab.doc_bounds());
 
@@ -451,7 +451,7 @@ impl Editor {
             return false;
         };
 
-        let cursor_position = doc.get_cursor(CursorIndex::Main).position;
+        let cursor_position = doc.cursor(CursorIndex::Main).position;
         let cursor_visual_position = doc
             .position_to_visual(cursor_position, tab.camera.position(), gfx)
             .shift_y(gfx.line_height())
@@ -487,11 +487,11 @@ impl Editor {
         confirm_close_all(&mut self.doc_list, "exiting", ctx);
     }
 
-    pub fn get_focused_pane_and_doc_list(&self) -> (&EditorPane, &SlotList<Doc>) {
+    pub fn focused_pane_and_doc_list(&self) -> (&EditorPane, &SlotList<Doc>) {
         (self.panes.get_focused().unwrap(), &self.doc_list)
     }
 
-    pub fn get_focused_pane_and_doc_list_mut(&mut self) -> (&mut EditorPane, &mut SlotList<Doc>) {
+    pub fn focused_pane_and_doc_list_mut(&mut self) -> (&mut EditorPane, &mut SlotList<Doc>) {
         (self.panes.get_focused_mut().unwrap(), &mut self.doc_list)
     }
 

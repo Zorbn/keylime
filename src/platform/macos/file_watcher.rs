@@ -133,7 +133,7 @@ impl FileWatcher {
         Ok(())
     }
 
-    pub fn get_changed_files(&mut self) -> &[Pooled<PathBuf>] {
+    pub fn changed_files(&mut self) -> &[Pooled<PathBuf>] {
         let mut watch_thread_changed_files = self.watch_thread_changed_files.lock().unwrap();
 
         self.changed_files

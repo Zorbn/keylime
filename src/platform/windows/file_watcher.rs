@@ -180,7 +180,7 @@ impl FileWatcher {
         Ok(())
     }
 
-    pub fn get_changed_files(&mut self) -> &[Pooled<PathBuf>] {
+    pub fn changed_files(&mut self) -> &[Pooled<PathBuf>] {
         &self.changed_files
     }
 

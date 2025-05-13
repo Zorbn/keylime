@@ -80,7 +80,7 @@ impl Terminal {
     }
 
     pub fn update(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        let mut global_action_handler = ctx.window.get_action_handler();
+        let mut global_action_handler = ctx.window.action_handler();
 
         while let Some(action) = global_action_handler.next(ctx.window) {
             match action {

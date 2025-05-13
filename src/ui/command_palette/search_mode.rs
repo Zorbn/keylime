@@ -28,7 +28,7 @@ impl CommandPaletteMode for SearchMode {
     }
 
     fn on_open(&mut self, _: &mut CommandPalette, args: CommandPaletteEventArgs) {
-        self.start = get_start(args.editor);
+        self.start = start(args.editor);
     }
 
     fn on_update_results(
@@ -45,9 +45,9 @@ impl CommandPaletteMode for SearchMode {
         args: CommandPaletteEventArgs,
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
-        let search_term = command_palette.get_input();
+        let search_term = command_palette.input();
 
-        let (pane, doc_list) = args.editor.get_focused_pane_and_doc_list_mut();
+        let (pane, doc_list) = args.editor.focused_pane_and_doc_list_mut();
         let focused_tab_index = pane.focused_tab_index();
 
         let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
@@ -91,7 +91,7 @@ impl CommandPaletteMode for SearchAndReplaceMode {
     }
 
     fn on_open(&mut self, _: &mut CommandPalette, args: CommandPaletteEventArgs) {
-        self.start = get_start(args.editor);
+        self.start = start(args.editor);
     }
 
     fn on_update_results(
@@ -113,15 +113,15 @@ impl CommandPaletteMode for SearchAndReplaceMode {
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
         let Some(search_term) = &self.search_term else {
-            self.search_term = Some(command_palette.get_input().into());
+            self.search_term = Some(command_palette.input().into());
             command_palette.doc.clear(args.ctx);
 
             return CommandPaletteAction::Stay;
         };
 
-        let replace_term = command_palette.get_input();
+        let replace_term = command_palette.input();
 
-        let (pane, doc_list) = args.editor.get_focused_pane_and_doc_list_mut();
+        let (pane, doc_list) = args.editor.focused_pane_and_doc_list_mut();
         let focused_tab_index = pane.focused_tab_index();
 
         let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
@@ -129,9 +129,7 @@ impl CommandPaletteMode for SearchAndReplaceMode {
         };
 
         if kind == ResultListSubmitKind::Normal && doc.cursors_len() == 1 {
-            if let Some(Selection { start, end }) =
-                doc.get_cursor(CursorIndex::Main).get_selection()
-            {
+            if let Some(Selection { start, end }) = doc.cursor(CursorIndex::Main).get_selection() {
                 let mut has_match = false;
 
                 if start.y == end.y && end.x - start.x == search_term.len() {
@@ -167,15 +165,15 @@ impl CommandPaletteMode for SearchAndReplaceMode {
     }
 }
 
-fn get_start(editor: &mut Editor) -> Position {
-    let (pane, doc_list) = editor.get_focused_pane_and_doc_list();
+fn start(editor: &mut Editor) -> Position {
+    let (pane, doc_list) = editor.focused_pane_and_doc_list();
     let focused_tab_index = pane.focused_tab_index();
 
     let Some((_, doc)) = pane.get_tab_with_data(focused_tab_index, doc_list) else {
         return Position::ZERO;
     };
 
-    doc.get_cursor(CursorIndex::Main).position
+    doc.cursor(CursorIndex::Main).position
 }
 
 fn preview_search(
@@ -184,9 +182,9 @@ fn preview_search(
     editor: &mut Editor,
     gfx: &mut Gfx,
 ) {
-    let search_term = command_palette.get_input();
+    let search_term = command_palette.input();
 
-    let (pane, doc_list) = editor.get_focused_pane_and_doc_list_mut();
+    let (pane, doc_list) = editor.focused_pane_and_doc_list_mut();
     let focused_tab_index = pane.focused_tab_index();
 
     let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
@@ -204,7 +202,7 @@ fn search(
     is_reverse: bool,
     gfx: &mut Gfx,
 ) {
-    let start = start.unwrap_or(doc.get_cursor(CursorIndex::Main).position);
+    let start = start.unwrap_or(doc.cursor(CursorIndex::Main).position);
 
     if let Some(position) = doc.search(search_term, start, is_reverse, gfx) {
         let end = doc.move_position(position, search_term.len() as isize, 0, gfx);

@@ -47,7 +47,7 @@ struct SyntaxDesc<'a> {
 }
 
 impl SyntaxDesc<'_> {
-    pub fn get_syntax(self) -> Syntax {
+    pub fn syntax(self) -> Syntax {
         let mut keywords = HashSet::new();
 
         for keyword in self.keywords {
@@ -226,13 +226,13 @@ impl Config {
             .and_then(|extension| self.get_language(extension))
     }
 
-    pub fn get_indent_width_for_doc(&self, doc: &Doc) -> IndentWidth {
+    pub fn indent_width_for_doc(&self, doc: &Doc) -> IndentWidth {
         self.get_language_for_doc(doc)
             .map(|language| language.indent_width)
             .unwrap_or_default()
     }
 
-    pub fn get_dir() -> Pooled<PathBuf> {
+    pub fn dir() -> Pooled<PathBuf> {
         if let Some(exe_dir) = current_exe().as_ref().ok().and_then(|exe| exe.parent()) {
             let mut config_path: Pooled<PathBuf> = exe_dir.into();
 

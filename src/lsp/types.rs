@@ -401,11 +401,11 @@ impl DecodedDiagnostic {
         }
     }
 
-    pub fn get_visible_range(&self, doc: &Doc) -> DecodedRange {
+    pub fn visible_range(&self, doc: &Doc) -> DecodedRange {
         let DecodedRange { mut start, mut end } = self.range;
 
-        start.x = start.x.max(doc.get_line_start(start.y));
-        end.x = end.x.max(doc.get_line_start(end.y));
+        start.x = start.x.max(doc.line_start(start.y));
+        end.x = end.x.max(doc.line_start(end.y));
 
         DecodedRange { start, end }
     }
@@ -413,7 +413,7 @@ impl DecodedDiagnostic {
     pub fn contains_position(&self, position: Position, doc: &Doc) -> bool {
         let DecodedRange { start, end } = self.range;
 
-        position.x >= doc.get_line_start(position.y) && position >= start && position <= end
+        position.x >= doc.line_start(position.y) && position >= start && position <= end
     }
 
     pub(super) fn encode(&self, encoding: PositionEncoding, doc: &Doc) -> EncodedDiagnostic {

@@ -28,7 +28,7 @@ impl Ui {
         let mut focused_widget_index = None;
         let mut hovered_widget_index = None;
 
-        let mut mousebind_handler = window.get_mousebind_handler();
+        let mut mousebind_handler = window.mousebind_handler();
 
         while let Some(mousebind) = mousebind_handler.next(window) {
             let position = VisualPosition::new(mousebind.x, mousebind.y);
@@ -47,7 +47,7 @@ impl Ui {
             mousebind_handler.unprocessed(window, mousebind);
         }
 
-        let mut mouse_scroll_handler = window.get_mouse_scroll_handler();
+        let mut mouse_scroll_handler = window.mouse_scroll_handler();
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
@@ -136,33 +136,33 @@ impl Ui {
         self.hovered_widget_id == widget.id && widget.is_visible
     }
 
-    pub fn get_grapheme_handler(&self, widget: &Widget, window: &Window) -> GraphemeHandler {
+    pub fn grapheme_handler(&self, widget: &Widget, window: &Window) -> GraphemeHandler {
         if self.is_focused(widget) {
-            window.get_grapheme_handler()
+            window.grapheme_handler()
         } else {
             GraphemeHandler::new(GraphemeCursor::new(0, 0))
         }
     }
 
-    pub fn get_action_handler(&self, widget: &Widget, window: &Window) -> ActionHandler {
+    pub fn action_handler(&self, widget: &Widget, window: &Window) -> ActionHandler {
         if self.is_focused(widget) {
-            window.get_action_handler()
+            window.action_handler()
         } else {
             ActionHandler::new(0)
         }
     }
 
-    pub fn get_mousebind_handler(&self, widget: &Widget, window: &Window) -> MousebindHandler {
+    pub fn mousebind_handler(&self, widget: &Widget, window: &Window) -> MousebindHandler {
         if self.is_focused(widget) {
-            window.get_mousebind_handler()
+            window.mousebind_handler()
         } else {
             MousebindHandler::new(0)
         }
     }
 
-    pub fn get_mouse_scroll_handler(&self, widget: &Widget, window: &Window) -> MouseScrollHandler {
+    pub fn mouse_scroll_handler(&self, widget: &Widget, window: &Window) -> MouseScrollHandler {
         if self.is_hovered(widget) {
-            window.get_mouse_scroll_handler()
+            window.mouse_scroll_handler()
         } else {
             MouseScrollHandler::new(0)
         }

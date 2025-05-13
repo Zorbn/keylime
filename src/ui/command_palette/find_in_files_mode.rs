@@ -49,7 +49,7 @@ impl FindInFilesMode {
         doc: &Doc,
     ) -> Option<CommandPaletteResult> {
         let line = doc.get_line(position.y)?;
-        let line_start = doc.get_line_start(position.y);
+        let line_start = doc.line_start(position.y);
 
         let relative_path = doc
             .path()
@@ -85,7 +85,7 @@ impl FindInFilesMode {
             return CommandPaletteAction::Stay;
         };
 
-        let (pane, doc_list) = args.editor.get_focused_pane_and_doc_list_mut();
+        let (pane, doc_list) = args.editor.focused_pane_and_doc_list_mut();
 
         if pane.open_file(path, doc_list, args.ctx).is_err() {
             return CommandPaletteAction::Stay;
@@ -150,15 +150,15 @@ impl FindInFilesMode {
         };
 
         while let Some(result_position) = doc.search_forward(
-            command_palette.get_input(),
-            doc.get_cursor(CursorIndex::Main).position,
+            command_palette.input(),
+            doc.cursor(CursorIndex::Main).position,
             false,
             ctx.gfx,
         ) {
             // Ignore additional results on the same line.
             doc.jump_cursor(
                 CursorIndex::Main,
-                doc.get_line_end(result_position.y),
+                doc.line_end(result_position.y),
                 false,
                 ctx.gfx,
             );
@@ -236,7 +236,7 @@ impl CommandPaletteMode for FindInFilesMode {
         self.clear_pending();
         self.needs_new_results = true;
 
-        if command_palette.get_input().is_empty() {
+        if command_palette.input().is_empty() {
             self.flush_pending_results(command_palette);
             return;
         };

@@ -51,7 +51,7 @@ impl Language {
             comment: desc.comment,
             lsp_language_id: desc.lsp_language_id,
             language_server_command: desc.language_server_command,
-            syntax: desc.syntax.map(|syntax_desc| syntax_desc.get_syntax()),
+            syntax: desc.syntax.map(|syntax_desc| syntax_desc.syntax()),
         }
     }
 }

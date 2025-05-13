@@ -75,7 +75,7 @@ impl Doc {
             };
         }
 
-        let position = self.get_cursor(CursorIndex::Main).position;
+        let position = self.cursor(CursorIndex::Main).position;
 
         let is_position_expected = expected_response
             .position
@@ -155,7 +155,7 @@ impl Doc {
     }
 
     pub fn lsp_completion(&mut self, ctx: &mut Ctx) -> Option<()> {
-        let position = self.get_cursor(CursorIndex::Main).position;
+        let position = self.cursor(CursorIndex::Main).position;
 
         if self.lsp_debounce_request("textDocument/completion", Some(position)) {
             return None;
@@ -180,7 +180,7 @@ impl Doc {
         let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
 
-        let cursor = self.get_cursor(CursorIndex::Main);
+        let cursor = self.cursor(CursorIndex::Main);
 
         let (start, end) = if let Some(selection) = cursor.get_selection() {
             (selection.start, selection.end)
@@ -201,7 +201,7 @@ impl Doc {
 
         let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
-        let position = self.get_cursor(CursorIndex::Main).position;
+        let position = self.cursor(CursorIndex::Main).position;
 
         let sent_request = language_server.prepare_rename(path, position, self);
         self.lsp_add_expected_response(sent_request, Some(position));
@@ -216,7 +216,7 @@ impl Doc {
 
         let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
-        let position = self.get_cursor(CursorIndex::Main).position;
+        let position = self.cursor(CursorIndex::Main).position;
 
         language_server.rename(new_name, path, position, self);
 
@@ -230,7 +230,7 @@ impl Doc {
 
         let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
-        let position = self.get_cursor(CursorIndex::Main).position;
+        let position = self.cursor(CursorIndex::Main).position;
 
         let sent_request = language_server.references(path, position, self);
         self.lsp_add_expected_response(sent_request, Some(position));
@@ -264,7 +264,7 @@ impl Doc {
 
         let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
-        let position = self.get_cursor(CursorIndex::Main).position;
+        let position = self.cursor(CursorIndex::Main).position;
 
         let sent_request =
             language_server.signature_help(path, position, trigger_char, is_retrigger, self);
@@ -278,7 +278,7 @@ impl Doc {
             return None;
         }
 
-        let indent_width = ctx.config.get_indent_width_for_doc(self);
+        let indent_width = ctx.config.indent_width_for_doc(self);
 
         let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
@@ -338,7 +338,7 @@ impl Doc {
     }
 
     pub fn lsp_debounced_request(&mut self, method: &str) -> bool {
-        let position = self.get_cursor(CursorIndex::Main).position;
+        let position = self.cursor(CursorIndex::Main).position;
 
         self.lsp_state
             .debounced_requests

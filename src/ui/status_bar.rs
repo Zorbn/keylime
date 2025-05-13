@@ -59,7 +59,7 @@ impl StatusBar {
 
     fn get_status_text(editor: &Editor, config: &Config) -> Option<Pooled<String>> {
         let (_, doc) = editor.get_focused_tab_and_doc()?;
-        let position = doc.get_cursor(CursorIndex::Main).position;
+        let position = doc.cursor(CursorIndex::Main).position;
 
         let mut status_text = STRING_POOL.new_item();
 

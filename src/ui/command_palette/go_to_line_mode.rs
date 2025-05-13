@@ -18,9 +18,9 @@ impl CommandPaletteMode for GoToLineMode {
         args: CommandPaletteEventArgs,
         _: ResultListSubmitKind,
     ) -> CommandPaletteAction {
-        let (pane, doc_list) = args.editor.get_focused_pane_and_doc_list_mut();
+        let (pane, doc_list) = args.editor.focused_pane_and_doc_list_mut();
         let focused_tab_index = pane.focused_tab_index();
-        let input = command_palette.get_input();
+        let input = command_palette.input();
 
         let Ok(line) = input.parse::<usize>() else {
             return CommandPaletteAction::Close;

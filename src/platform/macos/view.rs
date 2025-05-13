@@ -270,7 +270,7 @@ impl View {
         let mut state = self.ivars().state.try_borrow_mut().ok()?;
         let ViewState { app, window, gfx } = state.as_mut()?;
 
-        let (time, dt) = window.inner.get_time(app.is_animating());
+        let (time, dt) = window.inner.time(app.is_animating());
         app.update(window, gfx, time, dt);
 
         let (file_watcher, files, processes) = app.files_and_processes();

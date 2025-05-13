@@ -18,7 +18,7 @@ impl Text {
         Ok(Atlas::default())
     }
 
-    pub unsafe fn get_glyphs(
+    pub unsafe fn glyphs(
         &mut self,
         _text_cache: &mut TextCache,
         _glyph_cache_result: GlyphCacheResult,

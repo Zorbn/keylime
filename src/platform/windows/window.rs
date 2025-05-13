@@ -176,7 +176,7 @@ impl Window {
         self.mouse_scrolls.clear();
     }
 
-    pub fn get_time(&mut self, is_animating: bool) -> (f32, f32) {
+    pub fn time(&mut self, is_animating: bool) -> (f32, f32) {
         unsafe {
             let mut queried_time = 0i64;
             let _ = QueryPerformanceCounter(&mut queried_time);
@@ -268,23 +268,23 @@ impl Window {
         self.hwnd
     }
 
-    pub fn get_grapheme_handler(&self) -> GraphemeHandler {
+    pub fn grapheme_handler(&self) -> GraphemeHandler {
         GraphemeHandler::new(self.grapheme_cursor.clone())
     }
 
-    pub fn get_action_handler(&self) -> ActionHandler {
+    pub fn action_handler(&self) -> ActionHandler {
         ActionHandler::new(self.actions_typed.len())
     }
 
-    pub fn get_mousebind_handler(&self) -> MousebindHandler {
+    pub fn mousebind_handler(&self) -> MousebindHandler {
         MousebindHandler::new(self.mousebinds_pressed.len())
     }
 
-    pub fn get_mouse_scroll_handler(&self) -> MouseScrollHandler {
+    pub fn mouse_scroll_handler(&self) -> MouseScrollHandler {
         MouseScrollHandler::new(self.mouse_scrolls.len())
     }
 
-    pub fn get_mouse_position(&self) -> VisualPosition {
+    pub fn mouse_position(&self) -> VisualPosition {
         let mut point = POINT::default();
 
         unsafe {

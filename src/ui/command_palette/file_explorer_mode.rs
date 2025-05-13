@@ -130,11 +130,11 @@ impl FileExplorerMode {
         let input = if self.renaming_result_index.is_some() {
             &self.input_backup
         } else {
-            command_palette.get_input()
+            command_palette.input()
         };
 
         let mut path = PATH_POOL.new_item();
-        let dir = get_input_dir(input, &mut path);
+        let dir = input_dir(input, &mut path);
 
         let Ok(entries) = read_dir(dir) else {
             return;
@@ -204,7 +204,7 @@ impl CommandPaletteMode for FileExplorerMode {
     }
 
     fn on_open(&mut self, command_palette: &mut CommandPalette, args: CommandPaletteEventArgs) {
-        let (pane, doc_list) = args.editor.get_focused_pane_and_doc_list();
+        let (pane, doc_list) = args.editor.focused_pane_and_doc_list();
         let focused_tab_index = pane.focused_tab_index();
 
         let Some((_, doc)) = pane.get_tab_with_data(focused_tab_index, doc_list) else {
@@ -250,7 +250,7 @@ impl CommandPaletteMode for FileExplorerMode {
         }
 
         let command_doc = &mut command_palette.doc;
-        let cursor = command_doc.get_cursor(CursorIndex::Main);
+        let cursor = command_doc.cursor(CursorIndex::Main);
 
         if command_doc.cursors_len() != 1 {
             return false;
@@ -261,7 +261,7 @@ impl CommandPaletteMode for FileExplorerMode {
                 let end = cursor.position;
                 let mut start = command_doc.move_position(end, -1, 0, args.ctx.gfx);
 
-                if !is_grapheme_path_separator(command_doc.get_grapheme(start)) {
+                if !is_grapheme_path_separator(command_doc.grapheme(start)) {
                     return false;
                 }
 
@@ -316,9 +316,9 @@ impl CommandPaletteMode for FileExplorerMode {
                 FileClipboardState::Copy | FileClipboardState::Cut => {
                     let focused_result_index = command_palette.result_list.focused_index();
 
-                    let input = command_palette.get_input();
+                    let input = command_palette.input();
                     let mut path = PATH_POOL.new_item();
-                    get_input_dir(input, &mut path);
+                    input_dir(input, &mut path);
 
                     let Some(file_name) = self.clipboard_path.file_name() else {
                         return true;
@@ -364,8 +364,8 @@ impl CommandPaletteMode for FileExplorerMode {
             return CommandPaletteAction::Stay;
         }
 
-        let input = command_palette.get_input();
-        let path = get_input_path(input);
+        let input = command_palette.input();
+        let path = input_path(input);
         let is_dir = ends_with_path_separator(input);
 
         if !path.exists() {
@@ -380,7 +380,7 @@ impl CommandPaletteMode for FileExplorerMode {
             return CommandPaletteAction::Stay;
         }
 
-        let (pane, doc_list) = args.editor.get_focused_pane_and_doc_list_mut();
+        let (pane, doc_list) = args.editor.focused_pane_and_doc_list_mut();
 
         if pane
             .open_file(path, doc_list, args.ctx)
@@ -414,7 +414,7 @@ impl CommandPaletteMode for FileExplorerMode {
 
         delete_last_path_component(false, &mut command_palette.doc, args.ctx);
 
-        let line_len = command_palette.doc.get_line_len(0);
+        let line_len = command_palette.doc.line_len(0);
         let start = Position::new(line_len, 0);
         command_palette.doc.insert(start, &result.text, args.ctx);
     }
@@ -452,7 +452,7 @@ impl CommandPaletteMode for FileExplorerMode {
     }
 }
 
-fn get_input_path(input: &str) -> &Path {
+fn input_path(input: &str) -> &Path {
     // Trim trailing whitespace, this allows entering "/path/to/file " to create "file"
     // when just "/path/to/file" could auto-complete to another result like "/path/to/filewithlongername"
     let input = input.trim_end();
@@ -460,7 +460,7 @@ fn get_input_path(input: &str) -> &Path {
     Path::new(input)
 }
 
-fn get_input_dir<'a>(input: &str, path: &'a mut PathBuf) -> &'a Path {
+fn input_dir<'a>(input: &str, path: &'a mut PathBuf) -> &'a Path {
     path.push(".");
     path.push(input);
 
@@ -479,7 +479,7 @@ fn get_input_dir<'a>(input: &str, path: &'a mut PathBuf) -> &'a Path {
 }
 
 fn delete_last_path_component(can_delete_dirs: bool, doc: &mut Doc, ctx: &mut Ctx) {
-    let end = doc.get_line_end(0);
+    let end = doc.line_end(0);
 
     let find_start = if can_delete_dirs {
         doc.move_position(end, -1, 0, ctx.gfx)
@@ -510,7 +510,7 @@ fn find_path_component_start(doc: &Doc, position: Position, gfx: &mut Gfx) -> Po
     while start > Position::ZERO {
         let next_start = doc.move_position(start, -1, 0, gfx);
 
-        if is_grapheme_path_separator(doc.get_grapheme(next_start)) {
+        if is_grapheme_path_separator(doc.grapheme(next_start)) {
             break;
         }
 

@@ -184,7 +184,7 @@ impl LanguageServer {
         Some(language_server)
     }
 
-    pub fn get_diagnostics_mut(&mut self, doc: &Doc) -> &mut [DecodedDiagnostic] {
+    pub fn diagnostics_mut(&mut self, doc: &Doc) -> &mut [DecodedDiagnostic] {
         let Some(path) = doc.path().some() else {
             return &mut [];
         };
@@ -551,7 +551,7 @@ impl LanguageServer {
         let encoding = self.position_encoding;
 
         let overlapping_diagnostic = self
-            .get_diagnostics_mut(doc)
+            .diagnostics_mut(doc)
             .iter()
             .find(|DecodedDiagnostic { range, .. }| start <= range.end && end >= range.start)
             .map(|diagnostic| diagnostic.encode(encoding, doc));

@@ -149,7 +149,7 @@ impl TextCache {
         }
     }
 
-    pub fn get_glyph_span(
+    pub fn glyph_span(
         &mut self,
         text: &mut platform_impl::text::Text,
         glyph: Glyph,

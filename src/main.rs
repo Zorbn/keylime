@@ -4,7 +4,6 @@ mod app;
 mod bit_field;
 mod config;
 mod ctx;
-mod digits;
 mod geometry;
 mod input;
 mod lsp;

@@ -184,7 +184,7 @@ impl CompletionList {
             }
         }
 
-        self.should_open = self.get_should_open(ui, widget, ctx);
+        self.should_open = self.should_open(ui, widget, ctx);
 
         completion_result
     }
@@ -199,15 +199,15 @@ impl CompletionList {
         Some(language_server.completion_item_resolve(item.clone(), doc))
     }
 
-    fn get_should_open(&mut self, ui: &mut Ui, widget: &Widget, ctx: &mut Ctx) -> bool {
-        let mut grapheme_handler = ui.get_grapheme_handler(widget, ctx.window);
+    fn should_open(&mut self, ui: &mut Ui, widget: &Widget, ctx: &mut Ctx) -> bool {
+        let mut grapheme_handler = ui.grapheme_handler(widget, ctx.window);
 
         if grapheme_handler.next(ctx.window).is_some() {
             grapheme_handler.unprocessed(ctx.window);
             return true;
         }
 
-        let mut action_handler = ui.get_action_handler(widget, ctx.window);
+        let mut action_handler = ui.action_handler(widget, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             action_handler.unprocessed(ctx.window, action);
@@ -400,7 +400,7 @@ impl CompletionList {
         handled_position: Option<Position>,
         ctx: &mut Ctx,
     ) -> Option<()> {
-        let position = doc.get_cursor(CursorIndex::Main).position;
+        let position = doc.cursor(CursorIndex::Main).position;
         let is_position_different = Some(position) != handled_position;
         let is_path_different =
             self.has_handled_path.then_some(self.handled_path.as_path()) != doc.path().some_path();

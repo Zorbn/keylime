@@ -3,7 +3,6 @@ use std::{iter::Enumerate, ops::Range};
 
 use crate::{
     ctx::Ctx,
-    digits::get_digits,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
         editing_actions::{handle_action, handle_grapheme, handle_left_click},
@@ -13,7 +12,7 @@ use crate::{
     },
     lsp::types::DecodedRange,
     platform::gfx::Gfx,
-    pool::Pooled,
+    pool::{format_pooled, Pooled},
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
@@ -95,10 +94,10 @@ impl Tab {
     }
 
     pub fn update(&mut self, widget: &Widget, ui: &mut Ui, doc: &mut Doc, ctx: &mut Ctx) {
-        self.handled_cursor_position = Some(doc.get_cursor(CursorIndex::Main).position);
+        self.handled_cursor_position = Some(doc.cursor(CursorIndex::Main).position);
         self.handled_doc_len = Some(doc.lines().len());
 
-        let mut grapheme_handler = ui.get_grapheme_handler(widget, ctx.window);
+        let mut grapheme_handler = ui.grapheme_handler(widget, ctx.window);
 
         while let Some(grapheme) = grapheme_handler.next(ctx.window) {
             let grapheme: Pooled<String> = grapheme.into();
@@ -106,7 +105,7 @@ impl Tab {
             handle_grapheme(&grapheme, doc, ctx);
         }
 
-        let mut mousebind_handler = ui.get_mousebind_handler(widget, ctx.window);
+        let mut mousebind_handler = ui.mousebind_handler(widget, ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
@@ -139,7 +138,7 @@ impl Tab {
                     let is_drag = kind == MouseClickKind::Drag;
 
                     handle_left_click(doc, position, mousebind.mods, count, is_drag, ctx.gfx);
-                    self.handled_cursor_position = Some(doc.get_cursor(CursorIndex::Main).position);
+                    self.handled_cursor_position = Some(doc.cursor(CursorIndex::Main).position);
                 }
                 Mousebind {
                     button: Some(MouseButton::Left),
@@ -157,7 +156,7 @@ impl Tab {
             }
         }
 
-        let mut action_handler = ui.get_action_handler(widget, ctx.window);
+        let mut action_handler = ui.action_handler(widget, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             let was_handled = handle_action(action, self, doc, ctx);
@@ -179,7 +178,7 @@ impl Tab {
         ctx: &mut Ctx,
         dt: f32,
     ) {
-        let mut mouse_scroll_handler = ui.get_mouse_scroll_handler(widget, ctx.window);
+        let mut mouse_scroll_handler = ui.mouse_scroll_handler(widget, ctx.window);
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
@@ -218,7 +217,7 @@ impl Tab {
                 (target_y, can_recenter, 1)
             }
             _ => {
-                let new_cursor_position = doc.get_cursor(CursorIndex::Main).position;
+                let new_cursor_position = doc.cursor(CursorIndex::Main).position;
                 let new_cursor_visual_position =
                     doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
 
@@ -243,7 +242,7 @@ impl Tab {
     }
 
     fn update_camera_horizontal(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
-        let new_cursor_position = doc.get_cursor(CursorIndex::Main).position;
+        let new_cursor_position = doc.cursor(CursorIndex::Main).position;
         let new_cursor_visual_position =
             doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
 
@@ -277,11 +276,11 @@ impl Tab {
         (self.doc_bounds.height / gfx.line_height()) as usize
     }
 
-    fn get_line_foreground_visual_y(index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
-        Self::get_line_background_visual_y(index, sub_line_offset_y, gfx) + gfx.line_padding()
+    fn line_foreground_visual_y(index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
+        Self::line_background_visual_y(index, sub_line_offset_y, gfx) + gfx.line_padding()
     }
 
-    fn get_line_background_visual_y(index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
+    fn line_background_visual_y(index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
         index as f32 * gfx.line_height() - sub_line_offset_y
     }
 
@@ -348,14 +347,13 @@ impl Tab {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        let cursor_y = doc.get_cursor(CursorIndex::Main).position.y;
-        let mut digits = [0; 20];
+        let cursor_y = doc.cursor(CursorIndex::Main).position.y;
 
         for (i, y) in visible_lines.enumerate() {
-            let digits = get_digits(y + 1, &mut digits);
-            let visual_y = Self::get_line_foreground_visual_y(i, visible_lines.offset, gfx);
+            let line_number = format_pooled!("{}", y + 1);
+            let visual_y = Self::line_foreground_visual_y(i, visible_lines.offset, gfx);
 
-            let width = digits.len() as f32 * gfx.glyph_width();
+            let width = line_number.len() as f32 * gfx.glyph_width();
             let visual_x = self.gutter_bounds.width
                 - width
                 - (GUTTER_PADDING_WIDTH + GUTTER_BORDER_WIDTH) * gfx.glyph_width();
@@ -366,7 +364,7 @@ impl Tab {
                 theme.subtle
             };
 
-            gfx.add_text(digits, visual_x, visual_y, color);
+            gfx.add_text(&line_number, visual_x, visual_y, color);
         }
 
         gfx.add_rect(
@@ -397,11 +395,10 @@ impl Tab {
         let mut indent_guide_x = 0;
 
         for (i, y) in visible_lines.enumerate() {
-            let background_visual_y =
-                Self::get_line_background_visual_y(i, visible_lines.offset, gfx);
+            let background_visual_y = Self::line_background_visual_y(i, visible_lines.offset, gfx);
 
             if !doc.is_line_whitespace(y) {
-                indent_guide_x = doc.get_line_start(y)
+                indent_guide_x = doc.line_start(y)
             };
 
             for x in (indent_width..indent_guide_x).step_by(indent_width) {
@@ -436,10 +433,8 @@ impl Tab {
 
         for (i, y) in visible_lines.enumerate() {
             let line = &lines[y];
-            let foreground_visual_y =
-                Self::get_line_foreground_visual_y(i, visible_lines.offset, gfx);
-            let background_visual_y =
-                Self::get_line_background_visual_y(i, visible_lines.offset, gfx);
+            let foreground_visual_y = Self::line_foreground_visual_y(i, visible_lines.offset, gfx);
+            let background_visual_y = Self::line_background_visual_y(i, visible_lines.offset, gfx);
 
             let Some(highlights) = highlighted_lines
                 .get(y)
@@ -496,9 +491,9 @@ impl Tab {
 
         for language_server in ctx.lsp.iter_servers_mut() {
             // Reversed so that more severe diagnostics are drawn on top.
-            for diagnostic in language_server.get_diagnostics_mut(doc).iter().rev() {
+            for diagnostic in language_server.diagnostics_mut(doc).iter().rev() {
                 let color = diagnostic.color(theme);
-                let DecodedRange { start, end } = diagnostic.get_visible_range(doc);
+                let DecodedRange { start, end } = diagnostic.visible_range(doc);
 
                 if start == end && start.y >= visible_lines.min_y && start.y <= visible_lines.max_y
                 {
@@ -530,7 +525,7 @@ impl Tab {
 
                     let highlight_position = doc.position_to_visual(position, camera_position, gfx);
 
-                    let grapheme = doc.get_grapheme(position);
+                    let grapheme = doc.grapheme(position);
                     let grapheme_width = gfx.measure_text(grapheme);
 
                     gfx.add_rect(
@@ -566,19 +561,19 @@ impl Tab {
             return;
         }
 
-        let position = ctx.window.get_mouse_position();
+        let position = ctx.window.mouse_position();
 
         if !self.doc_bounds.contains_position(position) {
             return;
         }
 
         let position = doc.visual_to_position(
-            ctx.window.get_mouse_position().unoffset_by(self.doc_bounds),
+            ctx.window.mouse_position().unoffset_by(self.doc_bounds),
             camera_position,
             gfx,
         );
 
-        if grapheme::is_whitespace(doc.get_grapheme(position)) {
+        if grapheme::is_whitespace(doc.grapheme(position)) {
             return;
         }
 
@@ -610,7 +605,7 @@ impl Tab {
         let theme = &ctx.config.theme;
 
         for index in doc.cursor_indices() {
-            let Some(selection) = doc.get_cursor(index).get_selection() else {
+            let Some(selection) = doc.cursor(index).get_selection() else {
                 continue;
             };
 
@@ -621,7 +616,7 @@ impl Tab {
             while position < end {
                 let highlight_position = doc.position_to_visual(position, camera_position, gfx);
 
-                let grapheme = doc.get_grapheme(position);
+                let grapheme = doc.grapheme(position);
                 let grapheme_width = gfx.measure_text(grapheme);
 
                 gfx.add_rect(
@@ -643,7 +638,7 @@ impl Tab {
 
             for index in doc.cursor_indices() {
                 let cursor_position = doc.position_to_visual(
-                    doc.get_cursor(index).position,
+                    doc.cursor(index).position,
                     VisualPosition::new(0.0, camera_position.y),
                     gfx,
                 );
@@ -671,7 +666,7 @@ impl Tab {
 
         for language_server in ctx.lsp.iter_servers_mut() {
             // Reversed so that more severe diagnostics are drawn on top.
-            for diagnostic in language_server.get_diagnostics_mut(doc).iter().rev() {
+            for diagnostic in language_server.diagnostics_mut(doc).iter().rev() {
                 if !diagnostic.is_problem() {
                     continue;
                 }
@@ -687,7 +682,7 @@ impl Tab {
         }
 
         for index in doc.cursor_indices() {
-            let cursor_y = doc.get_cursor(index).position.y as f32;
+            let cursor_y = doc.cursor(index).position.y as f32;
 
             gfx.add_rect(
                 self.doc_range_to_scrollbar_rect(cursor_y, cursor_y, doc, gfx),

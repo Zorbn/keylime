@@ -37,12 +37,12 @@ pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, ctx: &mut Ctx) {
     }
 
     for index in doc.cursor_indices() {
-        let cursor = doc.get_cursor(index);
+        let cursor = doc.cursor(index);
 
-        let next_grapheme = doc.get_grapheme(cursor.position);
+        let next_grapheme = doc.grapheme(cursor.position);
 
         let previous_position = doc.move_position(cursor.position, -1, 0, ctx.gfx);
-        let previous_grapheme = doc.get_grapheme(previous_position);
+        let previous_grapheme = doc.grapheme(previous_position);
 
         let matching_grapheme = get_matching_grapheme(grapheme);
 
@@ -183,7 +183,7 @@ fn handle_move(
     gfx: &mut Gfx,
 ) {
     for index in doc.cursor_indices() {
-        let cursor = doc.get_cursor(index);
+        let cursor = doc.cursor(index);
 
         match cursor.get_selection() {
             Some(selection) if !should_select => {
@@ -203,7 +203,7 @@ fn handle_move(
 }
 
 fn handle_add_cursor(direction_y: isize, doc: &mut Doc, gfx: &mut Gfx) {
-    let cursor = doc.get_cursor(CursorIndex::Main);
+    let cursor = doc.cursor(CursorIndex::Main);
 
     let position = doc.move_position_with_desired_visual_x(
         cursor.position,
@@ -249,7 +249,7 @@ pub fn handle_left_click(
 
     let word_selection = select_at_position(doc, position, gfx);
 
-    let cursor = doc.get_cursor(CursorIndex::Main);
+    let cursor = doc.cursor(CursorIndex::Main);
 
     let selection_anchor = cursor.selection_anchor.unwrap_or(cursor.position);
 
@@ -280,7 +280,7 @@ pub fn handle_left_click(
 
 pub(crate) fn handle_delete_backward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
     for index in doc.cursor_indices() {
-        let cursor = doc.get_cursor(index);
+        let cursor = doc.cursor(index);
 
         let (start, end) = if let Some(selection) = cursor.get_selection() {
             (selection.start, selection.end)
@@ -289,14 +289,14 @@ pub(crate) fn handle_delete_backward(kind: DeleteKind, doc: &mut Doc, ctx: &mut 
 
             let start = match kind {
                 DeleteKind::Char => {
-                    if end.x > 0 && end.x == doc.get_line_start(end.y) {
-                        doc.get_indent_start(end, ctx)
+                    if end.x > 0 && end.x == doc.line_start(end.y) {
+                        doc.indent_start(end, ctx)
                     } else {
                         let start = doc.move_position(end, -1, 0, ctx.gfx);
-                        let start_grapheme = doc.get_grapheme(start);
+                        let start_grapheme = doc.grapheme(start);
 
                         if get_matching_grapheme(start_grapheme)
-                            == Some(doc.get_grapheme(cursor.position))
+                            == Some(doc.grapheme(cursor.position))
                         {
                             end = doc.move_position(end, 1, 0, ctx.gfx);
                         }
@@ -318,7 +318,7 @@ pub(crate) fn handle_delete_backward(kind: DeleteKind, doc: &mut Doc, ctx: &mut 
 
 fn handle_delete_forward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
     for index in doc.cursor_indices() {
-        let cursor = doc.get_cursor(index);
+        let cursor = doc.cursor(index);
 
         let (start, end) = if let Some(selection) = cursor.get_selection() {
             (selection.start, selection.end)
@@ -328,7 +328,7 @@ fn handle_delete_forward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
             let end = match kind {
                 DeleteKind::Char => doc.move_position(start, 1, 0, ctx.gfx),
                 DeleteKind::Word => doc.move_position_to_next_word(start, 1, ctx.gfx),
-                DeleteKind::Line => doc.get_line_end(start.y),
+                DeleteKind::Line => doc.line_end(start.y),
             };
 
             (start, end)
@@ -341,7 +341,7 @@ fn handle_delete_forward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
 
 fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
     for index in doc.cursor_indices() {
-        let cursor = doc.get_cursor(index);
+        let cursor = doc.cursor(index);
 
         let mut indent_y = cursor.position.y;
 
@@ -350,14 +350,14 @@ fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
         }
 
         let indent_line = doc.get_line(indent_y).unwrap_or_default();
-        let indent_end = doc.get_line_start(indent_y).min(cursor.position.x);
+        let indent_end = doc.line_start(indent_y).min(cursor.position.x);
 
         let mut indent_text = STRING_POOL.new_item();
         indent_text.push_str(&indent_line[..indent_end]);
 
         let previous_position = doc.move_position(cursor.position, -1, 0, ctx.gfx);
-        let do_start_block = doc.get_grapheme(previous_position) == "{";
-        let do_end_block = do_start_block && doc.get_grapheme(cursor.position) == "}";
+        let do_start_block = doc.grapheme(previous_position) == "{";
+        let do_end_block = do_start_block && doc.grapheme(cursor.position) == "}";
 
         doc.insert_at_cursor(index, "\n", ctx);
         doc.insert_at_cursor(index, &indent_text, ctx);
@@ -367,7 +367,7 @@ fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
         }
 
         if do_end_block {
-            let cursor_position = doc.get_cursor(index).position;
+            let cursor_position = doc.cursor(index).position;
 
             doc.insert_at_cursor(index, "\n", ctx);
             doc.insert_at_cursor(index, &indent_text, ctx);
@@ -381,7 +381,7 @@ fn handle_tab(mods: Mods, doc: &mut Doc, ctx: &mut Ctx) {
     let do_unindent = mods.contains(Mod::Shift);
 
     for index in doc.cursor_indices() {
-        let cursor = doc.get_cursor(index);
+        let cursor = doc.cursor(index);
 
         if cursor.get_selection().is_some() || do_unindent {
             doc.indent_lines_at_cursor(index, do_unindent, ctx);
@@ -393,8 +393,8 @@ fn handle_tab(mods: Mods, doc: &mut Doc, ctx: &mut Ctx) {
 
 fn handle_home(should_select: bool, doc: &mut Doc, gfx: &mut Gfx) {
     for index in doc.cursor_indices() {
-        let cursor = doc.get_cursor(index);
-        let line_start_x = doc.get_line_start(cursor.position.y);
+        let cursor = doc.cursor(index);
+        let line_start_x = doc.line_start(cursor.position.y);
 
         let x = if line_start_x == cursor.position.x {
             0
@@ -410,7 +410,7 @@ fn handle_home(should_select: bool, doc: &mut Doc, gfx: &mut Gfx) {
 
 fn handle_end(should_select: bool, doc: &mut Doc, gfx: &mut Gfx) {
     for index in doc.cursor_indices() {
-        let position = doc.get_line_end(doc.get_cursor(index).position.y);
+        let position = doc.line_end(doc.cursor(index).position.y);
 
         doc.jump_cursor(index, position, should_select, gfx);
     }
@@ -423,7 +423,7 @@ fn handle_cut(doc: &mut Doc, ctx: &mut Ctx) {
     let _ = ctx.window.set_clipboard(&text, was_copy_implicit);
 
     for index in doc.cursor_indices() {
-        let cursor = doc.get_cursor(index);
+        let cursor = doc.cursor(index);
 
         let selection = cursor
             .get_selection()
@@ -454,7 +454,7 @@ fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx) {
     let direction = direction.signum();
 
     for index in doc.cursor_indices() {
-        let cursor = doc.get_cursor(index);
+        let cursor = doc.cursor(index);
         let cursor_position = cursor.position;
         let cursor_selection = cursor.get_selection();
 
@@ -486,7 +486,7 @@ fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx) {
 
         let selection = cursor_selection.trim();
         let mut start = Position::new(0, selection.start.y);
-        let mut end = doc.get_line_end(selection.end.y);
+        let mut end = doc.line_end(selection.end.y);
 
         doc.collect_string(start, end, &mut text);
 
@@ -505,7 +505,7 @@ fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx) {
         let insert_start = if direction < 0 {
             Position::new(0, selection.start.y - 1)
         } else {
-            doc.get_line_end(selection.start.y)
+            doc.line_end(selection.start.y)
         };
 
         doc.insert(insert_start, &text, ctx);

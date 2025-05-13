@@ -194,7 +194,7 @@ impl Lsp {
                 );
             }
             MessageResult::Definition { path, range } => {
-                let (pane, doc_list) = editor.get_focused_pane_and_doc_list_mut();
+                let (pane, doc_list) = editor.focused_pane_and_doc_list_mut();
 
                 if pane.open_file(&path, doc_list, ctx).is_err() {
                     return None;
@@ -287,7 +287,7 @@ impl Lsp {
         doc: &Doc,
     ) -> Option<&'a mut DecodedDiagnostic> {
         for language_server in self.iter_servers_mut() {
-            for diagnostic in language_server.get_diagnostics_mut(doc) {
+            for diagnostic in language_server.diagnostics_mut(doc) {
                 if !diagnostic.contains_position(position, doc) {
                     continue;
                 }

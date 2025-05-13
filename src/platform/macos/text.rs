@@ -158,7 +158,7 @@ impl Text {
         })
     }
 
-    pub unsafe fn get_glyphs(
+    pub unsafe fn glyphs(
         &mut self,
         text_cache: &mut TextCache,
         mut glyph_cache_result: GlyphCacheResult,

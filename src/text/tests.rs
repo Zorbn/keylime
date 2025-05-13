@@ -7,7 +7,7 @@ use crate::{
 use super::pattern::Pattern;
 
 test_with_doc!(search_forward, HELLO_GOODBYE_TEXT, |ctx, doc| {
-    let position = doc.search("world", doc.get_line_end(0), false, ctx.gfx);
+    let position = doc.search("world", doc.line_end(0), false, ctx.gfx);
     assert_eq!(position, Some(Position::new(8, 1)));
 });
 

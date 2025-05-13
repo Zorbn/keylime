@@ -42,7 +42,7 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let config_dir = Config::get_dir();
+        let config_dir = Config::dir();
 
         let (config, config_error) = match Config::load(&config_dir) {
             Ok(config) => (config, None),
@@ -70,7 +70,7 @@ impl App {
     pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32, dt: f32) {
         let config_changed = self
             .file_watcher
-            .get_changed_files()
+            .changed_files()
             .iter()
             .any(|changed_file| changed_file.starts_with(&self.config_dir));
 

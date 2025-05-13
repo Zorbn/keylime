@@ -41,20 +41,20 @@ impl Window {
         self.inner.was_shown
     }
 
-    pub fn get_grapheme_handler(&self) -> GraphemeHandler {
-        self.inner.get_grapheme_handler()
+    pub fn grapheme_handler(&self) -> GraphemeHandler {
+        self.inner.grapheme_handler()
     }
 
-    pub fn get_action_handler(&self) -> ActionHandler {
-        self.inner.get_action_handler()
+    pub fn action_handler(&self) -> ActionHandler {
+        self.inner.action_handler()
     }
 
-    pub fn get_mousebind_handler(&self) -> MousebindHandler {
-        self.inner.get_mousebind_handler()
+    pub fn mousebind_handler(&self) -> MousebindHandler {
+        self.inner.mousebind_handler()
     }
 
-    pub fn get_mouse_scroll_handler(&self) -> MouseScrollHandler {
-        self.inner.get_mouse_scroll_handler()
+    pub fn mouse_scroll_handler(&self) -> MouseScrollHandler {
+        self.inner.mouse_scroll_handler()
     }
 
     pub fn graphemes_typed(&mut self) -> (&str, &mut GraphemeCursor) {
@@ -73,8 +73,8 @@ impl Window {
         &mut self.inner.mouse_scrolls
     }
 
-    pub fn get_mouse_position(&self) -> VisualPosition {
-        self.inner.get_mouse_position()
+    pub fn mouse_position(&self) -> VisualPosition {
+        self.inner.mouse_position()
     }
 
     pub fn mods(&self) -> Mods {

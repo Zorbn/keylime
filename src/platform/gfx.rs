@@ -65,16 +65,16 @@ impl Gfx {
         x
     }
 
-    fn get_glyph_spans(&mut self, text: &str) -> GlyphSpans {
-        self.inner.get_glyph_spans(text)
+    fn glyph_spans(&mut self, text: &str) -> GlyphSpans {
+        self.inner.glyph_spans(text)
     }
 
-    fn get_glyph_span(&mut self, index: usize) -> GlyphSpan {
-        self.inner.get_glyph_span(index)
+    fn glyph_span(&mut self, index: usize) -> GlyphSpan {
+        self.inner.glyph_span(index)
     }
 
     pub fn add_text(&mut self, text: &str, x: f32, y: f32, color: Color) -> f32 {
-        let glyph_spans = self.get_glyph_spans(text);
+        let glyph_spans = self.glyph_spans(text);
 
         let glyph_width = self.glyph_width();
         let glyph_height = self.glyph_height();
@@ -82,7 +82,7 @@ impl Gfx {
         let mut offset = 0.0;
 
         for i in glyph_spans.spans_start..glyph_spans.spans_end {
-            let span = self.get_glyph_span(i);
+            let span = self.glyph_span(i);
 
             match span {
                 GlyphSpan::Space => offset += glyph_width,
@@ -140,12 +140,12 @@ impl Gfx {
     }
 
     pub fn measure_text(&mut self, text: &str) -> usize {
-        let glyph_spans = self.get_glyph_spans(text);
+        let glyph_spans = self.glyph_spans(text);
 
         let mut width = 0;
 
         for i in glyph_spans.spans_start..glyph_spans.spans_end {
-            let span = self.get_glyph_span(i);
+            let span = self.glyph_span(i);
 
             match span {
                 GlyphSpan::Space => width += 1,

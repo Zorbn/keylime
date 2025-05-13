@@ -85,9 +85,7 @@ impl Pattern {
             if is_escaped {
                 is_escaped = false;
 
-                parts.push(PatternPart::Literal(Self::get_escaped_literal(
-                    &code, index,
-                )));
+                parts.push(PatternPart::Literal(Self::escaped_literal(&code, index)));
 
                 grapheme_cursor.next_boundary(&code);
 
@@ -219,7 +217,7 @@ impl Pattern {
             if is_escaped {
                 is_escaped = false;
 
-                class.push(Self::get_escaped_literal(code, index));
+                class.push(Self::escaped_literal(code, index));
 
                 grapheme_cursor.next_boundary(code);
 
@@ -242,7 +240,7 @@ impl Pattern {
         Err("unterminated class")
     }
 
-    fn get_escaped_literal(code: &str, start: usize) -> PatternLiteral {
+    fn escaped_literal(code: &str, start: usize) -> PatternLiteral {
         let grapheme = grapheme::at(start, code);
 
         match grapheme {

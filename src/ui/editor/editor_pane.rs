@@ -42,7 +42,7 @@ impl EditorPane {
         doc_list: &mut SlotList<Doc>,
         ctx: &mut Ctx,
     ) {
-        let mut action_handler = ui.get_action_handler(widget, ctx.window);
+        let mut action_handler = ui.action_handler(widget, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {

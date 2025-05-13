@@ -18,8 +18,8 @@ pub struct TerminalPane {
 impl TerminalPane {
     pub fn new(term_list: &mut SlotList<Term>) -> Self {
         let mut inner = Pane::<Term>::new(
-            |(docs, emulator)| emulator.get_doc(docs),
-            |(docs, emulator)| emulator.get_doc_mut(docs),
+            |(docs, emulator)| emulator.doc(docs),
+            |(docs, emulator)| emulator.doc_mut(docs),
         );
 
         let term = Self::new_term();
@@ -36,7 +36,7 @@ impl TerminalPane {
         term_list: &mut SlotList<Term>,
         ctx: &mut Ctx,
     ) {
-        let mut action_handler = ui.get_action_handler(widget, ctx.window);
+        let mut action_handler = ui.action_handler(widget, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {

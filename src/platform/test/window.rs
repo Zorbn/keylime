@@ -41,23 +41,23 @@ impl Window {
         true
     }
 
-    pub fn get_grapheme_handler(&self) -> GraphemeHandler {
+    pub fn grapheme_handler(&self) -> GraphemeHandler {
         GraphemeHandler::new(GraphemeCursor::new(0, 0))
     }
 
-    pub fn get_action_handler(&self) -> ActionHandler {
+    pub fn action_handler(&self) -> ActionHandler {
         ActionHandler::new(0)
     }
 
-    pub fn get_mousebind_handler(&self) -> MousebindHandler {
+    pub fn mousebind_handler(&self) -> MousebindHandler {
         MousebindHandler::new(0)
     }
 
-    pub fn get_mouse_scroll_handler(&self) -> MouseScrollHandler {
+    pub fn mouse_scroll_handler(&self) -> MouseScrollHandler {
         MouseScrollHandler::new(0)
     }
 
-    pub fn get_mouse_position(&self) -> VisualPosition {
+    pub fn mouse_position(&self) -> VisualPosition {
         VisualPosition::new(0.0, 0.0)
     }
 

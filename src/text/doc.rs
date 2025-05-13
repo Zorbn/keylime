@@ -263,8 +263,8 @@ impl Doc {
         if delta_y != 0 {
             if let Some(desired_visual_x) = desired_visual_x {
                 position.x = gfx.find_x_for_visual_x(&self.lines[position.y][..], desired_visual_x);
-            } else if position.x > self.get_line_len(position.y) {
-                position.x = self.get_line_len(position.y);
+            } else if position.x > self.line_len(position.y) {
+                position.x = self.line_len(position.y);
             }
         }
 
@@ -307,10 +307,10 @@ impl Doc {
         gfx: &mut Gfx,
     ) -> Position {
         let mut position = self.clamp_position(position);
-        let side_offset = Self::get_side_offset(delta_x);
+        let side_offset = Self::side_offset(delta_x);
 
         loop {
-            let current_category = GraphemeCategory::new(self.get_grapheme(self.move_position(
+            let current_category = GraphemeCategory::new(self.grapheme(self.move_position(
                 position,
                 side_offset,
                 0,
@@ -341,8 +341,8 @@ impl Doc {
         let starting_position =
             self.move_position_skipping_category(position, delta_x, GraphemeCategory::Space, gfx);
 
-        let side_offset = Self::get_side_offset(delta_x);
-        let starting_category = GraphemeCategory::new(self.get_grapheme(self.move_position(
+        let side_offset = Self::side_offset(delta_x);
+        let starting_category = GraphemeCategory::new(self.grapheme(self.move_position(
             starting_position,
             side_offset,
             0,
@@ -373,7 +373,7 @@ impl Doc {
         let mut position = self.clamp_position(position);
 
         loop {
-            let current_line_is_empty = self.get_line_len(position.y) == 0;
+            let current_line_is_empty = self.line_len(position.y) == 0;
             let next_position = self.move_position(position, 0, delta_y, gfx);
 
             if current_line_is_empty != do_skip_empty_lines || next_position == position {
@@ -399,12 +399,12 @@ impl Doc {
             self.clamp_position(position)
         };
 
-        let starting_line_is_empty = self.get_line_len(starting_position.y) == 0;
+        let starting_line_is_empty = self.line_len(starting_position.y) == 0;
 
         self.move_position_skipping_lines(starting_position, delta_y, starting_line_is_empty, gfx)
     }
 
-    fn get_side_offset(direction_x: isize) -> isize {
+    fn side_offset(direction_x: isize) -> isize {
         if direction_x < 0 {
             -1
         } else {
@@ -420,7 +420,7 @@ impl Doc {
         }
     }
 
-    pub fn get_line_len(&self, y: usize) -> usize {
+    pub fn line_len(&self, y: usize) -> usize {
         if let Some(line) = self.get_line(y) {
             line.len()
         } else {
@@ -428,11 +428,11 @@ impl Doc {
         }
     }
 
-    pub fn get_line_end(&self, y: usize) -> Position {
-        Position::new(self.get_line_len(y), y)
+    pub fn line_end(&self, y: usize) -> Position {
+        Position::new(self.line_len(y), y)
     }
 
-    pub fn get_line_start(&self, y: usize) -> usize {
+    pub fn line_start(&self, y: usize) -> usize {
         let Some(line) = self.get_line(y) else {
             return 0;
         };
@@ -451,7 +451,7 @@ impl Doc {
     }
 
     pub fn is_line_whitespace(&self, y: usize) -> bool {
-        self.get_line_start(y) == self.get_line_len(y)
+        self.line_start(y) == self.line_len(y)
     }
 
     pub fn comment_line(&mut self, comment: &str, position: Position, ctx: &mut Ctx) {
@@ -464,12 +464,12 @@ impl Doc {
             return false;
         }
 
-        let start = Position::new(self.get_line_start(y), y);
+        let start = Position::new(self.line_start(y), y);
         let end = Position::new(start.x + comment.len(), y);
 
         self.delete(start, end, ctx);
 
-        if self.get_grapheme(start) == " " {
+        if self.grapheme(start) == " " {
             let end = self.move_position(start, 1, 0, ctx.gfx);
 
             self.delete(start, end, ctx);
@@ -483,7 +483,7 @@ impl Doc {
             return false;
         };
 
-        let start = self.get_line_start(y);
+        let start = self.line_start(y);
 
         if start + comment.len() >= line.len() {
             return false;
@@ -515,7 +515,7 @@ impl Doc {
         let comment = &language.comment;
 
         for index in self.cursor_indices() {
-            let cursor = self.get_cursor(index);
+            let cursor = self.cursor(index);
 
             let selection = cursor
                 .get_selection()
@@ -533,7 +533,7 @@ impl Doc {
                     continue;
                 }
 
-                min_comment_x = min_comment_x.min(self.get_line_start(y));
+                min_comment_x = min_comment_x.min(self.line_start(y));
                 did_uncomment = self.uncomment_line(comment, y, ctx) || did_uncomment;
             }
 
@@ -552,7 +552,7 @@ impl Doc {
     }
 
     pub fn indent_lines_at_cursor(&mut self, index: CursorIndex, do_unindent: bool, ctx: &mut Ctx) {
-        let cursor = self.get_cursor(index);
+        let cursor = self.cursor(index);
 
         let selection = cursor.get_selection();
         let has_selection = selection.is_some();
@@ -565,7 +565,7 @@ impl Doc {
             .trim();
 
         for y in selection.start.y..=selection.end.y {
-            if has_selection && self.get_line_len(y) == 0 {
+            if has_selection && self.line_len(y) == 0 {
                 continue;
             }
 
@@ -588,13 +588,13 @@ impl Doc {
     }
 
     fn unindent_line(&mut self, y: usize, ctx: &mut Ctx) {
-        let end = Position::new(self.get_line_start(y), y);
+        let end = Position::new(self.line_start(y), y);
 
         self.unindent(end, ctx);
     }
 
     fn indent(&mut self, mut start: Position, ctx: &mut Ctx) {
-        let indent_width = ctx.config.get_indent_width_for_doc(self);
+        let indent_width = ctx.config.indent_width_for_doc(self);
         let grapheme = indent_width.grapheme();
 
         for _ in 0..indent_width.grapheme_count() {
@@ -604,15 +604,15 @@ impl Doc {
     }
 
     fn unindent(&mut self, end: Position, ctx: &mut Ctx) {
-        let start = self.get_indent_start(end, ctx);
+        let start = self.indent_start(end, ctx);
         self.delete(start, end, ctx);
     }
 
-    pub fn get_indent_start(&mut self, end: Position, ctx: &mut Ctx) -> Position {
-        let indent_width = ctx.config.get_indent_width_for_doc(self);
+    pub fn indent_start(&mut self, end: Position, ctx: &mut Ctx) -> Position {
+        let indent_width = ctx.config.indent_width_for_doc(self);
 
         let mut start = self.move_position(end, -1, 0, ctx.gfx);
-        let start_grapheme = self.get_grapheme(start);
+        let start_grapheme = self.grapheme(start);
 
         match start_grapheme {
             " " => {
@@ -621,7 +621,7 @@ impl Doc {
                 for _ in 1..indent_width {
                     let next_start = self.move_position(start, -1, 0, ctx.gfx);
 
-                    if self.get_grapheme(next_start) != " " {
+                    if self.grapheme(next_start) != " " {
                         break;
                     }
 
@@ -636,7 +636,7 @@ impl Doc {
     }
 
     pub fn indent_at_cursor(&mut self, index: CursorIndex, ctx: &mut Ctx) {
-        let start = self.get_cursor(index).position;
+        let start = self.cursor(index).position;
         self.indent(start, ctx);
     }
 
@@ -651,10 +651,10 @@ impl Doc {
             return;
         };
 
-        let cursor = self.get_cursor(CursorIndex::Main);
+        let cursor = self.cursor(CursorIndex::Main);
         self.cursor_position_redo_history.push(cursor.position);
 
-        let cursor = self.get_cursor_mut(CursorIndex::Main);
+        let cursor = self.cursor_mut(CursorIndex::Main);
         cursor.position = position;
     }
 
@@ -663,10 +663,10 @@ impl Doc {
             return;
         };
 
-        let cursor = self.get_cursor(CursorIndex::Main);
+        let cursor = self.cursor(CursorIndex::Main);
         self.cursor_position_undo_history.push(cursor.position);
 
-        let cursor = self.get_cursor_mut(CursorIndex::Main);
+        let cursor = self.cursor_mut(CursorIndex::Main);
         cursor.position = position;
     }
 
@@ -675,7 +675,7 @@ impl Doc {
             return;
         }
 
-        let cursor = self.get_cursor_mut(index);
+        let cursor = self.cursor_mut(index);
 
         if cursor.position.y.abs_diff(last_position.y) < CURSOR_POSITION_HISTORY_THRESHOLD {
             return;
@@ -695,13 +695,13 @@ impl Doc {
     ) {
         self.update_cursor_selection(index, should_select);
 
-        let cursor = self.get_cursor(index);
+        let cursor = self.cursor(index);
         let start_position = cursor.position;
         let desired_visual_x = cursor.desired_visual_x;
 
         let last_position = cursor.position;
 
-        self.get_cursor_mut(index).position = self.move_position_with_desired_visual_x(
+        self.cursor_mut(index).position = self.move_position_with_desired_visual_x(
             start_position,
             delta_x,
             delta_y,
@@ -735,7 +735,7 @@ impl Doc {
         should_select: bool,
         gfx: &mut Gfx,
     ) {
-        let cursor = self.get_cursor(index);
+        let cursor = self.cursor(index);
         let destination = self.move_position_to_next_word(cursor.position, delta_x, gfx);
 
         self.jump_cursor(index, destination, should_select, gfx);
@@ -759,7 +759,7 @@ impl Doc {
         should_select: bool,
         gfx: &mut Gfx,
     ) {
-        let cursor = self.get_cursor(index);
+        let cursor = self.cursor(index);
         let destination = self.move_position_to_next_paragraph(cursor.position, delta_y, true, gfx);
 
         self.jump_cursor(index, destination, should_select, gfx);
@@ -785,9 +785,9 @@ impl Doc {
     ) {
         self.update_cursor_selection(index, should_select);
 
-        let last_position = self.get_cursor(index).position;
+        let last_position = self.cursor(index).position;
 
-        self.get_cursor_mut(index).position = self.clamp_position(position);
+        self.cursor_mut(index).position = self.clamp_position(position);
 
         self.update_cursor_position_history(index, last_position);
         self.update_cursor_desired_visual_x(index, gfx);
@@ -799,16 +799,16 @@ impl Doc {
     }
 
     pub fn start_cursor_selection(&mut self, index: CursorIndex) {
-        let position = self.get_cursor(index).position;
-        self.get_cursor_mut(index).selection_anchor = Some(position);
+        let position = self.cursor(index).position;
+        self.cursor_mut(index).selection_anchor = Some(position);
     }
 
     pub fn end_cursor_selection(&mut self, index: CursorIndex) {
-        self.get_cursor_mut(index).selection_anchor = None;
+        self.cursor_mut(index).selection_anchor = None;
     }
 
     pub fn update_cursor_selection(&mut self, index: CursorIndex, should_select: bool) {
-        let cursor = self.get_cursor(index);
+        let cursor = self.cursor(index);
 
         if should_select && cursor.selection_anchor.is_none() {
             self.start_cursor_selection(index);
@@ -817,8 +817,8 @@ impl Doc {
         }
     }
 
-    fn get_cursor_visual_x(&self, index: CursorIndex, gfx: &mut Gfx) -> usize {
-        let cursor = self.get_cursor(index);
+    fn cursor_visual_x(&self, index: CursorIndex, gfx: &mut Gfx) -> usize {
+        let cursor = self.cursor(index);
         let leading_text = &self.lines[cursor.position.y][..cursor.position.x];
 
         gfx.measure_text(leading_text)
@@ -829,7 +829,7 @@ impl Doc {
             return;
         }
 
-        self.get_cursor_mut(index).desired_visual_x = self.get_cursor_visual_x(index, gfx);
+        self.cursor_mut(index).desired_visual_x = self.cursor_visual_x(index, gfx);
     }
 
     pub fn add_cursor(&mut self, position: Position, gfx: &mut Gfx) {
@@ -840,14 +840,14 @@ impl Doc {
     }
 
     pub fn unwrap_cursor_index(&self, index: CursorIndex) -> usize {
-        let main_cursor_index = self.get_main_cursor_index();
+        let main_cursor_index = self.main_cursor_index();
 
         index.unwrap_or(main_cursor_index)
     }
 
     pub fn is_cursor_index_main(&self, index: CursorIndex) -> bool {
         match index {
-            CursorIndex::Some(index) => index == self.get_main_cursor_index(),
+            CursorIndex::Some(index) => index == self.main_cursor_index(),
             CursorIndex::Main => true,
         }
     }
@@ -861,18 +861,18 @@ impl Doc {
         self.cursors.remove(index);
     }
 
-    pub fn get_cursor(&self, index: CursorIndex) -> &Cursor {
+    pub fn cursor(&self, index: CursorIndex) -> &Cursor {
         let index = self.unwrap_cursor_index(index);
         &self.cursors[index]
     }
 
-    fn get_cursor_mut(&mut self, index: CursorIndex) -> &mut Cursor {
+    fn cursor_mut(&mut self, index: CursorIndex) -> &mut Cursor {
         let index = self.unwrap_cursor_index(index);
         &mut self.cursors[index]
     }
 
     pub fn set_cursor_selection(&mut self, index: CursorIndex, selection: Option<Selection>) {
-        let cursor = self.get_cursor_mut(index);
+        let cursor = self.cursor_mut(index);
 
         let Some(selection) = selection else {
             cursor.selection_anchor = None;
@@ -902,7 +902,7 @@ impl Doc {
         self.cursors.len()
     }
 
-    fn get_main_cursor_index(&self) -> usize {
+    fn main_cursor_index(&self) -> usize {
         self.cursors.len() - 1
     }
 
@@ -1003,7 +1003,7 @@ impl Doc {
                 position,
                 selection_anchor,
                 ..
-            } = *self.get_cursor(index);
+            } = *self.cursor(index);
 
             let index = self.unwrap_cursor_index(index);
 
@@ -1177,14 +1177,14 @@ impl Doc {
         ctx: &mut Ctx,
     ) {
         for index in self.cursor_indices() {
-            let cursor = self.get_cursor(index);
+            let cursor = self.cursor(index);
 
             let position = shift_fn(self, start, end, cursor.position);
             let selection_anchor = cursor
                 .selection_anchor
                 .map(|selection_anchor| shift_fn(self, start, end, selection_anchor));
 
-            let cursor = self.get_cursor_mut(index);
+            let cursor = self.cursor_mut(index);
 
             cursor.position = position;
             cursor.selection_anchor = selection_anchor;
@@ -1193,7 +1193,7 @@ impl Doc {
         }
 
         for language_server in ctx.lsp.iter_servers_mut() {
-            for DecodedDiagnostic { range, .. } in language_server.get_diagnostics_mut(self) {
+            for DecodedDiagnostic { range, .. } in language_server.diagnostics_mut(self) {
                 range.start = shift_fn(self, start, end, range.start);
                 range.end = shift_fn(self, start, end, range.end);
             }
@@ -1246,12 +1246,12 @@ impl Doc {
     }
 
     pub fn insert_at_cursor(&mut self, index: CursorIndex, text: &str, ctx: &mut Ctx) {
-        if let Some(selection) = self.get_cursor(index).get_selection() {
+        if let Some(selection) = self.cursor(index).get_selection() {
             self.delete(selection.start, selection.end, ctx);
             self.end_cursor_selection(index);
         }
 
-        let start = self.get_cursor(index).position;
+        let start = self.cursor(index).position;
         self.insert(start, text, ctx);
     }
 
@@ -1399,10 +1399,10 @@ impl Doc {
     }
 
     pub fn end(&self) -> Position {
-        self.get_line_end(self.lines().len() - 1)
+        self.line_end(self.lines().len() - 1)
     }
 
-    pub fn get_grapheme(&self, position: Position) -> &str {
+    pub fn grapheme(&self, position: Position) -> &str {
         let position = self.clamp_position(position);
         let line = &self.lines[position.y];
 
@@ -1580,7 +1580,7 @@ impl Doc {
 
         let string = read_to_string(path)?;
 
-        let (line_ending, len) = self.get_line_ending_and_len(&string);
+        let (line_ending, len) = self.line_ending_and_len(&string);
 
         self.insert(Position::ZERO, &string[..len], ctx);
         self.reset_edit_state();
@@ -1610,7 +1610,7 @@ impl Doc {
 
         self.delete(Position::ZERO, self.end(), ctx);
 
-        let (line_ending, len) = self.get_line_ending_and_len(&string);
+        let (line_ending, len) = self.line_ending_and_len(&string);
 
         self.line_ending = line_ending;
         self.insert(Position::ZERO, &string[..len], ctx);
@@ -1629,7 +1629,7 @@ impl Doc {
         Ok(())
     }
 
-    fn get_line_ending_and_len(&self, string: &str) -> (LineEnding, usize) {
+    fn line_ending_and_len(&self, string: &str) -> (LineEnding, usize) {
         let mut len = 0;
         let mut grapheme_iterator = GraphemeIterator::new(string);
 
@@ -1696,7 +1696,7 @@ impl Doc {
 
     pub fn has_selection(&self) -> bool {
         for index in self.cursor_indices() {
-            if self.get_cursor(index).get_selection().is_some() {
+            if self.cursor(index).get_selection().is_some() {
                 return true;
             }
         }
@@ -1716,7 +1716,7 @@ impl Doc {
         let mut was_copy_implicit = true;
 
         for index in self.cursor_indices() {
-            let cursor = self.get_cursor(index);
+            let cursor = self.cursor(index);
 
             if let Some(selection) = cursor.get_selection() {
                 was_copy_implicit = false;
@@ -1736,7 +1736,7 @@ impl Doc {
 
     pub fn copy_line_at_position(&mut self, position: Position, text: &mut String) {
         let start = Position::new(0, position.y);
-        let end = self.get_line_end(start.y);
+        let end = self.line_end(start.y);
 
         self.collect_string(start, end, text);
         text.push('\n');
@@ -1749,9 +1749,9 @@ impl Doc {
         was_copy_implicit: bool,
         ctx: &mut Ctx,
     ) {
-        let mut start = self.get_cursor(index).position;
+        let mut start = self.cursor(index).position;
 
-        if let Some(selection) = self.get_cursor(index).get_selection() {
+        if let Some(selection) = self.cursor(index).get_selection() {
             self.delete(selection.start, selection.end, ctx);
             self.end_cursor_selection(index);
 
@@ -1853,7 +1853,7 @@ impl Doc {
 
     pub fn combine_overlapping_cursors(&mut self) {
         for index in self.cursor_indices().rev() {
-            let cursor = self.get_cursor(index);
+            let cursor = self.cursor(index);
             let position = cursor.position;
             let selection = cursor.get_selection();
 
@@ -1862,7 +1862,7 @@ impl Doc {
                     continue;
                 }
 
-                let other_cursor = self.get_cursor(other_index);
+                let other_cursor = self.cursor(other_index);
 
                 let do_remove = if let Some(selection) = other_cursor.get_selection() {
                     position >= selection.start && position <= selection.end
@@ -1886,7 +1886,7 @@ impl Doc {
     }
 
     pub fn add_cursor_at_next_occurance(&mut self, gfx: &mut Gfx) {
-        let cursor = self.get_cursor(CursorIndex::Main);
+        let cursor = self.cursor(CursorIndex::Main);
 
         let Some(selection) = cursor.get_selection() else {
             self.select_current_word_at_cursors(gfx);
@@ -1924,7 +1924,7 @@ impl Doc {
 
     pub fn select_current_line_at_position(&self, position: Position, gfx: &mut Gfx) -> Selection {
         let mut start = Position::new(0, position.y);
-        let mut end = self.get_line_end(start.y);
+        let mut end = self.line_end(start.y);
 
         if start.y == self.lines().len() - 1 {
             start = self.move_position(start, -1, 0, gfx);
@@ -1937,10 +1937,10 @@ impl Doc {
 
     pub fn select_current_line_at_cursors(&mut self, gfx: &mut Gfx) {
         for index in self.cursor_indices() {
-            let position = self.get_cursor(index).position;
+            let position = self.cursor(index).position;
             let selection = self.select_current_line_at_position(position, gfx);
 
-            let cursor = self.get_cursor_mut(index);
+            let cursor = self.cursor_mut(index);
 
             cursor.selection_anchor = Some(selection.start);
             cursor.position = selection.end;
@@ -1952,7 +1952,7 @@ impl Doc {
         mut position: Position,
         gfx: &mut Gfx,
     ) -> Selection {
-        let line_len = self.get_line_len(position.y);
+        let line_len = self.line_len(position.y);
 
         if position.x < line_len {
             position = self.move_position(position, 1, 0, gfx);
@@ -1975,10 +1975,10 @@ impl Doc {
 
     pub fn select_current_word_at_cursors(&mut self, gfx: &mut Gfx) {
         for index in self.cursor_indices() {
-            let position = self.get_cursor(index).position;
+            let position = self.cursor(index).position;
             let selection = self.select_current_word_at_position(position, gfx);
 
-            let cursor = self.get_cursor_mut(index);
+            let cursor = self.cursor_mut(index);
 
             cursor.selection_anchor = Some(selection.start);
             cursor.position = selection.end;
@@ -1986,7 +1986,7 @@ impl Doc {
     }
 
     pub fn get_completion_prefix<'a>(&'a self, gfx: &mut Gfx) -> Option<&'a str> {
-        let prefix_end = self.get_cursor(CursorIndex::Main).position;
+        let prefix_end = self.cursor(CursorIndex::Main).position;
 
         if prefix_end.x == 0 {
             return None;
@@ -1997,7 +1997,7 @@ impl Doc {
         while prefix_start.x > 0 {
             let next_start = self.move_position(prefix_start, -1, 0, gfx);
 
-            let grapheme = self.get_grapheme(next_start);
+            let grapheme = self.grapheme(next_start);
 
             if grapheme::is_alphanumeric(grapheme) || grapheme == "_" {
                 prefix_start = next_start;

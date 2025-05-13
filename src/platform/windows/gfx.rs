@@ -553,15 +553,15 @@ impl Gfx {
         .unwrap();
     }
 
-    pub fn get_glyph_spans(&mut self, text: &str) -> GlyphSpans {
-        let (spans, result) = self.text.get_glyph_spans(text);
+    pub fn glyph_spans(&mut self, text: &str) -> GlyphSpans {
+        let (spans, result) = self.text.glyph_spans(text);
         self.glyph_cache_result = self.glyph_cache_result.worse(result);
 
         spans
     }
 
-    pub fn get_glyph_span(&mut self, index: usize) -> GlyphSpan {
-        self.text.get_glyph_span(index)
+    pub fn glyph_span(&mut self, index: usize) -> GlyphSpan {
+        self.text.glyph_span(index)
     }
 
     fn handle_glyph_cache_result(&mut self) {

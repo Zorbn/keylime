@@ -37,7 +37,7 @@ impl SignatureHelpPopup {
             self.clear();
         }
 
-        let position = doc.get_cursor(CursorIndex::Main).position;
+        let position = doc.cursor(CursorIndex::Main).position;
         let is_retrigger = self.help.is_some();
 
         if trigger_char.is_some()
@@ -58,7 +58,7 @@ impl SignatureHelpPopup {
     }
 
     pub fn draw(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
-        let position = doc.get_cursor(CursorIndex::Main).position;
+        let position = doc.cursor(CursorIndex::Main).position;
 
         let signature_help = self.help.as_ref()?;
         let active_signature = signature_help
@@ -113,7 +113,7 @@ impl SignatureHelpPopup {
             return (trigger_char, retrigger_char);
         };
 
-        let mut grapheme_handler = ui.get_grapheme_handler(widget, ctx.window);
+        let mut grapheme_handler = ui.grapheme_handler(widget, ctx.window);
 
         while let Some(c) = grapheme_handler
             .next(ctx.window)

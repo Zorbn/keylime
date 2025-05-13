@@ -144,7 +144,7 @@ impl CommandPalette {
             self.close(ui);
         }
 
-        let mut global_action_handler = ctx.window.get_action_handler();
+        let mut global_action_handler = ctx.window.action_handler();
 
         while let Some(action) = global_action_handler.next(ctx.window) {
             match action {
@@ -171,7 +171,7 @@ impl CommandPalette {
         }
 
         if let Some(mut mode) = self.mode.take() {
-            let mut action_handler = ui.get_action_handler(&self.widget, ctx.window);
+            let mut action_handler = ui.action_handler(&self.widget, ctx.window);
 
             while let Some(action) = action_handler.next(ctx.window) {
                 if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
@@ -336,7 +336,7 @@ impl CommandPalette {
         ui.hide(&mut self.widget);
     }
 
-    pub fn get_input(&self) -> &str {
+    pub fn input(&self) -> &str {
         self.doc.get_line(0).unwrap_or_default()
     }
 }

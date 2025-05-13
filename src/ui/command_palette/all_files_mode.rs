@@ -117,7 +117,7 @@ impl CommandPaletteMode for AllFilesMode {
             return CommandPaletteAction::Stay;
         };
 
-        let (pane, doc_list) = args.editor.get_focused_pane_and_doc_list_mut();
+        let (pane, doc_list) = args.editor.focused_pane_and_doc_list_mut();
 
         if pane.open_file(path, doc_list, args.ctx).is_ok() {
             CommandPaletteAction::Close
@@ -133,7 +133,7 @@ impl CommandPaletteMode for AllFilesMode {
     ) {
         command_palette.result_list.reset_focused();
 
-        if command_palette.get_input().is_empty() {
+        if command_palette.input().is_empty() {
             command_palette
                 .result_list
                 .results
