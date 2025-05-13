@@ -26,7 +26,7 @@ use crate::{
 
 const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CompletionResolveState {
     NeedsRequest,
     NeedsResponse,
@@ -329,7 +329,11 @@ impl CompletionList {
         *resolve_state = CompletionResolveState::Resolved;
     }
 
-    pub fn lsp_update_completion_results(&mut self, mut items: Vec<DecodedCompletionItem>) {
+    pub fn lsp_update_completion_results(
+        &mut self,
+        mut items: Vec<DecodedCompletionItem>,
+        needs_resolve: bool,
+    ) {
         if let Some(CompletionResult::Completion {
             item:
                 DecodedCompletionItem {
@@ -351,10 +355,16 @@ impl CompletionList {
         items.retain(|item| item.filter_text().starts_with(&self.prefix));
         items.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
 
+        let resolve_state = if needs_resolve {
+            CompletionResolveState::NeedsRequest
+        } else {
+            CompletionResolveState::Resolved
+        };
+
         for item in items {
             self.result_list.push(CompletionResult::Completion {
                 item,
-                resolve_state: CompletionResolveState::NeedsRequest,
+                resolve_state,
             });
         }
     }

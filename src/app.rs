@@ -84,7 +84,6 @@ impl App {
             gfx.update_font(&self.config.font, self.config.font_size);
 
             self.editor.clear_doc_highlights();
-            self.layout(gfx);
         }
 
         if let Some(err) = window
@@ -94,6 +93,8 @@ impl App {
         {
             err.show_message();
         }
+
+        self.layout(gfx);
 
         self.ui.update(
             &mut [

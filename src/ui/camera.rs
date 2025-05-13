@@ -78,7 +78,8 @@ impl CameraAxis {
             // We can't move the camera past the top of the document,
             // (eg. if the cursor is on the first line, it might be too close to the edge of the
             // screen according to RECENTER_DISTANCE, but there's nothing we can do about it, so stop animating).
-            let visual_distance = (visual_distance + self.position).max(0.0) - self.position;
+            let visual_distance =
+                (visual_distance + self.position).clamp(0.0, max_position) - self.position;
 
             self.scroll_visual_distance(visual_distance);
         }

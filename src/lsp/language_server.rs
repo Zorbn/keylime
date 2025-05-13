@@ -93,6 +93,7 @@ pub struct LanguageServer {
     has_initialized: bool,
 
     diagnostics: HashMap<Pooled<PathBuf>, Diagnostics>,
+    needs_completion_resolve: bool,
     do_pull_diagnostics: bool,
 
     position_encoding: PositionEncoding,
@@ -113,6 +114,7 @@ impl LanguageServer {
             has_initialized: false,
 
             diagnostics: HashMap::new(),
+            needs_completion_resolve: false,
             do_pull_diagnostics: false,
 
             position_encoding: PositionEncoding::Utf16,
@@ -285,6 +287,11 @@ impl LanguageServer {
                     if result.capabilities.position_encoding == "utf-8" {
                         self.position_encoding = PositionEncoding::Utf8;
                     }
+
+                    self.needs_completion_resolve = result
+                        .capabilities
+                        .completion_provider
+                        .is_some_and(|provider| provider.resolve_provider);
 
                     if let Some(provider) = result.capabilities.signature_help_provider {
                         self.trigger_chars.extend(
@@ -777,6 +784,10 @@ impl LanguageServer {
 
     pub fn position_encoding(&self) -> PositionEncoding {
         self.position_encoding
+    }
+
+    pub fn needs_completion_resolve(&self) -> bool {
+        self.needs_completion_resolve
     }
 
     pub fn is_trigger_char(&self, c: char) -> bool {

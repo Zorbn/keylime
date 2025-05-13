@@ -110,7 +110,9 @@ impl Lsp {
                     .map(|item| item.decode(encoding, doc))
                     .collect();
 
-                editor.completion_list.lsp_update_completion_results(items);
+                editor
+                    .completion_list
+                    .lsp_update_completion_results(items, server.needs_completion_resolve());
             }
             MessageResult::CompletionItemResolve(item) => {
                 let doc = doc?;
