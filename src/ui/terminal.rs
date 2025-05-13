@@ -7,6 +7,7 @@ use crate::{
     geometry::rect::Rect,
     input::action::action_name,
     platform::{gfx::Gfx, process::Process},
+    pool::Pooled,
     text::doc::{Doc, DocKind},
 };
 
@@ -27,11 +28,11 @@ pub struct TerminalDocs {
 
 impl TerminalDocs {
     pub fn new() -> Self {
-        const TERMINAL_DISPLAY_NAME: Option<&str> = Some("Terminal");
+        let display_name: Option<Pooled<String>> = Some("Terminal".into());
 
         Self {
-            normal: Doc::new(None, TERMINAL_DISPLAY_NAME, DocKind::Output),
-            alternate: Doc::new(None, TERMINAL_DISPLAY_NAME, DocKind::Output),
+            normal: Doc::new(None, display_name.clone(), DocKind::Output),
+            alternate: Doc::new(None, display_name, DocKind::Output),
         }
     }
 

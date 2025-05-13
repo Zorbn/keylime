@@ -36,9 +36,12 @@ impl TerminalEmulator {
                         Some(&b'[') => {
                             self.handle_escape_sequences_csi(doc, input, &output[2..], ctx)
                         }
-                        Some(&b']') => {
-                            self.handle_escape_sequences_osc(input, &output[2..], &ctx.config.theme)
-                        }
+                        Some(&b']') => self.handle_escape_sequences_osc(
+                            doc,
+                            input,
+                            &output[2..],
+                            &ctx.config.theme,
+                        ),
                         Some(&b'(') => {
                             match output.get(2) {
                                 Some(&b'B') => {
@@ -628,6 +631,7 @@ impl TerminalEmulator {
 
     fn handle_escape_sequences_osc<'a>(
         &self,
+        doc: &mut Doc,
         input: &mut Vec<u8>,
         output: &'a [u8],
         theme: &Theme,
@@ -641,6 +645,15 @@ impl TerminalEmulator {
         output = &output[1..];
 
         match kind {
+            0 | 2 => {
+                let title = Self::consume_terminated_string(&mut output);
+
+                if let Some(title) = title.and_then(|title| str::from_utf8(title).ok()) {
+                    doc.set_display_name(Some(title.into()));
+                }
+
+                Some(output)
+            }
             10 | 11 => {
                 // Setting/requesting foreground/background color.
 
@@ -676,22 +689,32 @@ impl TerminalEmulator {
                 #[cfg(feature = "terminal_debug")]
                 println!("Unhandled osc sequence: {}", kind);
 
-                loop {
-                    if output.is_empty() {
-                        return None;
-                    }
-
-                    if let Some(remaining) = Self::consume_string_terminator(output) {
-                        output = remaining;
-                        break;
-                    }
-
-                    output = &output[1..];
-                }
+                Self::consume_terminated_string(&mut output);
 
                 Some(output)
             }
         }
+    }
+
+    fn consume_terminated_string<'a>(output: &mut &'a [u8]) -> Option<&'a [u8]> {
+        let string_bytes = *output;
+        let mut string_len = 0;
+
+        loop {
+            if output.is_empty() {
+                return None;
+            }
+
+            if let Some(remaining) = Self::consume_string_terminator(output) {
+                *output = remaining;
+                break;
+            }
+
+            *output = &output[1..];
+            string_len += 1;
+        }
+
+        Some(&string_bytes[..string_len])
     }
 
     fn consume_string_terminator(output: &[u8]) -> Option<&[u8]> {

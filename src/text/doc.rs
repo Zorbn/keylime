@@ -109,7 +109,7 @@ const EXPECTED_CHANGE_COUNT_ON_SAVE: usize = 2;
 const EXPECTED_CHANGE_COUNT_ON_SAVE: usize = 1;
 
 pub struct Doc {
-    display_name: Option<&'static str>,
+    display_name: Option<Pooled<String>>,
     path: DocPath,
     is_saved: bool,
     expected_change_count: usize,
@@ -140,7 +140,7 @@ pub struct Doc {
 impl Doc {
     pub fn new(
         path: Option<Pooled<PathBuf>>,
-        display_name: Option<&'static str>,
+        display_name: Option<Pooled<String>>,
         kind: DocKind,
     ) -> Self {
         assert!(path.as_ref().is_none_or(|path| path.is_normal()));
@@ -1676,6 +1676,10 @@ impl Doc {
         &self.path
     }
 
+    pub fn set_display_name(&mut self, display_name: Option<Pooled<String>>) {
+        self.display_name = display_name;
+    }
+
     pub fn file_name(&self) -> &str {
         const DEFAULT_NAME: &str = "Unnamed";
 
@@ -1683,7 +1687,10 @@ impl Doc {
             .some()
             .and_then(|path| path.file_name())
             .and_then(|name| name.to_str())
-            .or(self.display_name)
+            .or(self
+                .display_name
+                .as_ref()
+                .map(|display_name| display_name.as_str()))
             .unwrap_or(DEFAULT_NAME)
     }
 
