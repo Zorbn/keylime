@@ -233,21 +233,27 @@ impl Config {
     }
 
     pub fn get_dir() -> Pooled<PathBuf> {
-        let relative_dir = {
-            if let Some(exe_dir) = current_exe().as_ref().ok().and_then(|exe| exe.parent()) {
-                let mut config_path = PATH_POOL.new_item();
-                config_path.push(exe_dir);
+        if let Some(exe_dir) = current_exe().as_ref().ok().and_then(|exe| exe.parent()) {
+            let mut config_path: Pooled<PathBuf> = exe_dir.into();
+
+            loop {
                 config_path.push(CONFIG_DIR);
 
                 if config_path.exists() {
                     return config_path;
                 }
+
+                config_path.pop();
+
+                if config_path.parent().is_none() {
+                    break;
+                }
+
+                config_path.pop();
             }
+        }
 
-            CONFIG_DIR
-        };
-
-        relative_dir.normalized().unwrap()
+        CONFIG_DIR.normalized().unwrap()
     }
 }
 
