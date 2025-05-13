@@ -79,14 +79,14 @@ impl Gfx {
         let glyph_width = self.glyph_width();
         let glyph_height = self.glyph_height();
 
-        let mut offset = 0.0;
+        let mut offset = 0;
 
         for i in glyph_spans.spans_start..glyph_spans.spans_end {
             let span = self.glyph_span(i);
 
-            match span {
-                GlyphSpan::Space => offset += glyph_width,
-                GlyphSpan::Tab => offset += TAB_WIDTH as f32 * glyph_width,
+            offset += match span {
+                GlyphSpan::Space => 1,
+                GlyphSpan::Tab => TAB_WIDTH,
                 GlyphSpan::Glyph {
                     origin_x,
                     origin_y,
@@ -107,7 +107,7 @@ impl Gfx {
                     let source_width = width as f32;
                     let source_height = height as f32;
 
-                    let destination_x = x + offset + origin_x;
+                    let destination_x = x + offset as f32 * glyph_width + origin_x;
                     let destination_y = y + glyph_height - height as f32 + origin_y;
                     let destination_width = width as f32;
                     let destination_height = height as f32;
@@ -124,12 +124,12 @@ impl Gfx {
                         kind,
                     );
 
-                    offset += self.round_glyph_advance(advance) as f32 * glyph_width;
+                    self.round_glyph_advance(advance)
                 }
-            }
+            };
         }
 
-        offset
+        offset as f32 * glyph_width
     }
 
     pub fn add_background(&mut self, text: &str, x: f32, y: f32, color: Color) {
@@ -147,13 +147,11 @@ impl Gfx {
         for i in glyph_spans.spans_start..glyph_spans.spans_end {
             let span = self.glyph_span(i);
 
-            match span {
-                GlyphSpan::Space => width += 1,
-                GlyphSpan::Tab => width += TAB_WIDTH,
-                GlyphSpan::Glyph { advance, .. } => {
-                    width += self.round_glyph_advance(advance);
-                }
-            }
+            width += match span {
+                GlyphSpan::Space => 1,
+                GlyphSpan::Tab => TAB_WIDTH,
+                GlyphSpan::Glyph { advance, .. } => self.round_glyph_advance(advance),
+            };
         }
 
         width

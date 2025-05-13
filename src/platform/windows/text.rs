@@ -141,7 +141,7 @@ impl Text {
         let mut m_glyph_metrics = DWRITE_GLYPH_METRICS::default();
         font_face.GetDesignGlyphMetrics(&m_glyph_index, 1, &mut m_glyph_metrics, false)?;
 
-        let glyph_width = ((m_glyph_metrics.advanceWidth as f32) * glyph_metrics_scale).ceil();
+        let glyph_width = ((m_glyph_metrics.advanceWidth as f32) * glyph_metrics_scale).floor();
         let line_height = ((font_metrics.ascent as f32
             + font_metrics.descent as f32
             + font_metrics.lineGap as f32)
@@ -208,8 +208,8 @@ impl Text {
         }
 
         let origin = Vector2 {
-            X: -left.ceil() + ATLAS_PADDING,
-            Y: -top.ceil() + ATLAS_PADDING,
+            X: -left + ATLAS_PADDING,
+            Y: -top + ATLAS_PADDING,
         };
 
         let translated_runs = self.dwrite_factory.TranslateColorGlyphRun(
@@ -363,12 +363,12 @@ impl Text {
         Ok(Atlas {
             data: raw_data,
             dimensions: AtlasDimensions {
-                origin_x: left.ceil(),
+                origin_x: left.ceil() - ATLAS_PADDING,
                 origin_y: bottom.ceil(),
                 width: width as usize,
                 height: height as usize,
                 glyph_width: self.glyph_width as usize,
-                glyph_height: height as usize,
+                glyph_height: (height as f32 - ATLAS_PADDING) as usize,
                 line_height: self.line_height as usize,
             },
             has_color_glyphs,
