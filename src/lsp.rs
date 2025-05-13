@@ -91,7 +91,7 @@ impl Lsp {
         let mut doc = path.as_ref().and_then(|path| editor.find_doc_mut(path));
 
         if let Some(ref mut doc) = doc {
-            if !doc.lsp_is_response_expected(method, message.id) {
+            if !doc.lsp_is_response_expected(method, message.id, ctx) {
                 return None;
             }
         }

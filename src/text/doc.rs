@@ -1,7 +1,6 @@
 mod lsp;
 
 use std::{
-    collections::HashMap,
     fmt::Display,
     fs::{read_to_string, File},
     io::{self, Write},
@@ -10,10 +9,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use lsp::DocLspState;
+
 use crate::{
     ctx::{ctx_with_time, Ctx},
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
-    lsp::{types::DecodedDiagnostic, LspExpectedResponse},
+    lsp::types::DecodedDiagnostic,
     normalizable::Normalizable,
     platform::gfx::Gfx,
     pool::{Pooled, STRING_POOL},
@@ -131,8 +132,7 @@ pub struct Doc {
     tokenizer: Tokenizer,
     needs_tokenization: bool,
 
-    lsp_expected_responses: HashMap<&'static str, LspExpectedResponse>,
-    lsp_is_open: bool,
+    lsp_state: DocLspState,
 
     kind: DocKind,
 }
@@ -176,8 +176,7 @@ impl Doc {
             tokenizer: Tokenizer::new(),
             needs_tokenization: false,
 
-            lsp_expected_responses: HashMap::new(),
-            lsp_is_open: false,
+            lsp_state: Default::default(),
 
             kind,
         };

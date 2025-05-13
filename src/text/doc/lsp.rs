@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     ctx::Ctx,
     geometry::position::Position,
@@ -11,6 +13,13 @@ use crate::{
 use crate::text::cursor_index::CursorIndex;
 
 use super::{Doc, DocKind};
+
+#[derive(Debug, Default)]
+pub(super) struct DocLspState {
+    expected_responses: HashMap<&'static str, LspExpectedResponse>,
+    is_open: bool,
+    debounced_requests: HashMap<&'static str, Option<Position>>,
+}
 
 impl Doc {
     pub fn get_language_server_mut<'a>(&self, ctx: &'a mut Ctx) -> Option<&'a mut LanguageServer> {
@@ -26,7 +35,7 @@ impl Doc {
         sent_request: LspSentRequest,
         position: Option<Position>,
     ) {
-        self.lsp_expected_responses.insert(
+        self.lsp_state.expected_responses.insert(
             sent_request.method,
             LspExpectedResponse {
                 id: sent_request.id,
@@ -36,13 +45,18 @@ impl Doc {
         );
     }
 
-    pub fn lsp_is_response_expected(&mut self, method: &str, id: Option<usize>) -> bool {
+    pub fn lsp_is_response_expected(
+        &mut self,
+        method: &str,
+        id: Option<usize>,
+        ctx: &mut Ctx,
+    ) -> bool {
         let Some(id) = id else {
             // This was a notification so it's expected by default.
             return true;
         };
 
-        let Some(expected_response) = self.lsp_expected_responses.get(method).copied() else {
+        let Some(expected_response) = self.lsp_state.expected_responses.get(method).copied() else {
             // Expected responses don't need to be tracked for this method.
             return true;
         };
@@ -51,7 +65,15 @@ impl Doc {
             return false;
         }
 
-        self.lsp_expected_responses.remove(method);
+        self.lsp_state.expected_responses.remove(method);
+
+        if self.lsp_debounced_request(method) {
+            match method {
+                "textDocument/completion" => self.lsp_completion(ctx),
+                "textDocument/diagnostic" => self.lsp_diagnostic(ctx),
+                _ => None,
+            };
+        }
 
         let position = self.get_cursor(CursorIndex::Main).position;
 
@@ -70,7 +92,7 @@ impl Doc {
     }
 
     pub fn lsp_did_open(&mut self, text: &str, ctx: &mut Ctx) -> Option<()> {
-        if self.lsp_is_open {
+        if self.lsp_state.is_open {
             return None;
         }
 
@@ -82,19 +104,19 @@ impl Doc {
         language_server.did_open(path, language_id, self.version, text);
         self.lsp_diagnostic(ctx);
 
-        self.lsp_is_open = true;
+        self.lsp_state.is_open = true;
 
         Some(())
     }
 
     pub fn lsp_did_close(&mut self, ctx: &mut Ctx) -> Option<()> {
-        if !self.lsp_is_open {
+        if !self.lsp_state.is_open {
             return None;
         }
 
         self.lsp_text_document_notification("textDocument/didClose", ctx)?;
 
-        self.lsp_is_open = false;
+        self.lsp_state.is_open = false;
 
         Some(())
     }
@@ -106,7 +128,7 @@ impl Doc {
         text: &str,
         ctx: &mut Ctx,
     ) -> Option<()> {
-        if !self.lsp_is_open {
+        if !self.lsp_state.is_open {
             return None;
         }
 
@@ -119,11 +141,7 @@ impl Doc {
     }
 
     pub fn lsp_diagnostic(&mut self, ctx: &mut Ctx) -> Option<()> {
-        if !self.lsp_is_open
-            || self
-                .lsp_expected_responses
-                .contains_key("textDocument/diagnostic")
-        {
+        if self.lsp_debounce_request("textDocument/diagnostic", None) {
             return None;
         }
 
@@ -137,11 +155,9 @@ impl Doc {
     }
 
     pub fn lsp_completion(&mut self, ctx: &mut Ctx) -> Option<()> {
-        if !self.lsp_is_open
-            || self
-                .lsp_expected_responses
-                .contains_key("textDocument/completion")
-        {
+        let position = self.get_cursor(CursorIndex::Main).position;
+
+        if self.lsp_debounce_request("textDocument/completion", Some(position)) {
             return None;
         }
 
@@ -149,7 +165,6 @@ impl Doc {
 
         let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;
-        let position = self.get_cursor(CursorIndex::Main).position;
 
         let sent_request = language_server.completion(path, position, self);
         self.lsp_add_expected_response(sent_request, Some(position));
@@ -158,7 +173,7 @@ impl Doc {
     }
 
     pub fn lsp_code_action(&mut self, ctx: &mut Ctx) -> Option<()> {
-        if !self.lsp_is_open {
+        if !self.lsp_state.is_open {
             return None;
         }
 
@@ -180,7 +195,7 @@ impl Doc {
     }
 
     pub fn lsp_prepare_rename(&mut self, ctx: &mut Ctx) -> Option<()> {
-        if !self.lsp_is_open {
+        if !self.lsp_state.is_open {
             return None;
         }
 
@@ -195,7 +210,7 @@ impl Doc {
     }
 
     pub fn lsp_rename(&self, new_name: &str, ctx: &mut Ctx) -> Option<()> {
-        if !self.lsp_is_open {
+        if !self.lsp_state.is_open {
             return None;
         }
 
@@ -209,7 +224,7 @@ impl Doc {
     }
 
     pub fn lsp_references(&mut self, ctx: &mut Ctx) -> Option<()> {
-        if !self.lsp_is_open {
+        if !self.lsp_state.is_open {
             return None;
         }
 
@@ -224,7 +239,7 @@ impl Doc {
     }
 
     pub fn lsp_definition(&mut self, position: Position, ctx: &mut Ctx) -> Option<()> {
-        if !self.lsp_is_open {
+        if !self.lsp_state.is_open {
             return None;
         }
 
@@ -243,7 +258,7 @@ impl Doc {
         is_retrigger: bool,
         ctx: &mut Ctx,
     ) -> Option<()> {
-        if !self.lsp_is_open {
+        if !self.lsp_state.is_open {
             return None;
         }
 
@@ -259,7 +274,7 @@ impl Doc {
     }
 
     pub fn lsp_formatting(&mut self, ctx: &mut Ctx) -> Option<()> {
-        if !self.lsp_is_open {
+        if !self.lsp_state.is_open {
             return None;
         }
 
@@ -278,7 +293,7 @@ impl Doc {
         method: &'static str,
         ctx: &mut Ctx,
     ) -> Option<()> {
-        if !self.lsp_is_open {
+        if !self.lsp_state.is_open {
             return None;
         }
 
@@ -307,5 +322,28 @@ impl Doc {
                 range.end = self.shift_position_by_insert(start, insert_end, range.end);
             }
         }
+    }
+
+    pub fn lsp_debounce_request(
+        &mut self,
+        method: &'static str,
+        position: Option<Position>,
+    ) -> bool {
+        if !self.lsp_state.expected_responses.contains_key(method) {
+            return false;
+        }
+
+        self.lsp_state.debounced_requests.insert(method, position);
+        true
+    }
+
+    pub fn lsp_debounced_request(&mut self, method: &str) -> bool {
+        let position = self.get_cursor(CursorIndex::Main).position;
+
+        self.lsp_state
+            .debounced_requests
+            .remove(method)
+            .filter(|dp| dp.is_none_or(|dp| dp == position))
+            .is_some()
     }
 }
