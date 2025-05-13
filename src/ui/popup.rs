@@ -62,7 +62,7 @@ pub fn draw_popup(
     );
 
     for (y, line) in message.lines().enumerate() {
-        let y = y as f32 * gfx.line_height() + gfx.line_padding() + margin;
+        let y = y as f32 * gfx.line_height() + gfx.line_padding_y() + margin;
 
         gfx.add_text(line, margin, y, foreground);
     }

@@ -235,7 +235,11 @@ impl Gfx {
         self.inner.atlas_dimensions().line_height as f32
     }
 
-    pub fn line_padding(&self) -> f32 {
+    pub fn line_padding_x(&self) -> f32 {
+        self.border_width()
+    }
+
+    pub fn line_padding_y(&self) -> f32 {
         ((self.line_height() - self.glyph_height()) / 2.0).ceil()
     }
 

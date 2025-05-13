@@ -15,6 +15,8 @@ use objc2_core_graphics::*;
 use objc2_core_text::*;
 use objc2_foundation::{NSMutableAttributedString, NSRange, NSString};
 
+const ATLAS_PADDING: f64 = 1.0;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Glyph<'a> {
     pub index: u16,
@@ -107,7 +109,10 @@ impl Text {
 
         let rect = CGRect::new(
             CGPoint::ZERO,
-            CGSize::new(rect.size.width.ceil() + 1.0, rect.size.height.ceil() + 1.0),
+            CGSize::new(
+                rect.size.width.ceil() + ATLAS_PADDING,
+                rect.size.height.ceil() + ATLAS_PADDING,
+            ),
         );
 
         let mut raw_data = vec![0u8; rect.size.width as usize * rect.size.height as usize * 4];
@@ -138,7 +143,10 @@ impl Text {
         )
         .unwrap();
 
-        let mut positions = [CGPoint::new(-origin.x + 1.0, -origin.y + 1.0)];
+        let mut positions = [CGPoint::new(
+            -origin.x + ATLAS_PADDING,
+            -origin.y + ATLAS_PADDING,
+        )];
         let positions = NonNull::new(positions.as_mut_ptr()).unwrap();
 
         CTFont::draw_glyphs(glyph.font, glyphs, positions, 1, &context);
@@ -146,8 +154,8 @@ impl Text {
         Ok(Atlas {
             data: raw_data,
             dimensions: AtlasDimensions {
-                origin_x: origin.x.ceil() as f32,
-                origin_y: -origin.y.ceil() as f32,
+                origin_x: (origin.x.ceil() - ATLAS_PADDING) as f32,
+                origin_y: -(origin.y.ceil() - ATLAS_PADDING) as f32,
                 width: rect.size.width as usize,
                 height: rect.size.height as usize,
                 glyph_width: self.glyph_width,

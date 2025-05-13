@@ -1434,12 +1434,13 @@ impl Doc {
         let position = self.clamp_position(position);
         let leading_text = &self.lines[position.y][..position.x];
 
-        let visual_x = gfx.measure_text(leading_text);
+        let visual_x = gfx.line_padding_x()
+            + gfx.measure_text(leading_text) as f32 * gfx.glyph_width()
+            - camera_position.x;
 
-        VisualPosition::new(
-            visual_x as f32 * gfx.glyph_width() - camera_position.x,
-            position.y as f32 * gfx.line_height() - camera_position.y,
-        )
+        let visual_y = position.y as f32 * gfx.line_height() - camera_position.y;
+
+        VisualPosition::new(visual_x, visual_y)
     }
 
     pub fn visual_to_position(

@@ -277,7 +277,7 @@ impl Tab {
     }
 
     fn line_foreground_visual_y(index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
-        Self::line_background_visual_y(index, sub_line_offset_y, gfx) + gfx.line_padding()
+        Self::line_background_visual_y(index, sub_line_offset_y, gfx) + gfx.line_padding_y()
     }
 
     fn line_background_visual_y(index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
@@ -402,7 +402,8 @@ impl Tab {
             };
 
             for x in (indent_width..indent_guide_x).step_by(indent_width) {
-                let visual_x = gfx.glyph_width() * x as f32 - camera_position.x;
+                let visual_x =
+                    gfx.line_padding_x() + gfx.glyph_width() * x as f32 - camera_position.x;
 
                 gfx.add_rect(
                     Rect::new(
@@ -433,6 +434,8 @@ impl Tab {
 
         for (i, y) in visible_lines.enumerate() {
             let line = &lines[y];
+
+            let mut visual_x = gfx.line_padding_x() - camera_position.x;
             let foreground_visual_y = Self::line_foreground_visual_y(i, visible_lines.offset, gfx);
             let background_visual_y = Self::line_background_visual_y(i, visible_lines.offset, gfx);
 
@@ -441,17 +444,12 @@ impl Tab {
                 .map(|highlighted_line| highlighted_line.highlights())
                 .filter(|highlights| !highlights.is_empty())
             else {
-                let visual_x = -camera_position.x;
-
                 gfx.add_text(&line[..], visual_x, foreground_visual_y, theme.normal);
 
                 continue;
             };
 
-            let mut x = 0.0;
-
             for highlight in highlights {
-                let visual_x = x - camera_position.x;
                 let foreground = ctx
                     .config
                     .theme
@@ -474,7 +472,8 @@ impl Tab {
                     }
                 }
 
-                x += gfx.add_text(highlighted_text, visual_x, foreground_visual_y, foreground);
+                visual_x +=
+                    gfx.add_text(highlighted_text, visual_x, foreground_visual_y, foreground);
             }
         }
     }
@@ -637,15 +636,12 @@ impl Tab {
             let cursor_width = gfx.border_width() * 2.0;
 
             for index in doc.cursor_indices() {
-                let cursor_position = doc.position_to_visual(
-                    doc.cursor(index).position,
-                    VisualPosition::new(0.0, camera_position.y),
-                    gfx,
-                );
+                let cursor_position =
+                    doc.position_to_visual(doc.cursor(index).position, camera_position, gfx);
 
                 gfx.add_rect(
                     Rect::new(
-                        cursor_position.x - camera_position.x,
+                        cursor_position.x,
                         cursor_position.y,
                         cursor_width,
                         gfx.line_height(),
