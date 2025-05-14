@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{value::RawValue, Value};
 
 use crate::{
-    config::theme::Theme, geometry::position::Position, pool::Pooled, text::doc::Doc,
+    config::theme::Theme,
+    geometry::position::Position,
+    pool::{Pooled, STRING_POOL},
+    text::doc::Doc,
     ui::color::Color,
 };
 
@@ -453,20 +456,64 @@ impl DecodedTextEdit {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MarkedString {
+    language: Pooled<String>,
+    value: Pooled<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MarkupContent {
+    kind: Pooled<String>,
+    value: Pooled<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum HoverContents {
+    MarkedString(MarkedString),
+    MarkedStrings(Vec<MarkedString>),
+    MarkupContent(MarkupContent),
+}
+
+impl HoverContents {
+    pub fn text(&self) -> Pooled<String> {
+        let mut text = STRING_POOL.new_item();
+
+        match self {
+            HoverContents::MarkedString(marked_string) => text.push_str(&marked_string.value),
+            HoverContents::MarkedStrings(marked_strings) => {
+                for marked_string in marked_strings {
+                    if !text.is_empty() {
+                        text.push('\n');
+                    }
+
+                    text.push_str(&marked_string.value);
+                }
+            }
+            HoverContents::MarkupContent(markup_content) => text.push_str(&markup_content.value),
+        };
+
+        text
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Hover {
+    pub contents: HoverContents,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum Documentation {
     PlainText(Pooled<String>),
-    MarkupContent {
-        kind: Pooled<String>,
-        value: Pooled<String>,
-    },
+    MarkupContent(MarkupContent),
 }
 
 impl Documentation {
     pub fn text(&self) -> &str {
         match self {
             Documentation::PlainText(text) => text,
-            Documentation::MarkupContent { value, .. } => value,
+            Documentation::MarkupContent(content) => &content.value,
         }
     }
 }

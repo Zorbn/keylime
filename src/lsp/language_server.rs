@@ -29,7 +29,8 @@ use super::{
     position_encoding::PositionEncoding,
     types::{
         DecodedCompletionItem, DecodedDiagnostic, EncodedCompletionItem, EncodedDiagnostic,
-        EncodedRange, EncodedTextEdit, EncodedWorkspaceEdit, LspPrepareRenameResult, SignatureHelp,
+        EncodedRange, EncodedTextEdit, EncodedWorkspaceEdit, Hover, LspPrepareRenameResult,
+        SignatureHelp,
     },
     uri::path_to_uri,
     LspSentRequest,
@@ -90,6 +91,7 @@ pub(super) enum MessageResult<'a> {
         range: EncodedRange,
     },
     SignatureHelp(Option<SignatureHelp>),
+    Hover(Option<Hover>),
     Formatting(Vec<EncodedTextEdit>),
     Diagnostic(Vec<EncodedDiagnostic>),
 }
@@ -455,6 +457,14 @@ impl LanguageServer {
 
                 Some(MessageResult::SignatureHelp(result))
             }
+            "textDocument/hover" => {
+                let result = message
+                    .result
+                    .as_ref()
+                    .and_then(|result| serde_json::from_str::<Hover>(result.get()).ok());
+
+                Some(MessageResult::Hover(result))
+            }
             "textDocument/formatting" => {
                 let result = message.result.as_ref()?;
                 let result = serde_json::from_str::<Vec<EncodedTextEdit>>(result.get()).ok();
@@ -685,6 +695,19 @@ impl LanguageServer {
                     "triggerCharacter": trigger_char,
                     "isRetrigger": is_retrigger,
                 },
+            }),
+        )
+    }
+
+    pub fn hover(&mut self, path: &Path, position: Position, doc: &Doc) -> LspSentRequest {
+        self.send_request(
+            Some(path),
+            "textDocument/hover",
+            json!({
+                "textDocument": {
+                    "uri": path_to_uri(path),
+                },
+                "position": EncodedPosition::encode(position, self.position_encoding, doc),
             }),
         )
     }

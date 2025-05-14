@@ -6,6 +6,7 @@ use std::{
 use completion_list::{CompletionList, CompletionListResult};
 use doc_io::confirm_close_all;
 use editor_pane::EditorPane;
+use examine_popup::ExaminePopup;
 use signature_help_popup::SignatureHelpPopup;
 
 use crate::{
@@ -33,7 +34,6 @@ use crate::{
 use super::{
     core::{Ui, Widget},
     focus_list::FocusList,
-    popup::{draw_popup, PopupAlignment},
     slot_list::SlotList,
     tab::Tab,
 };
@@ -41,6 +41,7 @@ use super::{
 pub mod completion_list;
 mod doc_io;
 pub mod editor_pane;
+mod examine_popup;
 mod signature_help_popup;
 
 pub struct Editor {
@@ -50,7 +51,7 @@ pub struct Editor {
     current_dir: Option<PathBuf>,
 
     handled_position: Option<Position>,
-    do_show_diagnostic_popup: bool,
+    pub examine_popup: ExaminePopup,
     pub signature_help_popup: SignatureHelpPopup,
     pub completion_list: CompletionList,
     pub widget: Widget,
@@ -64,7 +65,7 @@ impl Editor {
             current_dir: current_dir().ok(),
 
             handled_position: None,
-            do_show_diagnostic_popup: false,
+            examine_popup: ExaminePopup::new(),
             signature_help_popup: SignatureHelpPopup::new(),
             completion_list: CompletionList::new(),
             widget: Widget::new(ui, true),
@@ -131,9 +132,9 @@ impl Editor {
         self.post_pane_update(signature_help_triggers, ctx);
 
         if !ui.is_focused(&self.widget) {
-            self.do_show_diagnostic_popup = false;
-            self.completion_list.clear();
+            self.examine_popup.clear();
             self.signature_help_popup.clear();
+            self.completion_list.clear();
         }
     }
 
@@ -205,21 +206,26 @@ impl Editor {
                     }
                 }
                 action_keybind!(key: Escape, mods: Mods::NONE) => {
-                    if let Some((_, doc)) = self.get_focused_tab_and_doc() {
-                        let position = doc.cursor(CursorIndex::Main).position;
-
-                        if self.signature_help_popup.is_open() {
-                            self.signature_help_popup.clear();
-                        } else if self.do_show_diagnostic_popup
-                            && ctx.lsp.get_diagnostic_at(position, doc).is_some()
-                        {
-                            self.do_show_diagnostic_popup = false;
-                        } else {
-                            action_handler.unprocessed(ctx.window, action);
-                        }
+                    if self.signature_help_popup.is_open() {
+                        self.signature_help_popup.clear();
+                    } else if self.examine_popup.is_open() {
+                        self.examine_popup.clear();
+                    } else {
+                        action_handler.unprocessed(ctx.window, action);
                     }
                 }
-                action_name!(ShowDiagnostic) => self.do_show_diagnostic_popup = true,
+                action_name!(Examine) => {
+                    self.signature_help_popup.clear();
+
+                    let pane = self.panes.get_focused_mut().unwrap();
+                    let focused_tab_index = pane.focused_tab_index();
+
+                    if let Some((_, doc)) =
+                        pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
+                    {
+                        self.examine_popup.open(doc, ctx);
+                    }
+                }
                 _ => action_handler.unprocessed(ctx.window, action),
             }
         }
@@ -262,15 +268,12 @@ impl Editor {
             .update(signature_help_triggers, doc, ctx);
 
         self.completion_list
-            .update_results(doc, self.handled_position, ctx);
+            .update_results(self.handled_position, doc, ctx);
+
+        self.examine_popup.update(self.handled_position, doc, ctx);
 
         let position = doc.cursor(CursorIndex::Main).position;
-
         self.handled_position = Some(position);
-
-        if self.do_show_diagnostic_popup && ctx.lsp.get_diagnostic_at(position, doc).is_none() {
-            self.do_show_diagnostic_popup = false;
-        }
     }
 
     pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
@@ -400,33 +403,9 @@ impl Editor {
 
         if self.signature_help_popup.is_open() {
             self.signature_help_popup.draw(tab, doc, ctx);
-        } else if self.do_show_diagnostic_popup {
-            self.draw_diagnostic_popup(tab, doc, ctx);
+        } else if self.examine_popup.is_open() {
+            self.examine_popup.draw(tab, doc, ctx);
         }
-    }
-
-    fn draw_diagnostic_popup(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
-        let position = doc.cursor(CursorIndex::Main).position;
-
-        if let Some(diagnostic) = ctx.lsp.get_diagnostic_at(position, doc) {
-            let gfx = &mut ctx.gfx;
-            let theme = &ctx.config.theme;
-
-            let start = diagnostic.visible_range(doc).start;
-            let mut position = doc.position_to_visual(start, tab.camera.position(), gfx);
-            position = position.offset_by(tab.doc_bounds());
-
-            draw_popup(
-                &diagnostic.message,
-                position,
-                PopupAlignment::Above,
-                theme.normal,
-                theme,
-                gfx,
-            );
-        }
-
-        Some(())
     }
 
     pub fn get_focused_tab_and_doc_mut(&mut self) -> Option<(&mut Tab, &mut Doc)> {

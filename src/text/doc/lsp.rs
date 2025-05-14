@@ -273,6 +273,21 @@ impl Doc {
         Some(())
     }
 
+    pub fn lsp_hover(&mut self, ctx: &mut Ctx) -> Option<()> {
+        if !self.lsp_state.is_open {
+            return None;
+        }
+
+        let language_server = self.get_language_server_mut(ctx)?;
+        let path = self.path.some()?;
+        let position = self.cursor(CursorIndex::Main).position;
+
+        let sent_request = language_server.hover(path, position, self);
+        self.lsp_add_expected_response(sent_request, Some(position));
+
+        Some(())
+    }
+
     pub fn lsp_formatting(&mut self, ctx: &mut Ctx) -> Option<()> {
         if !self.lsp_state.is_open {
             return None;

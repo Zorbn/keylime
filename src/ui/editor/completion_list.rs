@@ -396,8 +396,8 @@ impl CompletionList {
 
     pub fn update_results(
         &mut self,
-        doc: &mut Doc,
         handled_position: Option<Position>,
+        doc: &mut Doc,
         ctx: &mut Ctx,
     ) -> Option<()> {
         let position = doc.cursor(CursorIndex::Main).position;

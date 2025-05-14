@@ -354,7 +354,12 @@ fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
         }
 
         let indent_line = doc.get_line(indent_y).unwrap_or_default();
-        let indent_end = doc.line_start(indent_y).min(cursor.position.x);
+
+        let indent_end = if indent_y == cursor.position.y {
+            doc.line_start(indent_y).min(cursor.position.x)
+        } else {
+            doc.line_start(indent_y)
+        };
 
         let mut indent_text = STRING_POOL.new_item();
         indent_text.push_str(&indent_line[..indent_end]);

@@ -63,7 +63,7 @@ pub enum ActionName {
     RequestCodeAction,
     Rename,
     FindReferences,
-    ShowDiagnostic,
+    Examine,
 }
 
 macro_rules! action_name {

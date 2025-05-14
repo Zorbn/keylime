@@ -213,6 +213,9 @@ impl Lsp {
                     .signature_help_popup
                     .lsp_set_signature_help(signature_help);
             }
+            MessageResult::Hover(hover) => {
+                editor.examine_popup.lsp_set_hover(hover);
+            }
             MessageResult::Formatting(edits) => {
                 let doc = doc?;
 

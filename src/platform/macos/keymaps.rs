@@ -436,7 +436,7 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
                 key: Key::K,
                 mods: Mods::CMD,
             },
-            ActionName::ShowDiagnostic,
+            ActionName::Examine,
         ),
     ]
     .iter()
