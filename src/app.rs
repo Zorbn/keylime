@@ -41,13 +41,16 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(window: &mut Window, gfx: &mut Gfx, time: f32) -> Self {
         let config_dir = Config::dir();
 
         let (config, config_error) = match Config::load(&config_dir) {
             Ok(config) => (config, None),
             Err(err) => (Config::default(), Some(err)),
         };
+
+        window.set_theme(&config.theme);
+        gfx.set_font(&config.font, config.font_size);
 
         let mut ui = Ui::new();
 
@@ -81,7 +84,7 @@ impl App {
             }
 
             window.set_theme(&self.config.theme);
-            gfx.update_font(&self.config.font, self.config.font_size);
+            gfx.set_font(&self.config.font, self.config.font_size);
 
             self.editor.clear_doc_highlights();
         }

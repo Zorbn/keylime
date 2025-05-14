@@ -1,7 +1,4 @@
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    path::PathBuf,
-};
+use std::collections::{hash_map::Entry, HashMap};
 
 use crate::{
     ctx::Ctx,

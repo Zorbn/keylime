@@ -173,7 +173,7 @@ impl AppRunner {
                         font, font_size, ..
                     } = app_runner.app.config();
 
-                    gfx.inner.update_font(font, *font_size, scale);
+                    gfx.inner.set_font(font, *font_size, scale);
                 }
 
                 LRESULT(0)

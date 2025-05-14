@@ -544,7 +544,7 @@ impl Gfx {
         self.context.Unmap(&self.uniform_buffer, 0);
     }
 
-    pub fn update_font(&mut self, font_name: &str, font_size: f32, scale: f32) {
+    pub fn set_font(&mut self, font_name: &str, font_size: f32, scale: f32) {
         self.scale = scale;
 
         self.text = AnyText::new(font_name, |font_name| unsafe {

@@ -12,8 +12,6 @@ use objc2_metal::*;
 use objc2_quartz_core::CAMetalDrawable;
 
 use crate::{
-    app::App,
-    config::Config,
     geometry::{matrix::ortho, rect::Rect},
     platform::{
         aliases::{AnyText, AnyWindow},
@@ -114,7 +112,7 @@ pub struct Gfx {
 
     bounds: Rect,
 
-    text: AnyText,
+    text: Option<AnyText>,
     texture: Option<Retained<ProtocolObject<dyn MTLTexture>>>,
 
     width: f32,
@@ -126,7 +124,6 @@ pub struct Gfx {
 
 impl Gfx {
     pub fn new(
-        app: &App,
         window: &AnyWindow,
         device: Retained<ProtocolObject<dyn MTLDevice>>,
     ) -> Result<Self> {
@@ -179,15 +176,7 @@ impl Gfx {
             .newRenderPipelineStateWithDescriptor_error(&pipeline_descriptor)
             .expect("Failed to create a pipeline state.");
 
-        let Config {
-            font, font_size, ..
-        } = app.config();
-
         let scale = window.inner.scale as f32;
-
-        let text = AnyText::new(font, |font_name| unsafe {
-            Text::new(font_name, *font_size, scale)
-        })?;
 
         let gfx = Gfx {
             device,
@@ -208,7 +197,7 @@ impl Gfx {
 
             bounds: Rect::ZERO,
 
-            text,
+            text: None,
             texture: None,
 
             width: 0.0,
@@ -228,34 +217,41 @@ impl Gfx {
         Ok(())
     }
 
-    pub fn update_font(&mut self, font_name: &str, font_size: f32, scale: f32) {
+    pub fn set_font(&mut self, font_name: &str, font_size: f32, scale: f32) {
         self.scale = scale;
 
         self.text = AnyText::new(font_name, |font_name| unsafe {
             Text::new(font_name, font_size, scale)
         })
-        .unwrap();
+        .ok();
     }
 
     pub fn glyph_spans(&mut self, text: &str) -> GlyphSpans {
-        let (spans, result) = self.text.glyph_spans(text);
+        let Some(platform_text) = self.text.as_mut() else {
+            return Default::default();
+        };
+
+        let (spans, result) = platform_text.glyph_spans(text);
         self.glyph_cache_result = self.glyph_cache_result.worse(result);
 
         spans
     }
 
     pub fn glyph_span(&mut self, index: usize) -> GlyphSpan {
-        self.text.glyph_span(index)
+        self.text
+            .as_mut()
+            .map(|text| text.glyph_span(index))
+            .unwrap_or_default()
     }
 
-    fn handle_glyph_cache_result(&mut self) {
-        let atlas = &mut self.text.cache.atlas;
+    fn handle_glyph_cache_result(&mut self) -> Option<()> {
+        let atlas = &mut self.text.as_mut()?.cache.atlas;
 
         let glyph_cache_result = self.glyph_cache_result;
         self.glyph_cache_result = GlyphCacheResult::Hit;
 
         let (x, width) = match glyph_cache_result {
-            GlyphCacheResult::Hit => return,
+            GlyphCacheResult::Hit => return None,
             GlyphCacheResult::Miss => (0, atlas.dimensions.width),
             GlyphCacheResult::Resize => {
                 let texture_descriptor = unsafe {
@@ -299,6 +295,8 @@ impl Gfx {
                 atlas.dimensions.width * 4,
             );
         }
+
+        Some(())
     }
 
     pub fn begin_frame(&mut self, clear_color: Color) -> Option<()> {
@@ -357,7 +355,9 @@ impl Gfx {
 
         self.next_buffer_index = 0;
 
-        self.text.swap_caches();
+        if let Some(text) = &mut self.text {
+            text.swap_caches();
+        }
 
         Some(())
     }
@@ -544,7 +544,10 @@ impl Gfx {
     }
 
     pub fn atlas_dimensions(&self) -> &AtlasDimensions {
-        &self.text.cache.atlas.dimensions
+        self.text
+            .as_ref()
+            .map(|text| &text.cache.atlas.dimensions)
+            .unwrap_or(&AtlasDimensions::ZERO)
     }
 
     pub fn scale(&self) -> f32 {

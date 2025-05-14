@@ -26,12 +26,12 @@ impl Gfx {
     }
 
     pub fn glyph_span(&mut self, _index: usize) -> GlyphSpan {
-        GlyphSpan::Space
+        Default::default()
     }
 
     pub fn add_sprite(&mut self, _src: Rect, _dst: Rect, _color: Color, _kind: SpriteKind) {}
 
-    pub fn update_font(&mut self, _font_name: &str, _font_size: f32, _scale: f32) {}
+    pub fn set_font(&mut self, _font_name: &str, _font_size: f32, _scale: f32) {}
 
     pub fn scale(&self) -> f32 {
         0.0

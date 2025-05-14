@@ -8,7 +8,6 @@ use objc2_app_kit::*;
 use objc2_foundation::*;
 
 use crate::{
-    app::App,
     config::theme::Theme,
     geometry::visual_position::VisualPosition,
     input::{
@@ -64,7 +63,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(app: &App, mtm: MainThreadMarker) -> Self {
+    pub fn new(mtm: MainThreadMarker) -> Self {
         let content_rect = NSRect::new(
             NSPoint::new(0.0, 0.0),
             NSSize::new(DEFAULT_WIDTH, DEFAULT_HEIGHT),
@@ -91,7 +90,7 @@ impl Window {
 
         let scale = ns_window.backingScaleFactor();
 
-        let mut window = Self {
+        Self {
             ns_window,
             view: Weak::default(),
             width: DEFAULT_WIDTH,
@@ -116,11 +115,7 @@ impl Window {
             current_pressed_button: None,
 
             implicit_copy_change_count: None,
-        };
-
-        window.set_theme(&app.config().theme);
-
-        window
+        }
     }
 
     pub fn set_theme(&mut self, theme: &Theme) {

@@ -307,7 +307,7 @@ impl View {
                 font, font_size, ..
             } = app.config();
 
-            gfx.inner.update_font(font, *font_size, scale as f32);
+            gfx.inner.set_font(font, *font_size, scale as f32);
         }
 
         Some(())

@@ -19,6 +19,18 @@ pub struct AtlasDimensions {
     pub line_height: usize,
 }
 
+impl AtlasDimensions {
+    pub const ZERO: Self = AtlasDimensions {
+        origin_x: 0.0,
+        origin_y: 0.0,
+        width: 0,
+        height: 0,
+        glyph_width: 0,
+        glyph_height: 0,
+        line_height: 0,
+    };
+}
+
 #[derive(Debug, Default)]
 pub struct Atlas {
     pub data: Vec<u8>,
@@ -44,7 +56,7 @@ impl Atlas {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct GlyphSpans {
     pub spans_start: usize,
     pub spans_end: usize,
@@ -75,8 +87,9 @@ impl PartialEq for CachedLayout {
 
 impl Eq for CachedLayout {}
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub enum GlyphSpan {
+    #[default]
     Space,
     Tab,
     Glyph {

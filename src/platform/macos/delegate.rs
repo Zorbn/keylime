@@ -173,22 +173,22 @@ define_class!(
 
 impl WindowDelegate {
     pub fn new(mtm: MainThreadMarker) -> Retained<Self> {
-        let app = App::new();
-
-        let window = AnyWindow {
-            inner: Window::new(&app, mtm),
+        let mut window = AnyWindow {
+            inner: Window::new(mtm),
         };
 
         let device = MTLCreateSystemDefaultDevice().expect("Failed to get default system device.");
 
-        let gfx = AnyGfx {
+        let mut gfx = AnyGfx {
             inner: {
-                let mut gfx = Gfx::new(&app, &window, device.clone()).unwrap();
+                let mut gfx = Gfx::new(&window, device.clone()).unwrap();
                 gfx.resize(window.inner.width, window.inner.height).unwrap();
 
                 gfx
             },
         };
+
+        let app = App::new(&mut window, &mut gfx, 0.0);
 
         let ns_window = window.inner.ns_window.clone();
         ns_window.setAcceptsMouseMovedEvents(true);
