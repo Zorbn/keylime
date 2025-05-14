@@ -13,9 +13,9 @@ use super::position_encoding::PositionEncoding;
 const DEFAULT_SEVERITY: fn() -> usize = || 1;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-pub(super) struct EncodedPosition {
-    line: usize,
-    character: usize,
+pub struct EncodedPosition {
+    pub line: usize,
+    pub character: usize,
 }
 
 impl EncodedPosition {
@@ -34,7 +34,7 @@ impl EncodedPosition {
         }
     }
 
-    fn decode(self, encoding: PositionEncoding, doc: &Doc) -> Position {
+    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> Position {
         match encoding {
             PositionEncoding::Utf8 => Position {
                 x: self.character,
@@ -67,9 +67,9 @@ impl EncodedPosition {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-pub(super) struct EncodedRange {
-    start: EncodedPosition,
-    end: EncodedPosition,
+pub struct EncodedRange {
+    pub start: EncodedPosition,
+    pub end: EncodedPosition,
 }
 
 impl EncodedRange {
@@ -82,9 +82,9 @@ impl EncodedRange {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(super) struct EncodedDiagnostic {
-    message: Pooled<String>,
-    range: EncodedRange,
+pub struct EncodedDiagnostic {
+    pub message: Pooled<String>,
+    pub range: EncodedRange,
     #[serde(default = "DEFAULT_SEVERITY")]
     pub severity: usize,
 }

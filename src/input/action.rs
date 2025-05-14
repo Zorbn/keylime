@@ -12,6 +12,7 @@ pub enum ActionName {
     SelectAll,
     OpenFileExplorer,
     OpenAllFiles,
+    OpenAllDiagnostics,
     OpenSearch,
     OpenSearchAndReplace,
     OpenFindInFiles,

@@ -78,7 +78,9 @@ impl FindInFilesMode {
         _: ResultListSubmitKind,
     ) -> CommandPaletteAction {
         let Some(CommandPaletteResult {
-            meta_data: CommandPaletteMetaData::PathWithPosition { path, position },
+            meta_data:
+                meta_data @ (CommandPaletteMetaData::PathWithPosition { path, .. }
+                | CommandPaletteMetaData::PathWithEncodedPosition { path, .. }),
             ..
         }) = command_palette.result_list.get_focused()
         else {
@@ -97,7 +99,15 @@ impl FindInFilesMode {
             return CommandPaletteAction::Close;
         };
 
-        doc.jump_cursors(*position, false, args.ctx.gfx);
+        let position = match meta_data {
+            CommandPaletteMetaData::PathWithPosition { position, .. } => *position,
+            CommandPaletteMetaData::PathWithEncodedPosition {
+                encoding, position, ..
+            } => position.decode(*encoding, doc),
+            _ => return CommandPaletteAction::Close,
+        };
+
+        doc.jump_cursors(position, false, args.ctx.gfx);
         tab.camera.recenter();
 
         CommandPaletteAction::Close

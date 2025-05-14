@@ -6,17 +6,17 @@ use super::{
     CommandPalette, CommandPaletteAction, CommandPaletteResult,
 };
 
-pub struct References {
+pub struct ReferencesMode {
     results: Vec<CommandPaletteResult>,
 }
 
-impl References {
+impl ReferencesMode {
     pub fn new(results: Vec<CommandPaletteResult>) -> Self {
         Self { results }
     }
 }
 
-impl CommandPaletteMode for References {
+impl CommandPaletteMode for ReferencesMode {
     fn title(&self) -> &str {
         "References"
     }

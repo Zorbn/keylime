@@ -1,5 +1,4 @@
 use std::{
-    cmp::Ordering,
     collections::VecDeque,
     fs::{read_dir, DirEntry, ReadDir},
     path::PathBuf,
@@ -126,32 +125,6 @@ impl CommandPaletteMode for AllFilesMode {
         }
     }
 
-    fn on_update_results(
-        &mut self,
-        command_palette: &mut CommandPalette,
-        _: CommandPaletteEventArgs,
-    ) {
-        command_palette.result_list.reset_focused();
-
-        if command_palette.input().is_empty() {
-            command_palette
-                .result_list
-                .results
-                .sort_by(|a, b| compare_ignore_ascii_case(&a.text, &b.text));
-
-            return;
-        }
-
-        command_palette.result_list.sort_by(|a, b| {
-            let input = command_palette.doc.get_line(0).unwrap_or_default();
-
-            let a_score = score_fuzzy_match(&a.text, input);
-            let b_score = score_fuzzy_match(&b.text, input);
-
-            b_score.total_cmp(&a_score)
-        });
-    }
-
     fn on_update(&mut self, command_palette: &mut CommandPalette, args: CommandPaletteEventArgs) {
         if !self.needs_new_results {
             return;
@@ -187,48 +160,4 @@ impl CommandPaletteMode for AllFilesMode {
     fn is_animating(&self) -> bool {
         self.needs_new_results
     }
-}
-
-fn compare_ignore_ascii_case(a: &str, b: &str) -> Ordering {
-    for (a_char, b_char) in a.chars().zip(b.chars()) {
-        let a_char = a_char.to_ascii_lowercase();
-        let b_char = b_char.to_ascii_lowercase();
-
-        let ordering = a_char.cmp(&b_char);
-
-        if ordering != Ordering::Equal {
-            return ordering;
-        }
-    }
-
-    a.len().cmp(&b.len())
-}
-
-fn score_fuzzy_match(path: &str, input: &str) -> f32 {
-    const AWARD_DISTANCE_FALLOFF: f32 = 0.8;
-    const AWARD_MATCH_BONUS: f32 = 1.0;
-    const AWARD_MAX_AFTER_MISMATCH: f32 = 1.0;
-
-    let mut score = 0.0;
-    let mut next_match_award = AWARD_MATCH_BONUS;
-
-    let mut path_chars = path.chars();
-    let mut input_chars = input.chars().peekable();
-
-    while let Some((path_char, input_char)) = path_chars.next().zip(input_chars.peek()) {
-        let path_char = path_char.to_ascii_lowercase();
-        let input_char = input_char.to_ascii_lowercase();
-
-        if path_char == input_char {
-            score += next_match_award;
-            next_match_award += AWARD_MATCH_BONUS;
-
-            input_chars.next();
-        } else {
-            next_match_award =
-                AWARD_MAX_AFTER_MISMATCH.min(next_match_award * AWARD_DISTANCE_FALLOFF);
-        }
-    }
-
-    score
 }

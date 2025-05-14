@@ -1,5 +1,5 @@
 pub mod language_server;
-mod position_encoding;
+pub mod position_encoding;
 pub mod types;
 pub mod uri;
 
@@ -22,8 +22,8 @@ use crate::{
     text::doc::Doc,
     ui::{
         command_palette::{
-            find_in_files_mode::FindInFilesMode, references::References, rename_mode::RenameMode,
-            CommandPalette,
+            find_in_files_mode::FindInFilesMode, references_mode::ReferencesMode,
+            rename_mode::RenameMode, CommandPalette,
         },
         core::Ui,
         editor::Editor,
@@ -188,7 +188,7 @@ impl Lsp {
 
                 command_palette.open(
                     ui,
-                    Box::new(References::new(command_palette_results)),
+                    Box::new(ReferencesMode::new(command_palette_results)),
                     editor,
                     ctx,
                 );

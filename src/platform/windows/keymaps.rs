@@ -20,6 +20,13 @@ pub fn new_keymaps() -> HashMap<Keybind, ActionName> {
         ),
         (
             Keybind {
+                key: Key::K,
+                mods: Mods::CTRL | Mods::SHIFT,
+            },
+            ActionName::OpenAllDiagnostics,
+        ),
+        (
+            Keybind {
                 key: Key::F,
                 mods: Mods::CTRL,
             },

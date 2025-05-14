@@ -1,9 +1,10 @@
+mod all_diagnostics_mode;
 mod all_files_mode;
 mod file_explorer_mode;
 pub mod find_in_files_mode;
 mod go_to_line_mode;
 mod mode;
-pub mod references;
+pub mod references_mode;
 pub mod rename_mode;
 mod search_mode;
 
@@ -17,6 +18,7 @@ use crate::{
         sides::{Side, Sides},
     },
     input::action::action_name,
+    lsp::{position_encoding::PositionEncoding, types::EncodedPosition},
     platform::gfx::Gfx,
     pool::Pooled,
     text::doc::{Doc, DocKind},
@@ -29,6 +31,7 @@ use super::{
     tab::Tab,
 };
 
+use all_diagnostics_mode::AllDiagnosticsMode;
 use all_files_mode::AllFilesMode;
 use file_explorer_mode::FileExplorerMode;
 use find_in_files_mode::FindInFilesMode;
@@ -46,6 +49,11 @@ pub enum CommandPaletteMetaData {
     PathWithPosition {
         path: Pooled<PathBuf>,
         position: Position,
+    },
+    PathWithEncodedPosition {
+        path: Pooled<PathBuf>,
+        encoding: PositionEncoding,
+        position: EncodedPosition,
     },
 }
 
@@ -162,6 +170,9 @@ impl CommandPalette {
                 }
                 action_name!(OpenAllFiles) => {
                     self.open(ui, Box::new(AllFilesMode::new()), editor, ctx);
+                }
+                action_name!(OpenAllDiagnostics) => {
+                    self.open(ui, Box::new(AllDiagnosticsMode), editor, ctx);
                 }
                 action_name!(OpenGoToLine) => {
                     self.open(ui, Box::new(GoToLineMode), editor, ctx);

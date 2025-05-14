@@ -1,4 +1,5 @@
 pub mod action_history;
+pub mod compare;
 pub mod cursor;
 pub mod cursor_index;
 pub mod doc;

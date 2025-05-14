@@ -36,13 +36,13 @@ use super::{
 };
 
 #[derive(Debug, Default)]
-struct Diagnostics {
+pub struct Diagnostics {
     encoded: Vec<EncodedDiagnostic>,
     decoded: Vec<DecodedDiagnostic>,
 }
 
 impl Diagnostics {
-    pub fn replace(&mut self, encoded: &mut Vec<EncodedDiagnostic>) {
+    pub(super) fn replace(&mut self, encoded: &mut Vec<EncodedDiagnostic>) {
         self.decoded.clear();
         self.encoded.clear();
 
@@ -50,12 +50,22 @@ impl Diagnostics {
         self.encoded.sort_by(|a, b| a.severity.cmp(&b.severity));
     }
 
-    pub fn decode(&mut self, encoding: PositionEncoding, doc: &Doc) {
+    pub fn decode(&mut self, encoding: PositionEncoding, doc: &Doc) -> &mut [DecodedDiagnostic] {
         self.decoded.extend(
             self.encoded
                 .drain(..)
                 .map(|diagnostic| diagnostic.decode(encoding, doc)),
         );
+
+        &mut self.decoded
+    }
+
+    pub fn encoded(&self) -> &[EncodedDiagnostic] {
+        &self.encoded
+    }
+
+    pub fn decoded(&self) -> &[DecodedDiagnostic] {
+        &self.decoded
     }
 }
 
@@ -191,11 +201,14 @@ impl LanguageServer {
 
         self.diagnostics
             .get_mut(path)
-            .map(|diagnostics| {
-                diagnostics.decode(self.position_encoding, doc);
-                diagnostics.decoded.as_mut_slice()
-            })
+            .map(|diagnostics| diagnostics.decode(self.position_encoding, doc))
             .unwrap_or_default()
+    }
+
+    pub fn all_diagnostics_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (&Pooled<PathBuf>, &mut Diagnostics)> {
+        self.diagnostics.iter_mut()
     }
 
     pub(super) fn poll(&mut self) -> Option<Message> {

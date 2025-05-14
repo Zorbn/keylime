@@ -2,6 +2,7 @@ use crate::{
     config::theme::Theme,
     ctx::Ctx,
     input::action::Action,
+    text::compare::{compare_ignore_ascii_case, score_fuzzy_match},
     ui::{color::Color, editor::Editor, result_list::ResultListSubmitKind},
 };
 
@@ -40,8 +41,31 @@ pub trait CommandPaletteMode {
 
     fn on_complete_result(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
 
-    fn on_update_results(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
+    fn on_update_results(
+        &mut self,
+        command_palette: &mut CommandPalette,
+        _: CommandPaletteEventArgs,
+    ) {
+        command_palette.result_list.reset_focused();
 
+        if command_palette.input().is_empty() {
+            command_palette
+                .result_list
+                .results
+                .sort_by(|a, b| compare_ignore_ascii_case(&a.text, &b.text));
+
+            return;
+        }
+
+        command_palette.result_list.sort_by(|a, b| {
+            let input = command_palette.doc.get_line(0).unwrap_or_default();
+
+            let a_score = score_fuzzy_match(&a.text, input);
+            let b_score = score_fuzzy_match(&b.text, input);
+
+            b_score.total_cmp(&a_score)
+        });
+    }
     fn on_update(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
 
     fn on_display_result<'a>(
