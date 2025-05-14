@@ -1,11 +1,12 @@
-use std::fmt::Write;
+use std::{cmp::Ordering, fmt::Write};
 
 use crate::{
     config::Config,
     ctx::Ctx,
     geometry::{rect::Rect, sides::Sides},
+    lsp::{types::DecodedDiagnostic, Lsp},
     platform::gfx::Gfx,
-    pool::{Pooled, STRING_POOL},
+    pool::{format_pooled, Pooled, STRING_POOL},
     text::{cursor_index::CursorIndex, doc::LineEnding},
 };
 
@@ -46,22 +47,68 @@ impl StatusBar {
             theme.border,
         );
 
-        if let Some(status_text) = Self::get_status_text(editor, ctx.config) {
-            let status_text_x = self.widget.bounds().width
-                - (gfx.measure_text(&status_text) + 1) as f32 * gfx.glyph_width();
-            let status_text_y = gfx.tab_padding_y();
+        let mut text_x = self.widget.bounds().width;
+        let text_y = gfx.tab_padding_y();
 
-            gfx.add_text(&status_text, status_text_x, status_text_y, theme.subtle);
+        if let Some(text) = Self::get_doc_text(editor, ctx.config) {
+            text_x -= gfx.measure_text(&text) as f32 * gfx.glyph_width();
+            gfx.add_text(&text, text_x, text_y, theme.subtle);
+        }
+
+        if let Some((text, severity)) = Self::get_problems_text(ctx.lsp) {
+            let color = DecodedDiagnostic::severity_color(severity, theme);
+            let separator = ", ";
+
+            text_x -= gfx.measure_text(separator) as f32 * gfx.glyph_width();
+            gfx.add_text(separator, text_x, text_y, theme.subtle);
+
+            text_x -= gfx.measure_text(&text) as f32 * gfx.glyph_width();
+            gfx.add_text(&text, text_x, text_y, color);
         }
 
         gfx.end();
     }
 
-    fn get_status_text(editor: &Editor, config: &Config) -> Option<Pooled<String>> {
+    fn get_problems_text(lsp: &mut Lsp) -> Option<(Pooled<String>, usize)> {
+        let mut count = 0;
+        let mut severity = usize::MAX;
+
+        for server in lsp.iter_servers_mut() {
+            for (_, diagnostics) in server.all_diagnostics_mut() {
+                for diagnostic in diagnostics.encoded() {
+                    if !diagnostic.is_problem() {
+                        continue;
+                    }
+
+                    severity = severity.min(diagnostic.severity);
+                    count += 1;
+                }
+
+                for diagnostic in diagnostics.decoded() {
+                    if !diagnostic.is_problem() {
+                        continue;
+                    }
+
+                    severity = severity.min(diagnostic.severity);
+                    count += 1;
+                }
+            }
+        }
+
+        let text = match count.cmp(&1) {
+            Ordering::Equal => format_pooled!("{} Problem", count),
+            Ordering::Greater => format_pooled!("{} Problems", count),
+            _ => return None,
+        };
+
+        Some((text, severity))
+    }
+
+    fn get_doc_text(editor: &Editor, config: &Config) -> Option<Pooled<String>> {
         let (_, doc) = editor.get_focused_tab_and_doc()?;
         let position = doc.cursor(CursorIndex::Main).position;
 
-        let mut status_text = STRING_POOL.new_item();
+        let mut doc_text = STRING_POOL.new_item();
 
         if let Some(path) = doc
             .path()
@@ -69,11 +116,11 @@ impl StatusBar {
             .zip(editor.current_dir())
             .and_then(|(path, current_dir)| path.strip_prefix(current_dir).ok())
         {
-            write!(&mut status_text, "{}, ", path.display()).ok()?;
+            write!(&mut doc_text, "{}, ", path.display()).ok()?;
         }
 
         if let Some(language) = config.get_language_for_doc(doc) {
-            write!(&mut status_text, "{}, ", language.name).ok()?;
+            write!(&mut doc_text, "{}, ", language.name).ok()?;
         }
 
         let line_ending_text = match doc.line_ending() {
@@ -82,14 +129,14 @@ impl StatusBar {
         };
 
         write!(
-            &mut status_text,
-            "{}, Ln {:02}, Col {:02}",
+            &mut doc_text,
+            "{}, Ln {:02}, Col {:02} ",
             line_ending_text,
             position.y + 1,
             position.x + 1
         )
         .ok()?;
 
-        Some(status_text)
+        Some(doc_text)
     }
 }

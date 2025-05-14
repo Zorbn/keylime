@@ -90,6 +90,10 @@ pub struct EncodedDiagnostic {
 }
 
 impl EncodedDiagnostic {
+    pub fn is_problem(&self) -> bool {
+        DecodedDiagnostic::is_severity_problem(self.severity)
+    }
+
     pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> DecodedDiagnostic {
         DecodedDiagnostic {
             message: self.message,
@@ -390,15 +394,23 @@ pub struct DecodedDiagnostic {
 
 impl DecodedDiagnostic {
     pub fn is_problem(&self) -> bool {
-        self.severity <= 2
+        Self::is_severity_problem(self.severity)
     }
 
     pub fn color(&self, theme: &Theme) -> Color {
-        match self.severity {
+        Self::severity_color(self.severity, theme)
+    }
+
+    pub fn severity_color(severity: usize, theme: &Theme) -> Color {
+        match severity {
             1 => theme.error,
             2 => theme.warning,
             _ => theme.info,
         }
+    }
+
+    pub fn is_severity_problem(severity: usize) -> bool {
+        severity <= 2
     }
 
     pub fn visible_range(&self, doc: &Doc) -> DecodedRange {

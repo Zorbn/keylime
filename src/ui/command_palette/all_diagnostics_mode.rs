@@ -24,6 +24,8 @@ impl AllDiagnosticsMode {
             .current_dir()
             .and_then(|current_dir| path.strip_prefix(current_dir).ok())?;
 
+        let message = message.lines().nth(0).unwrap_or_default();
+
         Some(format_pooled!(
             "{}:{}: {}",
             relative_path.display(),
