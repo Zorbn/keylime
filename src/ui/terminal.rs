@@ -7,7 +7,6 @@ use crate::{
     geometry::rect::Rect,
     input::action::action_name,
     platform::{gfx::Gfx, process::Process},
-    pool::Pooled,
     text::doc::{Doc, DocKind},
 };
 
@@ -21,6 +20,8 @@ mod escape_sequences;
 mod terminal_emulator;
 mod terminal_pane;
 
+pub const TERMINAL_DISPLAY_NAME: &str = "Terminal";
+
 pub struct TerminalDocs {
     normal: Doc,
     alternate: Doc,
@@ -28,11 +29,9 @@ pub struct TerminalDocs {
 
 impl TerminalDocs {
     pub fn new() -> Self {
-        let display_name: Option<Pooled<String>> = Some("Terminal".into());
-
         Self {
-            normal: Doc::new(None, display_name.clone(), DocKind::Output),
-            alternate: Doc::new(None, display_name, DocKind::Output),
+            normal: Doc::new(None, Some(TERMINAL_DISPLAY_NAME.into()), DocKind::Output),
+            alternate: Doc::new(None, Some(TERMINAL_DISPLAY_NAME.into()), DocKind::Output),
         }
     }
 

@@ -12,7 +12,7 @@ use crate::{
     ui::{color::Color, terminal::color_table::COLOR_TABLE},
 };
 
-use super::{terminal_emulator::TerminalEmulator, TerminalDocs};
+use super::{terminal_emulator::TerminalEmulator, TerminalDocs, TERMINAL_DISPLAY_NAME};
 
 impl TerminalEmulator {
     pub fn handle_escape_sequences(
@@ -648,8 +648,13 @@ impl TerminalEmulator {
             0 | 2 => {
                 let title = Self::consume_terminated_string(&mut output);
 
-                if let Some(title) = title.and_then(|title| str::from_utf8(title).ok()) {
+                if let Some(title) = title
+                    .and_then(|title| str::from_utf8(title).ok())
+                    .filter(|title| !title.is_empty())
+                {
                     doc.set_display_name(Some(title.into()));
+                } else {
+                    doc.set_display_name(Some(TERMINAL_DISPLAY_NAME.into()));
                 }
 
                 Some(output)
