@@ -136,12 +136,12 @@ pub struct Gfx {
     index_buffer: Option<ID3D11Buffer>,
     index_buffer_capacity: usize,
 
-    text: AnyText,
+    text: Option<AnyText>,
     glyph_cache_result: GlyphCacheResult,
 }
 
 impl Gfx {
-    pub unsafe fn new(font_name: &str, font_size: f32, scale: f32, hwnd: HWND) -> Result<Self> {
+    pub unsafe fn new(scale: f32, hwnd: HWND) -> Result<Self> {
         let (device, context) = {
             let mut device_result = None;
             let mut context_result = None;
@@ -359,10 +359,6 @@ impl Gfx {
             uniform_buffer_result.unwrap()
         };
 
-        let text = AnyText::new(font_name, |font_name| unsafe {
-            Text::new(font_name, font_size, scale, &device)
-        })?;
-
         let gfx = Self {
             device,
             context,
@@ -389,7 +385,7 @@ impl Gfx {
             index_buffer: None,
             index_buffer_capacity: 0,
 
-            text,
+            text: None,
             glyph_cache_result: GlyphCacheResult::Hit,
         };
 
@@ -550,27 +546,34 @@ impl Gfx {
         self.text = AnyText::new(font_name, |font_name| unsafe {
             Text::new(font_name, font_size, scale, &self.device)
         })
-        .unwrap();
+        .ok();
     }
 
     pub fn glyph_spans(&mut self, text: &str) -> GlyphSpans {
-        let (spans, result) = self.text.glyph_spans(text);
+        let Some(platform_text) = &mut self.text else {
+            return Default::default();
+        };
+
+        let (spans, result) = platform_text.glyph_spans(text);
         self.glyph_cache_result = self.glyph_cache_result.worse(result);
 
         spans
     }
 
     pub fn glyph_span(&mut self, index: usize) -> GlyphSpan {
-        self.text.glyph_span(index)
+        self.text
+            .as_mut()
+            .map(|text| text.glyph_span(index))
+            .unwrap_or_default()
     }
 
-    fn handle_glyph_cache_result(&mut self) {
-        let atlas = &self.text.cache.atlas;
+    fn handle_glyph_cache_result(&mut self) -> Option<()> {
+        let atlas = &self.text.as_ref()?.cache.atlas;
 
         match self.glyph_cache_result {
             GlyphCacheResult::Hit => {}
             GlyphCacheResult::Miss => unsafe {
-                let texture_data = self.texture_data.as_ref().unwrap();
+                let texture_data = self.texture_data.as_ref()?;
 
                 self.context.UpdateSubresource(
                     &texture_data.texture,
@@ -589,12 +592,14 @@ impl Gfx {
                         atlas.dimensions.height as u32,
                         &atlas.data,
                     )
-                    .unwrap(),
+                    .ok()?,
                 );
             },
         }
 
         self.glyph_cache_result = GlyphCacheResult::Hit;
+
+        Some(())
     }
 
     pub fn begin_frame(&mut self, clear_color: Color) {
@@ -618,7 +623,9 @@ impl Gfx {
             self.swap_chain.Present(1, DXGI_PRESENT::default()).unwrap();
         }
 
-        self.text.swap_caches();
+        if let Some(text) = &mut self.text {
+            text.swap_caches();
+        }
     }
 
     pub fn begin(&mut self, bounds: Option<Rect>) {
@@ -858,7 +865,10 @@ impl Gfx {
     }
 
     pub fn atlas_dimensions(&self) -> &AtlasDimensions {
-        &self.text.cache.atlas.dimensions
+        self.text
+            .as_ref()
+            .map(|text| &text.cache.atlas.dimensions)
+            .unwrap_or(&AtlasDimensions::ZERO)
     }
 
     pub fn scale(&self) -> f32 {

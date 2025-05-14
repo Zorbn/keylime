@@ -28,7 +28,7 @@ const DEFAULT_DPI: f32 = 96.0;
 pub struct AppRunner {
     window: ManuallyDrop<AnyWindow>,
     gfx: Option<AnyGfx>,
-    app: ManuallyDrop<App>,
+    app: Option<App>,
 }
 
 impl AppRunner {
@@ -38,7 +38,7 @@ impl AppRunner {
                 inner: Window::new()?,
             }),
             gfx: None,
-            app: ManuallyDrop::new(App::new()),
+            app: None,
         })
     }
 
@@ -73,8 +73,6 @@ impl AppRunner {
             Some(lparam.cast()),
         )?;
 
-        self.window.set_theme(&self.app.config().theme);
-
         AddClipboardFormatListener(self.window.inner.hwnd())?;
 
         let _ = ShowWindow(self.window.inner.hwnd(), SW_SHOWDEFAULT);
@@ -84,8 +82,14 @@ impl AppRunner {
 
     pub fn run(&mut self) {
         let AppRunner {
-            window, gfx, app, ..
-        } = self;
+            window,
+            gfx: Some(gfx),
+            app: Some(app),
+            ..
+        } = self
+        else {
+            return;
+        };
 
         while window.inner.is_running() {
             let is_animating = app.is_animating();
@@ -95,10 +99,6 @@ impl AppRunner {
                 .inner
                 .update(is_animating, file_watcher, files, processes);
 
-            let Some(gfx) = gfx else {
-                continue;
-            };
-
             let (time, dt) = window.inner.time(is_animating);
 
             app.update(window, gfx, time, dt);
@@ -106,10 +106,7 @@ impl AppRunner {
         }
 
         let time = window.inner.time;
-
-        if let Some(gfx) = gfx {
-            app.close(window, gfx, time);
-        }
+        app.close(window, gfx, time);
     }
 
     unsafe extern "system" fn window_proc(
@@ -150,13 +147,12 @@ impl AppRunner {
 
                 app_runner.window.inner.on_create(scale, hwnd);
 
-                let Config {
-                    font, font_size, ..
-                } = app_runner.app.config();
+                let mut gfx = AnyGfx {
+                    inner: Gfx::new(scale, hwnd).unwrap(),
+                };
 
-                app_runner.gfx = Some(AnyGfx {
-                    inner: Gfx::new(font, *font_size, scale, hwnd).unwrap(),
-                });
+                app_runner.app = Some(App::new(&mut app_runner.window, &mut gfx, 0.0));
+                app_runner.gfx = Some(gfx);
 
                 LRESULT(0)
             }
@@ -166,12 +162,18 @@ impl AppRunner {
                 let scale = (wparam.0 & 0xFFFF) as f32 / DEFAULT_DPI;
                 let rect = *(lparam.0 as *const RECT);
 
-                app_runner.window.inner.on_dpi_changed(rect);
+                if let AppRunner {
+                    window,
+                    gfx: Some(gfx),
+                    app: Some(app),
+                    ..
+                } = app_runner
+                {
+                    window.inner.on_dpi_changed(rect);
 
-                if let Some(gfx) = &mut app_runner.gfx {
                     let Config {
                         font, font_size, ..
-                    } = app_runner.app.config();
+                    } = app.config();
 
                     gfx.inner.set_font(font, *font_size, scale);
                 }
@@ -190,7 +192,7 @@ impl AppRunner {
                 if let AppRunner {
                     window,
                     gfx: Some(gfx),
-                    app,
+                    app: Some(app),
                     ..
                 } = app_runner
                 {
@@ -217,9 +219,9 @@ impl AppRunner {
 impl Drop for AppRunner {
     fn drop(&mut self) {
         unsafe {
+            self.app.take();
             self.gfx.take();
             ManuallyDrop::drop(&mut self.window);
-            ManuallyDrop::drop(&mut self.app);
             CoUninitialize();
         }
     }
