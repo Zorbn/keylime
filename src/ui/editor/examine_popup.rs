@@ -1,6 +1,5 @@
 use crate::{
     ctx::Ctx,
-    geometry::position::Position,
     lsp::types::Hover,
     pool::Pooled,
     text::{cursor_index::CursorIndex, doc::Doc},
@@ -28,13 +27,13 @@ impl ExaminePopup {
         }
     }
 
-    pub fn update(&mut self, handled_position: Option<Position>, doc: &Doc, ctx: &mut Ctx) {
+    pub fn update(&mut self, did_cursor_move: bool, doc: &Doc, ctx: &mut Ctx) {
         let position = doc.cursor(CursorIndex::Main).position;
 
         let needs_clear = match self.kind {
             ExaminePopupKind::None => false,
             ExaminePopupKind::Diagnostic => ctx.lsp.get_diagnostic_at(position, doc).is_none(),
-            ExaminePopupKind::Hover(..) => Some(position) != handled_position,
+            ExaminePopupKind::Hover(..) => did_cursor_move,
         };
 
         if needs_clear {

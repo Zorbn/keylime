@@ -51,6 +51,8 @@ pub struct Editor {
     current_dir: Option<PathBuf>,
 
     handled_position: Option<Position>,
+    handled_path: Option<Pooled<PathBuf>>,
+
     pub examine_popup: ExaminePopup,
     pub signature_help_popup: SignatureHelpPopup,
     pub completion_list: CompletionList,
@@ -65,6 +67,8 @@ impl Editor {
             current_dir: current_dir().ok(),
 
             handled_position: None,
+            handled_path: None,
+
             examine_popup: ExaminePopup::new(),
             signature_help_popup: SignatureHelpPopup::new(),
             completion_list: CompletionList::new(),
@@ -264,16 +268,22 @@ impl Editor {
             return;
         };
 
+        let position = doc.cursor(CursorIndex::Main).position;
+        let is_position_different = Some(position) != self.handled_position;
+        let is_path_different =
+            self.handled_path.as_ref().map(|path| path.as_path()) != doc.path().some_path();
+        let did_cursor_move = is_position_different || is_path_different;
+
         self.signature_help_popup
             .update(signature_help_triggers, doc, ctx);
 
         self.completion_list
-            .update_results(self.handled_position, doc, ctx);
+            .update_results(did_cursor_move, doc, ctx);
 
-        self.examine_popup.update(self.handled_position, doc, ctx);
+        self.examine_popup.update(did_cursor_move, doc, ctx);
 
-        let position = doc.cursor(CursorIndex::Main).position;
         self.handled_position = Some(position);
+        self.handled_path = doc.path().some().cloned();
     }
 
     pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {

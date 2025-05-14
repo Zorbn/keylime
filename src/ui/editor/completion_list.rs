@@ -79,8 +79,6 @@ pub struct CompletionList {
     prefix: String,
 
     should_open: bool,
-    handled_path: PathBuf,
-    has_handled_path: bool,
 
     lsp_expected_responses: HashMap<usize, usize>,
     popup_cache: CompletionPopupCache,
@@ -94,8 +92,6 @@ impl CompletionList {
             prefix: String::new(),
 
             should_open: false,
-            handled_path: PathBuf::new(),
-            has_handled_path: false,
 
             lsp_expected_responses: HashMap::new(),
             popup_cache: CompletionPopupCache::None,
@@ -396,25 +392,12 @@ impl CompletionList {
 
     pub fn update_results(
         &mut self,
-        handled_position: Option<Position>,
+        did_cursor_move: bool,
         doc: &mut Doc,
         ctx: &mut Ctx,
     ) -> Option<()> {
-        let position = doc.cursor(CursorIndex::Main).position;
-        let is_position_different = Some(position) != handled_position;
-        let is_path_different =
-            self.has_handled_path.then_some(self.handled_path.as_path()) != doc.path().some_path();
-
-        self.handled_path.clear();
-        self.has_handled_path = false;
-
-        if let Some(path) = doc.path().some() {
-            self.handled_path.push(path);
-            self.has_handled_path = true;
-        }
-
         if !self.should_open {
-            if is_position_different || is_path_different {
+            if did_cursor_move {
                 self.prefix.clear();
                 self.clear();
             }
