@@ -472,15 +472,7 @@ impl CompletionList {
                 None
             }
             CompletionResult::Completion { mut item, .. } => {
-                let insert_text = item.insert_text();
-
-                if let Some(DecodedRange { start, end }) = item.range() {
-                    doc.delete(start, end, ctx);
-                    doc.insert(start, insert_text, ctx);
-                } else {
-                    doc.insert_at_cursors(&insert_text[self.prefix.len()..], ctx);
-                }
-
+                self.perform_completion_item(&item, doc, ctx);
                 doc.lsp_apply_edit_list(&mut item.additional_text_edits, ctx);
 
                 None
@@ -493,6 +485,38 @@ impl CompletionList {
                 edit_lists: code_action.edit_lists,
                 command: code_action.command,
             }),
+        }
+    }
+
+    fn perform_completion_item(&self, item: &DecodedCompletionItem, doc: &mut Doc, ctx: &mut Ctx) {
+        let insert_text = item.insert_text();
+
+        let Some(DecodedRange { start, end }) = item.range() else {
+            doc.insert_at_cursors(&insert_text[self.prefix.len()..], ctx);
+            return;
+        };
+
+        let main_position = doc.cursor(CursorIndex::Main).position;
+
+        // According the LSP, start and end should always be on the
+        // requested line, but just in case...
+        if start.y != main_position.y || end.y != main_position.y {
+            doc.delete(start, end, ctx);
+            doc.insert(start, insert_text, ctx);
+            return;
+        }
+
+        for index in doc.cursor_indices() {
+            let position = doc.cursor(index).position;
+
+            let start_x = start.x - main_position.x + position.x;
+            let end_x = end.x - main_position.x + position.x;
+
+            let start = Position::new(start_x, position.y);
+            let end = Position::new(end_x, position.y);
+
+            doc.delete(start, end, ctx);
+            doc.insert(start, insert_text, ctx);
         }
     }
 
