@@ -211,7 +211,6 @@ impl FindInFilesMode {
         command_palette.result_list.drain();
         command_palette
             .result_list
-            .results
             .append(&mut self.pending_results);
 
         self.clear_pending();

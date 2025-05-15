@@ -51,10 +51,10 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn new(ui: &mut Ui) -> Self {
+    pub fn new(ui: &mut Ui, gfx: &mut Gfx) -> Self {
         let mut term_list = SlotList::new();
 
-        let pane = TerminalPane::new(&mut term_list);
+        let pane = TerminalPane::new(&mut term_list, gfx);
 
         Self {
             pane,
@@ -74,8 +74,7 @@ impl Terminal {
         .at_bottom_of(bounds)
         .floor();
 
-        self.pane.layout(bounds, gfx, &mut self.term_list);
-
+        self.pane.layout(bounds, &mut self.term_list, gfx);
         self.widget.layout(&[bounds]);
     }
 
@@ -106,7 +105,7 @@ impl Terminal {
             emulator.update_input(&self.widget, ui, docs, tab, ctx);
         }
 
-        for tab in self.pane.tabs.iter_mut() {
+        for tab in self.pane.iter_tabs_mut() {
             let term_index = tab.data_index();
 
             let Some((docs, emulator)) = self.term_list.get_mut(term_index) else {

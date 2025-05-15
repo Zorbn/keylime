@@ -8,11 +8,10 @@ use crate::{
     },
     input::{
         action::action_name,
-        mods::Mods,
         mouse_button::MouseButton,
         mousebind::{MouseClickKind, Mousebind},
     },
-    platform::{gfx::Gfx, window::Window},
+    platform::gfx::Gfx,
     text::doc::Doc,
 };
 
@@ -25,7 +24,7 @@ use super::{
 };
 
 pub struct Pane<T> {
-    pub tabs: FocusList<Tab>,
+    tabs: FocusList<Tab>,
     bounds: Rect,
     dragged_tab_offset: Option<f32>,
 
@@ -51,7 +50,7 @@ impl<T> Pane<T> {
             .is_some_and(|tab| tab.is_animating())
     }
 
-    pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx, data_list: &mut SlotList<T>) {
+    pub fn layout(&mut self, bounds: Rect, data_list: &mut SlotList<T>, gfx: &mut Gfx) {
         self.bounds = bounds;
 
         let mut tab_x = bounds.x;
@@ -78,16 +77,21 @@ impl<T> Pane<T> {
         }
     }
 
-    pub fn update(&mut self, widget: &Widget, ui: &mut Ui, window: &mut Window) {
-        let mut mousebind_handler = ui.mousebind_handler(widget, window);
+    pub fn update(
+        &mut self,
+        widget: &Widget,
+        ui: &mut Ui,
+        data_list: &mut SlotList<T>,
+        ctx: &mut Ctx,
+    ) {
+        let mut mousebind_handler = ui.mousebind_handler(widget, ctx.window);
 
-        while let Some(mousebind) = mousebind_handler.next(window) {
+        while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
 
             match mousebind {
                 Mousebind {
                     button: Some(MouseButton::Left),
-                    mods: Mods::NONE,
                     kind: MouseClickKind::Press,
                     ..
                 } => {
@@ -105,18 +109,16 @@ impl<T> Pane<T> {
                         self.tabs.set_focused_index(index);
                         self.dragged_tab_offset = Some(offset);
                     } else {
-                        mousebind_handler.unprocessed(window, mousebind);
+                        mousebind_handler.unprocessed(ctx.window, mousebind);
                     }
                 }
                 Mousebind {
                     button: Some(MouseButton::Left),
-                    mods: Mods::NONE,
                     kind: MouseClickKind::Release,
                     ..
                 } => self.dragged_tab_offset = None,
                 Mousebind {
                     button: Some(MouseButton::Left),
-                    mods: Mods::NONE,
                     kind: MouseClickKind::Drag,
                     ..
                 } if self.dragged_tab_offset.is_some() => {
@@ -146,19 +148,20 @@ impl<T> Pane<T> {
 
                     if let Some(index) = index {
                         self.tabs.swap(self.tabs.focused_index(), index);
+                        self.layout(self.bounds, data_list, ctx.gfx);
                     }
                 }
-                _ => mousebind_handler.unprocessed(window, mousebind),
+                _ => mousebind_handler.unprocessed(ctx.window, mousebind),
             }
         }
 
-        let mut action_handler = ui.action_handler(widget, window);
+        let mut action_handler = ui.action_handler(widget, ctx.window);
 
-        while let Some(action) = action_handler.next(window) {
+        while let Some(action) = action_handler.next(ctx.window) {
             match action {
                 action_name!(PreviousTab) => self.tabs.focus_previous(),
                 action_name!(NextTab) => self.tabs.focus_next(),
-                _ => action_handler.unprocessed(window, action),
+                _ => action_handler.unprocessed(ctx.window, action),
             }
         }
     }
@@ -392,7 +395,7 @@ impl<T> Pane<T> {
         None
     }
 
-    pub fn add_tab(&mut self, data_index: usize, data_list: &mut SlotList<T>) {
+    pub fn add_tab(&mut self, data_index: usize, data_list: &mut SlotList<T>, gfx: &mut Gfx) {
         let tab = Tab::new(data_index);
 
         data_list
@@ -402,9 +405,10 @@ impl<T> Pane<T> {
             .add_usage();
 
         self.tabs.add(tab);
+        self.layout(self.bounds, data_list, gfx);
     }
 
-    pub fn remove_tab(&mut self, data_list: &mut SlotList<T>) {
+    pub fn remove_tab(&mut self, data_list: &mut SlotList<T>, gfx: &mut Gfx) {
         let get_doc_mut = self.get_doc_mut;
 
         let Some((_, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
@@ -415,6 +419,23 @@ impl<T> Pane<T> {
         (get_doc_mut)(data).remove_usage();
 
         self.tabs.remove();
+        self.layout(self.bounds, data_list, gfx);
+    }
+
+    pub fn get_tab(&self, index: usize) -> Option<&Tab> {
+        self.tabs.get(index)
+    }
+
+    pub fn iter_tabs_mut(&mut self) -> impl Iterator<Item = &mut Tab> {
+        self.tabs.iter_mut()
+    }
+
+    pub fn tabs_len(&self) -> usize {
+        self.tabs.len()
+    }
+
+    pub fn is_tabs_empty(&self) -> bool {
+        self.tabs.is_empty()
     }
 
     pub fn bounds(&self) -> Rect {

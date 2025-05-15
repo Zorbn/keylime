@@ -18,6 +18,7 @@ use crate::{
         core::{Ui, Widget},
         popup::{draw_popup, PopupAlignment},
         result_list::{ResultList, ResultListInput, ResultListSubmitKind},
+        tab::Tab,
     },
 };
 
@@ -71,6 +72,7 @@ pub struct CompletionListResult {
 
 pub struct CompletionList {
     result_list: ResultList<CompletionResult>,
+    position: VisualPosition,
     // Prevents the result list from shrinking as it's being scrolled through.
     min_width: f32,
     prefix: String,
@@ -85,6 +87,7 @@ impl CompletionList {
     pub fn new() -> Self {
         Self {
             result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS),
+            position: VisualPosition::ZERO,
             min_width: 0.0,
             prefix: String::new(),
 
@@ -99,7 +102,7 @@ impl CompletionList {
         self.result_list.is_animating()
     }
 
-    pub fn layout(&mut self, visual_position: VisualPosition, gfx: &mut Gfx) {
+    pub fn layout(&mut self, gfx: &mut Gfx) {
         let min_y = self.result_list.min_visible_result_index();
         let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
         let mut longest_visible_result = 0;
@@ -121,9 +124,9 @@ impl CompletionList {
 
         self.result_list.layout(
             Rect::new(
-                visual_position.x - (self.prefix.len() as f32 + 1.0) * gfx.glyph_width()
+                self.position.x - (self.prefix.len() as f32 + 1.0) * gfx.glyph_width()
                     + gfx.border_width(),
-                visual_position.y + gfx.line_height(),
+                self.position.y + gfx.line_height(),
                 width,
                 0.0,
             ),
@@ -157,9 +160,9 @@ impl CompletionList {
                 kind: ResultListSubmitKind::Normal,
             } => {
                 completion_result = self.perform_result_action(doc, ctx);
-                self.clear();
+                self.clear(ctx.gfx);
             }
-            ResultListInput::Close => self.clear(),
+            ResultListInput::Close => self.clear(ctx.gfx),
             _ => {}
         }
 
@@ -299,7 +302,12 @@ impl CompletionList {
         }
     }
 
-    pub fn lsp_resolve_completion_item(&mut self, id: Option<usize>, item: DecodedCompletionItem) {
+    pub fn lsp_resolve_completion_item(
+        &mut self,
+        id: Option<usize>,
+        item: DecodedCompletionItem,
+        gfx: &mut Gfx,
+    ) {
         let Some(id) = id else {
             return;
         };
@@ -320,12 +328,17 @@ impl CompletionList {
 
         *existing_item = item;
         *resolve_state = CompletionResolveState::Resolved;
+
+        // TODO: Include popup stuff related to the current completion item in the bounds.
+        // TODO: That will make this call actually useful, and is necessary for mouse interactions.
+        self.layout(gfx);
     }
 
     pub fn lsp_update_completion_results(
         &mut self,
         mut items: Vec<DecodedCompletionItem>,
         needs_resolve: bool,
+        gfx: &mut Gfx,
     ) {
         if let Some(CompletionResult::Completion {
             item:
@@ -343,7 +356,7 @@ impl CompletionList {
             };
         }
 
-        self.clear();
+        self.clear(gfx);
 
         items.retain(|item| item.filter_text().starts_with(&self.prefix));
         items.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
@@ -360,17 +373,21 @@ impl CompletionList {
                 resolve_state,
             });
         }
+
+        self.layout(gfx);
     }
 
-    pub fn lsp_update_code_action_results(&mut self, results: Vec<DecodedCodeActionResult>) {
-        self.clear();
+    pub fn lsp_update_code_action_results(
+        &mut self,
+        results: Vec<DecodedCodeActionResult>,
+        gfx: &mut Gfx,
+    ) {
+        self.clear(gfx);
 
         for result in results {
             match result {
                 DecodedCodeActionResult::Command(command) => {
-                    self.result_list
-                        .results
-                        .push(CompletionResult::Command(command));
+                    self.result_list.push(CompletionResult::Command(command));
                 }
                 DecodedCodeActionResult::CodeAction(code_action) => {
                     let index = if code_action.is_preferred {
@@ -380,23 +397,36 @@ impl CompletionList {
                     };
 
                     self.result_list
-                        .results
                         .insert(index, CompletionResult::CodeAction(code_action));
                 }
             }
         }
+
+        self.layout(gfx);
     }
 
     pub fn update_results(
         &mut self,
         did_cursor_move: bool,
+        tab: &mut Tab,
         doc: &mut Doc,
         ctx: &mut Ctx,
     ) -> Option<()> {
+        if did_cursor_move {
+            let cursor_position = doc.cursor(CursorIndex::Main).position;
+
+            let cursor_visual_position = doc
+                .position_to_visual(cursor_position, tab.camera.position().floor(), ctx.gfx)
+                .offset_by(tab.doc_bounds());
+
+            self.position = cursor_visual_position;
+            self.layout(ctx.gfx);
+        }
+
         if !self.should_open {
             if did_cursor_move {
                 self.prefix.clear();
-                self.clear();
+                self.clear(ctx.gfx);
             }
 
             return None;
@@ -405,7 +435,7 @@ impl CompletionList {
         self.prefix.clear();
 
         let Some(prefix) = doc.get_completion_prefix(ctx.gfx) else {
-            self.clear();
+            self.clear(ctx.gfx);
 
             return None;
         };
@@ -418,24 +448,26 @@ impl CompletionList {
             return Some(());
         }
 
-        self.clear();
+        self.clear(ctx.gfx);
 
         if !self.prefix.is_empty() {
             doc.tokens().traverse(&self.prefix, |result| {
                 self.result_list
-                    .results
                     .push(CompletionResult::SimpleCompletion(result));
             });
+
+            self.layout(ctx.gfx);
         }
 
         Some(())
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self, gfx: &mut Gfx) {
         self.result_list.drain();
         self.lsp_expected_responses.clear();
 
         self.min_width = 0.0;
+        self.layout(gfx);
     }
 
     fn perform_result_action(

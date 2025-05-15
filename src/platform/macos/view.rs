@@ -310,6 +310,8 @@ impl View {
             gfx.inner.set_font(font, *font_size, scale as f32);
         }
 
+        app.resize(window, gfx, window.inner.time);
+
         Some(())
     }
 

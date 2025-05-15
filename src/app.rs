@@ -54,9 +54,9 @@ impl App {
 
         let mut ui = Ui::new();
 
-        Self {
-            editor: Editor::new(&mut ui),
-            terminal: Terminal::new(&mut ui),
+        let mut app = Self {
+            editor: Editor::new(&mut ui, gfx),
+            terminal: Terminal::new(&mut ui, gfx),
             status_bar: StatusBar::new(&mut ui),
             command_palette: CommandPalette::new(&mut ui),
             ui,
@@ -67,7 +67,11 @@ impl App {
             config_dir,
             config,
             config_error,
-        }
+        };
+
+        app.layout(gfx);
+
+        app
     }
 
     pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32, dt: f32) {
@@ -87,6 +91,7 @@ impl App {
             gfx.set_font(&self.config.font, self.config.font_size);
 
             self.editor.clear_doc_highlights();
+            self.layout(gfx);
         }
 
         if let Some(err) = window
@@ -96,8 +101,6 @@ impl App {
         {
             err.show_message();
         }
-
-        self.layout(gfx);
 
         self.ui.update(
             &mut [
@@ -123,8 +126,6 @@ impl App {
         self.editor
             .update(&mut self.ui, &mut self.file_watcher, ctx);
 
-        self.layout(gfx);
-
         let ctx = ctx_for_app!(self, window, gfx, time);
 
         self.terminal.update_camera(&mut self.ui, ctx, dt);
@@ -133,8 +134,6 @@ impl App {
     }
 
     pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
-        self.layout(gfx);
-
         gfx.begin_frame(self.config.theme.background);
 
         let ctx = ctx_for_app!(self, window, gfx, time);
@@ -145,6 +144,10 @@ impl App {
         self.command_palette.draw(&mut self.ui, ctx);
 
         gfx.end_frame();
+    }
+
+    pub fn resize(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
+        self.layout(gfx);
     }
 
     fn layout(&mut self, gfx: &mut Gfx) {

@@ -20,7 +20,7 @@ pub struct AtlasDimensions {
 }
 
 impl AtlasDimensions {
-    pub const ZERO: Self = AtlasDimensions {
+    pub const ZERO: Self = Self {
         origin_x: 0.0,
         origin_y: 0.0,
         width: 0,

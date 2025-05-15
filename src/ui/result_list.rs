@@ -37,12 +37,12 @@ pub enum ResultListInput {
 }
 
 pub struct ResultList<T> {
-    pub results: FocusList<T>,
+    results: FocusList<T>,
     handled_focused_index: Option<usize>,
 
     max_visible_results: usize,
     result_bounds: Rect,
-    results_bounds: Rect,
+    bounds: Rect,
 
     camera: Camera,
 }
@@ -55,7 +55,7 @@ impl<T> ResultList<T> {
 
             max_visible_results,
             result_bounds: Rect::ZERO,
-            results_bounds: Rect::ZERO,
+            bounds: Rect::ZERO,
 
             camera: Camera::new(),
         }
@@ -64,7 +64,7 @@ impl<T> ResultList<T> {
     pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
         self.result_bounds = Rect::new(0.0, 0.0, bounds.width, gfx.line_height() * 1.25);
 
-        self.results_bounds = Rect::new(
+        self.bounds = Rect::new(
             bounds.x,
             bounds.y,
             bounds.width,
@@ -74,7 +74,7 @@ impl<T> ResultList<T> {
     }
 
     pub fn offset_by(&mut self, bounds: Rect) {
-        self.results_bounds = self.results_bounds.offset_by(bounds);
+        self.bounds = self.bounds.offset_by(bounds);
     }
 
     pub fn update(
@@ -109,7 +109,6 @@ impl<T> ResultList<T> {
 
         while let Some(mousebind) = mouse_handler.next(window) {
             let position = VisualPosition::new(mousebind.x, mousebind.y);
-            let results_bounds = self.results_bounds;
 
             let Mousebind {
                 button: None | Some(MouseButton::Left),
@@ -121,12 +120,12 @@ impl<T> ResultList<T> {
                 continue;
             };
 
-            if !results_bounds.contains_position(position) {
+            if !self.bounds.contains_position(position) {
                 mouse_handler.unprocessed(window, mousebind);
                 continue;
             }
 
-            let clicked_result_index = ((position.y + self.camera.y() - results_bounds.y)
+            let clicked_result_index = ((position.y + self.camera.y() - self.bounds.y)
                 / self.result_bounds.height) as usize;
 
             if clicked_result_index >= self.len() {
@@ -152,7 +151,7 @@ impl<T> ResultList<T> {
         while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
 
-            if mouse_scroll.is_horizontal || !self.results_bounds.contains_position(position) {
+            if mouse_scroll.is_horizontal || !self.bounds.contains_position(position) {
                 mouse_scroll_handler.unprocessed(window, mouse_scroll);
                 continue;
             }
@@ -196,11 +195,10 @@ impl<T> ResultList<T> {
         let focused_index = self.focused_index();
 
         let target_y = (focused_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
-        let max_y =
-            (self.len() as f32 * self.result_bounds.height - self.results_bounds.height).max(0.0);
+        let max_y = (self.len() as f32 * self.result_bounds.height - self.bounds.height).max(0.0);
 
         let scroll_border_top = self.result_bounds.height * RECENTER_DISTANCE as f32;
-        let scroll_border_bottom = self.results_bounds.height - scroll_border_top;
+        let scroll_border_bottom = self.bounds.height - scroll_border_top;
 
         let can_recenter = Some(focused_index) != self.handled_focused_index;
         self.mark_focused_handled();
@@ -208,7 +206,7 @@ impl<T> ResultList<T> {
         self.camera.vertical.update(
             target_y,
             max_y,
-            self.results_bounds.height,
+            self.bounds.height,
             scroll_border_top..=scroll_border_bottom,
             can_recenter,
             dt,
@@ -223,10 +221,10 @@ impl<T> ResultList<T> {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        gfx.begin(Some(self.results_bounds));
+        gfx.begin(Some(self.bounds));
 
         gfx.add_bordered_rect(
-            self.results_bounds.unoffset_by(self.results_bounds),
+            self.bounds.unoffset_by(self.bounds),
             Sides::ALL,
             theme.background,
             theme.border,
@@ -286,7 +284,7 @@ impl<T> ResultList<T> {
     }
 
     pub fn bounds(&self) -> Rect {
-        self.results_bounds
+        self.bounds
     }
 
     pub fn is_animating(&self) -> bool {
@@ -298,8 +296,8 @@ impl<T> ResultList<T> {
     }
 
     pub fn max_visible_result_index(&self) -> usize {
-        let max_y = ((self.camera.y().floor() + self.results_bounds.height)
-            / self.result_bounds.height) as usize
+        let max_y = ((self.camera.y().floor() + self.bounds.height) / self.result_bounds.height)
+            as usize
             + 1;
 
         max_y.min(self.len())

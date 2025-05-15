@@ -227,7 +227,7 @@ impl Gfx {
     }
 
     pub fn glyph_spans(&mut self, text: &str) -> GlyphSpans {
-        let Some(platform_text) = self.text.as_mut() else {
+        let Some(platform_text) = &mut self.text else {
             return Default::default();
         };
 

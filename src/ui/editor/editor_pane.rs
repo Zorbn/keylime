@@ -7,7 +7,10 @@ use std::{
 use crate::{
     ctx::Ctx,
     normalizable::Normalizable,
-    platform::dialog::{find_file, message, FindFileKind, MessageKind},
+    platform::{
+        dialog::{find_file, message, FindFileKind, MessageKind},
+        gfx::Gfx,
+    },
     text::doc::{Doc, DocKind},
     ui::{
         core::{Ui, Widget},
@@ -26,11 +29,11 @@ pub struct EditorPane {
 }
 
 impl EditorPane {
-    pub fn new(doc_list: &mut SlotList<Doc>) -> Self {
+    pub fn new(doc_list: &mut SlotList<Doc>, gfx: &mut Gfx) -> Self {
         let mut inner = Pane::new(|doc| doc, |doc| doc);
 
         let doc_index = doc_list.add(Doc::new(None, None, DocKind::MultiLine));
-        inner.add_tab(doc_index, doc_list);
+        inner.add_tab(doc_index, doc_list, gfx);
 
         Self { inner }
     }
@@ -81,7 +84,7 @@ impl EditorPane {
             }
         }
 
-        self.inner.update(widget, ui, ctx.window);
+        self.inner.update(widget, ui, doc_list, ctx);
 
         let focused_tab_index = self.focused_tab_index();
 
@@ -143,7 +146,7 @@ impl EditorPane {
             }
         }
 
-        self.inner.add_tab(doc_index, doc_list);
+        self.inner.add_tab(doc_index, doc_list, ctx.gfx);
     }
 
     fn remove_tab(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) -> bool {
@@ -159,7 +162,7 @@ impl EditorPane {
             return false;
         }
 
-        self.inner.remove_tab(doc_list);
+        self.inner.remove_tab(doc_list, ctx.gfx);
 
         if doc_list.get(doc_index).is_some_and(|doc| doc.usages() == 0) {
             if let Some(mut doc) = doc_list.remove(doc_index) {
@@ -171,7 +174,7 @@ impl EditorPane {
     }
 
     pub fn close_all_tabs(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) -> bool {
-        while !self.tabs.is_empty() {
+        while !self.is_tabs_empty() {
             if !self.remove_tab(doc_list, ctx) {
                 return false;
             }

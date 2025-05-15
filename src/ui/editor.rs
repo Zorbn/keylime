@@ -60,7 +60,7 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(ui: &mut Ui) -> Self {
+    pub fn new(ui: &mut Ui, gfx: &mut Gfx) -> Self {
         let mut editor = Self {
             doc_list: SlotList::new(),
             panes: FocusList::new(),
@@ -75,7 +75,7 @@ impl Editor {
             widget: Widget::new(ui, true),
         };
 
-        editor.add_pane();
+        editor.add_pane(gfx);
 
         editor
     }
@@ -89,24 +89,11 @@ impl Editor {
         pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
 
         for pane in self.panes.iter_mut() {
-            pane.layout(pane_bounds, gfx, &mut self.doc_list);
+            pane.layout(pane_bounds, &mut self.doc_list, gfx);
             pane_bounds.x += pane_bounds.width;
         }
 
-        let focused_pane = self.panes.get_focused().unwrap();
-
-        let Some((tab, doc)) =
-            focused_pane.get_tab_with_data(focused_pane.focused_tab_index(), &self.doc_list)
-        else {
-            return;
-        };
-
-        let cursor_position = doc.cursor(CursorIndex::Main).position;
-        let cursor_visual_position = doc
-            .position_to_visual(cursor_position, tab.camera.position().floor(), gfx)
-            .offset_by(tab.doc_bounds());
-
-        self.completion_list.layout(cursor_visual_position, gfx);
+        self.completion_list.layout(gfx);
         self.widget.layout(&[bounds, self.completion_list.bounds()]);
     }
 
@@ -131,14 +118,14 @@ impl Editor {
 
         let pane = self.panes.get_focused_mut().unwrap();
         pane.update(&self.widget, ui, &mut self.doc_list, ctx);
-        self.panes.remove_excess(|pane| pane.tabs.is_empty());
+        self.panes.remove_excess(|pane| pane.is_tabs_empty());
 
         self.post_pane_update(signature_help_triggers, ctx);
 
         if !ui.is_focused(&self.widget) {
             self.examine_popup.clear();
             self.signature_help_popup.clear();
-            self.completion_list.clear();
+            self.completion_list.clear(ctx.gfx);
         }
     }
 
@@ -187,7 +174,7 @@ impl Editor {
                         }
                     }
                 }
-                action_name!(NewPane) => self.add_pane(),
+                action_name!(NewPane) => self.add_pane(ctx.gfx),
                 action_name!(ClosePane) => self.close_pane(ctx),
                 action_name!(PreviousPane) => self.panes.focus_previous(),
                 action_name!(NextPane) => self.panes.focus_next(),
@@ -203,7 +190,7 @@ impl Editor {
                 action_name!(NextTab) => {
                     let pane = self.panes.get_focused().unwrap();
 
-                    if pane.focused_tab_index() == pane.tabs.len() - 1 {
+                    if pane.focused_tab_index() == pane.tabs_len() - 1 {
                         self.panes.focus_next();
                     } else {
                         action_handler.unprocessed(ctx.window, action);
@@ -260,10 +247,10 @@ impl Editor {
         let pane = self.panes.get_focused_mut().unwrap();
         let focused_tab_index = pane.focused_tab_index();
 
-        let Some((_, doc)) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
+        let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
         else {
             self.signature_help_popup.clear();
-            self.completion_list.clear();
+            self.completion_list.clear(ctx.gfx);
 
             return;
         };
@@ -278,7 +265,7 @@ impl Editor {
             .update(signature_help_triggers, doc, ctx);
 
         self.completion_list
-            .update_results(did_cursor_move, doc, ctx);
+            .update_results(did_cursor_move, tab, doc, ctx);
 
         self.examine_popup.update(did_cursor_move, doc, ctx);
 
@@ -449,10 +436,11 @@ impl Editor {
         tab.doc_bounds().contains_position(cursor_visual_position)
     }
 
-    fn add_pane(&mut self) {
-        let pane = EditorPane::new(&mut self.doc_list);
+    fn add_pane(&mut self, gfx: &mut Gfx) {
+        let pane = EditorPane::new(&mut self.doc_list, gfx);
 
         self.panes.add(pane);
+        self.layout(self.widget.bounds(), gfx);
     }
 
     fn close_pane(&mut self, ctx: &mut Ctx) {

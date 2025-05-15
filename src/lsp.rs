@@ -110,9 +110,11 @@ impl Lsp {
                     .map(|item| item.decode(encoding, doc))
                     .collect();
 
-                editor
-                    .completion_list
-                    .lsp_update_completion_results(items, server.needs_completion_resolve());
+                editor.completion_list.lsp_update_completion_results(
+                    items,
+                    server.needs_completion_resolve(),
+                    ctx.gfx,
+                );
             }
             MessageResult::CompletionItemResolve(item) => {
                 let doc = doc?;
@@ -120,7 +122,7 @@ impl Lsp {
 
                 editor
                     .completion_list
-                    .lsp_resolve_completion_item(message.id, item);
+                    .lsp_resolve_completion_item(message.id, item, ctx.gfx);
             }
             MessageResult::CodeAction(results) => {
                 let doc = doc?;
@@ -131,7 +133,7 @@ impl Lsp {
 
                 editor
                     .completion_list
-                    .lsp_update_code_action_results(results);
+                    .lsp_update_code_action_results(results, ctx.gfx);
             }
             MessageResult::PrepareRename { range, placeholder } => {
                 let doc = doc?;

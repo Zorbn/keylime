@@ -93,8 +93,8 @@ impl Window {
         Self {
             ns_window,
             view: Weak::default(),
-            width: DEFAULT_WIDTH,
-            height: DEFAULT_HEIGHT,
+            width: DEFAULT_WIDTH * scale,
+            height: DEFAULT_HEIGHT * scale,
 
             was_shown: false,
             is_focused: true,

@@ -102,11 +102,12 @@ impl CommandPalette {
     }
 
     pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx) {
-        let Some(mode) = &self.mode else {
-            return;
-        };
+        let title = self
+            .mode
+            .as_ref()
+            .map(|mode| mode.title())
+            .unwrap_or_default();
 
-        let title = mode.title();
         let title_padding_x = gfx.glyph_width();
         let title_width =
             gfx.measure_text(title) as f32 * gfx.glyph_width() + title_padding_x * 2.0;
@@ -191,7 +192,7 @@ impl CommandPalette {
             }
 
             mode.on_update(self, CommandPaletteEventArgs::new(editor, ctx));
-            self.mode = Some(mode);
+            self.set_mode(mode, ctx.gfx);
         }
 
         let result_input = self
@@ -230,7 +231,7 @@ impl CommandPalette {
         };
 
         let action = mode.on_submit(self, CommandPaletteEventArgs::new(editor, ctx), kind);
-        self.mode = Some(mode);
+        self.set_mode(mode, ctx.gfx);
 
         match action {
             CommandPaletteAction::Stay => {}
@@ -244,7 +245,7 @@ impl CommandPalette {
         };
 
         mode.on_complete_result(self, CommandPaletteEventArgs::new(editor, ctx));
-        self.mode = Some(mode);
+        self.set_mode(mode, ctx.gfx);
 
         self.update_results(editor, ctx);
     }
@@ -261,7 +262,7 @@ impl CommandPalette {
         };
 
         mode.on_update_results(self, CommandPaletteEventArgs::new(editor, ctx));
-        self.mode = Some(mode);
+        self.set_mode(mode, ctx.gfx);
     }
 
     pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
@@ -326,21 +327,27 @@ impl CommandPalette {
     pub fn open(
         &mut self,
         ui: &mut Ui,
-        mut mode: Box<dyn CommandPaletteMode>,
+        mode: Box<dyn CommandPaletteMode>,
         editor: &mut Editor,
         ctx: &mut Ctx,
     ) {
         self.doc.clear(ctx);
         self.result_list.drain();
         self.last_updated_version = None;
-        self.mode = None;
+        self.set_mode(mode, ctx.gfx);
 
         ui.focus(&mut self.widget);
 
+        let mut mode = self.mode.take().unwrap();
         mode.on_open(self, CommandPaletteEventArgs::new(editor, ctx));
-        self.mode = Some(mode);
+        self.set_mode(mode, ctx.gfx);
 
         self.update_results(editor, ctx);
+    }
+
+    fn set_mode(&mut self, mode: Box<dyn CommandPaletteMode>, gfx: &mut Gfx) {
+        self.mode = Some(mode);
+        self.layout(self.widget.bounds(), gfx);
     }
 
     fn close(&mut self, ui: &mut Ui) {

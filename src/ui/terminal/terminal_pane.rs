@@ -2,6 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::{
     ctx::Ctx,
+    platform::gfx::Gfx,
     ui::{
         core::{Ui, Widget},
         pane::Pane,
@@ -16,7 +17,7 @@ pub struct TerminalPane {
 }
 
 impl TerminalPane {
-    pub fn new(term_list: &mut SlotList<Term>) -> Self {
+    pub fn new(term_list: &mut SlotList<Term>, gfx: &mut Gfx) -> Self {
         let mut inner = Pane::<Term>::new(
             |(docs, emulator)| emulator.doc(docs),
             |(docs, emulator)| emulator.doc_mut(docs),
@@ -24,7 +25,7 @@ impl TerminalPane {
 
         let term = Self::new_term();
         let doc_index = term_list.add(term);
-        inner.add_tab(doc_index, term_list);
+        inner.add_tab(doc_index, term_list, gfx);
 
         Self { inner }
     }
@@ -44,15 +45,15 @@ impl TerminalPane {
                     let term = Self::new_term();
                     let term_index = term_list.add(term);
 
-                    self.add_tab(term_index, term_list);
+                    self.add_tab(term_index, term_list, ctx.gfx);
                 }
                 action_name!(CloseTab) => {
                     let focused_tab_index = self.focused_tab_index();
 
-                    if let Some(tab) = self.tabs.get(focused_tab_index) {
+                    if let Some(tab) = self.get_tab(focused_tab_index) {
                         let term_index = tab.data_index();
 
-                        self.remove_tab(term_list);
+                        self.remove_tab(term_list, ctx.gfx);
 
                         if let Some((mut docs, _)) = term_list.remove(term_index) {
                             docs.clear(ctx);
@@ -63,7 +64,7 @@ impl TerminalPane {
             }
         }
 
-        self.inner.update(widget, ui, ctx.window);
+        self.inner.update(widget, ui, term_list, ctx);
     }
 
     fn new_term() -> Term {
