@@ -23,7 +23,7 @@ use crate::{
 use super::{
     camera::{Camera, RECENTER_DISTANCE},
     color::Color,
-    core::{Ui, Widget},
+    core::{Ui, WidgetId},
 };
 
 const GUTTER_PADDING_WIDTH: f32 = 1.0;
@@ -93,11 +93,11 @@ impl Tab {
         self.doc_bounds = doc_bounds.shrink_left_by(self.gutter_bounds);
     }
 
-    pub fn update(&mut self, widget: &Widget, ui: &mut Ui, doc: &mut Doc, ctx: &mut Ctx) {
+    pub fn update(&mut self, widget_id: WidgetId, ui: &mut Ui, doc: &mut Doc, ctx: &mut Ctx) {
         self.handled_cursor_position = Some(doc.cursor(CursorIndex::Main).position);
         self.handled_doc_len = Some(doc.lines().len());
 
-        let mut grapheme_handler = ui.grapheme_handler(widget, ctx.window);
+        let mut grapheme_handler = ui.grapheme_handler(widget_id, ctx.window);
 
         while let Some(grapheme) = grapheme_handler.next(ctx.window) {
             let grapheme: Pooled<String> = grapheme.into();
@@ -105,7 +105,7 @@ impl Tab {
             handle_grapheme(&grapheme, doc, ctx);
         }
 
-        let mut mousebind_handler = ui.mousebind_handler(widget, ctx.window);
+        let mut mousebind_handler = ui.mousebind_handler(widget_id, ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
@@ -156,7 +156,7 @@ impl Tab {
             }
         }
 
-        let mut action_handler = ui.action_handler(widget, ctx.window);
+        let mut action_handler = ui.action_handler(widget_id, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             let was_handled = handle_action(action, self, doc, ctx);
@@ -172,13 +172,13 @@ impl Tab {
 
     pub fn update_camera(
         &mut self,
-        widget: &Widget,
+        widget_id: WidgetId,
         ui: &mut Ui,
         doc: &Doc,
         ctx: &mut Ctx,
         dt: f32,
     ) {
-        let mut mouse_scroll_handler = ui.mouse_scroll_handler(widget, ctx.window);
+        let mut mouse_scroll_handler = ui.mouse_scroll_handler(widget_id, ctx.window);
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);

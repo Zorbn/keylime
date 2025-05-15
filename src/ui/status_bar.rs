@@ -11,43 +11,44 @@ use crate::{
 };
 
 use super::{
-    core::{Ui, Widget},
+    core::{Ui, WidgetId},
     editor::Editor,
 };
 
 pub struct StatusBar {
-    pub widget: Widget,
+    widget_id: WidgetId,
 }
 
 impl StatusBar {
     pub fn new(ui: &mut Ui) -> Self {
         Self {
-            widget: Widget::new(ui, true),
+            widget_id: ui.new_widget(true),
         }
     }
 
-    pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx) {
+    pub fn layout(&mut self, bounds: Rect, ui: &mut Ui, gfx: &mut Gfx) {
         let bounds = Rect::new(0.0, 0.0, bounds.width, gfx.tab_height())
             .at_bottom_of(bounds)
             .floor();
 
-        self.widget.layout(&[bounds]);
+        ui.widget_mut(self.widget_id).layout(&[bounds]);
     }
 
-    pub fn draw(&mut self, editor: &Editor, ctx: &mut Ctx) {
+    pub fn draw(&mut self, editor: &Editor, ui: &Ui, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
+        let widget = ui.widget(self.widget_id);
 
-        gfx.begin(Some(self.widget.bounds()));
+        gfx.begin(Some(widget.bounds()));
 
         gfx.add_bordered_rect(
-            self.widget.bounds().unoffset_by(self.widget.bounds()),
+            widget.bounds().unoffset_by(widget.bounds()),
             Sides::ALL,
             theme.background,
             theme.border,
         );
 
-        let mut text_x = self.widget.bounds().width;
+        let mut text_x = widget.bounds().width;
         let text_y = gfx.tab_padding_y();
 
         if let Some(text) = Self::get_doc_text(editor, ctx.config) {
@@ -138,5 +139,9 @@ impl StatusBar {
         .ok()?;
 
         Some(doc_text)
+    }
+
+    pub fn widget_id(&self) -> WidgetId {
+        self.widget_id
     }
 }

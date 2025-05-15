@@ -11,7 +11,7 @@ use crate::{
 };
 
 use super::{
-    core::{Ui, Widget},
+    core::{Ui, WidgetId},
     slot_list::SlotList,
 };
 
@@ -47,7 +47,7 @@ pub struct Terminal {
     pane: TerminalPane,
     term_list: SlotList<Term>,
 
-    pub widget: Widget,
+    widget_id: WidgetId,
 }
 
 impl Terminal {
@@ -60,11 +60,11 @@ impl Terminal {
             pane,
             term_list,
 
-            widget: Widget::new(ui, true),
+            widget_id: ui.new_widget(true),
         }
     }
 
-    pub fn layout(&mut self, bounds: Rect, config: &Config, gfx: &mut Gfx) {
+    pub fn layout(&mut self, bounds: Rect, config: &Config, ui: &mut Ui, gfx: &mut Gfx) {
         let bounds = Rect::new(
             0.0,
             0.0,
@@ -75,8 +75,7 @@ impl Terminal {
         .floor();
 
         self.pane.layout(bounds, gfx, &mut self.term_list);
-
-        self.widget.layout(&[bounds]);
+        ui.widget_mut(self.widget_id).layout(&[bounds]);
     }
 
     pub fn update(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
@@ -85,17 +84,18 @@ impl Terminal {
         while let Some(action) = global_action_handler.next(ctx.window) {
             match action {
                 action_name!(FocusTerminal) => {
-                    if ui.is_focused(&self.widget) {
-                        ui.unfocus(&self.widget);
+                    if ui.is_focused(self.widget_id) {
+                        ui.unfocus(self.widget_id);
                     } else {
-                        ui.focus(&mut self.widget);
+                        ui.focus(self.widget_id);
                     }
                 }
                 _ => global_action_handler.unprocessed(ctx.window, action),
             }
         }
 
-        self.pane.update(&self.widget, ui, &mut self.term_list, ctx);
+        self.pane
+            .update(self.widget_id, ui, &mut self.term_list, ctx);
 
         let focused_tab_index = self.pane.focused_tab_index();
 
@@ -103,7 +103,7 @@ impl Terminal {
             .pane
             .get_tab_with_data_mut(focused_tab_index, &mut self.term_list)
         {
-            emulator.update_input(&self.widget, ui, docs, tab, ctx);
+            emulator.update_input(self.widget_id, ui, docs, tab, ctx);
         }
 
         for tab in self.pane.tabs.iter_mut() {
@@ -119,11 +119,11 @@ impl Terminal {
 
     pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
         self.pane
-            .update_camera(&self.widget, ui, &mut self.term_list, ctx, dt);
+            .update_camera(self.widget_id, ui, &mut self.term_list, ctx, dt);
     }
 
-    pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        let is_focused = ui.is_focused(&self.widget);
+    pub fn draw(&mut self, ui: &Ui, ctx: &mut Ctx) {
+        let is_focused = ui.is_focused(self.widget_id);
 
         self.pane.draw(
             Some(ctx.config.theme.terminal.background),
@@ -141,5 +141,9 @@ impl Terminal {
         self.term_list
             .iter_mut()
             .filter_map(|term| term.as_mut().and_then(|(_, emulator)| emulator.pty()))
+    }
+
+    pub fn widget_id(&self) -> WidgetId {
+        self.widget_id
     }
 }

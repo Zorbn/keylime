@@ -25,7 +25,7 @@ use crate::{
     },
     ui::{
         camera::CameraRecenterKind,
-        core::{Ui, Widget},
+        core::{Ui, WidgetId},
         tab::Tab,
     },
 };
@@ -143,7 +143,7 @@ impl TerminalEmulator {
 
     pub fn update_input(
         &mut self,
-        widget: &Widget,
+        widget_id: WidgetId,
         ui: &mut Ui,
         docs: &mut TerminalDocs,
         tab: &mut Tab,
@@ -155,7 +155,7 @@ impl TerminalEmulator {
 
         let doc = self.doc_mut(docs);
 
-        let mut action_handler = ui.action_handler(widget, ctx.window);
+        let mut action_handler = ui.action_handler(widget_id, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
@@ -230,7 +230,7 @@ impl TerminalEmulator {
             }
         }
 
-        let mut grapheme_handler = ui.grapheme_handler(widget, ctx.window);
+        let mut grapheme_handler = ui.grapheme_handler(widget_id, ctx.window);
 
         while let Some(grapheme) = grapheme_handler.next(ctx.window) {
             pty.input().extend(grapheme.bytes());
@@ -240,7 +240,7 @@ impl TerminalEmulator {
 
         self.pty = Some(pty);
 
-        tab.update(widget, ui, doc, ctx);
+        tab.update(widget_id, ui, doc, ctx);
     }
 
     pub fn update_output(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {

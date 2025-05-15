@@ -18,7 +18,7 @@ use crate::{
 
 use super::{
     color::Color,
-    core::{Ui, Widget},
+    core::{Ui, WidgetId},
     focus_list::FocusList,
     slot_list::SlotList,
     tab::Tab,
@@ -78,8 +78,8 @@ impl<T> Pane<T> {
         }
     }
 
-    pub fn update(&mut self, widget: &Widget, ui: &mut Ui, window: &mut Window) {
-        let mut mousebind_handler = ui.mousebind_handler(widget, window);
+    pub fn update(&mut self, widget_id: WidgetId, ui: &mut Ui, window: &mut Window) {
+        let mut mousebind_handler = ui.mousebind_handler(widget_id, window);
 
         while let Some(mousebind) = mousebind_handler.next(window) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
@@ -152,7 +152,7 @@ impl<T> Pane<T> {
             }
         }
 
-        let mut action_handler = ui.action_handler(widget, window);
+        let mut action_handler = ui.action_handler(widget_id, window);
 
         while let Some(action) = action_handler.next(window) {
             match action {
@@ -165,7 +165,7 @@ impl<T> Pane<T> {
 
     pub fn update_camera(
         &mut self,
-        widget: &Widget,
+        widget_id: WidgetId,
         ui: &mut Ui,
         data_list: &mut SlotList<T>,
         ctx: &mut Ctx,
@@ -175,7 +175,7 @@ impl<T> Pane<T> {
 
         if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
         {
-            tab.update_camera(widget, ui, get_doc(data), ctx, dt);
+            tab.update_camera(widget_id, ui, get_doc(data), ctx, dt);
         }
     }
 

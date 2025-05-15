@@ -25,7 +25,7 @@ use crate::{
 };
 
 use super::{
-    core::{Ui, Widget},
+    core::{Ui, WidgetId},
     editor::Editor,
     result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     tab::Tab,
@@ -75,7 +75,7 @@ pub struct CommandPalette {
     title_bounds: Rect,
     input_bounds: Rect,
 
-    pub widget: Widget,
+    widget_id: WidgetId,
 }
 
 impl CommandPalette {
@@ -91,7 +91,7 @@ impl CommandPalette {
             title_bounds: Rect::ZERO,
             input_bounds: Rect::ZERO,
 
-            widget: Widget::new(ui, false),
+            widget_id: ui.new_widget(false),
         }
     }
 
@@ -101,7 +101,7 @@ impl CommandPalette {
             || self.mode.as_ref().is_some_and(|mode| mode.is_animating())
     }
 
-    pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx) {
+    pub fn layout(&mut self, bounds: Rect, ui: &mut Ui, gfx: &mut Gfx) {
         let Some(mode) = &self.mode else {
             return;
         };
@@ -125,7 +125,7 @@ impl CommandPalette {
             gfx,
         );
 
-        self.widget.layout(&[self
+        ui.widget_mut(self.widget_id).layout(&[self
             .title_bounds
             .expand_to_include(self.input_bounds)
             .expand_to_include(self.result_list.bounds())
@@ -133,14 +133,16 @@ impl CommandPalette {
             .offset_by(Rect::new(0.0, gfx.tab_height() * 2.0, 0.0, 0.0))
             .floor()]);
 
-        self.result_list.offset_by(self.widget.bounds());
+        let widget = ui.widget(self.widget_id);
+
+        self.result_list.offset_by(widget.bounds());
 
         self.tab.layout(
             Rect::ZERO,
             Rect::new(0.0, 0.0, gfx.glyph_width() * 10.0, gfx.line_height())
                 .center_in(self.input_bounds)
                 .expand_width_in(self.input_bounds)
-                .offset_by(self.widget.bounds())
+                .offset_by(widget.bounds())
                 .floor(),
             &self.doc,
             gfx,
@@ -148,7 +150,7 @@ impl CommandPalette {
     }
 
     pub fn update(&mut self, ui: &mut Ui, editor: &mut Editor, ctx: &mut Ctx) {
-        if self.widget.is_visible() && !ui.is_focused(&self.widget) {
+        if ui.widget(self.widget_id).is_visible() && !ui.is_focused(self.widget_id) {
             self.close(ui);
         }
 
@@ -182,7 +184,7 @@ impl CommandPalette {
         }
 
         if let Some(mut mode) = self.mode.take() {
-            let mut action_handler = ui.action_handler(&self.widget, ctx.window);
+            let mut action_handler = ui.action_handler(self.widget_id, ctx.window);
 
             while let Some(action) = action_handler.next(ctx.window) {
                 if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
@@ -196,7 +198,7 @@ impl CommandPalette {
 
         let result_input = self
             .result_list
-            .update(&self.widget, ui, ctx.window, true, true);
+            .update(self.widget_id, ui, ctx.window, true, true);
 
         match result_input {
             ResultListInput::None => {}
@@ -207,12 +209,13 @@ impl CommandPalette {
             ResultListInput::Close => self.close(ui),
         }
 
-        self.tab.update(&self.widget, ui, &mut self.doc, ctx);
+        self.tab.update(self.widget_id, ui, &mut self.doc, ctx);
         self.update_results(editor, ctx);
     }
 
     pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
-        self.tab.update_camera(&self.widget, ui, &self.doc, ctx, dt);
+        self.tab
+            .update_camera(self.widget_id, ui, &self.doc, ctx, dt);
         self.result_list.update_camera(dt);
     }
 
@@ -264,8 +267,10 @@ impl CommandPalette {
         self.mode = Some(mode);
     }
 
-    pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        if !self.widget.is_visible() {
+    pub fn draw(&mut self, ui: &Ui, ctx: &mut Ctx) {
+        let widget = ui.widget(self.widget_id);
+
+        if !widget.is_visible() {
             return;
         }
 
@@ -273,11 +278,11 @@ impl CommandPalette {
             return;
         };
 
-        let is_focused = ui.is_focused(&self.widget);
+        let is_focused = ui.is_focused(self.widget_id);
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        gfx.begin(Some(self.widget.bounds()));
+        gfx.begin(Some(widget.bounds()));
 
         gfx.add_bordered_rect(
             self.input_bounds,
@@ -310,7 +315,7 @@ impl CommandPalette {
         gfx.add_bordered_rect(
             doc_bounds
                 .add_margin(gfx.border_width())
-                .unoffset_by(self.widget.bounds()),
+                .unoffset_by(widget.bounds()),
             Sides::ALL,
             theme.background,
             theme.border,
@@ -335,7 +340,7 @@ impl CommandPalette {
         self.last_updated_version = None;
         self.mode = None;
 
-        ui.focus(&mut self.widget);
+        ui.focus(self.widget_id);
 
         mode.on_open(self, CommandPaletteEventArgs::new(editor, ctx));
         self.mode = Some(mode);
@@ -343,8 +348,8 @@ impl CommandPalette {
         self.update_results(editor, ctx);
     }
 
-    fn close(&mut self, ui: &mut Ui) {
-        ui.hide(&mut self.widget);
+    fn close(&self, ui: &mut Ui) {
+        ui.hide(self.widget_id);
     }
 
     pub fn input(&self) -> &str {

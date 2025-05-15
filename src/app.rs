@@ -101,14 +101,7 @@ impl App {
             err.show_message();
         }
 
-        self.ui.update(
-            &mut [
-                &mut self.terminal.widget,
-                &mut self.editor.widget,
-                &mut self.command_palette.widget,
-            ],
-            window,
-        );
+        self.ui.update(window);
 
         let ctx = ctx_for_app!(self, window, gfx, time);
 
@@ -139,10 +132,10 @@ impl App {
 
         let ctx = ctx_for_app!(self, window, gfx, time);
 
-        self.status_bar.draw(&self.editor, ctx);
-        self.terminal.draw(&mut self.ui, ctx);
-        self.editor.draw(&mut self.ui, ctx);
-        self.command_palette.draw(&mut self.ui, ctx);
+        self.status_bar.draw(&self.editor, &self.ui, ctx);
+        self.terminal.draw(&self.ui, ctx);
+        self.editor.draw(&self.ui, ctx);
+        self.command_palette.draw(&self.ui, ctx);
 
         gfx.end_frame();
     }
@@ -150,15 +143,18 @@ impl App {
     fn layout(&mut self, gfx: &mut Gfx) {
         let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
 
-        self.command_palette.layout(bounds, gfx);
+        self.command_palette.layout(bounds, &mut self.ui, gfx);
 
-        self.status_bar.layout(bounds, gfx);
-        bounds = bounds.shrink_bottom_by(self.status_bar.widget.bounds());
+        self.status_bar.layout(bounds, &mut self.ui, gfx);
+        let status_bar_bounds = self.ui.widget(self.status_bar.widget_id()).bounds();
+        bounds = bounds.shrink_bottom_by(status_bar_bounds);
 
-        self.terminal.layout(bounds, &self.config, gfx);
-        bounds = bounds.shrink_bottom_by(self.terminal.widget.bounds());
+        self.terminal
+            .layout(bounds, &self.config, &mut self.ui, gfx);
+        let terminal_bounds = self.ui.widget(self.terminal.widget_id()).bounds();
+        bounds = bounds.shrink_bottom_by(terminal_bounds);
 
-        self.editor.layout(bounds, gfx);
+        self.editor.layout(bounds, &mut self.ui, gfx);
     }
 
     pub fn close(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {

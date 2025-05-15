@@ -19,7 +19,7 @@ use crate::{
 use super::{
     camera::{Camera, RECENTER_DISTANCE},
     color::Color,
-    core::{Ui, Widget},
+    core::{Ui, WidgetId},
     focus_list::FocusList,
 };
 
@@ -79,7 +79,7 @@ impl<T> ResultList<T> {
 
     pub fn update(
         &mut self,
-        widget: &Widget,
+        widget_id: WidgetId,
         ui: &mut Ui,
         window: &mut Window,
         can_be_visible: bool,
@@ -87,12 +87,12 @@ impl<T> ResultList<T> {
     ) -> ResultListInput {
         let mut input = ResultListInput::None;
 
-        if can_be_visible && widget.is_visible() {
-            self.handle_mouse_inputs(&mut input, widget, ui, window);
+        if can_be_visible && ui.widget(widget_id).is_visible() {
+            self.handle_mouse_inputs(&mut input, widget_id, ui, window);
         }
 
-        if can_be_focused && ui.is_focused(widget) {
-            self.handle_keybinds(&mut input, widget, ui, window);
+        if can_be_focused && ui.is_focused(widget_id) {
+            self.handle_keybinds(&mut input, widget_id, ui, window);
         }
 
         input
@@ -101,11 +101,11 @@ impl<T> ResultList<T> {
     fn handle_mouse_inputs(
         &mut self,
         input: &mut ResultListInput,
-        widget: &Widget,
+        widget_id: WidgetId,
         ui: &mut Ui,
         window: &mut Window,
     ) {
-        let mut mouse_handler = ui.mousebind_handler(widget, window);
+        let mut mouse_handler = ui.mousebind_handler(widget_id, window);
 
         while let Some(mousebind) = mouse_handler.next(window) {
             let position = VisualPosition::new(mousebind.x, mousebind.y);
@@ -147,7 +147,7 @@ impl<T> ResultList<T> {
             }
         }
 
-        let mut mouse_scroll_handler = ui.mouse_scroll_handler(widget, window);
+        let mut mouse_scroll_handler = ui.mouse_scroll_handler(widget_id, window);
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
@@ -165,11 +165,11 @@ impl<T> ResultList<T> {
     fn handle_keybinds(
         &mut self,
         input: &mut ResultListInput,
-        widget: &Widget,
+        widget_id: WidgetId,
         ui: &mut Ui,
         window: &mut Window,
     ) {
-        let mut action_handler = ui.action_handler(widget, window);
+        let mut action_handler = ui.action_handler(widget_id, window);
 
         while let Some(action) = action_handler.next(window) {
             match action {

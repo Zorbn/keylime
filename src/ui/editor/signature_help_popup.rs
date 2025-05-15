@@ -6,7 +6,7 @@ use crate::{
     lsp::types::SignatureHelp,
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
-        core::{Ui, Widget},
+        core::{Ui, WidgetId},
         popup::{draw_popup, PopupAlignment},
         tab::Tab,
     },
@@ -99,7 +99,7 @@ impl SignatureHelpPopup {
 
     pub fn get_triggers(
         &mut self,
-        widget: &Widget,
+        widget_id: WidgetId,
         ui: &mut Ui,
         doc: Option<&mut Doc>,
         ctx: &mut Ctx,
@@ -113,7 +113,7 @@ impl SignatureHelpPopup {
             return (trigger_char, retrigger_char);
         };
 
-        let mut grapheme_handler = ui.grapheme_handler(widget, ctx.window);
+        let mut grapheme_handler = ui.grapheme_handler(widget_id, ctx.window);
 
         while let Some(c) = grapheme_handler
             .next(ctx.window)

@@ -15,7 +15,7 @@ use crate::{
     pool::Pooled,
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
-        core::{Ui, Widget},
+        core::{Ui, WidgetId},
         popup::{draw_popup, PopupAlignment},
         result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     },
@@ -134,7 +134,7 @@ impl CompletionList {
     pub fn update(
         &mut self,
         ui: &mut Ui,
-        widget: &Widget,
+        widget_id: WidgetId,
         doc: &mut Doc,
         is_visible: bool,
         ctx: &mut Ctx,
@@ -147,7 +147,7 @@ impl CompletionList {
 
         let result_input =
             self.result_list
-                .update(widget, ui, ctx.window, is_visible, are_results_focused);
+                .update(widget_id, ui, ctx.window, is_visible, are_results_focused);
 
         let mut completion_result = None;
 
@@ -177,7 +177,7 @@ impl CompletionList {
             }
         }
 
-        self.should_open = self.should_open(ui, widget, ctx);
+        self.should_open = self.should_open(ui, widget_id, ctx);
 
         completion_result
     }
@@ -192,15 +192,15 @@ impl CompletionList {
         Some(language_server.completion_item_resolve(item.clone(), doc))
     }
 
-    fn should_open(&mut self, ui: &mut Ui, widget: &Widget, ctx: &mut Ctx) -> bool {
-        let mut grapheme_handler = ui.grapheme_handler(widget, ctx.window);
+    fn should_open(&mut self, ui: &mut Ui, widget_id: WidgetId, ctx: &mut Ctx) -> bool {
+        let mut grapheme_handler = ui.grapheme_handler(widget_id, ctx.window);
 
         if grapheme_handler.next(ctx.window).is_some() {
             grapheme_handler.unprocessed(ctx.window);
             return true;
         }
 
-        let mut action_handler = ui.action_handler(widget, ctx.window);
+        let mut action_handler = ui.action_handler(widget_id, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             action_handler.unprocessed(ctx.window, action);
