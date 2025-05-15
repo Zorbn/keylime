@@ -44,7 +44,9 @@ macro_rules! handle_event {
             }
         };
 
-        $self.update();
+        unsafe {
+            $self.setNeedsDisplay(true);
+        }
     };
 }
 
@@ -198,8 +200,10 @@ define_class!(
         }
 
         #[unsafe(method(update))]
-        fn update_objc(&self) {
-            self.update();
+        fn update(&self) {
+            unsafe {
+                self.setNeedsDisplay(true);
+            }
         }
     }
 
@@ -266,23 +270,6 @@ impl View {
         view
     }
 
-    pub fn update(&self) -> Option<()> {
-        let mut state = self.ivars().state.try_borrow_mut().ok()?;
-        let ViewState { app, window, gfx } = state.as_mut()?;
-
-        let (time, dt) = window.inner.time(app.is_animating());
-        app.update(window, gfx, time, dt);
-
-        let (file_watcher, files, processes) = app.files_and_processes();
-        window.inner.update(file_watcher, files, processes);
-
-        unsafe {
-            self.setNeedsDisplay(true);
-        }
-
-        Some(())
-    }
-
     fn on_set_frame_size(&self, new_size: NSSize) -> Option<()> {
         let mut state = self.ivars().state.try_borrow_mut().ok()?;
         let ViewState { app, window, gfx } = state.as_mut()?;
@@ -317,9 +304,12 @@ impl View {
         let mut state = self.ivars().state.try_borrow_mut().ok()?;
         let ViewState { app, window, gfx } = state.as_mut()?;
 
-        let time = window.inner.time;
-
+        let (time, dt) = window.inner.time(app.is_animating());
+        app.update(window, gfx, time, dt);
         app.draw(window, gfx, time);
+
+        let (file_watcher, files, processes) = app.files_and_processes();
+        window.inner.update(file_watcher, files, processes);
 
         if !window.inner.was_shown {
             window.inner.ns_window.makeKeyAndOrderFront(None);
