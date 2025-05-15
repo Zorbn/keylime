@@ -93,7 +93,7 @@ impl Tab {
         self.doc_bounds = doc_bounds.shrink_left_by(self.gutter_bounds);
     }
 
-    pub fn update(&mut self, widget_id: WidgetId, ui: &mut Ui, doc: &mut Doc, ctx: &mut Ctx) {
+    pub fn update(&mut self, widget_id: WidgetId, ui: &Ui, doc: &mut Doc, ctx: &mut Ctx) {
         self.handled_cursor_position = Some(doc.cursor(CursorIndex::Main).position);
         self.handled_doc_len = Some(doc.lines().len());
 
@@ -173,7 +173,7 @@ impl Tab {
     pub fn update_camera(
         &mut self,
         widget_id: WidgetId,
-        ui: &mut Ui,
+        ui: &Ui,
         doc: &Doc,
         ctx: &mut Ctx,
         dt: f32,

@@ -19,7 +19,7 @@ use crate::{
 use super::{
     camera::{Camera, RECENTER_DISTANCE},
     color::Color,
-    core::{Ui, WidgetId},
+    core::{Ui, WidgetId, WidgetSettings},
     focus_list::FocusList,
 };
 
@@ -42,29 +42,35 @@ pub struct ResultList<T> {
 
     max_visible_results: usize,
     result_bounds: Rect,
-    results_bounds: Rect,
+    widget_id: WidgetId,
 
     camera: Camera,
 }
 
 impl<T> ResultList<T> {
-    pub fn new(max_visible_results: usize) -> Self {
+    pub fn new(max_visible_results: usize, parent_id: WidgetId, ui: &mut Ui) -> Self {
         Self {
             results: FocusList::new(),
             handled_focused_index: None,
 
             max_visible_results,
             result_bounds: Rect::ZERO,
-            results_bounds: Rect::ZERO,
+            widget_id: ui.new_widget(
+                parent_id,
+                WidgetSettings {
+                    is_component: true,
+                    ..Default::default()
+                },
+            ),
 
             camera: Camera::new(),
         }
     }
 
-    pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
+    pub fn layout(&mut self, bounds: Rect, ui: &mut Ui, gfx: &Gfx) {
         self.result_bounds = Rect::new(0.0, 0.0, bounds.width, gfx.line_height() * 1.25);
 
-        self.results_bounds = Rect::new(
+        ui.widget_mut(self.widget_id).bounds = Rect::new(
             bounds.x,
             bounds.y,
             bounds.width,
@@ -73,43 +79,39 @@ impl<T> ResultList<T> {
         .floor();
     }
 
-    pub fn offset_by(&mut self, bounds: Rect) {
-        self.results_bounds = self.results_bounds.offset_by(bounds);
+    pub fn offset_by(&mut self, bounds: Rect, ui: &mut Ui) {
+        let widget = ui.widget_mut(self.widget_id);
+        widget.bounds = widget.bounds.offset_by(bounds);
     }
 
     pub fn update(
         &mut self,
-        widget_id: WidgetId,
-        ui: &mut Ui,
+        ui: &Ui,
         window: &mut Window,
+        // TODO: Are these still necessary?
         can_be_visible: bool,
         can_be_focused: bool,
     ) -> ResultListInput {
         let mut input = ResultListInput::None;
 
-        if can_be_visible && ui.widget(widget_id).is_visible() {
-            self.handle_mouse_inputs(&mut input, widget_id, ui, window);
+        if can_be_visible && ui.is_visible(self.widget_id) {
+            self.handle_mouse_inputs(&mut input, ui, window);
         }
 
-        if can_be_focused && ui.is_focused(widget_id) {
-            self.handle_keybinds(&mut input, widget_id, ui, window);
+        if can_be_focused && ui.is_in_focused_hierarchy(self.widget_id) {
+            self.handle_keybinds(&mut input, ui, window);
         }
 
         input
     }
 
-    fn handle_mouse_inputs(
-        &mut self,
-        input: &mut ResultListInput,
-        widget_id: WidgetId,
-        ui: &mut Ui,
-        window: &mut Window,
-    ) {
-        let mut mouse_handler = ui.mousebind_handler(widget_id, window);
+    fn handle_mouse_inputs(&mut self, input: &mut ResultListInput, ui: &Ui, window: &mut Window) {
+        let bounds = ui.widget(self.widget_id).bounds;
+
+        let mut mouse_handler = ui.mousebind_handler(self.widget_id, window);
 
         while let Some(mousebind) = mouse_handler.next(window) {
             let position = VisualPosition::new(mousebind.x, mousebind.y);
-            let results_bounds = self.results_bounds;
 
             let Mousebind {
                 button: None | Some(MouseButton::Left),
@@ -121,13 +123,13 @@ impl<T> ResultList<T> {
                 continue;
             };
 
-            if !results_bounds.contains_position(position) {
+            if !bounds.contains_position(position) {
                 mouse_handler.unprocessed(window, mousebind);
                 continue;
             }
 
-            let clicked_result_index = ((position.y + self.camera.y() - results_bounds.y)
-                / self.result_bounds.height) as usize;
+            let clicked_result_index =
+                ((position.y + self.camera.y() - bounds.y) / self.result_bounds.height) as usize;
 
             if clicked_result_index >= self.len() {
                 continue;
@@ -147,12 +149,12 @@ impl<T> ResultList<T> {
             }
         }
 
-        let mut mouse_scroll_handler = ui.mouse_scroll_handler(widget_id, window);
+        let mut mouse_scroll_handler = ui.mouse_scroll_handler(self.widget_id, window);
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
 
-            if mouse_scroll.is_horizontal || !self.results_bounds.contains_position(position) {
+            if mouse_scroll.is_horizontal || !bounds.contains_position(position) {
                 mouse_scroll_handler.unprocessed(window, mouse_scroll);
                 continue;
             }
@@ -162,14 +164,8 @@ impl<T> ResultList<T> {
         }
     }
 
-    fn handle_keybinds(
-        &mut self,
-        input: &mut ResultListInput,
-        widget_id: WidgetId,
-        ui: &mut Ui,
-        window: &mut Window,
-    ) {
-        let mut action_handler = ui.action_handler(widget_id, window);
+    fn handle_keybinds(&mut self, input: &mut ResultListInput, ui: &Ui, window: &mut Window) {
+        let mut action_handler = ui.action_handler(self.widget_id, window);
 
         while let Some(action) = action_handler.next(window) {
             match action {
@@ -192,15 +188,15 @@ impl<T> ResultList<T> {
         }
     }
 
-    pub fn update_camera(&mut self, dt: f32) {
+    pub fn update_camera(&mut self, ui: &Ui, dt: f32) {
         let focused_index = self.focused_index();
+        let bounds = ui.widget(self.widget_id).bounds;
 
         let target_y = (focused_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
-        let max_y =
-            (self.len() as f32 * self.result_bounds.height - self.results_bounds.height).max(0.0);
+        let max_y = (self.len() as f32 * self.result_bounds.height - bounds.height).max(0.0);
 
         let scroll_border_top = self.result_bounds.height * RECENTER_DISTANCE as f32;
-        let scroll_border_bottom = self.results_bounds.height - scroll_border_top;
+        let scroll_border_bottom = bounds.height - scroll_border_top;
 
         let can_recenter = Some(focused_index) != self.handled_focused_index;
         self.mark_focused_handled();
@@ -208,7 +204,7 @@ impl<T> ResultList<T> {
         self.camera.vertical.update(
             target_y,
             max_y,
-            self.results_bounds.height,
+            bounds.height,
             scroll_border_top..=scroll_border_bottom,
             can_recenter,
             dt,
@@ -217,16 +213,19 @@ impl<T> ResultList<T> {
 
     pub fn draw<'a>(
         &'a mut self,
+        ui: &Ui,
         ctx: &mut Ctx,
         mut display_result: impl FnMut(&'a T, &Theme) -> (&'a str, Color),
     ) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        gfx.begin(Some(self.results_bounds));
+        let bounds = ui.widget(self.widget_id).bounds;
+
+        gfx.begin(Some(bounds));
 
         gfx.add_bordered_rect(
-            self.results_bounds.unoffset_by(self.results_bounds),
+            bounds.unoffset_by(bounds),
             Sides::ALL,
             theme.background,
             theme.border,
@@ -236,7 +235,7 @@ impl<T> ResultList<T> {
 
         let min_y = self.min_visible_result_index();
         let sub_line_offset_y = camera_y - min_y as f32 * self.result_bounds.height;
-        let max_y = self.max_visible_result_index();
+        let max_y = self.max_visible_result_index(ui);
 
         for (i, y) in (min_y..max_y).enumerate() {
             let background_visual_y = i as f32 * self.result_bounds.height - sub_line_offset_y;
@@ -285,8 +284,8 @@ impl<T> ResultList<T> {
         self.handled_focused_index = Some(self.focused_index());
     }
 
-    pub fn bounds(&self) -> Rect {
-        self.results_bounds
+    pub fn widget_id(&self) -> WidgetId {
+        self.widget_id
     }
 
     pub fn is_animating(&self) -> bool {
@@ -297,10 +296,10 @@ impl<T> ResultList<T> {
         (self.camera.y().floor() / self.result_bounds.height) as usize
     }
 
-    pub fn max_visible_result_index(&self) -> usize {
-        let max_y = ((self.camera.y().floor() + self.results_bounds.height)
-            / self.result_bounds.height) as usize
-            + 1;
+    pub fn max_visible_result_index(&self, ui: &Ui) -> usize {
+        let bounds = ui.widget(self.widget_id).bounds;
+        let max_y =
+            ((self.camera.y().floor() + bounds.height) / self.result_bounds.height) as usize + 1;
 
         max_y.min(self.len())
     }

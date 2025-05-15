@@ -2,9 +2,13 @@ use crate::{
     config::theme::Theme,
     geometry::{rect::Rect, sides::Sides, visual_position::VisualPosition},
     platform::gfx::Gfx,
+    pool::{Pooled, STRING_POOL},
 };
 
-use super::color::Color;
+use super::{
+    color::Color,
+    core::{Ui, WidgetId},
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum PopupAlignment {
@@ -12,62 +16,87 @@ pub enum PopupAlignment {
     Above,
 }
 
-pub fn draw_popup(
-    message: &str,
-    position: VisualPosition,
-    alignment: PopupAlignment,
-    foreground: Color,
-    theme: &Theme,
-    gfx: &mut Gfx,
-) -> Rect {
-    let mut popup_bounds = Rect::ZERO;
+pub struct Popup {
+    pub text: Pooled<String>,
+    widget_id: WidgetId,
+}
 
-    for line in message.lines() {
-        popup_bounds.height += gfx.line_height();
+impl Popup {
+    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
+        let popup = Self {
+            text: STRING_POOL.new_item(),
+            widget_id: ui.new_widget(parent_id, Default::default()),
+        };
 
-        let line_width = gfx.measure_text(line) as f32 * gfx.glyph_width();
-        popup_bounds.width = popup_bounds.width.max(line_width);
+        println!("popup id: {:?}", popup.widget_id);
+
+        popup
     }
 
-    let margin = gfx.glyph_width();
-    popup_bounds = popup_bounds.add_margin(margin);
+    pub fn layout(
+        &mut self,
+        position: VisualPosition,
+        alignment: PopupAlignment,
+        ui: &mut Ui,
+        gfx: &mut Gfx,
+    ) {
+        let mut bounds = Rect::ZERO;
 
-    popup_bounds.x = position.x;
-    popup_bounds.y = position.y;
+        for line in self.text.lines() {
+            bounds.height += gfx.line_height();
 
-    if alignment == PopupAlignment::Above {
-        popup_bounds.x -= margin;
-        popup_bounds.y -= popup_bounds.height;
-
-        if popup_bounds.right() > gfx.width() - margin {
-            popup_bounds.x -= popup_bounds.right() - (gfx.width() - margin);
+            let line_width = gfx.measure_text(line) as f32 * gfx.glyph_width();
+            bounds.width = bounds.width.max(line_width);
         }
 
-        popup_bounds.x = popup_bounds.x.max(margin);
+        let margin = gfx.glyph_width();
+        bounds = bounds.add_margin(margin);
 
-        if popup_bounds.bottom() > gfx.height() - margin {
-            popup_bounds.y -= popup_bounds.bottom() - (gfx.height() - margin);
+        bounds.x = position.x;
+        bounds.y = position.y;
+
+        if alignment == PopupAlignment::Above {
+            bounds.x -= margin;
+            bounds.y -= bounds.height;
+
+            if bounds.right() > gfx.width() - margin {
+                bounds.x -= bounds.right() - (gfx.width() - margin);
+            }
+
+            bounds.x = bounds.x.max(margin);
+
+            if bounds.bottom() > gfx.height() - margin {
+                bounds.y -= bounds.bottom() - (gfx.height() - margin);
+            }
+
+            bounds.y = bounds.y.max(margin);
         }
 
-        popup_bounds.y = popup_bounds.y.max(margin);
+        ui.widget_mut(self.widget_id).bounds = bounds;
     }
 
-    gfx.begin(Some(popup_bounds));
+    pub fn draw(&self, foreground: Color, theme: &Theme, ui: &Ui, gfx: &mut Gfx) {
+        let bounds = ui.widget(self.widget_id).bounds;
 
-    gfx.add_bordered_rect(
-        popup_bounds.unoffset_by(popup_bounds),
-        Sides::ALL,
-        theme.background,
-        theme.border,
-    );
+        gfx.begin(Some(bounds));
 
-    for (y, line) in message.lines().enumerate() {
-        let y = y as f32 * gfx.line_height() + gfx.line_padding_y() + margin;
+        gfx.add_bordered_rect(
+            bounds.unoffset_by(bounds),
+            Sides::ALL,
+            theme.background,
+            theme.border,
+        );
 
-        gfx.add_text(line, margin, y, foreground);
+        for (y, line) in self.text.lines().enumerate() {
+            let y = y as f32 * gfx.line_height() + gfx.line_padding_y() + gfx.border_width();
+
+            gfx.add_text(line, gfx.border_width(), y, foreground);
+        }
+
+        gfx.end();
     }
 
-    gfx.end();
-
-    popup_bounds
+    pub fn widget_id(&self) -> WidgetId {
+        self.widget_id
+    }
 }

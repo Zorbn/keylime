@@ -214,7 +214,7 @@ impl Lsp {
                     .lsp_set_signature_help(signature_help);
             }
             MessageResult::Hover(hover) => {
-                editor.examine_popup.lsp_set_hover(hover);
+                editor.lsp_set_hover(hover, path.as_ref()?);
             }
             MessageResult::Formatting(edits) => {
                 let doc = doc?;

@@ -38,7 +38,7 @@ impl EditorPane {
     pub fn update(
         &mut self,
         widget_id: WidgetId,
-        ui: &mut Ui,
+        ui: &Ui,
         doc_list: &mut SlotList<Doc>,
         ctx: &mut Ctx,
     ) {

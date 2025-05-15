@@ -8,7 +8,10 @@ use crate::{
     platform::{file_watcher::FileWatcher, gfx::Gfx, process::Process, window::Window},
     pool::Pooled,
     ui::{
-        command_palette::CommandPalette, core::Ui, editor::Editor, status_bar::StatusBar,
+        command_palette::CommandPalette,
+        core::{Ui, WidgetId},
+        editor::Editor,
+        status_bar::StatusBar,
         terminal::Terminal,
     },
 };
@@ -53,12 +56,15 @@ impl App {
         gfx.set_font(&config.font, config.font_size);
 
         let mut ui = Ui::new();
+        let editor = Editor::new(WidgetId::ROOT, &mut ui);
+
+        ui.focus(editor.widget_id());
 
         let mut app = Self {
-            editor: Editor::new(&mut ui),
-            terminal: Terminal::new(&mut ui),
-            status_bar: StatusBar::new(&mut ui),
-            command_palette: CommandPalette::new(&mut ui),
+            editor,
+            terminal: Terminal::new(WidgetId::ROOT, &mut ui),
+            status_bar: StatusBar::new(WidgetId::ROOT, &mut ui),
+            command_palette: CommandPalette::new(WidgetId::ROOT, &mut ui),
             ui,
 
             file_watcher: FileWatcher::new(),
@@ -69,7 +75,7 @@ impl App {
             config_error,
         };
 
-        app.layout(gfx);
+        app.layout(window, gfx, time);
         app
     }
 
@@ -90,7 +96,7 @@ impl App {
             gfx.set_font(&self.config.font, self.config.font_size);
 
             self.editor.clear_doc_highlights();
-            self.layout(gfx);
+            self.layout(window, gfx, time);
         }
 
         if let Some(err) = window
@@ -115,16 +121,15 @@ impl App {
         self.terminal.update(&mut self.ui, ctx);
         self.command_palette
             .update(&mut self.ui, &mut self.editor, ctx);
-        self.editor
-            .update(&mut self.ui, &mut self.file_watcher, ctx);
+        self.editor.update(&self.ui, &mut self.file_watcher, ctx);
 
-        self.layout(gfx);
+        self.layout(window, gfx, time);
 
         let ctx = ctx_for_app!(self, window, gfx, time);
 
-        self.terminal.update_camera(&mut self.ui, ctx, dt);
-        self.command_palette.update_camera(&mut self.ui, ctx, dt);
-        self.editor.update_camera(&mut self.ui, ctx, dt);
+        self.terminal.update_camera(&self.ui, ctx, dt);
+        self.command_palette.update_camera(&self.ui, ctx, dt);
+        self.editor.update_camera(&self.ui, ctx, dt);
     }
 
     pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
@@ -140,21 +145,24 @@ impl App {
         gfx.end_frame();
     }
 
-    fn layout(&mut self, gfx: &mut Gfx) {
+    fn layout(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
         let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
+        self.ui.widget_mut(WidgetId::ROOT).bounds = bounds;
 
         self.command_palette.layout(bounds, &mut self.ui, gfx);
 
         self.status_bar.layout(bounds, &mut self.ui, gfx);
-        let status_bar_bounds = self.ui.widget(self.status_bar.widget_id()).bounds();
+        let status_bar_bounds = self.ui.widget(self.status_bar.widget_id()).bounds;
         bounds = bounds.shrink_bottom_by(status_bar_bounds);
 
         self.terminal
             .layout(bounds, &self.config, &mut self.ui, gfx);
-        let terminal_bounds = self.ui.widget(self.terminal.widget_id()).bounds();
+        let terminal_bounds = self.ui.widget(self.terminal.widget_id()).bounds;
         bounds = bounds.shrink_bottom_by(terminal_bounds);
 
-        self.editor.layout(bounds, &mut self.ui, gfx);
+        let ctx = ctx_for_app!(self, window, gfx, time);
+
+        self.editor.layout(bounds, &mut self.ui, ctx);
     }
 
     pub fn close(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {

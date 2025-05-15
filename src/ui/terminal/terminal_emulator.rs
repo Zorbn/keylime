@@ -144,7 +144,7 @@ impl TerminalEmulator {
     pub fn update_input(
         &mut self,
         widget_id: WidgetId,
-        ui: &mut Ui,
+        ui: &Ui,
         docs: &mut TerminalDocs,
         tab: &mut Tab,
         ctx: &mut Ctx,

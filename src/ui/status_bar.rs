@@ -20,18 +20,16 @@ pub struct StatusBar {
 }
 
 impl StatusBar {
-    pub fn new(ui: &mut Ui) -> Self {
+    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
         Self {
-            widget_id: ui.new_widget(true),
+            widget_id: ui.new_widget(parent_id, Default::default()),
         }
     }
 
     pub fn layout(&mut self, bounds: Rect, ui: &mut Ui, gfx: &mut Gfx) {
-        let bounds = Rect::new(0.0, 0.0, bounds.width, gfx.tab_height())
+        ui.widget_mut(self.widget_id).bounds = Rect::new(0.0, 0.0, bounds.width, gfx.tab_height())
             .at_bottom_of(bounds)
             .floor();
-
-        ui.widget_mut(self.widget_id).layout(&[bounds]);
     }
 
     pub fn draw(&mut self, editor: &Editor, ui: &Ui, ctx: &mut Ctx) {
@@ -39,16 +37,16 @@ impl StatusBar {
         let theme = &ctx.config.theme;
         let widget = ui.widget(self.widget_id);
 
-        gfx.begin(Some(widget.bounds()));
+        gfx.begin(Some(widget.bounds));
 
         gfx.add_bordered_rect(
-            widget.bounds().unoffset_by(widget.bounds()),
+            widget.bounds.unoffset_by(widget.bounds),
             Sides::ALL,
             theme.background,
             theme.border,
         );
 
-        let mut text_x = widget.bounds().width;
+        let mut text_x = widget.bounds.width;
         let text_y = gfx.tab_padding_y();
 
         if let Some(text) = Self::get_doc_text(editor, ctx.config) {

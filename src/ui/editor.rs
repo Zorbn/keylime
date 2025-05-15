@@ -18,7 +18,10 @@ use crate::{
         mouse_button::MouseButton,
         mousebind::{MouseClickKind, Mousebind},
     },
-    lsp::{types::DecodedEditList, uri::uri_to_path},
+    lsp::{
+        types::{DecodedEditList, Hover},
+        uri::uri_to_path,
+    },
     platform::{
         dialog::{find_file, message, FindFileKind, MessageKind},
         file_watcher::FileWatcher,
@@ -53,14 +56,16 @@ pub struct Editor {
     handled_position: Option<Position>,
     handled_path: Option<Pooled<PathBuf>>,
 
-    pub examine_popup: ExaminePopup,
+    examine_popup: ExaminePopup,
     pub signature_help_popup: SignatureHelpPopup,
     pub completion_list: CompletionList,
     widget_id: WidgetId,
 }
 
 impl Editor {
-    pub fn new(ui: &mut Ui) -> Self {
+    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
+        let widget_id = ui.new_widget(parent_id, Default::default());
+
         let mut editor = Self {
             doc_list: SlotList::new(),
             panes: FocusList::new(),
@@ -69,10 +74,10 @@ impl Editor {
             handled_position: None,
             handled_path: None,
 
-            examine_popup: ExaminePopup::new(),
-            signature_help_popup: SignatureHelpPopup::new(),
-            completion_list: CompletionList::new(),
-            widget_id: ui.new_widget(true),
+            examine_popup: ExaminePopup::new(widget_id, ui),
+            signature_help_popup: SignatureHelpPopup::new(widget_id, ui),
+            completion_list: CompletionList::new(widget_id, ui),
+            widget_id,
         };
 
         editor.add_pane();
@@ -84,12 +89,14 @@ impl Editor {
         self.completion_list.is_animating() || self.panes.iter().any(|pane| pane.is_animating())
     }
 
-    pub fn layout(&mut self, bounds: Rect, ui: &mut Ui, gfx: &mut Gfx) {
+    pub fn layout(&mut self, bounds: Rect, ui: &mut Ui, ctx: &mut Ctx) {
+        ui.widget_mut(self.widget_id).bounds = bounds;
+
         let mut pane_bounds = bounds;
         pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
 
         for pane in self.panes.iter_mut() {
-            pane.layout(pane_bounds, gfx, &mut self.doc_list);
+            pane.layout(pane_bounds, ctx.gfx, &mut self.doc_list);
             pane_bounds.x += pane_bounds.width;
         }
 
@@ -103,16 +110,15 @@ impl Editor {
 
         let cursor_position = doc.cursor(CursorIndex::Main).position;
         let cursor_visual_position = doc
-            .position_to_visual(cursor_position, tab.camera.position().floor(), gfx)
+            .position_to_visual(cursor_position, tab.camera.position().floor(), ctx.gfx)
             .offset_by(tab.doc_bounds());
 
-        self.completion_list.layout(cursor_visual_position, gfx);
-
-        ui.widget_mut(self.widget_id)
-            .layout(&[bounds, self.completion_list.bounds()]);
+        self.completion_list
+            .layout(cursor_visual_position, ui, ctx.gfx);
+        self.examine_popup.layout(tab, doc, ui, ctx);
     }
 
-    pub fn update(&mut self, ui: &mut Ui, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
+    pub fn update(&mut self, ui: &Ui, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
         self.reload_changed_files(file_watcher, ctx);
 
         let pane = self.panes.get_focused_mut().unwrap();
@@ -123,8 +129,7 @@ impl Editor {
             .map(|(_, doc)| doc);
 
         let signature_help_triggers =
-            self.signature_help_popup
-                .get_triggers(self.widget_id, ui, doc, ctx);
+            SignatureHelpPopup::get_triggers(self.widget_id, ui, doc, ctx);
 
         self.handle_mousebinds(ui, ctx);
         self.handle_actions(ui, ctx);
@@ -137,19 +142,19 @@ impl Editor {
 
         self.post_pane_update(signature_help_triggers, ctx);
 
-        if !ui.is_focused(self.widget_id) {
+        if !ui.is_in_focused_hierarchy(self.widget_id) {
             self.examine_popup.clear();
             self.signature_help_popup.clear();
             self.completion_list.clear();
         }
     }
 
-    fn handle_mousebinds(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
+    fn handle_mousebinds(&mut self, ui: &Ui, ctx: &mut Ctx) {
         let mut mousebind_handler = ui.mousebind_handler(self.widget_id, ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y)
-                .unoffset_by(ui.widget(self.widget_id).bounds());
+                .unoffset_by(ui.widget(self.widget_id).bounds);
 
             match mousebind {
                 Mousebind {
@@ -174,7 +179,7 @@ impl Editor {
         }
     }
 
-    fn handle_actions(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
+    fn handle_actions(&mut self, ui: &Ui, ctx: &mut Ctx) {
         let mut action_handler = ui.action_handler(self.widget_id, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
@@ -237,7 +242,7 @@ impl Editor {
         }
     }
 
-    fn pre_pane_update(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
+    fn pre_pane_update(&mut self, ui: &Ui, ctx: &mut Ctx) {
         let is_cursor_visible = self.is_cursor_visible(ctx.gfx);
         let pane = self.panes.get_focused_mut().unwrap();
         let focused_tab_index = pane.focused_tab_index();
@@ -247,9 +252,7 @@ impl Editor {
             return;
         };
 
-        let result = self
-            .completion_list
-            .update(ui, self.widget_id, doc, is_cursor_visible, ctx);
+        let result = self.completion_list.update(ui, doc, is_cursor_visible, ctx);
 
         self.lsp_handle_completion_list_result(result, ctx);
     }
@@ -288,12 +291,12 @@ impl Editor {
         self.handled_path = doc.path().some().cloned();
     }
 
-    pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
+    pub fn update_camera(&mut self, ui: &Ui, ctx: &mut Ctx, dt: f32) {
         for pane in self.panes.iter_mut() {
             pane.update_camera(self.widget_id, ui, &mut self.doc_list, ctx, dt);
         }
 
-        self.completion_list.update_camera(dt);
+        self.completion_list.update_camera(ui, dt);
     }
 
     pub fn lsp_handle_completion_list_result(
@@ -332,6 +335,14 @@ impl Editor {
         Some(())
     }
 
+    pub fn lsp_set_hover(&mut self, hover: Option<Hover>, path: &Pooled<PathBuf>) -> Option<()> {
+        let doc = Self::find_doc(&self.doc_list, path)?;
+
+        self.examine_popup.lsp_set_hover(hover, doc);
+
+        Some(())
+    }
+
     pub fn with_doc(
         &mut self,
         path: Pooled<PathBuf>,
@@ -359,6 +370,13 @@ impl Editor {
             let _ = doc.save(None, ctx);
             doc.clear(ctx);
         }
+    }
+
+    fn find_doc<'a>(doc_list: &'a SlotList<Doc>, path: &Path) -> Option<&'a Doc> {
+        doc_list
+            .iter()
+            .flatten()
+            .find(|doc| doc.path().some_path() == Some(path))
     }
 
     pub fn find_doc_mut(&mut self, path: &Path) -> Option<&mut Doc> {
@@ -407,7 +425,7 @@ impl Editor {
             return;
         }
 
-        self.completion_list.draw(ctx);
+        self.completion_list.draw(ui, ctx);
 
         let Some((tab, doc)) = self.get_focused_tab_and_doc() else {
             return;
@@ -416,7 +434,7 @@ impl Editor {
         if self.signature_help_popup.is_open() {
             self.signature_help_popup.draw(tab, doc, ctx);
         } else if self.examine_popup.is_open() {
-            self.examine_popup.draw(tab, doc, ctx);
+            self.examine_popup.draw(ui, ctx);
         }
     }
 
@@ -495,5 +513,9 @@ impl Editor {
             .iter()
             .flatten()
             .filter_map(|doc| doc.path().on_drive())
+    }
+
+    pub fn widget_id(&self) -> WidgetId {
+        self.widget_id
     }
 }

@@ -22,9 +22,8 @@ use platform::app_runner::run_app;
  * TODO:
  * If the language server returns no completions for a request use simple completions instead.
  * Layout system that allows widgets to have children.
+ * - Make popups for completion list docs/labels and examine/signature help popups part of the widget tree.
  * - Necessary for mouse hover support, because we need to be sure that the mouse is hovering over a doc and not a popup or completion list.
- * - Remove the capability for widgets to have multiple bounding boxes, replace that with children.
- * - Ideally there shouldn't be any need to pass a widget as an argument between UI constructs like from editor -> pane -> tab because they would all have their own widgets.
  * Add LSP mouse hover documentation/diagnostic support.
  * Consider renaming DocKind::Output to DocKind::Raw
  * Consider making DocKinds predefined BitFields that store a list of features such action history, position shifting, multi line, etc.

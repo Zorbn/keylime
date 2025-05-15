@@ -51,7 +51,7 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn new(ui: &mut Ui) -> Self {
+    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
         let mut term_list = SlotList::new();
 
         let pane = TerminalPane::new(&mut term_list);
@@ -60,7 +60,7 @@ impl Terminal {
             pane,
             term_list,
 
-            widget_id: ui.new_widget(true),
+            widget_id: ui.new_widget(parent_id, Default::default()),
         }
     }
 
@@ -74,8 +74,9 @@ impl Terminal {
         .at_bottom_of(bounds)
         .floor();
 
+        ui.widget_mut(self.widget_id).bounds = bounds;
+
         self.pane.layout(bounds, gfx, &mut self.term_list);
-        ui.widget_mut(self.widget_id).layout(&[bounds]);
     }
 
     pub fn update(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
@@ -117,7 +118,7 @@ impl Terminal {
         }
     }
 
-    pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
+    pub fn update_camera(&mut self, ui: &Ui, ctx: &mut Ctx, dt: f32) {
         self.pane
             .update_camera(self.widget_id, ui, &mut self.term_list, ctx, dt);
     }

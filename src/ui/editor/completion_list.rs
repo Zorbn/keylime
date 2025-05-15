@@ -16,7 +16,7 @@ use crate::{
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
         core::{Ui, WidgetId},
-        popup::{draw_popup, PopupAlignment},
+        popup::PopupAlignment,
         result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     },
 };
@@ -82,9 +82,9 @@ pub struct CompletionList {
 }
 
 impl CompletionList {
-    pub fn new() -> Self {
+    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
         Self {
-            result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS),
+            result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS, parent_id, ui),
             min_width: 0.0,
             prefix: String::new(),
 
@@ -99,7 +99,7 @@ impl CompletionList {
         self.result_list.is_animating()
     }
 
-    pub fn layout(&mut self, visual_position: VisualPosition, gfx: &mut Gfx) {
+    pub fn layout(&mut self, visual_position: VisualPosition, ui: &mut Ui, gfx: &mut Gfx) {
         let min_y = self.result_list.min_visible_result_index();
         let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
         let mut longest_visible_result = 0;
@@ -127,14 +127,14 @@ impl CompletionList {
                 width,
                 0.0,
             ),
+            ui,
             gfx,
         );
     }
 
     pub fn update(
         &mut self,
-        ui: &mut Ui,
-        widget_id: WidgetId,
+        ui: &Ui,
         doc: &mut Doc,
         is_visible: bool,
         ctx: &mut Ctx,
@@ -145,9 +145,9 @@ impl CompletionList {
             self.popup_cache = CompletionPopupCache::PreviousIndex(self.result_list.focused_index())
         }
 
-        let result_input =
-            self.result_list
-                .update(widget_id, ui, ctx.window, is_visible, are_results_focused);
+        let result_input = self
+            .result_list
+            .update(ui, ctx.window, is_visible, are_results_focused);
 
         let mut completion_result = None;
 
@@ -177,7 +177,7 @@ impl CompletionList {
             }
         }
 
-        self.should_open = self.should_open(ui, widget_id, ctx);
+        self.should_open = self.should_open(ui, ctx);
 
         completion_result
     }
@@ -192,7 +192,8 @@ impl CompletionList {
         Some(language_server.completion_item_resolve(item.clone(), doc))
     }
 
-    fn should_open(&mut self, ui: &mut Ui, widget_id: WidgetId, ctx: &mut Ctx) -> bool {
+    fn should_open(&mut self, ui: &Ui, ctx: &mut Ctx) -> bool {
+        let widget_id = self.result_list.widget_id();
         let mut grapheme_handler = ui.grapheme_handler(widget_id, ctx.window);
 
         if grapheme_handler.next(ctx.window).is_some() {
@@ -213,13 +214,13 @@ impl CompletionList {
         false
     }
 
-    pub fn update_camera(&mut self, dt: f32) {
-        self.result_list.update_camera(dt);
+    pub fn update_camera(&mut self, ui: &Ui, dt: f32) {
+        self.result_list.update_camera(ui, dt);
     }
 
-    pub fn draw(&mut self, ctx: &mut Ctx) {
+    pub fn draw(&mut self, ui: &Ui, ctx: &mut Ctx) {
         self.result_list
-            .draw(ctx, |result, theme| (result.label(), theme.normal));
+            .draw(ui, ctx, |result, theme| (result.label(), theme.normal));
 
         let Some(focused_result) = self.result_list.get_focused() else {
             return;
@@ -269,34 +270,33 @@ impl CompletionList {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        let mut position = VisualPosition::new(
-            self.result_list.bounds().right() - gfx.border_width(),
-            self.result_list.bounds().y,
-        );
+        let bounds = ui.widget(self.result_list.widget_id()).bounds;
 
-        if let Some(detail) = detail {
-            let detail_bounds = draw_popup(
-                detail,
-                position,
-                PopupAlignment::TopLeft,
-                theme.subtle,
-                theme,
-                gfx,
-            );
+        let mut position = VisualPosition::new(bounds.right() - gfx.border_width(), bounds.y);
 
-            position.y += detail_bounds.height - gfx.border_width();
-        }
+        // if let Some(detail) = detail {
+        //     let detail_bounds = draw_popup(
+        //         detail,
+        //         position,
+        //         PopupAlignment::TopLeft,
+        //         theme.subtle,
+        //         theme,
+        //         gfx,
+        //     );
 
-        if let Some(documentation) = documentation {
-            draw_popup(
-                documentation.text(),
-                position,
-                PopupAlignment::TopLeft,
-                theme.normal,
-                theme,
-                gfx,
-            );
-        }
+        //     position.y += detail_bounds.height - gfx.border_width();
+        // }
+
+        // if let Some(documentation) = documentation {
+        //     draw_popup(
+        //         documentation.text(),
+        //         position,
+        //         PopupAlignment::TopLeft,
+        //         theme.normal,
+        //         theme,
+        //         gfx,
+        //     );
+        // }
     }
 
     pub fn lsp_resolve_completion_item(&mut self, id: Option<usize>, item: DecodedCompletionItem) {
@@ -498,9 +498,5 @@ impl CompletionList {
             doc.delete(start, end, ctx);
             doc.insert(start, insert_text, ctx);
         }
-    }
-
-    pub fn bounds(&self) -> Rect {
-        self.result_list.bounds()
     }
 }

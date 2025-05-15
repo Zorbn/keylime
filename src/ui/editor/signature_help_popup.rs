@@ -7,7 +7,7 @@ use crate::{
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
         core::{Ui, WidgetId},
-        popup::{draw_popup, PopupAlignment},
+        popup::PopupAlignment,
         tab::Tab,
     },
 };
@@ -16,14 +16,20 @@ pub struct SignatureHelpPopup {
     help_path: PathBuf,
     help_position: Position,
     help: Option<SignatureHelp>,
+
+    // TODO: Layout based on 1/2 popups. Two widgets?
+    widget_id: WidgetId,
 }
 
 impl SignatureHelpPopup {
-    pub fn new() -> Self {
+    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
         Self {
             help_path: PathBuf::new(),
             help_position: Position::ZERO,
             help: None,
+
+            // TODO: Do visiblity updates for this if necessary.
+            widget_id: ui.new_widget(parent_id, Default::default()),
         }
     }
 
@@ -71,36 +77,35 @@ impl SignatureHelpPopup {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        if let Some(documentation) = &active_signature.documentation {
-            let documentation_bounds = draw_popup(
-                documentation.text(),
-                position,
-                PopupAlignment::Above,
-                theme.normal,
-                theme,
-                gfx,
-            );
+        // if let Some(documentation) = &active_signature.documentation {
+        //     let documentation_bounds = draw_popup(
+        //         documentation.text(),
+        //         position,
+        //         PopupAlignment::Above,
+        //         theme.normal,
+        //         theme,
+        //         gfx,
+        //     );
 
-            position.x = documentation_bounds.x + gfx.glyph_width();
-            position.y -= documentation_bounds.height - gfx.border_width();
-        }
+        //     position.x = documentation_bounds.x + gfx.glyph_width();
+        //     position.y -= documentation_bounds.height - gfx.border_width();
+        // }
 
-        draw_popup(
-            &active_signature.label,
-            position,
-            PopupAlignment::Above,
-            theme.subtle,
-            theme,
-            gfx,
-        );
+        // draw_popup(
+        //     &active_signature.label,
+        //     position,
+        //     PopupAlignment::Above,
+        //     theme.subtle,
+        //     theme,
+        //     gfx,
+        // );
 
         Some(())
     }
 
     pub fn get_triggers(
-        &mut self,
         widget_id: WidgetId,
-        ui: &mut Ui,
+        ui: &Ui,
         doc: Option<&mut Doc>,
         ctx: &mut Ctx,
     ) -> (Option<char>, Option<char>) {
