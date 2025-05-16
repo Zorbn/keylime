@@ -8,7 +8,10 @@ use crate::{
     platform::{file_watcher::FileWatcher, gfx::Gfx, process::Process, window::Window},
     pool::Pooled,
     ui::{
-        command_palette::CommandPalette, core::Ui, editor::Editor, status_bar::StatusBar,
+        command_palette::CommandPalette,
+        core::{Ui, WidgetLayout},
+        editor::Editor,
+        status_bar::StatusBar,
         terminal::Terminal,
     },
 };
@@ -18,6 +21,7 @@ macro_rules! ctx_for_app {
         &mut Ctx {
             window: $window,
             gfx: $gfx,
+            ui: &mut $self.ui,
             config: &$self.config,
             lsp: &mut $self.lsp,
             time: $time,
@@ -55,9 +59,9 @@ impl App {
         let mut ui = Ui::new();
 
         Self {
-            editor: Editor::new(&mut ui),
-            terminal: Terminal::new(&mut ui),
-            status_bar: StatusBar::new(&mut ui),
+            editor: Editor::new(),
+            terminal: Terminal::new(),
+            status_bar: StatusBar::new(),
             command_palette: CommandPalette::new(&mut ui),
             ui,
 
@@ -97,69 +101,66 @@ impl App {
             err.show_message();
         }
 
-        self.layout(gfx);
-
-        self.ui.update(
-            &mut [
-                &mut self.terminal.widget,
-                &mut self.editor.widget,
-                &mut self.command_palette.widget,
-            ],
-            window,
-        );
-
-        let ctx = ctx_for_app!(self, window, gfx, time);
-
-        Lsp::update(
-            &mut self.editor,
-            &mut self.command_palette,
-            &mut self.ui,
-            ctx,
-        );
-
-        self.terminal.update(&mut self.ui, ctx);
-        self.command_palette
-            .update(&mut self.ui, &mut self.editor, ctx);
-        self.editor
-            .update(&mut self.ui, &mut self.file_watcher, ctx);
-
-        self.layout(gfx);
+        // TODO: Remove Ui/Widgets as they aren't necessary. We can replace them with immediate layout and input helpers where it makes sense.
+        // Any sort of immediate GUI struct that contains those helpers should be part of Ctx.
+        // self.ui.update(
+        //     &mut [
+        //         &mut self.terminal.widget,
+        //         &mut self.editor.widget,
+        //         &mut self.command_palette.widget,
+        //     ],
+        //     window,
+        // );
 
         let ctx = ctx_for_app!(self, window, gfx, time);
 
-        self.terminal.update_camera(&mut self.ui, ctx, dt);
-        self.command_palette.update_camera(&mut self.ui, ctx, dt);
-        self.editor.update_camera(&mut self.ui, ctx, dt);
+        Lsp::update(&mut self.editor, &mut self.command_palette, ctx);
+
+        ctx.ui
+            .begin(ctx.config.theme.background, ctx.window, ctx.gfx);
+
+        // self.command_palette.update(&mut self.editor, ctx);
+        // self.status_bar.update(&self.editor, ctx);
+        self.terminal.update(ctx);
+        // self.editor.update(&mut self.file_watcher, ctx);
+
+        ctx.ui.end(ctx.gfx);
+
+        // let ctx = ctx_for_app!(self, window, gfx, time);
+
+        // self.terminal.update_camera(&mut self.ui, ctx, dt);
+        // self.command_palette.update_camera(&mut self.ui, ctx, dt);
+        // self.editor.update_camera(&mut self.ui, ctx, dt);
     }
 
-    pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
-        self.layout(gfx);
+    // pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
+    //     self.layout(gfx);
 
-        gfx.begin_frame(self.config.theme.background);
+    //     gfx.begin_frame(self.config.theme.background);
 
-        let ctx = ctx_for_app!(self, window, gfx, time);
+    //     let ctx = ctx_for_app!(self, window, gfx, time);
 
-        self.status_bar.draw(&self.editor, ctx);
-        self.terminal.draw(&mut self.ui, ctx);
-        self.editor.draw(&mut self.ui, ctx);
-        self.command_palette.draw(&mut self.ui, ctx);
+    //     self.status_bar.draw(&self.editor, ctx);
+    //     self.terminal.draw(&mut self.ui, ctx);
+    //     self.editor.draw(&mut self.ui, ctx);
+    //     self.command_palette.draw(&mut self.ui, ctx);
 
-        gfx.end_frame();
-    }
+    //     gfx.end_frame();
+    // }
 
-    fn layout(&mut self, gfx: &mut Gfx) {
-        let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
+    // fn layout(&mut self, gfx: &mut Gfx) {
+    //     let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
 
-        self.command_palette.layout(bounds, gfx);
+    //     self.command_palette.layout(bounds, gfx);
 
-        self.status_bar.layout(bounds, gfx);
-        bounds = bounds.shrink_bottom_by(self.status_bar.widget.bounds());
+    //     self.status_bar.layout(bounds, gfx);
+    //     bounds = bounds.shrink_bottom_by(self.status_bar.widget.bounds());
 
-        self.terminal.layout(bounds, &self.config, gfx);
-        bounds = bounds.shrink_bottom_by(self.terminal.widget.bounds());
+    //     self.terminal.layout(bounds, &self.config, gfx);
+    //     bounds = bounds.shrink_bottom_by(self.terminal.widget.bounds());
 
-        self.editor.layout(bounds, gfx);
-    }
+    //     self.editor.layout(bounds, gfx);
+    // }
 
     pub fn close(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
         let ctx = ctx_for_app!(self, window, gfx, time);

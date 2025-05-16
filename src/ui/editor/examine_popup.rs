@@ -41,13 +41,13 @@ impl ExaminePopup {
         }
     }
 
-    pub fn draw(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
-        match &self.kind {
-            ExaminePopupKind::None => None,
-            ExaminePopupKind::Diagnostic => self.draw_diagnostic_popup(tab, doc, ctx),
-            ExaminePopupKind::Hover(text) => Self::draw_hover_popup(text, tab, doc, ctx),
-        };
-    }
+    // pub fn draw(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
+    //     match &self.kind {
+    //         ExaminePopupKind::None => None,
+    //         ExaminePopupKind::Diagnostic => self.draw_diagnostic_popup(tab, doc, ctx),
+    //         ExaminePopupKind::Hover(text) => Self::draw_hover_popup(text, tab, doc, ctx),
+    //     };
+    // }
 
     fn draw_diagnostic_popup(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
         let position = doc.cursor(CursorIndex::Main).position;

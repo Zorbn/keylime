@@ -19,7 +19,7 @@ use crate::{
 use super::{
     camera::{Camera, RECENTER_DISTANCE},
     color::Color,
-    core::{Ui, Widget},
+    core::Ui,
     focus_list::FocusList,
 };
 
@@ -61,17 +61,17 @@ impl<T> ResultList<T> {
         }
     }
 
-    pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
-        self.result_bounds = Rect::new(0.0, 0.0, bounds.width, gfx.line_height() * 1.25);
+    // pub fn layout(&mut self, bounds: Rect, gfx: &Gfx) {
+    //     self.result_bounds = Rect::new(0.0, 0.0, bounds.width, gfx.line_height() * 1.25);
 
-        self.results_bounds = Rect::new(
-            bounds.x,
-            bounds.y,
-            bounds.width,
-            self.result_bounds.height * self.len().min(self.max_visible_results) as f32,
-        )
-        .floor();
-    }
+    //     self.results_bounds = Rect::new(
+    //         bounds.x,
+    //         bounds.y,
+    //         bounds.width,
+    //         self.result_bounds.height * self.len().min(self.max_visible_results) as f32,
+    //     )
+    //     .floor();
+    // }
 
     pub fn offset_by(&mut self, bounds: Rect) {
         self.results_bounds = self.results_bounds.offset_by(bounds);
@@ -79,35 +79,29 @@ impl<T> ResultList<T> {
 
     pub fn update(
         &mut self,
-        widget: &Widget,
-        ui: &mut Ui,
-        window: &mut Window,
+        ctx: &mut Ctx,
+        // TODO: Can't remember much about these... are they still necessary?
         can_be_visible: bool,
         can_be_focused: bool,
     ) -> ResultListInput {
         let mut input = ResultListInput::None;
 
-        if can_be_visible && widget.is_visible() {
-            self.handle_mouse_inputs(&mut input, widget, ui, window);
-        }
+        // TODO: Conditionally call update instead.
+        // if can_be_visible && ui.is_visible() {
+        //     self.handle_mouse_inputs(&mut input, widget, ui, window);
+        // }
 
-        if can_be_focused && ui.is_focused(widget) {
-            self.handle_keybinds(&mut input, widget, ui, window);
-        }
+        // if can_be_focused && ui.is_focused(widget) {
+        //     self.handle_keybinds(&mut input, widget, ui, window);
+        // }
 
         input
     }
 
-    fn handle_mouse_inputs(
-        &mut self,
-        input: &mut ResultListInput,
-        widget: &Widget,
-        ui: &mut Ui,
-        window: &mut Window,
-    ) {
-        let mut mouse_handler = ui.mousebind_handler(widget, window);
+    fn handle_mouse_inputs(&mut self, input: &mut ResultListInput, ctx: &mut Ctx) {
+        let mut mouse_handler = ctx.ui.mousebind_handler(ctx.window);
 
-        while let Some(mousebind) = mouse_handler.next(window) {
+        while let Some(mousebind) = mouse_handler.next(ctx.window) {
             let position = VisualPosition::new(mousebind.x, mousebind.y);
             let results_bounds = self.results_bounds;
 
@@ -117,12 +111,12 @@ impl<T> ResultList<T> {
                 ..
             } = mousebind
             else {
-                mouse_handler.unprocessed(window, mousebind);
+                mouse_handler.unprocessed(ctx.window, mousebind);
                 continue;
             };
 
             if !results_bounds.contains_position(position) {
-                mouse_handler.unprocessed(window, mousebind);
+                mouse_handler.unprocessed(ctx.window, mousebind);
                 continue;
             }
 
@@ -147,13 +141,13 @@ impl<T> ResultList<T> {
             }
         }
 
-        let mut mouse_scroll_handler = ui.mouse_scroll_handler(widget, window);
+        let mut mouse_scroll_handler = ctx.ui.mouse_scroll_handler(ctx.window);
 
-        while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
+        while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
 
             if mouse_scroll.is_horizontal || !self.results_bounds.contains_position(position) {
-                mouse_scroll_handler.unprocessed(window, mouse_scroll);
+                mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
                 continue;
             }
 
@@ -162,16 +156,10 @@ impl<T> ResultList<T> {
         }
     }
 
-    fn handle_keybinds(
-        &mut self,
-        input: &mut ResultListInput,
-        widget: &Widget,
-        ui: &mut Ui,
-        window: &mut Window,
-    ) {
-        let mut action_handler = ui.action_handler(widget, window);
+    fn handle_keybinds(&mut self, input: &mut ResultListInput, ctx: &mut Ctx) {
+        let mut action_handler = ctx.ui.action_handler(ctx.window);
 
-        while let Some(action) = action_handler.next(window) {
+        while let Some(action) = action_handler.next(ctx.window) {
             match action {
                 action_keybind!(key: Escape, mods: Mods::NONE) => *input = ResultListInput::Close,
                 action_keybind!(key: Enter, mods: Mods::NONE) => {
@@ -187,7 +175,7 @@ impl<T> ResultList<T> {
                 action_keybind!(key: Tab, mods: Mods::NONE) => *input = ResultListInput::Complete,
                 action_keybind!(key: Up, mods: Mods::NONE) => self.focus_previous(),
                 action_keybind!(key: Down, mods: Mods::NONE) => self.focus_next(),
-                _ => action_handler.unprocessed(window, action),
+                _ => action_handler.unprocessed(ctx.window, action),
             }
         }
     }

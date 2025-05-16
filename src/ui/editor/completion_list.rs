@@ -15,7 +15,7 @@ use crate::{
     pool::Pooled,
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
-        core::{Ui, Widget},
+        core::Ui,
         popup::{draw_popup, PopupAlignment},
         result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     },
@@ -99,42 +99,40 @@ impl CompletionList {
         self.result_list.is_animating()
     }
 
-    pub fn layout(&mut self, visual_position: VisualPosition, gfx: &mut Gfx) {
-        let min_y = self.result_list.min_visible_result_index();
-        let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
-        let mut longest_visible_result = 0;
+    // pub fn layout(&mut self, visual_position: VisualPosition, gfx: &mut Gfx) {
+    //     let min_y = self.result_list.min_visible_result_index();
+    //     let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
+    //     let mut longest_visible_result = 0;
 
-        for y in min_y..max_y {
-            let Some(result) = self.result_list.get(y) else {
-                continue;
-            };
+    //     for y in min_y..max_y {
+    //         let Some(result) = self.result_list.get(y) else {
+    //             continue;
+    //         };
 
-            let label = result.label();
+    //         let label = result.label();
 
-            longest_visible_result = longest_visible_result.max(label.len());
-        }
+    //         longest_visible_result = longest_visible_result.max(label.len());
+    //     }
 
-        let width = (longest_visible_result as f32 + 2.0) * gfx.glyph_width();
-        let width = width.max(self.min_width);
+    //     let width = (longest_visible_result as f32 + 2.0) * gfx.glyph_width();
+    //     let width = width.max(self.min_width);
 
-        self.min_width = width;
+    //     self.min_width = width;
 
-        self.result_list.layout(
-            Rect::new(
-                visual_position.x - (self.prefix.len() as f32 + 1.0) * gfx.glyph_width()
-                    + gfx.border_width(),
-                visual_position.y + gfx.line_height(),
-                width,
-                0.0,
-            ),
-            gfx,
-        );
-    }
+    //     self.result_list.layout(
+    //         Rect::new(
+    //             visual_position.x - (self.prefix.len() as f32 + 1.0) * gfx.glyph_width()
+    //                 + gfx.border_width(),
+    //             visual_position.y + gfx.line_height(),
+    //             width,
+    //             0.0,
+    //         ),
+    //         gfx,
+    //     );
+    // }
 
     pub fn update(
         &mut self,
-        ui: &mut Ui,
-        widget: &Widget,
         doc: &mut Doc,
         is_visible: bool,
         ctx: &mut Ctx,
@@ -145,9 +143,9 @@ impl CompletionList {
             self.popup_cache = CompletionPopupCache::PreviousIndex(self.result_list.focused_index())
         }
 
-        let result_input =
-            self.result_list
-                .update(widget, ui, ctx.window, is_visible, are_results_focused);
+        let result_input = self
+            .result_list
+            .update(ctx, is_visible, are_results_focused);
 
         let mut completion_result = None;
 
@@ -177,7 +175,7 @@ impl CompletionList {
             }
         }
 
-        self.should_open = self.should_open(ui, widget, ctx);
+        self.should_open = self.should_open(ctx);
 
         completion_result
     }
@@ -192,15 +190,15 @@ impl CompletionList {
         Some(language_server.completion_item_resolve(item.clone(), doc))
     }
 
-    fn should_open(&mut self, ui: &mut Ui, widget: &Widget, ctx: &mut Ctx) -> bool {
-        let mut grapheme_handler = ui.grapheme_handler(widget, ctx.window);
+    fn should_open(&mut self, ctx: &mut Ctx) -> bool {
+        let mut grapheme_handler = ctx.ui.grapheme_handler(ctx.window);
 
         if grapheme_handler.next(ctx.window).is_some() {
             grapheme_handler.unprocessed(ctx.window);
             return true;
         }
 
-        let mut action_handler = ui.action_handler(widget, ctx.window);
+        let mut action_handler = ctx.ui.action_handler(ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             action_handler.unprocessed(ctx.window, action);
@@ -217,87 +215,87 @@ impl CompletionList {
         self.result_list.update_camera(dt);
     }
 
-    pub fn draw(&mut self, ctx: &mut Ctx) {
-        self.result_list
-            .draw(ctx, |result, theme| (result.label(), theme.normal));
+    // pub fn draw(&mut self, ctx: &mut Ctx) {
+    //     self.result_list
+    //         .draw(ctx, |result, theme| (result.label(), theme.normal));
 
-        let Some(focused_result) = self.result_list.get_focused() else {
-            return;
-        };
+    //     let Some(focused_result) = self.result_list.get_focused() else {
+    //         return;
+    //     };
 
-        let CompletionResult::Completion {
-            item:
-                DecodedCompletionItem {
-                    ref detail,
-                    ref documentation,
-                    ..
-                },
-            resolve_state,
-        } = &focused_result
-        else {
-            return;
-        };
+    //     let CompletionResult::Completion {
+    //         item:
+    //             DecodedCompletionItem {
+    //                 ref detail,
+    //                 ref documentation,
+    //                 ..
+    //             },
+    //         resolve_state,
+    //     } = &focused_result
+    //     else {
+    //         return;
+    //     };
 
-        if *resolve_state == CompletionResolveState::Resolved {
-            self.popup_cache = CompletionPopupCache::None;
-        }
+    //     if *resolve_state == CompletionResolveState::Resolved {
+    //         self.popup_cache = CompletionPopupCache::None;
+    //     }
 
-        let (detail, documentation) = match &self.popup_cache {
-            CompletionPopupCache::PreviousIndex(index) => {
-                if let Some(CompletionResult::Completion {
-                    item:
-                        DecodedCompletionItem {
-                            detail,
-                            documentation,
-                            ..
-                        },
-                    ..
-                }) = self.result_list.get(*index)
-                {
-                    (detail, documentation)
-                } else {
-                    (detail, documentation)
-                }
-            }
-            CompletionPopupCache::PreviousItem {
-                detail,
-                documentation,
-            } => (detail, documentation),
-            _ => (detail, documentation),
-        };
+    //     let (detail, documentation) = match &self.popup_cache {
+    //         CompletionPopupCache::PreviousIndex(index) => {
+    //             if let Some(CompletionResult::Completion {
+    //                 item:
+    //                     DecodedCompletionItem {
+    //                         detail,
+    //                         documentation,
+    //                         ..
+    //                     },
+    //                 ..
+    //             }) = self.result_list.get(*index)
+    //             {
+    //                 (detail, documentation)
+    //             } else {
+    //                 (detail, documentation)
+    //             }
+    //         }
+    //         CompletionPopupCache::PreviousItem {
+    //             detail,
+    //             documentation,
+    //         } => (detail, documentation),
+    //         _ => (detail, documentation),
+    //     };
 
-        let gfx = &mut ctx.gfx;
-        let theme = &ctx.config.theme;
+    //     let gfx = &mut ctx.gfx;
+    //     let theme = &ctx.config.theme;
 
-        let mut position = VisualPosition::new(
-            self.result_list.bounds().right() - gfx.border_width(),
-            self.result_list.bounds().y,
-        );
+    //     let mut position = VisualPosition::new(
+    //         self.result_list.bounds().right() - gfx.border_width(),
+    //         self.result_list.bounds().y,
+    //     );
 
-        if let Some(detail) = detail {
-            let detail_bounds = draw_popup(
-                detail,
-                position,
-                PopupAlignment::TopLeft,
-                theme.subtle,
-                theme,
-                gfx,
-            );
+    //     if let Some(detail) = detail {
+    //         let detail_bounds = draw_popup(
+    //             detail,
+    //             position,
+    //             PopupAlignment::TopLeft,
+    //             theme.subtle,
+    //             theme,
+    //             gfx,
+    //         );
 
-            position.y += detail_bounds.height - gfx.border_width();
-        }
+    //         position.y += detail_bounds.height - gfx.border_width();
+    //     }
 
-        if let Some(documentation) = documentation {
-            draw_popup(
-                documentation.text(),
-                position,
-                PopupAlignment::TopLeft,
-                theme.normal,
-                theme,
-                gfx,
-            );
-        }
-    }
+    //     if let Some(documentation) = documentation {
+    //         draw_popup(
+    //             documentation.text(),
+    //             position,
+    //             PopupAlignment::TopLeft,
+    //             theme.normal,
+    //             theme,
+    //             gfx,
+    //         );
+    //     }
+    // }
 
     pub fn lsp_resolve_completion_item(&mut self, id: Option<usize>, item: DecodedCompletionItem) {
         let Some(id) = id else {

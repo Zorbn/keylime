@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use crate::{
     ctx::Ctx,
     ui::{
-        core::{Ui, Widget},
+        core::{ContainerDirection, Ui, WidgetLayout},
         pane::Pane,
         slot_list::SlotList,
     },
@@ -29,14 +29,11 @@ impl TerminalPane {
         Self { inner }
     }
 
-    pub fn update(
-        &mut self,
-        widget: &Widget,
-        ui: &mut Ui,
-        term_list: &mut SlotList<Term>,
-        ctx: &mut Ctx,
-    ) {
-        let mut action_handler = ui.action_handler(widget, ctx.window);
+    pub fn update(&mut self, term_list: &mut SlotList<Term>, ctx: &mut Ctx) {
+        // ctx.ui
+        //     .begin_container(WidgetLayout::default(), ContainerDirection::Horizontal);
+
+        let mut action_handler = ctx.ui.action_handler(ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
@@ -63,7 +60,9 @@ impl TerminalPane {
             }
         }
 
-        self.inner.update(widget, ui, ctx.window);
+        self.inner.update(ctx);
+
+        // ctx.ui.end_container();
     }
 
     fn new_term() -> Term {

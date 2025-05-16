@@ -31,12 +31,7 @@ use crate::{
     },
 };
 
-use super::{
-    core::{Ui, Widget},
-    focus_list::FocusList,
-    slot_list::SlotList,
-    tab::Tab,
-};
+use super::{core::Ui, focus_list::FocusList, slot_list::SlotList, tab::Tab};
 
 pub mod completion_list;
 mod doc_io;
@@ -56,11 +51,10 @@ pub struct Editor {
     pub examine_popup: ExaminePopup,
     pub signature_help_popup: SignatureHelpPopup,
     pub completion_list: CompletionList,
-    pub widget: Widget,
 }
 
 impl Editor {
-    pub fn new(ui: &mut Ui) -> Self {
+    pub fn new() -> Self {
         let mut editor = Self {
             doc_list: SlotList::new(),
             panes: FocusList::new(),
@@ -72,7 +66,6 @@ impl Editor {
             examine_popup: ExaminePopup::new(),
             signature_help_popup: SignatureHelpPopup::new(),
             completion_list: CompletionList::new(),
-            widget: Widget::new(ui, true),
         };
 
         editor.add_pane();
@@ -84,33 +77,33 @@ impl Editor {
         self.completion_list.is_animating() || self.panes.iter().any(|pane| pane.is_animating())
     }
 
-    pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx) {
-        let mut pane_bounds = bounds;
-        pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
+    // pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx) {
+    //     let mut pane_bounds = bounds;
+    //     pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
 
-        for pane in self.panes.iter_mut() {
-            pane.layout(pane_bounds, gfx, &mut self.doc_list);
-            pane_bounds.x += pane_bounds.width;
-        }
+    //     for pane in self.panes.iter_mut() {
+    //         pane.layout(pane_bounds, gfx, &mut self.doc_list);
+    //         pane_bounds.x += pane_bounds.width;
+    //     }
 
-        let focused_pane = self.panes.get_focused().unwrap();
+    //     let focused_pane = self.panes.get_focused().unwrap();
 
-        let Some((tab, doc)) =
-            focused_pane.get_tab_with_data(focused_pane.focused_tab_index(), &self.doc_list)
-        else {
-            return;
-        };
+    //     let Some((tab, doc)) =
+    //         focused_pane.get_tab_with_data(focused_pane.focused_tab_index(), &self.doc_list)
+    //     else {
+    //         return;
+    //     };
 
-        let cursor_position = doc.cursor(CursorIndex::Main).position;
-        let cursor_visual_position = doc
-            .position_to_visual(cursor_position, tab.camera.position().floor(), gfx)
-            .offset_by(tab.doc_bounds());
+    //     let cursor_position = doc.cursor(CursorIndex::Main).position;
+    //     let cursor_visual_position = doc
+    //         .position_to_visual(cursor_position, tab.camera.position().floor(), gfx)
+    //         .offset_by(tab.doc_bounds());
 
-        self.completion_list.layout(cursor_visual_position, gfx);
-        self.widget.layout(&[bounds, self.completion_list.bounds()]);
-    }
+    //     self.completion_list.layout(cursor_visual_position, gfx);
+    //     self.widget.layout(&[bounds, self.completion_list.bounds()]);
+    // }
 
-    pub fn update(&mut self, ui: &mut Ui, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
+    pub fn update(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
         self.reload_changed_files(file_watcher, ctx);
 
         let pane = self.panes.get_focused_mut().unwrap();
@@ -120,34 +113,32 @@ impl Editor {
             .get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
             .map(|(_, doc)| doc);
 
-        let signature_help_triggers =
-            self.signature_help_popup
-                .get_triggers(&self.widget, ui, doc, ctx);
+        let signature_help_triggers = self.signature_help_popup.get_triggers(doc, ctx);
 
-        self.handle_mousebinds(ui, ctx);
-        self.handle_actions(ui, ctx);
+        self.handle_mousebinds(ctx);
+        self.handle_actions(ctx);
 
-        self.pre_pane_update(ui, ctx);
+        self.pre_pane_update(ctx);
 
         let pane = self.panes.get_focused_mut().unwrap();
-        pane.update(&self.widget, ui, &mut self.doc_list, ctx);
+        pane.update(&mut self.doc_list, ctx);
         self.panes.remove_excess(|pane| pane.tabs.is_empty());
 
         self.post_pane_update(signature_help_triggers, ctx);
 
-        if !ui.is_focused(&self.widget) {
+        if !ctx.ui.is_focused() {
             self.examine_popup.clear();
             self.signature_help_popup.clear();
             self.completion_list.clear();
         }
     }
 
-    fn handle_mousebinds(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        let mut mousebind_handler = ui.mousebind_handler(&self.widget, ctx.window);
+    fn handle_mousebinds(&mut self, ctx: &mut Ctx) {
+        let mut mousebind_handler = ctx.ui.mousebind_handler(ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position =
-                VisualPosition::new(mousebind.x, mousebind.y).unoffset_by(self.widget.bounds());
+                VisualPosition::new(mousebind.x, mousebind.y).unoffset_by(ctx.ui.bounds());
 
             match mousebind {
                 Mousebind {
@@ -172,8 +163,8 @@ impl Editor {
         }
     }
 
-    fn handle_actions(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        let mut action_handler = ui.action_handler(&self.widget, ctx.window);
+    fn handle_actions(&mut self, ctx: &mut Ctx) {
+        let mut action_handler = ctx.ui.action_handler(ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
@@ -235,7 +226,7 @@ impl Editor {
         }
     }
 
-    fn pre_pane_update(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
+    fn pre_pane_update(&mut self, ctx: &mut Ctx) {
         let is_cursor_visible = self.is_cursor_visible(ctx.gfx);
         let pane = self.panes.get_focused_mut().unwrap();
         let focused_tab_index = pane.focused_tab_index();
@@ -245,9 +236,7 @@ impl Editor {
             return;
         };
 
-        let result = self
-            .completion_list
-            .update(ui, &self.widget, doc, is_cursor_visible, ctx);
+        let result = self.completion_list.update(doc, is_cursor_visible, ctx);
 
         self.lsp_handle_completion_list_result(result, ctx);
     }
@@ -286,9 +275,9 @@ impl Editor {
         self.handled_path = doc.path().some().cloned();
     }
 
-    pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
+    pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
         for pane in self.panes.iter_mut() {
-            pane.update_camera(&self.widget, ui, &mut self.doc_list, ctx, dt);
+            pane.update_camera(&mut self.doc_list, ctx, dt);
         }
 
         self.completion_list.update_camera(dt);
@@ -391,32 +380,32 @@ impl Editor {
         }
     }
 
-    pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        let is_focused = ui.is_focused(&self.widget);
-        let focused_pane_index = self.panes.focused_index();
+    // pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
+    //     let is_focused = ui.is_focused(&self.widget);
+    //     let focused_pane_index = self.panes.focused_index();
 
-        for (i, pane) in self.panes.iter_mut().enumerate() {
-            let is_focused = is_focused && i == focused_pane_index;
+    //     for (i, pane) in self.panes.iter_mut().enumerate() {
+    //         let is_focused = is_focused && i == focused_pane_index;
 
-            pane.draw(None, &mut self.doc_list, ctx, is_focused);
-        }
+    //         pane.draw(None, &mut self.doc_list, ctx, is_focused);
+    //     }
 
-        if !self.is_cursor_visible(ctx.gfx) {
-            return;
-        }
+    //     if !self.is_cursor_visible(ctx.gfx) {
+    //         return;
+    //     }
 
-        self.completion_list.draw(ctx);
+    //     self.completion_list.draw(ctx);
 
-        let Some((tab, doc)) = self.get_focused_tab_and_doc() else {
-            return;
-        };
+    //     let Some((tab, doc)) = self.get_focused_tab_and_doc() else {
+    //         return;
+    //     };
 
-        if self.signature_help_popup.is_open() {
-            self.signature_help_popup.draw(tab, doc, ctx);
-        } else if self.examine_popup.is_open() {
-            self.examine_popup.draw(tab, doc, ctx);
-        }
-    }
+    //     if self.signature_help_popup.is_open() {
+    //         self.signature_help_popup.draw(tab, doc, ctx);
+    //     } else if self.examine_popup.is_open() {
+    //         self.examine_popup.draw(tab, doc, ctx);
+    //     }
+    // }
 
     pub fn get_focused_tab_and_doc_mut(&mut self) -> Option<(&mut Tab, &mut Doc)> {
         let pane = self.panes.get_focused_mut().unwrap();

@@ -21,13 +21,9 @@ use crate::{
     text::{
         doc::Doc,
         grapheme::{CharCursor, CharIterator},
-        syntax_highlighter::TerminalHighlightKind,
+        syntax_highlighter::{HighlightKind, TerminalHighlightKind},
     },
-    ui::{
-        camera::CameraRecenterKind,
-        core::{Ui, Widget},
-        tab::Tab,
-    },
+    ui::{camera::CameraRecenterKind, core::Ui, tab::Tab},
 };
 
 use super::TerminalDocs;
@@ -141,21 +137,14 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn update_input(
-        &mut self,
-        widget: &Widget,
-        ui: &mut Ui,
-        docs: &mut TerminalDocs,
-        tab: &mut Tab,
-        ctx: &mut Ctx,
-    ) {
+    pub fn update_input(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
         let Some(mut pty) = self.pty.take() else {
             return;
         };
 
         let doc = self.doc_mut(docs);
 
-        let mut action_handler = ui.action_handler(widget, ctx.window);
+        let mut action_handler = ctx.ui.action_handler(ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
@@ -226,11 +215,11 @@ impl TerminalEmulator {
                         pty.input().push(key & 0x1F);
                     }
                 }
-                _ => {}
+                _ => action_handler.unprocessed(ctx.window, action),
             }
         }
 
-        let mut grapheme_handler = ui.grapheme_handler(widget, ctx.window);
+        let mut grapheme_handler = ctx.ui.grapheme_handler(ctx.window);
 
         while let Some(grapheme) = grapheme_handler.next(ctx.window) {
             pty.input().extend(grapheme.bytes());
@@ -239,8 +228,6 @@ impl TerminalEmulator {
         pty.flush();
 
         self.pty = Some(pty);
-
-        tab.update(widget, ui, doc, ctx);
     }
 
     pub fn update_output(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {

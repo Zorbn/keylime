@@ -12,13 +12,12 @@ use crate::{
         mouse_button::MouseButton,
         mousebind::{MouseClickKind, Mousebind},
     },
-    platform::{gfx::Gfx, window::Window},
     text::doc::Doc,
 };
 
 use super::{
     color::Color,
-    core::{Ui, Widget},
+    core::{ContainerDirection, WidgetLayout},
     focus_list::FocusList,
     slot_list::SlotList,
     tab::Tab,
@@ -51,37 +50,37 @@ impl<T> Pane<T> {
             .is_some_and(|tab| tab.is_animating())
     }
 
-    pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx, data_list: &mut SlotList<T>) {
-        self.bounds = bounds;
+    // pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx, data_list: &mut SlotList<T>) {
+    //     self.bounds = bounds;
 
-        let mut tab_x = bounds.x;
-        let tab_height = gfx.tab_height();
+    //     let mut tab_x = bounds.x;
+    //     let tab_height = gfx.tab_height();
 
-        for i in 0..self.tabs.len() {
-            let get_doc = self.get_doc;
+    //     for i in 0..self.tabs.len() {
+    //         let get_doc = self.get_doc;
 
-            let Some((tab, data)) = self.get_tab_with_data_mut(i, data_list) else {
-                return;
-            };
+    //         let Some((tab, data)) = self.get_tab_with_data_mut(i, data_list) else {
+    //             return;
+    //         };
 
-            let doc = (get_doc)(data);
+    //         let doc = (get_doc)(data);
 
-            let tab_width = gfx.glyph_width() * 4.0
-                + gfx.measure_text(doc.file_name()) as f32 * gfx.glyph_width();
+    //         let tab_width = gfx.glyph_width() * 4.0
+    //             + gfx.measure_text(doc.file_name()) as f32 * gfx.glyph_width();
 
-            let tab_bounds = Rect::new(tab_x, bounds.y, tab_width, tab_height);
-            let doc_bounds = bounds.shrink_top_by(tab_bounds);
+    //         let tab_bounds = Rect::new(tab_x, bounds.y, tab_width, tab_height);
+    //         let doc_bounds = bounds.shrink_top_by(tab_bounds);
 
-            tab_x += tab_width - gfx.border_width();
+    //         tab_x += tab_width - gfx.border_width();
 
-            tab.layout(tab_bounds, doc_bounds, doc, gfx);
-        }
-    }
+    //         tab.layout(tab_bounds, doc_bounds, doc, gfx);
+    //     }
+    // }
 
-    pub fn update(&mut self, widget: &Widget, ui: &mut Ui, window: &mut Window) {
-        let mut mousebind_handler = ui.mousebind_handler(widget, window);
+    pub fn update(&mut self, ctx: &mut Ctx) {
+        let mut mousebind_handler = ctx.ui.mousebind_handler(ctx.window);
 
-        while let Some(mousebind) = mousebind_handler.next(window) {
+        while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
 
             match mousebind {
@@ -105,7 +104,7 @@ impl<T> Pane<T> {
                         self.tabs.set_focused_index(index);
                         self.dragged_tab_offset = Some(offset);
                     } else {
-                        mousebind_handler.unprocessed(window, mousebind);
+                        mousebind_handler.unprocessed(ctx.window, mousebind);
                     }
                 }
                 Mousebind {
@@ -148,123 +147,197 @@ impl<T> Pane<T> {
                         self.tabs.swap(self.tabs.focused_index(), index);
                     }
                 }
-                _ => mousebind_handler.unprocessed(window, mousebind),
+                _ => mousebind_handler.unprocessed(ctx.window, mousebind),
             }
         }
 
-        let mut action_handler = ui.action_handler(widget, window);
+        let mut action_handler = ctx.ui.action_handler(ctx.window);
 
-        while let Some(action) = action_handler.next(window) {
+        while let Some(action) = action_handler.next(ctx.window) {
             match action {
                 action_name!(PreviousTab) => self.tabs.focus_previous(),
                 action_name!(NextTab) => self.tabs.focus_next(),
-                _ => action_handler.unprocessed(window, action),
+                _ => action_handler.unprocessed(ctx.window, action),
             }
         }
+
+        // ctx.ui
+        //     .begin_container(WidgetLayout::default(), ContainerDirection::Vertical);
+
+        // TODO: Draw tabs.
+        // gfx.begin(Some(self.bounds));
+
+        // gfx.add_rect(
+        //     self.bounds
+        //         .left_border(gfx.border_width())
+        //         .unoffset_by(self.bounds),
+        //     theme.border,
+        // );
+
+        // gfx.add_rect(
+        //     self.bounds
+        //         .top_border(gfx.border_width())
+        //         .unoffset_by(self.bounds),
+        //     theme.border,
+        // );
+
+        // if self.tabs.is_empty() {
+        //     gfx.add_rect(
+        //         Rect::from_sides(
+        //             0.0,
+        //             tab_height - gfx.border_width(),
+        //             self.bounds.width,
+        //             tab_height,
+        //         ),
+        //         theme.border,
+        //     );
+
+        //     gfx.end();
+
+        //     return;
+        // }
+
+        // for i in 0..self.tabs.len() {
+        //     if i == self.tabs.focused_index() {
+        //         continue;
+        //     }
+
+        //     self.draw_tab_from_index(i, background, data_list, ctx);
+        // }
+
+        // let focused_tab_bounds =
+        //     self.draw_tab_from_index(self.tabs.focused_index(), background, data_list, ctx);
+
+        // let gfx = &mut ctx.gfx;
+        // let theme = &ctx.config.theme;
+
+        // gfx.add_rect(
+        //     Rect::from_sides(
+        //         0.0,
+        //         tab_height - gfx.border_width(),
+        //         focused_tab_bounds.x,
+        //         tab_height,
+        //     ),
+        //     theme.border,
+        // );
+
+        // gfx.add_rect(
+        //     Rect::from_sides(
+        //         focused_tab_bounds.x + focused_tab_bounds.width,
+        //         tab_height - gfx.border_width(),
+        //         self.bounds.width,
+        //         tab_height,
+        //     ),
+        //     theme.border,
+        // );
+
+        // gfx.end();
+
+        // let get_doc_mut = self.get_doc_mut;
+
+        // if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
+        // {
+        //     tab.draw(background, get_doc_mut(data), ctx, is_focused);
+        // }
+
+        // ctx.ui.end_container();
     }
 
-    pub fn update_camera(
-        &mut self,
-        widget: &Widget,
-        ui: &mut Ui,
-        data_list: &mut SlotList<T>,
-        ctx: &mut Ctx,
-        dt: f32,
-    ) {
+    pub fn update_camera(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx, dt: f32) {
         let get_doc = self.get_doc;
 
         if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
         {
-            tab.update_camera(widget, ui, get_doc(data), ctx, dt);
+            tab.update_camera(get_doc(data), ctx, dt);
         }
     }
 
-    pub fn draw(
-        &mut self,
-        background: Option<Color>,
-        data_list: &mut SlotList<T>,
-        ctx: &mut Ctx,
-        is_focused: bool,
-    ) {
-        let gfx = &mut ctx.gfx;
-        let theme = &ctx.config.theme;
-        let tab_height = gfx.tab_height();
+    // pub fn draw(
+    //     &mut self,
+    //     background: Option<Color>,
+    //     data_list: &mut SlotList<T>,
+    //     ctx: &mut Ctx,
+    //     is_focused: bool,
+    // ) {
+    //     let gfx = &mut ctx.gfx;
+    //     let theme = &ctx.config.theme;
+    //     let tab_height = gfx.tab_height();
 
-        gfx.begin(Some(self.bounds));
+    //     gfx.begin(Some(self.bounds));
 
-        gfx.add_rect(
-            self.bounds
-                .left_border(gfx.border_width())
-                .unoffset_by(self.bounds),
-            theme.border,
-        );
+    //     gfx.add_rect(
+    //         self.bounds
+    //             .left_border(gfx.border_width())
+    //             .unoffset_by(self.bounds),
+    //         theme.border,
+    //     );
 
-        gfx.add_rect(
-            self.bounds
-                .top_border(gfx.border_width())
-                .unoffset_by(self.bounds),
-            theme.border,
-        );
+    //     gfx.add_rect(
+    //         self.bounds
+    //             .top_border(gfx.border_width())
+    //             .unoffset_by(self.bounds),
+    //         theme.border,
+    //     );
 
-        if self.tabs.is_empty() {
-            gfx.add_rect(
-                Rect::from_sides(
-                    0.0,
-                    tab_height - gfx.border_width(),
-                    self.bounds.width,
-                    tab_height,
-                ),
-                theme.border,
-            );
+    //     if self.tabs.is_empty() {
+    //         gfx.add_rect(
+    //             Rect::from_sides(
+    //                 0.0,
+    //                 tab_height - gfx.border_width(),
+    //                 self.bounds.width,
+    //                 tab_height,
+    //             ),
+    //             theme.border,
+    //         );
 
-            gfx.end();
+    //         gfx.end();
 
-            return;
-        }
+    //         return;
+    //     }
 
-        for i in 0..self.tabs.len() {
-            if i == self.tabs.focused_index() {
-                continue;
-            }
+    //     for i in 0..self.tabs.len() {
+    //         if i == self.tabs.focused_index() {
+    //             continue;
+    //         }
 
-            self.draw_tab_from_index(i, background, data_list, ctx);
-        }
+    //         self.draw_tab_from_index(i, background, data_list, ctx);
+    //     }
 
-        let focused_tab_bounds =
-            self.draw_tab_from_index(self.tabs.focused_index(), background, data_list, ctx);
+    //     let focused_tab_bounds =
+    //         self.draw_tab_from_index(self.tabs.focused_index(), background, data_list, ctx);
 
-        let gfx = &mut ctx.gfx;
-        let theme = &ctx.config.theme;
+    //     let gfx = &mut ctx.gfx;
+    //     let theme = &ctx.config.theme;
 
-        gfx.add_rect(
-            Rect::from_sides(
-                0.0,
-                tab_height - gfx.border_width(),
-                focused_tab_bounds.x,
-                tab_height,
-            ),
-            theme.border,
-        );
+    //     gfx.add_rect(
+    //         Rect::from_sides(
+    //             0.0,
+    //             tab_height - gfx.border_width(),
+    //             focused_tab_bounds.x,
+    //             tab_height,
+    //         ),
+    //         theme.border,
+    //     );
 
-        gfx.add_rect(
-            Rect::from_sides(
-                focused_tab_bounds.x + focused_tab_bounds.width,
-                tab_height - gfx.border_width(),
-                self.bounds.width,
-                tab_height,
-            ),
-            theme.border,
-        );
+    //     gfx.add_rect(
+    //         Rect::from_sides(
+    //             focused_tab_bounds.x + focused_tab_bounds.width,
+    //             tab_height - gfx.border_width(),
+    //             self.bounds.width,
+    //             tab_height,
+    //         ),
+    //         theme.border,
+    //     );
 
-        gfx.end();
+    //     gfx.end();
 
-        let get_doc_mut = self.get_doc_mut;
+    //     let get_doc_mut = self.get_doc_mut;
 
-        if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
-        {
-            tab.draw(background, get_doc_mut(data), ctx, is_focused);
-        }
-    }
+    //     if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
+    //     {
+    //         tab.draw(background, get_doc_mut(data), ctx, is_focused);
+    //     }
+    // }
 
     fn draw_tab_from_index(
         &mut self,

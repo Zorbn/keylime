@@ -23,7 +23,7 @@ use crate::{
 use super::{
     camera::{Camera, RECENTER_DISTANCE},
     color::Color,
-    core::{Ui, Widget},
+    core::{ContainerDirection, WidgetLayout},
 };
 
 const GUTTER_PADDING_WIDTH: f32 = 1.0;
@@ -63,6 +63,7 @@ impl Tab {
             handled_cursor_position: None,
             handled_doc_len: None,
 
+            // TODO: Remove these.
             tab_bounds: Rect::ZERO,
             gutter_bounds: Rect::ZERO,
             doc_bounds: Rect::ZERO,
@@ -77,27 +78,85 @@ impl Tab {
         self.camera.is_moving()
     }
 
-    pub fn layout(&mut self, tab_bounds: Rect, doc_bounds: Rect, doc: &Doc, gfx: &Gfx) {
-        self.tab_bounds = tab_bounds;
+    // pub fn layout(&mut self, tab_bounds: Rect, doc_bounds: Rect, doc: &Doc, gfx: &Gfx) {
+    //     self.tab_bounds = tab_bounds;
+
+    //     let gutter_width = if doc.kind() == DocKind::MultiLine {
+    //         let max_gutter_digits = (doc.lines().len() as f32).log10().floor() + 1.0;
+
+    //         (max_gutter_digits + GUTTER_PADDING_WIDTH * 2.0 + GUTTER_BORDER_WIDTH)
+    //             * gfx.glyph_width()
+    //     } else {
+    //         0.0
+    //     };
+
+    //     self.gutter_bounds = Rect::new(doc_bounds.x, doc_bounds.y, gutter_width, doc_bounds.height);
+    //     self.doc_bounds = doc_bounds.shrink_left_by(self.gutter_bounds);
+    // }
+
+    pub fn update(&mut self, background: Option<Color>, doc: &mut Doc, ctx: &mut Ctx) {
+        ctx.ui
+            .begin_container(WidgetLayout::default(), ContainerDirection::Horizontal);
 
         let gutter_width = if doc.kind() == DocKind::MultiLine {
             let max_gutter_digits = (doc.lines().len() as f32).log10().floor() + 1.0;
 
             (max_gutter_digits + GUTTER_PADDING_WIDTH * 2.0 + GUTTER_BORDER_WIDTH)
-                * gfx.glyph_width()
+                * ctx.gfx.glyph_width()
         } else {
             0.0
         };
 
-        self.gutter_bounds = Rect::new(doc_bounds.x, doc_bounds.y, gutter_width, doc_bounds.height);
-        self.doc_bounds = doc_bounds.shrink_left_by(self.gutter_bounds);
-    }
+        self.gutter_bounds = ctx.ui.bounds();
+        self.gutter_bounds.width = gutter_width;
 
-    pub fn update(&mut self, widget: &Widget, ui: &mut Ui, doc: &mut Doc, ctx: &mut Ctx) {
+        self.doc_bounds = ctx.ui.bounds().shrink_left_by(self.gutter_bounds);
+
+        let language = ctx.config.get_language_for_doc(doc);
+
+        if let Some(syntax) = language.and_then(|language| language.syntax.as_ref()) {
+            doc.update_highlights(self.camera.position(), self.doc_bounds, syntax, ctx.gfx);
+        }
+
+        let camera_position = self.camera.position().floor();
+
+        let min_y = (camera_position.y / ctx.gfx.line_height()) as usize;
+        let sub_line_offset_y = camera_position.y - min_y as f32 * ctx.gfx.line_height();
+
+        let max_y =
+            ((camera_position.y + self.doc_bounds.height) / ctx.gfx.line_height()) as usize + 1;
+        let max_y = max_y.min(doc.lines().len());
+
+        let visible_lines = VisibleLines {
+            offset: sub_line_offset_y,
+            min_y,
+            max_y,
+        };
+
+        if doc.kind() == DocKind::MultiLine {
+            ctx.ui.begin_widget(
+                WidgetLayout {
+                    width: Some(self.gutter_bounds.width),
+                    ..Default::default()
+                },
+                ctx.gfx,
+            );
+
+            self.draw_gutter(doc, visible_lines, ctx.ui.is_focused(), ctx);
+
+            ctx.ui.end_widget(ctx.gfx);
+        }
+
+        ctx.ui.begin_widget(WidgetLayout::default(), ctx.gfx);
+
+        ctx.ui.print_current_stack();
+        ctx.ui.print_focus_stack();
+        println!("is focused: {}", ctx.ui.is_focused());
+
         self.handled_cursor_position = Some(doc.cursor(CursorIndex::Main).position);
         self.handled_doc_len = Some(doc.lines().len());
 
-        let mut grapheme_handler = ui.grapheme_handler(widget, ctx.window);
+        let mut grapheme_handler = ctx.ui.grapheme_handler(ctx.window);
 
         while let Some(grapheme) = grapheme_handler.next(ctx.window) {
             let grapheme: Pooled<String> = grapheme.into();
@@ -105,7 +164,7 @@ impl Tab {
             handle_grapheme(&grapheme, doc, ctx);
         }
 
-        let mut mousebind_handler = ui.mousebind_handler(widget, ctx.window);
+        let mut mousebind_handler = ctx.ui.mousebind_handler(ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
@@ -156,7 +215,7 @@ impl Tab {
             }
         }
 
-        let mut action_handler = ui.action_handler(widget, ctx.window);
+        let mut action_handler = ctx.ui.action_handler(ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             let was_handled = handle_action(action, self, doc, ctx);
@@ -168,100 +227,118 @@ impl Tab {
 
         doc.combine_overlapping_cursors();
         doc.update_tokens();
-    }
 
-    pub fn update_camera(
-        &mut self,
-        widget: &Widget,
-        ui: &mut Ui,
-        doc: &Doc,
-        ctx: &mut Ctx,
-        dt: f32,
-    ) {
-        let mut mouse_scroll_handler = ui.mouse_scroll_handler(widget, ctx.window);
-
-        while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
-            let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
-
-            if !self.doc_bounds.contains_position(position) {
-                mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
-                continue;
-            }
-
-            let delta = mouse_scroll.delta * ctx.gfx.line_height();
-
-            if mouse_scroll.is_horizontal {
-                self.camera.vertical.reset_velocity();
-                self.camera
-                    .horizontal
-                    .scroll(-delta, mouse_scroll.is_precise);
-            } else {
-                self.camera.horizontal.reset_velocity();
-                self.camera.vertical.scroll(delta, mouse_scroll.is_precise);
-            }
+        if let Some(background) = background {
+            ctx.gfx
+                .add_rect(self.doc_bounds.unoffset_by(self.doc_bounds), background);
         }
 
-        self.update_camera_vertical(doc, ctx.gfx, dt);
-        self.update_camera_horizontal(doc, ctx.gfx, dt);
+        self.draw_indent_guides(doc, camera_position, visible_lines, ctx);
+        self.draw_lines(background, doc, camera_position, visible_lines, ctx);
+        self.draw_diagnostics(doc, camera_position, visible_lines, ctx);
+        self.draw_go_to_definition_hint(doc, camera_position, ctx);
+        self.draw_cursors(
+            doc,
+            ctx.ui.is_focused(),
+            camera_position,
+            visible_lines,
+            ctx,
+        );
+        self.draw_scroll_bar(doc, camera_position, ctx);
+
+        ctx.ui.end_widget(ctx.gfx);
+
+        ctx.ui.end_container();
+    }
+
+    pub fn update_camera(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
+        // TODO: Call from update.
+        // let mut mouse_scroll_handler = ctx.ui.mouse_scroll_handler(ctx.window);
+
+        // while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
+        //     let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
+
+        //     if !self.doc_bounds.contains_position(position) {
+        //         mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
+        //         continue;
+        //     }
+
+        //     let delta = mouse_scroll.delta * ctx.gfx.line_height();
+
+        //     if mouse_scroll.is_horizontal {
+        //         self.camera.vertical.reset_velocity();
+        //         self.camera
+        //             .horizontal
+        //             .scroll(-delta, mouse_scroll.is_precise);
+        //     } else {
+        //         self.camera.horizontal.reset_velocity();
+        //         self.camera.vertical.scroll(delta, mouse_scroll.is_precise);
+        //     }
+        // }
+
+        // self.update_camera_vertical(doc, ctx.gfx, dt);
+        // self.update_camera_horizontal(doc, ctx.gfx, dt);
     }
 
     fn update_camera_vertical(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
-        let doc_len = doc.lines().len();
-        let max_y = (doc_len - 1) as f32 * gfx.line_height();
+        // TODO: Call from update.
+        // let doc_len = doc.lines().len();
+        // let max_y = (doc_len - 1) as f32 * gfx.line_height();
 
-        let (target_y, can_recenter, recenter_distance) = match doc.kind() {
-            DocKind::Output => {
-                let can_recenter = self.handled_doc_len != Some(doc_len);
-                let target_y = max_y - self.camera.y();
+        // let (target_y, can_recenter, recenter_distance) = match doc.kind() {
+        //     DocKind::Output => {
+        //         let can_recenter = self.handled_doc_len != Some(doc_len);
+        //         let target_y = max_y - self.camera.y();
 
-                (target_y, can_recenter, 1)
-            }
-            _ => {
-                let new_cursor_position = doc.cursor(CursorIndex::Main).position;
-                let new_cursor_visual_position =
-                    doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
+        //         (target_y, can_recenter, 1)
+        //     }
+        //     _ => {
+        //         let new_cursor_position = doc.cursor(CursorIndex::Main).position;
+        //         let new_cursor_visual_position =
+        //             doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
 
-                let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
-                let target_y = new_cursor_visual_position.y + gfx.line_height() / 2.0;
+        //         let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
+        //         let target_y = new_cursor_visual_position.y + gfx.line_height() / 2.0;
 
-                (target_y, can_recenter, RECENTER_DISTANCE)
-            }
-        };
+        //         (target_y, can_recenter, RECENTER_DISTANCE)
+        //     }
+        // };
 
-        let scroll_border_top = gfx.line_height() * recenter_distance as f32;
-        let scroll_border_bottom = self.doc_bounds.height - scroll_border_top;
+        // let scroll_border_top = gfx.line_height() * recenter_distance as f32;
+        // let scroll_border_bottom = self.doc_bounds.height - scroll_border_top;
 
-        self.camera.vertical.update(
-            target_y,
-            max_y,
-            self.doc_bounds.height,
-            scroll_border_top..=scroll_border_bottom,
-            can_recenter,
-            dt,
-        );
+        // self.camera.vertical.update(
+        //     target_y,
+        //     max_y,
+        //     self.doc_bounds.height,
+        //     scroll_border_top..=scroll_border_bottom,
+        //     can_recenter,
+        //     dt,
+        // );
     }
 
     fn update_camera_horizontal(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
-        let new_cursor_position = doc.cursor(CursorIndex::Main).position;
-        let new_cursor_visual_position =
-            doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
+        // TODO: Call from update.
+        // let new_cursor_position = doc.cursor(CursorIndex::Main).position;
+        // let new_cursor_visual_position =
+        //     doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
 
-        let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
+        // let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
 
-        let target_x = new_cursor_visual_position.x + gfx.glyph_width() / 2.0;
-        let max_x = f32::MAX;
+        // let target_x = new_cursor_visual_position.x + gfx.glyph_width() / 2.0;
+        // let max_x = f32::MAX;
 
-        let scroll_border_left = gfx.glyph_width() * RECENTER_DISTANCE as f32;
-        let scroll_border_right = self.doc_bounds.width - scroll_border_left;
+        // let scroll_border_left = gfx.glyph_width() * RECENTER_DISTANCE as f32;
+        // let scroll_border_right = self.doc_bounds.width - scroll_border_left;
 
-        self.camera.horizontal.update(
-            target_x,
-            max_x,
-            self.doc_bounds.height,
-            scroll_border_left..=scroll_border_right,
-            can_recenter,
-            dt,
-        );
+        // self.camera.horizontal.update(
+        //     target_x,
+        //     max_x,
+        //     self.doc_bounds.height,
+        //     scroll_border_left..=scroll_border_right,
+        //     can_recenter,
+        //     dt,
+        // );
     }
 
     pub fn tab_bounds(&self) -> Rect {
@@ -284,58 +361,58 @@ impl Tab {
         index as f32 * gfx.line_height() - sub_line_offset_y
     }
 
-    pub fn draw(
-        &mut self,
-        background: Option<Color>,
-        doc: &mut Doc,
-        ctx: &mut Ctx,
-        is_focused: bool,
-    ) {
-        let language = ctx.config.get_language_for_doc(doc);
+    // pub fn draw(
+    //     &mut self,
+    //     background: Option<Color>,
+    //     doc: &mut Doc,
+    //     ctx: &mut Ctx,
+    //     is_focused: bool,
+    // ) {
+    //     let language = ctx.config.get_language_for_doc(doc);
 
-        if let Some(syntax) = language.and_then(|language| language.syntax.as_ref()) {
-            doc.update_highlights(self.camera.position(), self.doc_bounds, syntax, ctx.gfx);
-        }
+    //     if let Some(syntax) = language.and_then(|language| language.syntax.as_ref()) {
+    //         doc.update_highlights(self.camera.position(), self.doc_bounds, syntax, ctx.gfx);
+    //     }
 
-        let camera_position = self.camera.position().floor();
+    //     let camera_position = self.camera.position().floor();
 
-        let min_y = (camera_position.y / ctx.gfx.line_height()) as usize;
-        let sub_line_offset_y = camera_position.y - min_y as f32 * ctx.gfx.line_height();
+    //     let min_y = (camera_position.y / ctx.gfx.line_height()) as usize;
+    //     let sub_line_offset_y = camera_position.y - min_y as f32 * ctx.gfx.line_height();
 
-        let max_y =
-            ((camera_position.y + self.doc_bounds.height) / ctx.gfx.line_height()) as usize + 1;
-        let max_y = max_y.min(doc.lines().len());
+    //     let max_y =
+    //         ((camera_position.y + self.doc_bounds.height) / ctx.gfx.line_height()) as usize + 1;
+    //     let max_y = max_y.min(doc.lines().len());
 
-        let visible_lines = VisibleLines {
-            offset: sub_line_offset_y,
-            min_y,
-            max_y,
-        };
+    //     let visible_lines = VisibleLines {
+    //         offset: sub_line_offset_y,
+    //         min_y,
+    //         max_y,
+    //     };
 
-        if doc.kind() == DocKind::MultiLine {
-            ctx.gfx.begin(Some(self.gutter_bounds));
+    //     if doc.kind() == DocKind::MultiLine {
+    //         ctx.gfx.begin(Some(self.gutter_bounds));
 
-            self.draw_gutter(doc, visible_lines, is_focused, ctx);
+    //         self.draw_gutter(doc, visible_lines, is_focused, ctx);
 
-            ctx.gfx.end();
-        }
+    //         ctx.gfx.end();
+    //     }
 
-        ctx.gfx.begin(Some(self.doc_bounds));
+    //     ctx.gfx.begin(Some(self.doc_bounds));
 
-        if let Some(background) = background {
-            ctx.gfx
-                .add_rect(self.doc_bounds.unoffset_by(self.doc_bounds), background);
-        }
+    //     if let Some(background) = background {
+    //         ctx.gfx
+    //             .add_rect(self.doc_bounds.unoffset_by(self.doc_bounds), background);
+    //     }
 
-        self.draw_indent_guides(doc, camera_position, visible_lines, ctx);
-        self.draw_lines(background, doc, camera_position, visible_lines, ctx);
-        self.draw_diagnostics(doc, camera_position, visible_lines, ctx);
-        self.draw_go_to_definition_hint(doc, camera_position, ctx);
-        self.draw_cursors(doc, is_focused, camera_position, visible_lines, ctx);
-        self.draw_scroll_bar(doc, camera_position, ctx);
+    //     self.draw_indent_guides(doc, camera_position, visible_lines, ctx);
+    //     self.draw_lines(background, doc, camera_position, visible_lines, ctx);
+    //     self.draw_diagnostics(doc, camera_position, visible_lines, ctx);
+    //     self.draw_go_to_definition_hint(doc, camera_position, ctx);
+    //     self.draw_cursors(doc, is_focused, camera_position, visible_lines, ctx);
+    //     self.draw_scroll_bar(doc, camera_position, ctx);
 
-        ctx.gfx.end();
-    }
+    //     ctx.gfx.end();
+    // }
 
     fn draw_gutter(
         &mut self,

@@ -7,11 +7,14 @@ use crate::{
     geometry::rect::Rect,
     input::action::action_name,
     platform::{gfx::Gfx, process::Process},
-    text::doc::{Doc, DocKind},
+    text::{
+        doc::{Doc, DocKind},
+        syntax_highlighter::HighlightKind,
+    },
 };
 
 use super::{
-    core::{Ui, Widget},
+    core::{ContainerDirection, Ui, WidgetLayout},
     slot_list::SlotList,
 };
 
@@ -46,56 +49,59 @@ type Term = (TerminalDocs, TerminalEmulator);
 pub struct Terminal {
     pane: TerminalPane,
     term_list: SlotList<Term>,
-
-    pub widget: Widget,
 }
 
 impl Terminal {
-    pub fn new(ui: &mut Ui) -> Self {
+    pub fn new() -> Self {
         let mut term_list = SlotList::new();
 
         let pane = TerminalPane::new(&mut term_list);
 
-        Self {
-            pane,
-            term_list,
-
-            widget: Widget::new(ui, true),
-        }
+        Self { pane, term_list }
     }
 
-    pub fn layout(&mut self, bounds: Rect, config: &Config, gfx: &mut Gfx) {
-        let bounds = Rect::new(
-            0.0,
-            0.0,
-            bounds.width,
-            gfx.tab_height() + gfx.line_height() * config.terminal_height,
-        )
-        .at_bottom_of(bounds)
-        .floor();
+    // pub fn layout(&mut self, bounds: Rect, config: &Config, gfx: &mut Gfx) {
+    //     let bounds = Rect::new(
+    //         0.0,
+    //         0.0,
+    //         bounds.width,
+    //         gfx.tab_height() + gfx.line_height() * config.terminal_height,
+    //     )
+    //     .at_bottom_of(bounds)
+    //     .floor();
 
-        self.pane.layout(bounds, gfx, &mut self.term_list);
+    //     self.pane.layout(bounds, gfx, &mut self.term_list);
 
-        self.widget.layout(&[bounds]);
-    }
+    //     self.widget.layout(&[bounds]);
+    // }
 
-    pub fn update(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
+    pub fn update(&mut self, ctx: &mut Ctx) {
+        ctx.ui.begin_container(
+            WidgetLayout {
+                height: Some(
+                    ctx.gfx.tab_height() + ctx.gfx.line_height() * ctx.config.terminal_height,
+                ),
+                ..Default::default()
+            },
+            ContainerDirection::Horizontal,
+        );
+
         let mut global_action_handler = ctx.window.action_handler();
 
         while let Some(action) = global_action_handler.next(ctx.window) {
             match action {
                 action_name!(FocusTerminal) => {
-                    if ui.is_focused(&self.widget) {
-                        ui.unfocus(&self.widget);
+                    if ctx.ui.is_focused() {
+                        ctx.ui.unfocus();
                     } else {
-                        ui.focus(&mut self.widget);
+                        ctx.ui.focus();
                     }
                 }
                 _ => global_action_handler.unprocessed(ctx.window, action),
             }
         }
 
-        self.pane.update(&self.widget, ui, &mut self.term_list, ctx);
+        self.pane.update(&mut self.term_list, ctx);
 
         let focused_tab_index = self.pane.focused_tab_index();
 
@@ -103,7 +109,16 @@ impl Terminal {
             .pane
             .get_tab_with_data_mut(focused_tab_index, &mut self.term_list)
         {
-            emulator.update_input(&self.widget, ui, docs, tab, ctx);
+            emulator.update_input(docs, tab, ctx);
+
+            let doc = emulator.doc_mut(docs);
+
+            let background = ctx
+                .config
+                .theme
+                .highlight_kind_to_color(HighlightKind::Terminal(emulator.background_color));
+
+            tab.update(Some(background), doc, ctx);
         }
 
         for tab in self.pane.tabs.iter_mut() {
@@ -115,23 +130,24 @@ impl Terminal {
 
             emulator.update_output(docs, tab, ctx);
         }
+
+        ctx.ui.end_container();
     }
 
-    pub fn update_camera(&mut self, ui: &mut Ui, ctx: &mut Ctx, dt: f32) {
-        self.pane
-            .update_camera(&self.widget, ui, &mut self.term_list, ctx, dt);
+    pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
+        self.pane.update_camera(&mut self.term_list, ctx, dt);
     }
 
-    pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
-        let is_focused = ui.is_focused(&self.widget);
+    // pub fn draw(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
+    //     let is_focused = ui.is_focused(&self.widget);
 
-        self.pane.draw(
-            Some(ctx.config.theme.terminal.background),
-            &mut self.term_list,
-            ctx,
-            is_focused,
-        );
-    }
+    //     self.pane.draw(
+    //         Some(ctx.config.theme.terminal.background),
+    //         &mut self.term_list,
+    //         ctx,
+    //         is_focused,
+    //     );
+    // }
 
     pub fn is_animating(&self) -> bool {
         self.pane.is_animating()

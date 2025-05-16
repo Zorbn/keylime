@@ -11,43 +11,47 @@ use crate::{
 };
 
 use super::{
-    core::{Ui, Widget},
+    core::{Ui, WidgetLayout},
     editor::Editor,
 };
 
-pub struct StatusBar {
-    pub widget: Widget,
-}
+// TODO: This can just become a static function?
+pub struct StatusBar;
 
 impl StatusBar {
-    pub fn new(ui: &mut Ui) -> Self {
-        Self {
-            widget: Widget::new(ui, true),
-        }
+    pub fn new() -> Self {
+        Self
     }
 
-    pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx) {
-        let bounds = Rect::new(0.0, 0.0, bounds.width, gfx.tab_height())
-            .at_bottom_of(bounds)
-            .floor();
+    // pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx) {
+    //     let bounds = Rect::new(0.0, 0.0, bounds.width, gfx.tab_height())
+    //         .at_bottom_of(bounds)
+    //         .floor();
 
-        self.widget.layout(&[bounds]);
-    }
+    //     self.widget.layout(&[bounds]);
+    // }
 
-    pub fn draw(&mut self, editor: &Editor, ctx: &mut Ctx) {
+    pub fn update(&mut self, editor: &Editor, ctx: &mut Ctx) {
+        let ui = &mut ctx.ui;
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        gfx.begin(Some(self.widget.bounds()));
+        ui.begin_widget(
+            WidgetLayout {
+                height: Some(gfx.tab_height()),
+                ..Default::default()
+            },
+            gfx,
+        );
 
         gfx.add_bordered_rect(
-            self.widget.bounds().unoffset_by(self.widget.bounds()),
+            ui.bounds().unoffset_by(ui.bounds()),
             Sides::ALL,
             theme.background,
             theme.border,
         );
 
-        let mut text_x = self.widget.bounds().width;
+        let mut text_x = ui.bounds().width;
         let text_y = gfx.tab_padding_y();
 
         if let Some(text) = Self::get_doc_text(editor, ctx.config) {
@@ -66,7 +70,7 @@ impl StatusBar {
             gfx.add_text(&text, text_x, text_y, color);
         }
 
-        gfx.end();
+        ui.end_widget(gfx);
     }
 
     fn get_problems_text(lsp: &mut Lsp) -> Option<(Pooled<String>, usize)> {

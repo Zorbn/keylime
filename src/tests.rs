@@ -4,6 +4,7 @@ macro_rules! test_with_doc {
         fn $name() {
             let mut window = crate::platform::window::Window::new();
             let mut gfx = crate::platform::gfx::Gfx::new();
+            let mut ui = crate::ui::core::Ui::new();
             let config = crate::config::Config::default();
             let mut lsp = crate::lsp::Lsp::new();
             let time = 0.0;
@@ -11,6 +12,7 @@ macro_rules! test_with_doc {
             let ctx = &mut crate::ctx::Ctx {
                 window: &mut window,
                 gfx: &mut gfx,
+                ui: &mut ui,
                 config: &config,
                 lsp: &mut lsp,
                 time,
