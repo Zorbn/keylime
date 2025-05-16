@@ -2,6 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::{
     ctx::Ctx,
+    text::syntax_highlighter::HighlightKind,
     ui::{
         core::{ContainerDirection, Ui, WidgetLayout},
         pane::Pane,
@@ -61,6 +62,21 @@ impl TerminalPane {
         }
 
         self.inner.update(ctx);
+
+        let focused_tab_index = self.focused_tab_index();
+
+        if let Some((tab, (docs, emulator))) =
+            self.get_tab_with_data_mut(focused_tab_index, term_list)
+        {
+            let doc = emulator.doc_mut(docs);
+
+            let background = ctx
+                .config
+                .theme
+                .highlight_kind_to_color(HighlightKind::Terminal(emulator.background_color));
+
+            tab.update(Some(background), doc, ctx);
+        }
 
         // ctx.ui.end_container();
     }

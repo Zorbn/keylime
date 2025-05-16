@@ -120,9 +120,9 @@ impl App {
             .begin(ctx.config.theme.background, ctx.window, ctx.gfx);
 
         // self.command_palette.update(&mut self.editor, ctx);
-        // self.status_bar.update(&self.editor, ctx);
+        self.status_bar.update(&self.editor, ctx);
         self.terminal.update(ctx);
-        // self.editor.update(&mut self.file_watcher, ctx);
+        self.editor.update(&mut self.file_watcher, ctx);
 
         ctx.ui.end(ctx.gfx);
 

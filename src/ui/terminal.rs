@@ -101,8 +101,6 @@ impl Terminal {
             }
         }
 
-        self.pane.update(&mut self.term_list, ctx);
-
         let focused_tab_index = self.pane.focused_tab_index();
 
         if let Some((tab, (docs, emulator))) = self
@@ -110,15 +108,6 @@ impl Terminal {
             .get_tab_with_data_mut(focused_tab_index, &mut self.term_list)
         {
             emulator.update_input(docs, tab, ctx);
-
-            let doc = emulator.doc_mut(docs);
-
-            let background = ctx
-                .config
-                .theme
-                .highlight_kind_to_color(HighlightKind::Terminal(emulator.background_color));
-
-            tab.update(Some(background), doc, ctx);
         }
 
         for tab in self.pane.tabs.iter_mut() {
@@ -130,6 +119,8 @@ impl Terminal {
 
             emulator.update_output(docs, tab, ctx);
         }
+
+        self.pane.update(&mut self.term_list, ctx);
 
         ctx.ui.end_container();
     }
