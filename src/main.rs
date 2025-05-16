@@ -21,10 +21,6 @@ use platform::app_runner::run_app;
 /*
  * TODO:
  * If the language server returns no completions for a request use simple completions instead.
- * Layout system that allows widgets to have children.
- * - Make popups for completion list docs/labels and examine/signature help popups part of the widget tree.
- * - BUG ::TopLeft popups have misaligned text.
- * - Necessary for mouse hover support, because we need to be sure that the mouse is hovering over a doc and not a popup or completion list.
  * - Make panes child widgets.
  * Add LSP mouse hover documentation/diagnostic support.
  * Consider renaming DocKind::Output to DocKind::Raw

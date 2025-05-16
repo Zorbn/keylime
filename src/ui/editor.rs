@@ -144,7 +144,7 @@ impl Editor {
         self.post_pane_update(signature_help_triggers, ui, ctx);
 
         if !ui.is_in_focused_hierarchy(self.widget_id) {
-            self.examine_popup.clear();
+            self.examine_popup.clear(ui);
             self.signature_help_popup.clear(ui);
             self.completion_list.clear();
         }
@@ -221,7 +221,7 @@ impl Editor {
                     if self.signature_help_popup.is_open() {
                         self.signature_help_popup.clear(ui);
                     } else if self.examine_popup.is_open() {
-                        self.examine_popup.clear();
+                        self.examine_popup.clear(ui);
                     } else {
                         action_handler.unprocessed(ctx.window, action);
                     }
@@ -235,7 +235,7 @@ impl Editor {
                     if let Some((_, doc)) =
                         pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
                     {
-                        self.examine_popup.open(doc, ctx);
+                        self.examine_popup.open(doc, ui, ctx);
                     }
                 }
                 _ => action_handler.unprocessed(ctx.window, action),
@@ -287,7 +287,7 @@ impl Editor {
         self.completion_list
             .update_results(did_cursor_move, doc, ctx);
 
-        self.examine_popup.update(did_cursor_move, doc, ctx);
+        self.examine_popup.update(did_cursor_move, doc, ui, ctx);
 
         self.handled_position = Some(position);
         self.handled_path = doc.path().some().cloned();
@@ -337,10 +337,15 @@ impl Editor {
         Some(())
     }
 
-    pub fn lsp_set_hover(&mut self, hover: Option<Hover>, path: &Pooled<PathBuf>) -> Option<()> {
+    pub fn lsp_set_hover(
+        &mut self,
+        hover: Option<Hover>,
+        path: &Pooled<PathBuf>,
+        ui: &mut Ui,
+    ) -> Option<()> {
         let doc = Self::find_doc(&self.doc_list, path)?;
 
-        self.examine_popup.lsp_set_hover(hover, doc);
+        self.examine_popup.lsp_set_hover(hover, doc, ui);
 
         Some(())
     }

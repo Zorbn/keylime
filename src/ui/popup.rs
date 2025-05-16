@@ -56,7 +56,7 @@ impl Popup {
             bounds.width = bounds.width.max(line_width);
         }
 
-        let margin = gfx.glyph_width();
+        let margin = Self::margin(gfx);
         bounds = bounds.add_margin(margin);
 
         bounds.x = position.x;
@@ -98,10 +98,12 @@ impl Popup {
             theme.border,
         );
 
-        for (y, line) in self.text.lines().enumerate() {
-            let y = y as f32 * gfx.line_height() + gfx.line_padding_y() + gfx.border_width();
+        let margin = Self::margin(gfx);
 
-            gfx.add_text(line, gfx.border_width(), y, foreground);
+        for (y, line) in self.text.lines().enumerate() {
+            let y = y as f32 * gfx.line_height() + gfx.line_padding_y() + margin;
+
+            gfx.add_text(line, margin, y, foreground);
         }
 
         gfx.end();
@@ -119,5 +121,9 @@ impl Popup {
 
     pub fn widget_id(&self) -> WidgetId {
         self.widget_id
+    }
+
+    fn margin(gfx: &mut Gfx) -> f32 {
+        gfx.glyph_width()
     }
 }

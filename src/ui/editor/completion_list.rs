@@ -210,13 +210,14 @@ impl CompletionList {
         self.documentation_popup.hide(ui);
 
         if let Some(detail) = &item.detail {
-            self.detail_popup.show(&detail, ui);
+            self.detail_popup.show(detail, ui);
         }
 
         if let Some(documentation) = &item.documentation {
             self.detail_popup.show(documentation.text(), ui);
         }
     }
+
     fn lsp_completion_item_resolve(
         item: &DecodedCompletionItem,
         doc: &mut Doc,

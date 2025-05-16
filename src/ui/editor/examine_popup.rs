@@ -34,7 +34,6 @@ pub struct ExaminePopup {
 impl ExaminePopup {
     pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
         Self {
-            // TODO: Do visibility updates for this.
             popup: Popup::new(parent_id, ui),
             kind: ExaminePopupKind::None,
             position: Position::ZERO,
@@ -56,7 +55,7 @@ impl ExaminePopup {
             .layout(position, PopupAlignment::Above, ui, ctx.gfx);
     }
 
-    pub fn update(&mut self, did_cursor_move: bool, doc: &Doc, ctx: &mut Ctx) {
+    pub fn update(&mut self, did_cursor_move: bool, doc: &Doc, ui: &mut Ui, ctx: &mut Ctx) {
         let position = doc.cursor(CursorIndex::Main).position;
 
         let needs_clear = match self.kind {
@@ -66,7 +65,7 @@ impl ExaminePopup {
         };
 
         if needs_clear {
-            self.clear();
+            self.clear(ui);
         }
     }
 
@@ -77,7 +76,7 @@ impl ExaminePopup {
         self.popup.draw(theme.normal, theme, ui, gfx);
     }
 
-    pub fn open(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+    pub fn open(&mut self, doc: &mut Doc, ui: &mut Ui, ctx: &mut Ctx) {
         let position = doc.cursor(CursorIndex::Main).position;
 
         if let Some(diagnostic) = ctx
@@ -85,42 +84,42 @@ impl ExaminePopup {
             .get_diagnostic_at(position, doc)
             .filter(|_| self.kind != ExaminePopupKind::Diagnostic)
         {
-            self.set_data(ExaminePopupData::Diagnostic(diagnostic), doc);
+            self.set_data(ExaminePopupData::Diagnostic(diagnostic), doc, ui);
         } else {
             doc.lsp_hover(ctx);
         }
     }
 
-    pub fn lsp_set_hover(&mut self, hover: Option<Hover>, doc: &Doc) {
+    pub fn lsp_set_hover(&mut self, hover: Option<Hover>, doc: &Doc, ui: &mut Ui) {
         let data = match hover {
             Some(hover) => ExaminePopupData::Hover(hover.contents.text()),
             None => ExaminePopupData::None,
         };
 
-        self.set_data(data, doc);
+        self.set_data(data, doc, ui);
     }
 
     pub fn is_open(&self) -> bool {
         self.kind != ExaminePopupKind::None
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self, ui: &mut Ui) {
         self.kind = ExaminePopupKind::None;
-        self.popup.text.clear();
+        self.popup.hide(ui);
     }
 
-    fn set_data(&mut self, kind: ExaminePopupData, doc: &Doc) {
-        self.clear();
+    fn set_data(&mut self, kind: ExaminePopupData, doc: &Doc, ui: &mut Ui) {
+        self.clear(ui);
 
         match kind {
             ExaminePopupData::None => {}
             ExaminePopupData::Diagnostic(diagnostic) => {
-                self.popup.text.push_str(&diagnostic.message);
+                self.popup.show(&diagnostic.message, ui);
                 self.position = diagnostic.visible_range(doc).start;
                 self.kind = ExaminePopupKind::Diagnostic;
             }
             ExaminePopupData::Hover(text) => {
-                self.popup.text.push_str(&text);
+                self.popup.show(&text, ui);
                 self.position = doc.cursor(CursorIndex::Main).position;
                 self.kind = ExaminePopupKind::Hover;
             }

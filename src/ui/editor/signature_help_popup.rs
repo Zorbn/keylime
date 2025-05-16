@@ -29,7 +29,6 @@ impl SignatureHelpPopup {
             help_position: Position::ZERO,
             help: None,
 
-            // TODO: Do visiblity updates for this if necessary.
             label_popup: Popup::new(parent_id, ui),
             documentation_popup: Popup::new(parent_id, ui),
         }
