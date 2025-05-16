@@ -7,7 +7,7 @@ use crate::{
     lsp::{
         types::{
             Command, DecodedCodeAction, DecodedCodeActionResult, DecodedCompletionItem,
-            DecodedEditList, DecodedRange, Documentation,
+            DecodedEditList, DecodedRange,
         },
         LspSentRequest,
     },
@@ -16,7 +16,7 @@ use crate::{
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
         core::{Ui, WidgetId},
-        popup::PopupAlignment,
+        popup::{Popup, PopupAlignment},
         result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     },
 };
@@ -52,17 +52,6 @@ impl CompletionResult {
     }
 }
 
-// Used to keep a previous completion item's popup open while the next one is loading.
-#[derive(Debug)]
-enum CompletionPopupCache {
-    PreviousIndex(usize),
-    PreviousItem {
-        detail: Option<Pooled<String>>,
-        documentation: Option<Documentation>,
-    },
-    None,
-}
-
 #[derive(Debug, Default)]
 pub struct CompletionListResult {
     pub edit_lists: Vec<DecodedEditList>,
@@ -78,7 +67,9 @@ pub struct CompletionList {
     should_open: bool,
 
     lsp_expected_responses: HashMap<usize, usize>,
-    popup_cache: CompletionPopupCache,
+
+    detail_popup: Popup,
+    documentation_popup: Popup,
 }
 
 impl CompletionList {
@@ -91,7 +82,9 @@ impl CompletionList {
             should_open: false,
 
             lsp_expected_responses: HashMap::new(),
-            popup_cache: CompletionPopupCache::None,
+
+            detail_popup: Popup::new(parent_id, ui),
+            documentation_popup: Popup::new(parent_id, ui),
         }
     }
 
@@ -130,20 +123,34 @@ impl CompletionList {
             ui,
             gfx,
         );
+
+        let result_list_bounds = ui.widget(self.result_list.widget_id()).bounds;
+
+        let mut position = VisualPosition::new(
+            result_list_bounds.right() - gfx.border_width(),
+            result_list_bounds.y,
+        );
+
+        self.detail_popup
+            .layout(position, PopupAlignment::TopLeft, ui, gfx);
+
+        if ui.is_visible(self.detail_popup.widget_id()) {
+            position.y +=
+                ui.widget(self.detail_popup.widget_id()).bounds.height - gfx.border_width();
+        }
+
+        self.documentation_popup
+            .layout(position, PopupAlignment::TopLeft, ui, gfx);
     }
 
     pub fn update(
         &mut self,
-        ui: &Ui,
+        ui: &mut Ui,
         doc: &mut Doc,
         is_visible: bool,
         ctx: &mut Ctx,
     ) -> Option<CompletionListResult> {
         let are_results_focused = !self.result_list.is_empty();
-
-        if matches!(self.popup_cache, CompletionPopupCache::None) {
-            self.popup_cache = CompletionPopupCache::PreviousIndex(self.result_list.focused_index())
-        }
 
         let result_input = self
             .result_list
@@ -177,11 +184,39 @@ impl CompletionList {
             }
         }
 
+        self.update_popups(ui);
+
         self.should_open = self.should_open(ui, ctx);
 
         completion_result
     }
 
+    fn update_popups(&mut self, ui: &mut Ui) {
+        let Some(CompletionResult::Completion {
+            item,
+            resolve_state,
+        }) = self.result_list.get_focused()
+        else {
+            self.detail_popup.hide(ui);
+            self.documentation_popup.hide(ui);
+            return;
+        };
+
+        if *resolve_state != CompletionResolveState::Resolved {
+            return;
+        }
+
+        self.detail_popup.hide(ui);
+        self.documentation_popup.hide(ui);
+
+        if let Some(detail) = &item.detail {
+            self.detail_popup.show(&detail, ui);
+        }
+
+        if let Some(documentation) = &item.documentation {
+            self.detail_popup.show(documentation.text(), ui);
+        }
+    }
     fn lsp_completion_item_resolve(
         item: &DecodedCompletionItem,
         doc: &mut Doc,
@@ -222,84 +257,19 @@ impl CompletionList {
         self.result_list
             .draw(ui, ctx, |result, theme| (result.label(), theme.normal));
 
-        let Some(focused_result) = self.result_list.get_focused() else {
-            return;
-        };
-
-        let CompletionResult::Completion {
-            item:
-                DecodedCompletionItem {
-                    ref detail,
-                    ref documentation,
-                    ..
-                },
-            resolve_state,
-        } = &focused_result
-        else {
-            return;
-        };
-
-        if *resolve_state == CompletionResolveState::Resolved {
-            self.popup_cache = CompletionPopupCache::None;
-        }
-
-        let (detail, documentation) = match &self.popup_cache {
-            CompletionPopupCache::PreviousIndex(index) => {
-                if let Some(CompletionResult::Completion {
-                    item:
-                        DecodedCompletionItem {
-                            detail,
-                            documentation,
-                            ..
-                        },
-                    ..
-                }) = self.result_list.get(*index)
-                {
-                    (detail, documentation)
-                } else {
-                    (detail, documentation)
-                }
-            }
-            CompletionPopupCache::PreviousItem {
-                detail,
-                documentation,
-            } => (detail, documentation),
-            _ => (detail, documentation),
-        };
-
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        let bounds = ui.widget(self.result_list.widget_id()).bounds;
-
-        let mut position = VisualPosition::new(bounds.right() - gfx.border_width(), bounds.y);
-
-        // if let Some(detail) = detail {
-        //     let detail_bounds = draw_popup(
-        //         detail,
-        //         position,
-        //         PopupAlignment::TopLeft,
-        //         theme.subtle,
-        //         theme,
-        //         gfx,
-        //     );
-
-        //     position.y += detail_bounds.height - gfx.border_width();
-        // }
-
-        // if let Some(documentation) = documentation {
-        //     draw_popup(
-        //         documentation.text(),
-        //         position,
-        //         PopupAlignment::TopLeft,
-        //         theme.normal,
-        //         theme,
-        //         gfx,
-        //     );
-        // }
+        self.detail_popup.draw(theme.subtle, theme, ui, gfx);
+        self.documentation_popup.draw(theme.normal, theme, ui, gfx);
     }
 
-    pub fn lsp_resolve_completion_item(&mut self, id: Option<usize>, item: DecodedCompletionItem) {
+    pub fn lsp_resolve_completion_item(
+        &mut self,
+        id: Option<usize>,
+        item: DecodedCompletionItem,
+        ui: &mut Ui,
+    ) {
         let Some(id) = id else {
             return;
         };
@@ -320,6 +290,8 @@ impl CompletionList {
 
         *existing_item = item;
         *resolve_state = CompletionResolveState::Resolved;
+
+        self.update_popups(ui);
     }
 
     pub fn lsp_update_completion_results(
@@ -327,22 +299,6 @@ impl CompletionList {
         mut items: Vec<DecodedCompletionItem>,
         needs_resolve: bool,
     ) {
-        if let Some(CompletionResult::Completion {
-            item:
-                DecodedCompletionItem {
-                    detail,
-                    documentation,
-                    ..
-                },
-            ..
-        }) = self.result_list.remove()
-        {
-            self.popup_cache = CompletionPopupCache::PreviousItem {
-                detail,
-                documentation,
-            };
-        }
-
         self.clear();
 
         items.retain(|item| item.filter_text().starts_with(&self.prefix));

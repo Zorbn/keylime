@@ -3,6 +3,7 @@ use crate::{
     geometry::{rect::Rect, sides::Sides, visual_position::VisualPosition},
     platform::gfx::Gfx,
     pool::{Pooled, STRING_POOL},
+    ui::core::WidgetSettings,
 };
 
 use super::{
@@ -25,7 +26,13 @@ impl Popup {
     pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
         let popup = Self {
             text: STRING_POOL.new_item(),
-            widget_id: ui.new_widget(parent_id, Default::default()),
+            widget_id: ui.new_widget(
+                parent_id,
+                WidgetSettings {
+                    is_visible: false,
+                    ..Default::default()
+                },
+            ),
         };
 
         println!("popup id: {:?}", popup.widget_id);
@@ -76,6 +83,10 @@ impl Popup {
     }
 
     pub fn draw(&self, foreground: Color, theme: &Theme, ui: &Ui, gfx: &mut Gfx) {
+        if !ui.is_visible(self.widget_id) {
+            return;
+        }
+
         let bounds = ui.widget(self.widget_id).bounds;
 
         gfx.begin(Some(bounds));
@@ -94,6 +105,16 @@ impl Popup {
         }
 
         gfx.end();
+    }
+
+    pub fn hide(&mut self, ui: &mut Ui) {
+        ui.hide(self.widget_id());
+    }
+
+    pub fn show(&mut self, text: &str, ui: &mut Ui) {
+        self.text.clear();
+        self.text.push_str(text);
+        ui.show(self.widget_id());
     }
 
     pub fn widget_id(&self) -> WidgetId {

@@ -116,9 +116,10 @@ impl Editor {
         self.completion_list
             .layout(cursor_visual_position, ui, ctx.gfx);
         self.examine_popup.layout(tab, doc, ui, ctx);
+        self.signature_help_popup.layout(tab, doc, ui, ctx.gfx);
     }
 
-    pub fn update(&mut self, ui: &Ui, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
+    pub fn update(&mut self, ui: &mut Ui, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
         self.reload_changed_files(file_watcher, ctx);
 
         let pane = self.panes.get_focused_mut().unwrap();
@@ -140,11 +141,11 @@ impl Editor {
         pane.update(self.widget_id, ui, &mut self.doc_list, ctx);
         self.panes.remove_excess(|pane| pane.tabs.is_empty());
 
-        self.post_pane_update(signature_help_triggers, ctx);
+        self.post_pane_update(signature_help_triggers, ui, ctx);
 
         if !ui.is_in_focused_hierarchy(self.widget_id) {
             self.examine_popup.clear();
-            self.signature_help_popup.clear();
+            self.signature_help_popup.clear(ui);
             self.completion_list.clear();
         }
     }
@@ -179,7 +180,7 @@ impl Editor {
         }
     }
 
-    fn handle_actions(&mut self, ui: &Ui, ctx: &mut Ctx) {
+    fn handle_actions(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
         let mut action_handler = ui.action_handler(self.widget_id, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
@@ -218,7 +219,7 @@ impl Editor {
                 }
                 action_keybind!(key: Escape, mods: Mods::NONE) => {
                     if self.signature_help_popup.is_open() {
-                        self.signature_help_popup.clear();
+                        self.signature_help_popup.clear(ui);
                     } else if self.examine_popup.is_open() {
                         self.examine_popup.clear();
                     } else {
@@ -226,7 +227,7 @@ impl Editor {
                     }
                 }
                 action_name!(Examine) => {
-                    self.signature_help_popup.clear();
+                    self.signature_help_popup.clear(ui);
 
                     let pane = self.panes.get_focused_mut().unwrap();
                     let focused_tab_index = pane.focused_tab_index();
@@ -242,7 +243,7 @@ impl Editor {
         }
     }
 
-    fn pre_pane_update(&mut self, ui: &Ui, ctx: &mut Ctx) {
+    fn pre_pane_update(&mut self, ui: &mut Ui, ctx: &mut Ctx) {
         let is_cursor_visible = self.is_cursor_visible(ctx.gfx);
         let pane = self.panes.get_focused_mut().unwrap();
         let focused_tab_index = pane.focused_tab_index();
@@ -260,6 +261,7 @@ impl Editor {
     fn post_pane_update(
         &mut self,
         signature_help_triggers: (Option<char>, Option<char>),
+        ui: &mut Ui,
         ctx: &mut Ctx,
     ) {
         let pane = self.panes.get_focused_mut().unwrap();
@@ -267,7 +269,7 @@ impl Editor {
 
         let Some((_, doc)) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
         else {
-            self.signature_help_popup.clear();
+            self.signature_help_popup.clear(ui);
             self.completion_list.clear();
 
             return;
@@ -280,7 +282,7 @@ impl Editor {
         let did_cursor_move = is_position_different || is_path_different;
 
         self.signature_help_popup
-            .update(signature_help_triggers, doc, ctx);
+            .update(signature_help_triggers, doc, ui, ctx);
 
         self.completion_list
             .update_results(did_cursor_move, doc, ctx);
@@ -427,12 +429,8 @@ impl Editor {
 
         self.completion_list.draw(ui, ctx);
 
-        let Some((tab, doc)) = self.get_focused_tab_and_doc() else {
-            return;
-        };
-
         if self.signature_help_popup.is_open() {
-            self.signature_help_popup.draw(tab, doc, ctx);
+            self.signature_help_popup.draw(ui, ctx);
         } else if self.examine_popup.is_open() {
             self.examine_popup.draw(ui, ctx);
         }

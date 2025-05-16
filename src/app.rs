@@ -121,7 +121,8 @@ impl App {
         self.terminal.update(&mut self.ui, ctx);
         self.command_palette
             .update(&mut self.ui, &mut self.editor, ctx);
-        self.editor.update(&self.ui, &mut self.file_watcher, ctx);
+        self.editor
+            .update(&mut self.ui, &mut self.file_watcher, ctx);
 
         self.layout(window, gfx, time);
 

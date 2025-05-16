@@ -4,10 +4,11 @@ use crate::{
     ctx::Ctx,
     geometry::position::Position,
     lsp::types::SignatureHelp,
+    platform::gfx::Gfx,
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
         core::{Ui, WidgetId},
-        popup::PopupAlignment,
+        popup::{Popup, PopupAlignment},
         tab::Tab,
     },
 };
@@ -17,8 +18,8 @@ pub struct SignatureHelpPopup {
     help_position: Position,
     help: Option<SignatureHelp>,
 
-    // TODO: Layout based on 1/2 popups. Two widgets?
-    widget_id: WidgetId,
+    label_popup: Popup,
+    documentation_popup: Popup,
 }
 
 impl SignatureHelpPopup {
@@ -29,18 +30,42 @@ impl SignatureHelpPopup {
             help: None,
 
             // TODO: Do visiblity updates for this if necessary.
-            widget_id: ui.new_widget(parent_id, Default::default()),
+            label_popup: Popup::new(parent_id, ui),
+            documentation_popup: Popup::new(parent_id, ui),
         }
+    }
+
+    pub fn layout(&mut self, tab: &Tab, doc: &Doc, ui: &mut Ui, gfx: &mut Gfx) -> Option<()> {
+        let position = doc.cursor(CursorIndex::Main).position;
+
+        let mut position = doc.position_to_visual(position, tab.camera.position(), gfx);
+        position = position.offset_by(tab.doc_bounds());
+
+        if ui.is_visible(self.documentation_popup.widget_id()) {
+            self.documentation_popup
+                .layout(position, PopupAlignment::Above, ui, gfx);
+
+            let documentation_bounds = ui.widget(self.documentation_popup.widget_id()).bounds;
+
+            position.x = documentation_bounds.x + gfx.glyph_width();
+            position.y -= documentation_bounds.height - gfx.border_width();
+        }
+
+        self.label_popup
+            .layout(position, PopupAlignment::Above, ui, gfx);
+
+        Some(())
     }
 
     pub fn update(
         &mut self,
         (trigger_char, retrigger_char): (Option<char>, Option<char>),
         doc: &mut Doc,
+        ui: &mut Ui,
         ctx: &mut Ctx,
     ) {
         if Some(self.help_path.as_path()) != doc.path().some_path() {
-            self.clear();
+            self.clear(ui);
         }
 
         let position = doc.cursor(CursorIndex::Main).position;
@@ -63,42 +88,12 @@ impl SignatureHelpPopup {
         }
     }
 
-    pub fn draw(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
-        let position = doc.cursor(CursorIndex::Main).position;
-
-        let signature_help = self.help.as_ref()?;
-        let active_signature = signature_help
-            .signatures
-            .get(signature_help.active_signature)?;
-
-        let mut position = doc.position_to_visual(position, tab.camera.position(), ctx.gfx);
-        position = position.offset_by(tab.doc_bounds());
-
+    pub fn draw(&self, ui: &Ui, ctx: &mut Ctx) -> Option<()> {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        // if let Some(documentation) = &active_signature.documentation {
-        //     let documentation_bounds = draw_popup(
-        //         documentation.text(),
-        //         position,
-        //         PopupAlignment::Above,
-        //         theme.normal,
-        //         theme,
-        //         gfx,
-        //     );
-
-        //     position.x = documentation_bounds.x + gfx.glyph_width();
-        //     position.y -= documentation_bounds.height - gfx.border_width();
-        // }
-
-        // draw_popup(
-        //     &active_signature.label,
-        //     position,
-        //     PopupAlignment::Above,
-        //     theme.subtle,
-        //     theme,
-        //     gfx,
-        // );
+        self.documentation_popup.draw(theme.normal, theme, ui, gfx);
+        self.label_popup.draw(theme.subtle, theme, ui, gfx);
 
         Some(())
     }
@@ -138,15 +133,37 @@ impl SignatureHelpPopup {
         (trigger_char, retrigger_char)
     }
 
-    pub fn lsp_set_signature_help(&mut self, help: Option<SignatureHelp>) {
+    pub fn lsp_set_signature_help(
+        &mut self,
+        help: Option<SignatureHelp>,
+        ui: &mut Ui,
+    ) -> Option<()> {
         self.help = help;
+
+        self.label_popup.hide(ui);
+        self.documentation_popup.hide(ui);
+
+        let signature_help = self.help.as_ref()?;
+        let active_signature = signature_help
+            .signatures
+            .get(signature_help.active_signature)?;
+
+        self.label_popup.show(&active_signature.label, ui);
+
+        let documentation = active_signature.documentation.as_ref()?;
+        self.documentation_popup.show(documentation.text(), ui);
+
+        Some(())
     }
 
     pub fn is_open(&self) -> bool {
         self.help.is_some()
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self, ui: &mut Ui) {
         self.help = None;
+
+        self.label_popup.hide(ui);
+        self.documentation_popup.hide(ui);
     }
 }

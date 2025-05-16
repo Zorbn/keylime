@@ -120,7 +120,7 @@ impl Lsp {
 
                 editor
                     .completion_list
-                    .lsp_resolve_completion_item(message.id, item);
+                    .lsp_resolve_completion_item(message.id, item, ui);
             }
             MessageResult::CodeAction(results) => {
                 let doc = doc?;
@@ -211,7 +211,7 @@ impl Lsp {
             MessageResult::SignatureHelp(signature_help) => {
                 editor
                     .signature_help_popup
-                    .lsp_set_signature_help(signature_help);
+                    .lsp_set_signature_help(signature_help, ui);
             }
             MessageResult::Hover(hover) => {
                 editor.lsp_set_hover(hover, path.as_ref()?);
