@@ -82,7 +82,7 @@ impl CommandPalette {
         let widget_id = ui.new_widget(
             parent_id,
             WidgetSettings {
-                is_visible: true,
+                is_shown: true,
                 ..Default::default()
             },
         );
@@ -93,7 +93,7 @@ impl CommandPalette {
             doc: Doc::new(None, None, DocKind::SingleLine),
             last_updated_version: None,
 
-            result_list: ResultList::new(MAX_VISIBLE_RESULTS, widget_id, ui),
+            result_list: ResultList::new(MAX_VISIBLE_RESULTS, true, widget_id, ui),
 
             title_bounds: Rect::ZERO,
             input_bounds: Rect::ZERO,
@@ -207,7 +207,7 @@ impl CommandPalette {
             self.mode = Some(mode);
         }
 
-        let result_input = self.result_list.update(true, true, ctx);
+        let result_input = self.result_list.update(ctx);
 
         match result_input {
             ResultListInput::None => {}

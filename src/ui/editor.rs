@@ -59,8 +59,8 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
-        let widget_id = ui.new_widget(parent_id, Default::default());
+    pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
+        let widget_id = ctx.ui.new_widget(parent_id, Default::default());
 
         let mut editor = Self {
             doc_list: SlotList::new(),
@@ -70,13 +70,13 @@ impl Editor {
             handled_position: None,
             handled_path: None,
 
-            examine_popup: ExaminePopup::new(widget_id, ui),
-            signature_help_popup: SignatureHelpPopup::new(widget_id, ui),
-            completion_list: CompletionList::new(widget_id, ui),
+            examine_popup: ExaminePopup::new(widget_id, ctx.ui),
+            signature_help_popup: SignatureHelpPopup::new(widget_id, ctx.ui),
+            completion_list: CompletionList::new(widget_id, ctx.ui),
             widget_id,
         };
 
-        editor.add_pane(ui);
+        editor.add_pane(ctx);
 
         editor
     }
@@ -110,6 +110,15 @@ impl Editor {
         self.completion_list.layout(cursor_visual_position, ctx);
         self.examine_popup.layout(tab, doc, ctx);
         self.signature_help_popup.layout(tab, doc, ctx);
+
+        let is_cursor_visible = self.is_cursor_visible(ctx);
+
+        ctx.ui
+            .set_shown(self.completion_list.widget_id(), is_cursor_visible);
+        ctx.ui
+            .set_shown(self.examine_popup.widget_id(), is_cursor_visible);
+        ctx.ui
+            .set_shown(self.signature_help_popup.widget_id(), is_cursor_visible);
     }
 
     pub fn update(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
@@ -138,7 +147,7 @@ impl Editor {
         if !ctx.ui.is_in_focused_hierarchy(self.widget_id) {
             self.examine_popup.clear(ctx.ui);
             self.signature_help_popup.clear(ctx.ui);
-            self.completion_list.clear();
+            self.completion_list.clear(ctx.ui);
         }
     }
 
@@ -157,7 +166,7 @@ impl Editor {
                         }
                     }
                 }
-                action_name!(NewPane) => self.add_pane(ctx.ui),
+                action_name!(NewPane) => self.add_pane(ctx),
                 action_name!(ClosePane) => self.close_pane(ctx),
                 action_name!(PreviousPane) => self.panes.focus_previous(ctx.ui),
                 action_name!(NextPane) => self.panes.focus_next(ctx.ui),
@@ -203,14 +212,13 @@ impl Editor {
     }
 
     fn pre_pane_update(&mut self, ctx: &mut Ctx) {
-        let is_cursor_visible = self.is_cursor_visible(ctx);
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
 
         let Some((_, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) else {
             return;
         };
 
-        let result = self.completion_list.update(doc, is_cursor_visible, ctx);
+        let result = self.completion_list.update(doc, ctx);
 
         self.lsp_handle_completion_list_result(result, ctx);
     }
@@ -224,7 +232,7 @@ impl Editor {
 
         let Some((_, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) else {
             self.signature_help_popup.clear(ctx.ui);
-            self.completion_list.clear();
+            self.completion_list.clear(ctx.ui);
 
             return;
         };
@@ -378,10 +386,6 @@ impl Editor {
             pane.draw(None, &mut self.doc_list, ctx);
         }
 
-        if !self.is_cursor_visible(ctx) {
-            return;
-        }
-
         self.completion_list.draw(ctx);
 
         if self.signature_help_popup.is_open() {
@@ -407,10 +411,13 @@ impl Editor {
         tab.doc_bounds().contains_position(cursor_visual_position)
     }
 
-    fn add_pane(&mut self, ui: &mut Ui) {
-        let pane = EditorPane::new(&mut self.doc_list, self.widget_id, ui);
+    fn add_pane(&mut self, ctx: &mut Ctx) {
+        let pane = EditorPane::new(&mut self.doc_list, self.widget_id, ctx);
 
-        self.panes.add(pane, ui);
+        self.panes.add(pane, ctx.ui);
+
+        let bounds = ctx.ui.widget(self.widget_id).bounds;
+        self.layout(bounds, ctx);
     }
 
     fn close_pane(&mut self, ctx: &mut Ctx) {

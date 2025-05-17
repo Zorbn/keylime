@@ -5,7 +5,7 @@ use crate::{
     pool::Pooled,
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
-        core::{Ui, WidgetId},
+        core::{Ui, WidgetId, WidgetSettings},
         popup::{Popup, PopupAlignment},
         tab::Tab,
     },
@@ -26,6 +26,8 @@ enum ExaminePopupKind {
 }
 
 pub struct ExaminePopup {
+    widget_id: WidgetId,
+
     popup: Popup,
     kind: ExaminePopupKind,
     position: Position,
@@ -33,20 +35,20 @@ pub struct ExaminePopup {
 
 impl ExaminePopup {
     pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
+        let widget_id = ui.new_widget(parent_id, WidgetSettings::default());
+
         Self {
-            popup: Popup::new(parent_id, ui),
+            widget_id,
+
+            popup: Popup::new(widget_id, ui),
             kind: ExaminePopupKind::None,
             position: Position::ZERO,
         }
     }
 
     pub fn layout(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
-        if self.kind == ExaminePopupKind::None {
-            ctx.ui.hide(self.popup.widget_id());
-            return;
-        } else {
-            ctx.ui.show(self.popup.widget_id());
-        }
+        ctx.ui
+            .set_shown(self.popup.widget_id(), self.kind != ExaminePopupKind::None);
 
         let mut position = doc.position_to_visual(self.position, tab.camera.position(), ctx.gfx);
         position = position.offset_by(tab.doc_bounds());
@@ -122,5 +124,9 @@ impl ExaminePopup {
                 self.kind = ExaminePopupKind::Hover;
             }
         }
+    }
+
+    pub fn widget_id(&self) -> WidgetId {
+        self.widget_id
     }
 }

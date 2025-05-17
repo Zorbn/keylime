@@ -24,14 +24,14 @@ impl WidgetId {
 
 #[derive(Debug)]
 pub struct WidgetSettings {
-    pub is_visible: bool,
+    pub is_shown: bool,
     pub is_component: bool,
 }
 
 impl Default for WidgetSettings {
     fn default() -> Self {
         Self {
-            is_visible: true,
+            is_shown: true,
             is_component: false,
         }
     }
@@ -247,12 +247,20 @@ impl Ui {
     }
 
     pub fn show(&mut self, widget_id: WidgetId) {
-        self.widget_mut(widget_id).settings.is_visible = true;
+        self.widget_mut(widget_id).settings.is_shown = true;
     }
 
     pub fn hide(&mut self, widget_id: WidgetId) {
         self.remove_from_focused(widget_id);
-        self.widget_mut(widget_id).settings.is_visible = false;
+        self.widget_mut(widget_id).settings.is_shown = false;
+    }
+
+    pub fn set_shown(&mut self, widget_id: WidgetId, is_shown: bool) {
+        if is_shown {
+            self.show(widget_id);
+        } else {
+            self.hide(widget_id);
+        }
     }
 
     pub fn is_focused(&self, widget_id: WidgetId) -> bool {
@@ -262,7 +270,7 @@ impl Ui {
     pub fn is_in_focused_hierarchy(&self, widget_id: WidgetId) -> bool {
         let widget = self.widget(widget_id);
 
-        if widget.settings.is_component {
+        if widget.settings.is_component && widget.settings.is_shown {
             if let Some(parent_id) = widget.parent_id {
                 return self.is_in_focused_hierarchy(parent_id);
             }
@@ -304,7 +312,7 @@ impl Ui {
     pub fn is_visible(&self, widget_id: WidgetId) -> bool {
         let widget = self.widget(widget_id);
 
-        if !widget.settings.is_visible {
+        if !widget.settings.is_shown {
             return false;
         }
 

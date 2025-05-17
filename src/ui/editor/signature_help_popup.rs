@@ -6,13 +6,15 @@ use crate::{
     lsp::types::SignatureHelp,
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
-        core::{Ui, WidgetId},
+        core::{Ui, WidgetId, WidgetSettings},
         popup::{Popup, PopupAlignment},
         tab::Tab,
     },
 };
 
 pub struct SignatureHelpPopup {
+    widget_id: WidgetId,
+
     help_path: PathBuf,
     help_position: Position,
     help: Option<SignatureHelp>,
@@ -23,13 +25,17 @@ pub struct SignatureHelpPopup {
 
 impl SignatureHelpPopup {
     pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
+        let widget_id = ui.new_widget(parent_id, WidgetSettings::default());
+
         Self {
+            widget_id,
+
             help_path: PathBuf::new(),
             help_position: Position::ZERO,
             help: None,
 
-            label_popup: Popup::new(parent_id, ui),
-            documentation_popup: Popup::new(parent_id, ui),
+            label_popup: Popup::new(widget_id, ui),
+            documentation_popup: Popup::new(widget_id, ui),
         }
     }
 
@@ -160,5 +166,9 @@ impl SignatureHelpPopup {
 
         self.label_popup.hide(ui);
         self.documentation_popup.hide(ui);
+    }
+
+    pub fn widget_id(&self) -> WidgetId {
+        self.widget_id
     }
 }

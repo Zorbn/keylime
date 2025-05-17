@@ -2,11 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::{
     ctx::Ctx,
-    ui::{
-        core::{Ui, WidgetId},
-        pane::Pane,
-        slot_list::SlotList,
-    },
+    ui::{core::WidgetId, pane::Pane, slot_list::SlotList},
 };
 
 use super::{action_name, terminal_emulator::TerminalEmulator, Term, TerminalDocs};
@@ -16,17 +12,17 @@ pub struct TerminalPane {
 }
 
 impl TerminalPane {
-    pub fn new(term_list: &mut SlotList<Term>, parent_id: WidgetId, ui: &mut Ui) -> Self {
+    pub fn new(term_list: &mut SlotList<Term>, parent_id: WidgetId, ctx: &mut Ctx) -> Self {
         let mut inner = Pane::<Term>::new(
             |(docs, emulator)| emulator.doc(docs),
             |(docs, emulator)| emulator.doc_mut(docs),
             parent_id,
-            ui,
+            ctx.ui,
         );
 
         let term = Self::new_term();
         let doc_index = term_list.add(term);
-        inner.add_tab(doc_index, term_list);
+        inner.add_tab(doc_index, term_list, ctx);
 
         Self { inner }
     }
@@ -40,7 +36,7 @@ impl TerminalPane {
                     let term = Self::new_term();
                     let term_index = term_list.add(term);
 
-                    self.add_tab(term_index, term_list);
+                    self.add_tab(term_index, term_list, ctx);
                 }
                 action_name!(CloseTab) => {
                     if let Some(tab) = self.tabs.get_focused() {

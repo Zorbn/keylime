@@ -41,6 +41,8 @@ pub struct ResultList<T> {
     handled_focused_index: Option<usize>,
 
     max_visible_results: usize,
+    do_show_when_empty: bool,
+
     result_bounds: Rect,
     widget_id: WidgetId,
 
@@ -48,12 +50,19 @@ pub struct ResultList<T> {
 }
 
 impl<T> ResultList<T> {
-    pub fn new(max_visible_results: usize, parent_id: WidgetId, ui: &mut Ui) -> Self {
+    pub fn new(
+        max_visible_results: usize,
+        do_show_when_empty: bool,
+        parent_id: WidgetId,
+        ui: &mut Ui,
+    ) -> Self {
         Self {
             results: FocusList::new(),
             handled_focused_index: None,
 
             max_visible_results,
+            do_show_when_empty,
+
             result_bounds: Rect::ZERO,
             widget_id: ui.new_widget(
                 parent_id,
@@ -68,6 +77,11 @@ impl<T> ResultList<T> {
     }
 
     pub fn layout(&mut self, bounds: Rect, ui: &mut Ui, gfx: &Gfx) {
+        ui.set_shown(
+            self.widget_id,
+            self.do_show_when_empty || !self.results.is_empty(),
+        );
+
         self.result_bounds = Rect::new(0.0, 0.0, bounds.width, gfx.line_height() * 1.25);
 
         ui.widget_mut(self.widget_id).bounds = Rect::new(
@@ -84,22 +98,11 @@ impl<T> ResultList<T> {
         widget.bounds = widget.bounds.offset_by(bounds);
     }
 
-    pub fn update(
-        &mut self,
-        // TODO: Are these still necessary?
-        can_be_visible: bool,
-        can_be_focused: bool,
-        ctx: &mut Ctx,
-    ) -> ResultListInput {
+    pub fn update(&mut self, ctx: &mut Ctx) -> ResultListInput {
         let mut input = ResultListInput::None;
 
-        if can_be_visible && ctx.ui.is_visible(self.widget_id) {
-            self.handle_mouse_inputs(&mut input, ctx);
-        }
-
-        if can_be_focused && ctx.ui.is_in_focused_hierarchy(self.widget_id) {
-            self.handle_keybinds(&mut input, ctx);
-        }
+        self.handle_mouse_inputs(&mut input, ctx);
+        self.handle_keybinds(&mut input, ctx);
 
         input
     }
@@ -215,6 +218,10 @@ impl<T> ResultList<T> {
         ctx: &mut Ctx,
         mut display_result: impl FnMut(&'a T, &Theme) -> (&'a str, Color),
     ) {
+        if !ctx.ui.is_visible(self.widget_id) {
+            return;
+        }
+
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 

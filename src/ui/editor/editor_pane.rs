@@ -9,11 +9,7 @@ use crate::{
     normalizable::Normalizable,
     platform::dialog::{find_file, message, FindFileKind, MessageKind},
     text::doc::{Doc, DocKind},
-    ui::{
-        core::{Ui, WidgetId},
-        pane::Pane,
-        slot_list::SlotList,
-    },
+    ui::{core::WidgetId, pane::Pane, slot_list::SlotList},
 };
 
 use super::{
@@ -26,11 +22,11 @@ pub struct EditorPane {
 }
 
 impl EditorPane {
-    pub fn new(doc_list: &mut SlotList<Doc>, parent_id: WidgetId, ui: &mut Ui) -> Self {
-        let mut inner = Pane::new(|doc| doc, |doc| doc, parent_id, ui);
+    pub fn new(doc_list: &mut SlotList<Doc>, parent_id: WidgetId, ctx: &mut Ctx) -> Self {
+        let mut inner = Pane::new(|doc| doc, |doc| doc, parent_id, ctx.ui);
 
         let doc_index = doc_list.add(Doc::new(None, None, DocKind::MultiLine));
-        inner.add_tab(doc_index, doc_list);
+        inner.add_tab(doc_index, doc_list, ctx);
 
         Self { inner }
     }
@@ -129,7 +125,7 @@ impl EditorPane {
             }
         }
 
-        self.inner.add_tab(doc_index, doc_list);
+        self.inner.add_tab(doc_index, doc_list, ctx);
     }
 
     fn remove_tab(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) -> bool {

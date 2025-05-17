@@ -404,7 +404,7 @@ impl<T> Pane<T> {
         None
     }
 
-    pub fn add_tab(&mut self, data_index: usize, data_list: &mut SlotList<T>) {
+    pub fn add_tab(&mut self, data_index: usize, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
         let tab = Tab::new(data_index);
 
         data_list
@@ -414,6 +414,9 @@ impl<T> Pane<T> {
             .add_usage();
 
         self.tabs.add(tab);
+
+        let bounds = ctx.ui.widget(self.widget_id).bounds;
+        self.layout(bounds, data_list, ctx);
     }
 
     pub fn remove_tab(&mut self, data_list: &mut SlotList<T>) {

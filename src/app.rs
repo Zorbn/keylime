@@ -57,20 +57,31 @@ impl App {
         gfx.set_font(&config.font, config.font_size);
 
         let mut ui = Ui::new();
-        let editor = Editor::new(WidgetId::ROOT, &mut ui);
+        let mut lsp = Lsp::new();
 
-        let (pane, _) = editor.last_focused_pane_and_doc_list(&ui);
-        ui.focus(pane.widget_id());
+        let mut ctx = Ctx {
+            window,
+            gfx,
+            ui: &mut ui,
+            config: &config,
+            lsp: &mut lsp,
+            time,
+        };
+
+        let editor = Editor::new(WidgetId::ROOT, &mut ctx);
+
+        let (pane, _) = editor.last_focused_pane_and_doc_list(ctx.ui);
+        ctx.ui.focus(pane.widget_id());
 
         let mut app = Self {
             editor,
-            terminal: Terminal::new(WidgetId::ROOT, &mut ui),
+            terminal: Terminal::new(WidgetId::ROOT, &mut ctx),
             status_bar: StatusBar::new(WidgetId::ROOT, &mut ui),
             command_palette: CommandPalette::new(WidgetId::ROOT, &mut ui),
             ui,
 
             file_watcher: FileWatcher::new(),
-            lsp: Lsp::new(),
+            lsp,
 
             config_dir,
             config,
@@ -119,14 +130,11 @@ impl App {
         self.command_palette.update(&mut self.editor, ctx);
         self.editor.update(&mut self.file_watcher, ctx);
 
-        self.layout(window, gfx, time);
-
-        let ctx = ctx_for_app!(self, window, gfx, time);
-
-        self.terminal.update_output(ctx);
         self.terminal.update_camera(ctx, dt);
         self.command_palette.update_camera(ctx, dt);
         self.editor.update_camera(ctx, dt);
+
+        self.layout(window, gfx, time);
     }
 
     pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {

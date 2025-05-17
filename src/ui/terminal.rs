@@ -10,10 +10,7 @@ use crate::{
     text::doc::{Doc, DocKind},
 };
 
-use super::{
-    core::{Ui, WidgetId},
-    slot_list::SlotList,
-};
+use super::{core::WidgetId, slot_list::SlotList};
 
 mod color_table;
 mod escape_sequences;
@@ -51,11 +48,11 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
+    pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
         let mut term_list = SlotList::new();
 
-        let widget_id = ui.new_widget(parent_id, Default::default());
-        let pane = TerminalPane::new(&mut term_list, widget_id, ui);
+        let widget_id = ctx.ui.new_widget(parent_id, Default::default());
+        let pane = TerminalPane::new(&mut term_list, widget_id, ctx);
 
         Self {
             pane,
@@ -88,10 +85,12 @@ impl Terminal {
         while let Some(action) = global_action_handler.next(ctx.window) {
             match action {
                 action_name!(FocusTerminal) => {
-                    if ctx.ui.is_focused(self.widget_id) {
-                        ctx.ui.unfocus(self.widget_id);
+                    let pane_widget_id = self.pane.widget_id();
+
+                    if ctx.ui.is_focused(pane_widget_id) {
+                        ctx.ui.unfocus(pane_widget_id);
                     } else {
-                        ctx.ui.focus(self.widget_id);
+                        ctx.ui.focus(pane_widget_id);
                     }
                 }
                 _ => global_action_handler.unprocessed(ctx.window, action),
@@ -105,9 +104,7 @@ impl Terminal {
         {
             emulator.update_input(self.widget_id, docs, tab, ctx);
         }
-    }
 
-    pub fn update_output(&mut self, ctx: &mut Ctx) {
         for tab in self.pane.tabs.iter_mut() {
             let term_index = tab.data_index();
 

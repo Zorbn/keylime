@@ -14,7 +14,7 @@ use crate::{
     pool::Pooled,
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
-        core::{Ui, WidgetId},
+        core::{Ui, WidgetId, WidgetSettings},
         popup::{Popup, PopupAlignment},
         result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     },
@@ -58,6 +58,8 @@ pub struct CompletionListResult {
 }
 
 pub struct CompletionList {
+    widget_id: WidgetId,
+
     result_list: ResultList<CompletionResult>,
     // Prevents the result list from shrinking as it's being scrolled through.
     min_width: f32,
@@ -73,8 +75,18 @@ pub struct CompletionList {
 
 impl CompletionList {
     pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
+        let widget_id = ui.new_widget(
+            parent_id,
+            WidgetSettings {
+                is_component: true,
+                ..Default::default()
+            },
+        );
+
         Self {
-            result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS, parent_id, ui),
+            widget_id,
+
+            result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS, false, widget_id, ui),
             min_width: 0.0,
             prefix: String::new(),
 
@@ -82,8 +94,8 @@ impl CompletionList {
 
             lsp_expected_responses: HashMap::new(),
 
-            detail_popup: Popup::new(parent_id, ui),
-            documentation_popup: Popup::new(parent_id, ui),
+            detail_popup: Popup::new(widget_id, ui),
+            documentation_popup: Popup::new(widget_id, ui),
         }
     }
 
@@ -144,17 +156,8 @@ impl CompletionList {
             .layout(position, PopupAlignment::TopLeft, ctx);
     }
 
-    pub fn update(
-        &mut self,
-        doc: &mut Doc,
-        is_visible: bool,
-        ctx: &mut Ctx,
-    ) -> Option<CompletionListResult> {
-        let are_results_focused = !self.result_list.is_empty();
-
-        let result_input = self
-            .result_list
-            .update(is_visible, are_results_focused, ctx);
+    pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) -> Option<CompletionListResult> {
+        let result_input = self.result_list.update(ctx);
 
         let mut completion_result = None;
 
@@ -164,9 +167,9 @@ impl CompletionList {
                 kind: ResultListSubmitKind::Normal,
             } => {
                 completion_result = self.perform_result_action(doc, ctx);
-                self.clear();
+                self.clear(ctx.ui);
             }
-            ResultListInput::Close => self.clear(),
+            ResultListInput::Close => self.clear(ctx.ui),
             _ => {}
         }
 
@@ -214,7 +217,7 @@ impl CompletionList {
         }
 
         if let Some(documentation) = &item.documentation {
-            self.detail_popup.show(documentation.text(), ui);
+            self.documentation_popup.show(documentation.text(), ui);
         }
     }
 
@@ -229,15 +232,14 @@ impl CompletionList {
     }
 
     fn should_open(&self, ctx: &mut Ctx) -> bool {
-        let widget_id = self.result_list.widget_id();
-        let mut grapheme_handler = ctx.ui.grapheme_handler(widget_id, ctx.window);
+        let mut grapheme_handler = ctx.ui.grapheme_handler(self.widget_id(), ctx.window);
 
         if grapheme_handler.next(ctx.window).is_some() {
             grapheme_handler.unprocessed(ctx.window);
             return true;
         }
 
-        let mut action_handler = ctx.ui.action_handler(widget_id, ctx.window);
+        let mut action_handler = ctx.ui.action_handler(self.widget_id(), ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             action_handler.unprocessed(ctx.window, action);
@@ -298,8 +300,9 @@ impl CompletionList {
         &mut self,
         mut items: Vec<DecodedCompletionItem>,
         needs_resolve: bool,
+        ui: &mut Ui,
     ) {
-        self.clear();
+        self.clear(ui);
 
         items.retain(|item| item.filter_text().starts_with(&self.prefix));
         items.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
@@ -318,8 +321,12 @@ impl CompletionList {
         }
     }
 
-    pub fn lsp_update_code_action_results(&mut self, results: Vec<DecodedCodeActionResult>) {
-        self.clear();
+    pub fn lsp_update_code_action_results(
+        &mut self,
+        results: Vec<DecodedCodeActionResult>,
+        ui: &mut Ui,
+    ) {
+        self.clear(ui);
 
         for result in results {
             match result {
@@ -352,7 +359,7 @@ impl CompletionList {
         if !self.should_open {
             if did_cursor_move {
                 self.prefix.clear();
-                self.clear();
+                self.clear(ctx.ui);
             }
 
             return None;
@@ -361,7 +368,7 @@ impl CompletionList {
         self.prefix.clear();
 
         let Some(prefix) = doc.get_completion_prefix(ctx.gfx) else {
-            self.clear();
+            self.clear(ctx.ui);
 
             return None;
         };
@@ -374,7 +381,7 @@ impl CompletionList {
             return Some(());
         }
 
-        self.clear();
+        self.clear(ctx.ui);
 
         if !self.prefix.is_empty() {
             doc.tokens().traverse(&self.prefix, |result| {
@@ -387,9 +394,11 @@ impl CompletionList {
         Some(())
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self, ui: &mut Ui) {
         self.result_list.drain();
         self.lsp_expected_responses.clear();
+
+        self.update_popups(ui);
 
         self.min_width = 0.0;
     }
@@ -454,5 +463,9 @@ impl CompletionList {
             doc.delete(start, end, ctx);
             doc.insert(start, insert_text, ctx);
         }
+    }
+
+    pub fn widget_id(&self) -> WidgetId {
+        self.widget_id
     }
 }

@@ -29,7 +29,7 @@ impl Popup {
             widget_id: ui.new_widget(
                 parent_id,
                 WidgetSettings {
-                    is_visible: false,
+                    is_shown: false,
                     ..Default::default()
                 },
             ),
