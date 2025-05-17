@@ -25,7 +25,6 @@ use crate::{
             find_in_files_mode::FindInFilesMode, references_mode::ReferencesMode,
             rename_mode::RenameMode, CommandPalette,
         },
-        core::Ui,
         editor::Editor,
     },
 };
@@ -64,14 +63,9 @@ impl Lsp {
         self.clear();
     }
 
-    pub fn update(
-        editor: &mut Editor,
-        command_palette: &mut CommandPalette,
-        ui: &mut Ui,
-        ctx: &mut Ctx,
-    ) {
+    pub fn update(editor: &mut Editor, command_palette: &mut CommandPalette, ctx: &mut Ctx) {
         while let Some(polled_message) = ctx.lsp.poll() {
-            Self::handle_message(polled_message, editor, command_palette, ui, ctx);
+            Self::handle_message(polled_message, editor, command_palette, ctx);
         }
     }
 
@@ -79,7 +73,6 @@ impl Lsp {
         (language_index, message): (usize, Message),
         editor: &mut Editor,
         command_palette: &mut CommandPalette,
-        ui: &mut Ui,
         ctx: &mut Ctx,
     ) -> Option<()> {
         let server = ctx.lsp.servers.get_mut(&language_index)?.as_mut()?;
@@ -120,7 +113,7 @@ impl Lsp {
 
                 editor
                     .completion_list
-                    .lsp_resolve_completion_item(message.id, item, ui);
+                    .lsp_resolve_completion_item(message.id, item, ctx.ui);
             }
             MessageResult::CodeAction(results) => {
                 let doc = doc?;
@@ -141,7 +134,7 @@ impl Lsp {
                     STRING_POOL.init_item(|placeholder| doc.collect_string(start, end, placeholder))
                 });
 
-                command_palette.open(ui, Box::new(RenameMode::new(placeholder)), editor, ctx);
+                command_palette.open(Box::new(RenameMode::new(placeholder)), editor, ctx);
             }
             MessageResult::Rename(workspace_edit) => {
                 let doc = doc?;
@@ -187,14 +180,13 @@ impl Lsp {
                 }
 
                 command_palette.open(
-                    ui,
                     Box::new(ReferencesMode::new(command_palette_results)),
                     editor,
                     ctx,
                 );
             }
             MessageResult::Definition { path, range } => {
-                let (pane, doc_list) = editor.focused_pane_and_doc_list_mut();
+                let (pane, doc_list) = editor.last_focused_pane_and_doc_list_mut(ctx.ui);
 
                 if pane.open_file(&path, doc_list, ctx).is_err() {
                     return None;
@@ -211,10 +203,10 @@ impl Lsp {
             MessageResult::SignatureHelp(signature_help) => {
                 editor
                     .signature_help_popup
-                    .lsp_set_signature_help(signature_help, ui);
+                    .lsp_set_signature_help(signature_help, ctx.ui);
             }
             MessageResult::Hover(hover) => {
-                editor.lsp_set_hover(hover, path.as_ref()?, ui);
+                editor.lsp_set_hover(hover, path.as_ref()?, ctx.ui);
             }
             MessageResult::Formatting(edits) => {
                 let doc = doc?;

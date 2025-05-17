@@ -11,7 +11,6 @@ use crate::{
         },
         LspSentRequest,
     },
-    platform::gfx::Gfx,
     pool::Pooled,
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
@@ -92,7 +91,7 @@ impl CompletionList {
         self.result_list.is_animating()
     }
 
-    pub fn layout(&mut self, visual_position: VisualPosition, ui: &mut Ui, gfx: &mut Gfx) {
+    pub fn layout(&mut self, visual_position: VisualPosition, ctx: &mut Ctx) {
         let min_y = self.result_list.min_visible_result_index();
         let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
         let mut longest_visible_result = 0;
@@ -107,6 +106,8 @@ impl CompletionList {
             longest_visible_result = longest_visible_result.max(label.len());
         }
 
+        let gfx = &ctx.gfx;
+
         let width = (longest_visible_result as f32 + 2.0) * gfx.glyph_width();
         let width = width.max(self.min_width);
 
@@ -120,11 +121,11 @@ impl CompletionList {
                 width,
                 0.0,
             ),
-            ui,
+            ctx.ui,
             gfx,
         );
 
-        let result_list_bounds = ui.widget(self.result_list.widget_id()).bounds;
+        let result_list_bounds = ctx.ui.widget(self.result_list.widget_id()).bounds;
 
         let mut position = VisualPosition::new(
             result_list_bounds.right() - gfx.border_width(),
@@ -132,20 +133,19 @@ impl CompletionList {
         );
 
         self.detail_popup
-            .layout(position, PopupAlignment::TopLeft, ui, gfx);
+            .layout(position, PopupAlignment::TopLeft, ctx);
 
-        if ui.is_visible(self.detail_popup.widget_id()) {
+        if ctx.ui.is_visible(self.detail_popup.widget_id()) {
             position.y +=
-                ui.widget(self.detail_popup.widget_id()).bounds.height - gfx.border_width();
+                ctx.ui.widget(self.detail_popup.widget_id()).bounds.height - ctx.gfx.border_width();
         }
 
         self.documentation_popup
-            .layout(position, PopupAlignment::TopLeft, ui, gfx);
+            .layout(position, PopupAlignment::TopLeft, ctx);
     }
 
     pub fn update(
         &mut self,
-        ui: &mut Ui,
         doc: &mut Doc,
         is_visible: bool,
         ctx: &mut Ctx,
@@ -154,7 +154,7 @@ impl CompletionList {
 
         let result_input = self
             .result_list
-            .update(ui, ctx.window, is_visible, are_results_focused);
+            .update(is_visible, are_results_focused, ctx);
 
         let mut completion_result = None;
 
@@ -184,9 +184,9 @@ impl CompletionList {
             }
         }
 
-        self.update_popups(ui);
+        self.update_popups(ctx.ui);
 
-        self.should_open = self.should_open(ui, ctx);
+        self.should_open = self.should_open(ctx);
 
         completion_result
     }
@@ -228,16 +228,16 @@ impl CompletionList {
         Some(language_server.completion_item_resolve(item.clone(), doc))
     }
 
-    fn should_open(&mut self, ui: &Ui, ctx: &mut Ctx) -> bool {
+    fn should_open(&mut self, ctx: &mut Ctx) -> bool {
         let widget_id = self.result_list.widget_id();
-        let mut grapheme_handler = ui.grapheme_handler(widget_id, ctx.window);
+        let mut grapheme_handler = ctx.ui.grapheme_handler(widget_id, ctx.window);
 
         if grapheme_handler.next(ctx.window).is_some() {
             grapheme_handler.unprocessed(ctx.window);
             return true;
         }
 
-        let mut action_handler = ui.action_handler(widget_id, ctx.window);
+        let mut action_handler = ctx.ui.action_handler(widget_id, ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             action_handler.unprocessed(ctx.window, action);
@@ -254,15 +254,14 @@ impl CompletionList {
         self.result_list.update_camera(ui, dt);
     }
 
-    pub fn draw(&mut self, ui: &Ui, ctx: &mut Ctx) {
+    pub fn draw(&mut self, ctx: &mut Ctx) {
         self.result_list
-            .draw(ui, ctx, |result, theme| (result.label(), theme.normal));
+            .draw(ctx, |result, theme| (result.label(), theme.normal));
 
-        let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        self.detail_popup.draw(theme.subtle, theme, ui, gfx);
-        self.documentation_popup.draw(theme.normal, theme, ui, gfx);
+        self.detail_popup.draw(theme.subtle, ctx);
+        self.documentation_popup.draw(theme.normal, ctx);
     }
 
     pub fn lsp_resolve_completion_item(

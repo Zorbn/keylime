@@ -40,22 +40,21 @@ impl ExaminePopup {
         }
     }
 
-    pub fn layout(&mut self, tab: &Tab, doc: &Doc, ui: &mut Ui, ctx: &mut Ctx) {
+    pub fn layout(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
         if self.kind == ExaminePopupKind::None {
-            ui.hide(self.popup.widget_id());
+            ctx.ui.hide(self.popup.widget_id());
             return;
         } else {
-            ui.show(self.popup.widget_id());
+            ctx.ui.show(self.popup.widget_id());
         }
 
         let mut position = doc.position_to_visual(self.position, tab.camera.position(), ctx.gfx);
         position = position.offset_by(tab.doc_bounds());
 
-        self.popup
-            .layout(position, PopupAlignment::Above, ui, ctx.gfx);
+        self.popup.layout(position, PopupAlignment::Above, ctx);
     }
 
-    pub fn update(&mut self, did_cursor_move: bool, doc: &Doc, ui: &mut Ui, ctx: &mut Ctx) {
+    pub fn update(&mut self, did_cursor_move: bool, doc: &Doc, ctx: &mut Ctx) {
         let position = doc.cursor(CursorIndex::Main).position;
 
         let needs_clear = match self.kind {
@@ -65,18 +64,17 @@ impl ExaminePopup {
         };
 
         if needs_clear {
-            self.clear(ui);
+            self.clear(ctx.ui);
         }
     }
 
-    pub fn draw(&self, ui: &Ui, ctx: &mut Ctx) {
-        let gfx = &mut ctx.gfx;
+    pub fn draw(&self, ctx: &mut Ctx) {
         let theme = &ctx.config.theme;
 
-        self.popup.draw(theme.normal, theme, ui, gfx);
+        self.popup.draw(theme.normal, ctx);
     }
 
-    pub fn open(&mut self, doc: &mut Doc, ui: &mut Ui, ctx: &mut Ctx) {
+    pub fn open(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
         let position = doc.cursor(CursorIndex::Main).position;
 
         if let Some(diagnostic) = ctx
@@ -84,7 +82,7 @@ impl ExaminePopup {
             .get_diagnostic_at(position, doc)
             .filter(|_| self.kind != ExaminePopupKind::Diagnostic)
         {
-            self.set_data(ExaminePopupData::Diagnostic(diagnostic), doc, ui);
+            self.set_data(ExaminePopupData::Diagnostic(diagnostic), doc, ctx.ui);
         } else {
             doc.lsp_hover(ctx);
         }

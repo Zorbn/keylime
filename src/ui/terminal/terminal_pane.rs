@@ -16,10 +16,12 @@ pub struct TerminalPane {
 }
 
 impl TerminalPane {
-    pub fn new(term_list: &mut SlotList<Term>) -> Self {
+    pub fn new(term_list: &mut SlotList<Term>, parent_id: WidgetId, ui: &mut Ui) -> Self {
         let mut inner = Pane::<Term>::new(
             |(docs, emulator)| emulator.doc(docs),
             |(docs, emulator)| emulator.doc_mut(docs),
+            parent_id,
+            ui,
         );
 
         let term = Self::new_term();
@@ -29,14 +31,8 @@ impl TerminalPane {
         Self { inner }
     }
 
-    pub fn update(
-        &mut self,
-        widget_id: WidgetId,
-        ui: &Ui,
-        term_list: &mut SlotList<Term>,
-        ctx: &mut Ctx,
-    ) {
-        let mut action_handler = ui.action_handler(widget_id, ctx.window);
+    pub fn update(&mut self, term_list: &mut SlotList<Term>, ctx: &mut Ctx) {
+        let mut action_handler = ctx.ui.action_handler(self.widget_id(), ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
@@ -63,7 +59,7 @@ impl TerminalPane {
             }
         }
 
-        self.inner.update(widget_id, ui, ctx.window);
+        self.inner.update(ctx);
     }
 
     fn new_term() -> Term {

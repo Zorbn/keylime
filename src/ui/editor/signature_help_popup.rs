@@ -4,7 +4,6 @@ use crate::{
     ctx::Ctx,
     geometry::position::Position,
     lsp::types::SignatureHelp,
-    platform::gfx::Gfx,
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
         core::{Ui, WidgetId},
@@ -34,24 +33,24 @@ impl SignatureHelpPopup {
         }
     }
 
-    pub fn layout(&mut self, tab: &Tab, doc: &Doc, ui: &mut Ui, gfx: &mut Gfx) -> Option<()> {
+    pub fn layout(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
         let position = doc.cursor(CursorIndex::Main).position;
 
-        let mut position = doc.position_to_visual(position, tab.camera.position(), gfx);
+        let mut position = doc.position_to_visual(position, tab.camera.position(), ctx.gfx);
         position = position.offset_by(tab.doc_bounds());
 
-        if ui.is_visible(self.documentation_popup.widget_id()) {
+        if ctx.ui.is_visible(self.documentation_popup.widget_id()) {
             self.documentation_popup
-                .layout(position, PopupAlignment::Above, ui, gfx);
+                .layout(position, PopupAlignment::Above, ctx);
 
-            let documentation_bounds = ui.widget(self.documentation_popup.widget_id()).bounds;
+            let documentation_bounds = ctx.ui.widget(self.documentation_popup.widget_id()).bounds;
 
-            position.x = documentation_bounds.x + gfx.glyph_width();
-            position.y -= documentation_bounds.height - gfx.border_width();
+            position.x = documentation_bounds.x + ctx.gfx.glyph_width();
+            position.y -= documentation_bounds.height - ctx.gfx.border_width();
         }
 
         self.label_popup
-            .layout(position, PopupAlignment::Above, ui, gfx);
+            .layout(position, PopupAlignment::Above, ctx);
 
         Some(())
     }
@@ -60,11 +59,10 @@ impl SignatureHelpPopup {
         &mut self,
         (trigger_char, retrigger_char): (Option<char>, Option<char>),
         doc: &mut Doc,
-        ui: &mut Ui,
         ctx: &mut Ctx,
     ) {
         if Some(self.help_path.as_path()) != doc.path().some_path() {
-            self.clear(ui);
+            self.clear(ctx.ui);
         }
 
         let position = doc.cursor(CursorIndex::Main).position;
@@ -87,19 +85,17 @@ impl SignatureHelpPopup {
         }
     }
 
-    pub fn draw(&self, ui: &Ui, ctx: &mut Ctx) -> Option<()> {
-        let gfx = &mut ctx.gfx;
+    pub fn draw(&self, ctx: &mut Ctx) -> Option<()> {
         let theme = &ctx.config.theme;
 
-        self.documentation_popup.draw(theme.normal, theme, ui, gfx);
-        self.label_popup.draw(theme.subtle, theme, ui, gfx);
+        self.documentation_popup.draw(theme.normal, ctx);
+        self.label_popup.draw(theme.subtle, ctx);
 
         Some(())
     }
 
     pub fn get_triggers(
         widget_id: WidgetId,
-        ui: &Ui,
         doc: Option<&mut Doc>,
         ctx: &mut Ctx,
     ) -> (Option<char>, Option<char>) {
@@ -112,7 +108,7 @@ impl SignatureHelpPopup {
             return (trigger_char, retrigger_char);
         };
 
-        let mut grapheme_handler = ui.grapheme_handler(widget_id, ctx.window);
+        let mut grapheme_handler = ctx.ui.grapheme_handler(widget_id, ctx.window);
 
         while let Some(c) = grapheme_handler
             .next(ctx.window)

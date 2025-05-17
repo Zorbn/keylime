@@ -11,3 +11,4 @@ mod slot_list;
 pub mod status_bar;
 pub mod tab;
 pub mod terminal;
+mod widget_list;

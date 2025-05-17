@@ -5,7 +5,6 @@ use crate::{
     ctx::Ctx,
     geometry::{rect::Rect, sides::Sides},
     lsp::{types::DecodedDiagnostic, Lsp},
-    platform::gfx::Gfx,
     pool::{format_pooled, Pooled, STRING_POOL},
     text::{cursor_index::CursorIndex, doc::LineEnding},
 };
@@ -26,16 +25,17 @@ impl StatusBar {
         }
     }
 
-    pub fn layout(&mut self, bounds: Rect, ui: &mut Ui, gfx: &mut Gfx) {
-        ui.widget_mut(self.widget_id).bounds = Rect::new(0.0, 0.0, bounds.width, gfx.tab_height())
-            .at_bottom_of(bounds)
-            .floor();
+    pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
+        ctx.ui.widget_mut(self.widget_id).bounds =
+            Rect::new(0.0, 0.0, bounds.width, ctx.gfx.tab_height())
+                .at_bottom_of(bounds)
+                .floor();
     }
 
-    pub fn draw(&mut self, editor: &Editor, ui: &Ui, ctx: &mut Ctx) {
+    pub fn draw(&mut self, editor: &Editor, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
-        let widget = ui.widget(self.widget_id);
+        let widget = ctx.ui.widget(self.widget_id);
 
         gfx.begin(Some(widget.bounds));
 
@@ -49,7 +49,7 @@ impl StatusBar {
         let mut text_x = widget.bounds.width;
         let text_y = gfx.tab_padding_y();
 
-        if let Some(text) = Self::get_doc_text(editor, ctx.config) {
+        if let Some(text) = Self::get_doc_text(editor, ctx.config, ctx.ui) {
             text_x -= gfx.measure_text(&text) as f32 * gfx.glyph_width();
             gfx.add_text(&text, text_x, text_y, theme.subtle);
         }
@@ -103,8 +103,8 @@ impl StatusBar {
         Some((text, severity))
     }
 
-    fn get_doc_text(editor: &Editor, config: &Config) -> Option<Pooled<String>> {
-        let (_, doc) = editor.get_focused_tab_and_doc()?;
+    fn get_doc_text(editor: &Editor, config: &Config, ui: &Ui) -> Option<Pooled<String>> {
+        let (_, doc) = editor.get_focused_tab_and_doc(ui)?;
         let position = doc.cursor(CursorIndex::Main).position;
 
         let mut doc_text = STRING_POOL.new_item();

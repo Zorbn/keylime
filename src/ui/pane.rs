@@ -12,13 +12,12 @@ use crate::{
         mouse_button::MouseButton,
         mousebind::{MouseClickKind, Mousebind},
     },
-    platform::{gfx::Gfx, window::Window},
     text::doc::Doc,
 };
 
 use super::{
     color::Color,
-    core::{Ui, WidgetId},
+    core::{Ui, WidgetId, WidgetSettings},
     focus_list::FocusList,
     slot_list::SlotList,
     tab::Tab,
@@ -26,22 +25,29 @@ use super::{
 
 pub struct Pane<T> {
     pub tabs: FocusList<Tab>,
-    bounds: Rect,
     dragged_tab_offset: Option<f32>,
 
     get_doc: fn(&T) -> &Doc,
     get_doc_mut: fn(&mut T) -> &mut Doc,
+
+    widget_id: WidgetId,
 }
 
 impl<T> Pane<T> {
-    pub fn new(get_doc: fn(&T) -> &Doc, get_doc_mut: fn(&mut T) -> &mut Doc) -> Self {
+    pub fn new(
+        get_doc: fn(&T) -> &Doc,
+        get_doc_mut: fn(&mut T) -> &mut Doc,
+        parent_id: WidgetId,
+        ui: &mut Ui,
+    ) -> Self {
         Self {
             tabs: FocusList::new(),
-            bounds: Rect::ZERO,
             dragged_tab_offset: None,
 
             get_doc,
             get_doc_mut,
+
+            widget_id: ui.new_widget(parent_id, WidgetSettings::default()),
         }
     }
 
@@ -51,8 +57,10 @@ impl<T> Pane<T> {
             .is_some_and(|tab| tab.is_animating())
     }
 
-    pub fn layout(&mut self, bounds: Rect, gfx: &mut Gfx, data_list: &mut SlotList<T>) {
-        self.bounds = bounds;
+    pub fn layout(&mut self, bounds: Rect, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
+        ctx.ui.widget_mut(self.widget_id).bounds = bounds;
+
+        let gfx = &mut ctx.gfx;
 
         let mut tab_x = bounds.x;
         let tab_height = gfx.tab_height();
@@ -78,10 +86,10 @@ impl<T> Pane<T> {
         }
     }
 
-    pub fn update(&mut self, widget_id: WidgetId, ui: &Ui, window: &mut Window) {
-        let mut mousebind_handler = ui.mousebind_handler(widget_id, window);
+    pub fn update(&mut self, ctx: &mut Ctx) {
+        let mut mousebind_handler = ctx.ui.mousebind_handler(self.widget_id, ctx.window);
 
-        while let Some(mousebind) = mousebind_handler.next(window) {
+        while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
 
             match mousebind {
@@ -94,9 +102,10 @@ impl<T> Pane<T> {
                     let mut offset = 0.0;
 
                     let index = self.tabs.iter().position(|tab| {
+                        let bounds = ctx.ui.widget(self.widget_id).bounds;
                         let tab_bounds = tab.tab_bounds();
 
-                        offset = tab_bounds.x - visual_position.x - self.bounds.x;
+                        offset = tab_bounds.x - visual_position.x - bounds.x;
 
                         tab_bounds.contains_position(visual_position)
                     });
@@ -105,7 +114,7 @@ impl<T> Pane<T> {
                         self.tabs.set_focused_index(index);
                         self.dragged_tab_offset = Some(offset);
                     } else {
-                        mousebind_handler.unprocessed(window, mousebind);
+                        mousebind_handler.unprocessed(ctx.window, mousebind);
                     }
                 }
                 Mousebind {
@@ -148,61 +157,46 @@ impl<T> Pane<T> {
                         self.tabs.swap(self.tabs.focused_index(), index);
                     }
                 }
-                _ => mousebind_handler.unprocessed(window, mousebind),
+                _ => mousebind_handler.unprocessed(ctx.window, mousebind),
             }
         }
 
-        let mut action_handler = ui.action_handler(widget_id, window);
+        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
 
-        while let Some(action) = action_handler.next(window) {
+        while let Some(action) = action_handler.next(ctx.window) {
             match action {
                 action_name!(PreviousTab) => self.tabs.focus_previous(),
                 action_name!(NextTab) => self.tabs.focus_next(),
-                _ => action_handler.unprocessed(window, action),
+                _ => action_handler.unprocessed(ctx.window, action),
             }
         }
     }
 
-    pub fn update_camera(
-        &mut self,
-        widget_id: WidgetId,
-        ui: &Ui,
-        data_list: &mut SlotList<T>,
-        ctx: &mut Ctx,
-        dt: f32,
-    ) {
+    pub fn update_camera(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx, dt: f32) {
+        let widget_id = self.widget_id;
         let get_doc = self.get_doc;
 
         if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
         {
-            tab.update_camera(widget_id, ui, get_doc(data), ctx, dt);
+            tab.update_camera(widget_id, get_doc(data), ctx, dt);
         }
     }
 
-    pub fn draw(
-        &mut self,
-        background: Option<Color>,
-        data_list: &mut SlotList<T>,
-        ctx: &mut Ctx,
-        is_focused: bool,
-    ) {
+    pub fn draw(&mut self, background: Option<Color>, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
+        let bounds = ctx.ui.widget(self.widget_id).bounds;
         let tab_height = gfx.tab_height();
 
-        gfx.begin(Some(self.bounds));
+        gfx.begin(Some(bounds));
 
         gfx.add_rect(
-            self.bounds
-                .left_border(gfx.border_width())
-                .unoffset_by(self.bounds),
+            bounds.left_border(gfx.border_width()).unoffset_by(bounds),
             theme.border,
         );
 
         gfx.add_rect(
-            self.bounds
-                .top_border(gfx.border_width())
-                .unoffset_by(self.bounds),
+            bounds.top_border(gfx.border_width()).unoffset_by(bounds),
             theme.border,
         );
 
@@ -211,7 +205,7 @@ impl<T> Pane<T> {
                 Rect::from_sides(
                     0.0,
                     tab_height - gfx.border_width(),
-                    self.bounds.width,
+                    bounds.width,
                     tab_height,
                 ),
                 theme.border,
@@ -250,7 +244,7 @@ impl<T> Pane<T> {
             Rect::from_sides(
                 focused_tab_bounds.x + focused_tab_bounds.width,
                 tab_height - gfx.border_width(),
-                self.bounds.width,
+                bounds.width,
                 tab_height,
             ),
             theme.border,
@@ -259,6 +253,7 @@ impl<T> Pane<T> {
         gfx.end();
 
         let get_doc_mut = self.get_doc_mut;
+        let is_focused = ctx.ui.is_focused(self.widget_id);
 
         if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
         {
@@ -279,13 +274,15 @@ impl<T> Pane<T> {
             return Rect::ZERO;
         };
 
+        let bounds = ctx.ui.widget(self.widget_id).bounds;
+
         Self::draw_tab(
             index == self.tabs.focused_index(),
             self.dragged_tab_offset,
             background,
             tab,
             get_doc(data),
-            self.bounds,
+            bounds,
             ctx,
         )
     }
@@ -417,8 +414,8 @@ impl<T> Pane<T> {
         self.tabs.remove();
     }
 
-    pub fn bounds(&self) -> Rect {
-        self.bounds
+    pub fn widget_id(&self) -> WidgetId {
+        self.widget_id
     }
 
     pub fn set_focused_tab_index(&mut self, index: usize) {

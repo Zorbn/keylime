@@ -204,7 +204,7 @@ impl CommandPaletteMode for FileExplorerMode {
     }
 
     fn on_open(&mut self, command_palette: &mut CommandPalette, args: CommandPaletteEventArgs) {
-        let (pane, doc_list) = args.editor.focused_pane_and_doc_list();
+        let (pane, doc_list) = args.editor.last_focused_pane_and_doc_list(args.ctx.ui);
         let focused_tab_index = pane.focused_tab_index();
 
         let Some((_, doc)) = pane.get_tab_with_data(focused_tab_index, doc_list) else {
@@ -380,7 +380,7 @@ impl CommandPaletteMode for FileExplorerMode {
             return CommandPaletteAction::Stay;
         }
 
-        let (pane, doc_list) = args.editor.focused_pane_and_doc_list_mut();
+        let (pane, doc_list) = args.editor.last_focused_pane_and_doc_list_mut(args.ctx.ui);
 
         if pane
             .open_file(path, doc_list, args.ctx)

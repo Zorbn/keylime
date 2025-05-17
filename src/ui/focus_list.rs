@@ -122,20 +122,6 @@ impl<T> FocusList<T> {
         self.items.is_empty()
     }
 
-    pub fn remove_excess(&mut self, predicate: impl Fn(&T) -> bool) {
-        for i in (0..self.items.len()).rev() {
-            if self.items.len() == 1 {
-                break;
-            }
-
-            if predicate(&self.items[i]) {
-                self.items.remove(i);
-            }
-        }
-
-        self.clamp_focused();
-    }
-
     pub fn set_focused_index(&mut self, index: usize) {
         self.focused_index = index;
         self.clamp_focused();

@@ -1,5 +1,5 @@
 use crate::{
-    config::theme::Theme,
+    ctx::Ctx,
     geometry::{rect::Rect, sides::Sides, visual_position::VisualPosition},
     platform::gfx::Gfx,
     pool::{Pooled, STRING_POOL},
@@ -24,7 +24,7 @@ pub struct Popup {
 
 impl Popup {
     pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
-        let popup = Self {
+        Self {
             text: STRING_POOL.new_item(),
             widget_id: ui.new_widget(
                 parent_id,
@@ -33,20 +33,12 @@ impl Popup {
                     ..Default::default()
                 },
             ),
-        };
-
-        println!("popup id: {:?}", popup.widget_id);
-
-        popup
+        }
     }
 
-    pub fn layout(
-        &mut self,
-        position: VisualPosition,
-        alignment: PopupAlignment,
-        ui: &mut Ui,
-        gfx: &mut Gfx,
-    ) {
+    pub fn layout(&mut self, position: VisualPosition, alignment: PopupAlignment, ctx: &mut Ctx) {
+        let gfx = &mut ctx.gfx;
+
         let mut bounds = Rect::ZERO;
 
         for line in self.text.lines() {
@@ -79,15 +71,18 @@ impl Popup {
             bounds.y = bounds.y.max(margin);
         }
 
-        ui.widget_mut(self.widget_id).bounds = bounds;
+        ctx.ui.widget_mut(self.widget_id).bounds = bounds;
     }
 
-    pub fn draw(&self, foreground: Color, theme: &Theme, ui: &Ui, gfx: &mut Gfx) {
-        if !ui.is_visible(self.widget_id) {
+    pub fn draw(&self, foreground: Color, ctx: &mut Ctx) {
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
+
+        if !ctx.ui.is_visible(self.widget_id) {
             return;
         }
 
-        let bounds = ui.widget(self.widget_id).bounds;
+        let bounds = ctx.ui.widget(self.widget_id).bounds;
 
         gfx.begin(Some(bounds));
 

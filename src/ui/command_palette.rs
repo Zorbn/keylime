@@ -19,7 +19,6 @@ use crate::{
     },
     input::action::action_name,
     lsp::{position_encoding::PositionEncoding, types::EncodedPosition},
-    platform::gfx::Gfx,
     pool::Pooled,
     text::doc::{Doc, DocKind},
 };
@@ -109,10 +108,12 @@ impl CommandPalette {
             || self.mode.as_ref().is_some_and(|mode| mode.is_animating())
     }
 
-    pub fn layout(&mut self, bounds: Rect, ui: &mut Ui, gfx: &mut Gfx) {
+    pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
         let Some(mode) = &self.mode else {
             return;
         };
+
+        let gfx = &mut ctx.gfx;
 
         let title = mode.title();
         let title_padding_x = gfx.glyph_width();
@@ -130,13 +131,13 @@ impl CommandPalette {
             Rect::new(0.0, 0.0, self.input_bounds.width, 0.0)
                 .below(self.input_bounds)
                 .shift_y(-gfx.border_width()),
-            ui,
+            ctx.ui,
             gfx,
         );
 
-        let result_list_bounds = ui.widget(self.result_list.widget_id()).bounds;
+        let result_list_bounds = ctx.ui.widget(self.result_list.widget_id()).bounds;
 
-        ui.widget_mut(self.widget_id).bounds = self
+        ctx.ui.widget_mut(self.widget_id).bounds = self
             .title_bounds
             .expand_to_include(self.input_bounds)
             .expand_to_include(result_list_bounds)
@@ -145,23 +146,23 @@ impl CommandPalette {
             .floor();
 
         self.result_list
-            .offset_by(ui.widget(self.widget_id).bounds, ui);
+            .offset_by(ctx.ui.widget(self.widget_id).bounds, ctx.ui);
 
         self.tab.layout(
             Rect::ZERO,
             Rect::new(0.0, 0.0, gfx.glyph_width() * 10.0, gfx.line_height())
                 .center_in(self.input_bounds)
                 .expand_width_in(self.input_bounds)
-                .offset_by(ui.widget(self.widget_id).bounds)
+                .offset_by(ctx.ui.widget(self.widget_id).bounds)
                 .floor(),
             &self.doc,
             gfx,
         );
     }
 
-    pub fn update(&mut self, ui: &mut Ui, editor: &mut Editor, ctx: &mut Ctx) {
-        if ui.is_visible(self.widget_id) && !ui.is_in_focused_hierarchy(self.widget_id) {
-            self.close(ui);
+    pub fn update(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
+        if ctx.ui.is_visible(self.widget_id) && !ctx.ui.is_in_focused_hierarchy(self.widget_id) {
+            self.close(ctx.ui);
         }
 
         let mut global_action_handler = ctx.window.action_handler();
@@ -169,32 +170,32 @@ impl CommandPalette {
         while let Some(action) = global_action_handler.next(ctx.window) {
             match action {
                 action_name!(OpenFileExplorer) => {
-                    self.open(ui, Box::new(FileExplorerMode::new()), editor, ctx);
+                    self.open(Box::new(FileExplorerMode::new()), editor, ctx);
                 }
                 action_name!(OpenSearch) => {
-                    self.open(ui, Box::new(SearchMode::new()), editor, ctx);
+                    self.open(Box::new(SearchMode::new()), editor, ctx);
                 }
                 action_name!(OpenSearchAndReplace) => {
-                    self.open(ui, Box::new(SearchAndReplaceMode::new()), editor, ctx);
+                    self.open(Box::new(SearchAndReplaceMode::new()), editor, ctx);
                 }
                 action_name!(OpenFindInFiles) => {
-                    self.open(ui, Box::new(FindInFilesMode::new()), editor, ctx);
+                    self.open(Box::new(FindInFilesMode::new()), editor, ctx);
                 }
                 action_name!(OpenAllFiles) => {
-                    self.open(ui, Box::new(AllFilesMode::new()), editor, ctx);
+                    self.open(Box::new(AllFilesMode::new()), editor, ctx);
                 }
                 action_name!(OpenAllDiagnostics) => {
-                    self.open(ui, Box::new(AllDiagnosticsMode), editor, ctx);
+                    self.open(Box::new(AllDiagnosticsMode), editor, ctx);
                 }
                 action_name!(OpenGoToLine) => {
-                    self.open(ui, Box::new(GoToLineMode), editor, ctx);
+                    self.open(Box::new(GoToLineMode), editor, ctx);
                 }
                 _ => global_action_handler.unprocessed(ctx.window, action),
             }
         }
 
         if let Some(mut mode) = self.mode.take() {
-            let mut action_handler = ui.action_handler(self.widget_id, ctx.window);
+            let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
 
             while let Some(action) = action_handler.next(ctx.window) {
                 if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
@@ -206,34 +207,27 @@ impl CommandPalette {
             self.mode = Some(mode);
         }
 
-        let result_input = self.result_list.update(ui, ctx.window, true, true);
+        let result_input = self.result_list.update(true, true, ctx);
 
         match result_input {
             ResultListInput::None => {}
             ResultListInput::Complete => self.complete_result(editor, ctx),
             ResultListInput::Submit { kind } => {
-                self.submit(ui, kind, editor, ctx);
+                self.submit(kind, editor, ctx);
             }
-            ResultListInput::Close => self.close(ui),
+            ResultListInput::Close => self.close(ctx.ui),
         }
 
-        self.tab.update(self.widget_id, ui, &mut self.doc, ctx);
+        self.tab.update(self.widget_id, &mut self.doc, ctx);
         self.update_results(editor, ctx);
     }
 
-    pub fn update_camera(&mut self, ui: &Ui, ctx: &mut Ctx, dt: f32) {
-        self.tab
-            .update_camera(self.widget_id, ui, &self.doc, ctx, dt);
-        self.result_list.update_camera(ui, dt);
+    pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
+        self.tab.update_camera(self.widget_id, &self.doc, ctx, dt);
+        self.result_list.update_camera(ctx.ui, dt);
     }
 
-    fn submit(
-        &mut self,
-        ui: &mut Ui,
-        kind: ResultListSubmitKind,
-        editor: &mut Editor,
-        ctx: &mut Ctx,
-    ) {
+    fn submit(&mut self, kind: ResultListSubmitKind, editor: &mut Editor, ctx: &mut Ctx) {
         self.complete_result(editor, ctx);
 
         let Some(mut mode) = self.mode.take() else {
@@ -245,7 +239,7 @@ impl CommandPalette {
 
         match action {
             CommandPaletteAction::Stay => {}
-            CommandPaletteAction::Close => self.close(ui),
+            CommandPaletteAction::Close => self.close(ctx.ui),
         }
     }
 
@@ -275,8 +269,8 @@ impl CommandPalette {
         self.mode = Some(mode);
     }
 
-    pub fn draw(&mut self, ui: &Ui, ctx: &mut Ctx) {
-        if !ui.is_visible(self.widget_id) {
+    pub fn draw(&mut self, ctx: &mut Ctx) {
+        if !ctx.ui.is_visible(self.widget_id) {
             return;
         }
 
@@ -284,8 +278,8 @@ impl CommandPalette {
             return;
         };
 
-        let is_focused = ui.is_focused(self.widget_id);
-        let widget = ui.widget(self.widget_id);
+        let is_focused = ctx.ui.is_focused(self.widget_id);
+        let widget = ctx.ui.widget(self.widget_id);
 
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
@@ -333,14 +327,12 @@ impl CommandPalette {
 
         self.tab.draw(None, &mut self.doc, ctx, is_focused);
 
-        self.result_list.draw(ui, ctx, |result, theme| {
-            mode.on_display_result(result, theme)
-        });
+        self.result_list
+            .draw(ctx, |result, theme| mode.on_display_result(result, theme));
     }
 
     pub fn open(
         &mut self,
-        ui: &mut Ui,
         mut mode: Box<dyn CommandPaletteMode>,
         editor: &mut Editor,
         ctx: &mut Ctx,
@@ -350,7 +342,7 @@ impl CommandPalette {
         self.last_updated_version = None;
         self.mode = None;
 
-        ui.focus(self.widget_id);
+        ctx.ui.focus(self.widget_id);
 
         mode.on_open(self, CommandPaletteEventArgs::new(editor, ctx));
         self.mode = Some(mode);

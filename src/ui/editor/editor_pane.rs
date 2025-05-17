@@ -26,8 +26,8 @@ pub struct EditorPane {
 }
 
 impl EditorPane {
-    pub fn new(doc_list: &mut SlotList<Doc>) -> Self {
-        let mut inner = Pane::new(|doc| doc, |doc| doc);
+    pub fn new(doc_list: &mut SlotList<Doc>, parent_id: WidgetId, ui: &mut Ui) -> Self {
+        let mut inner = Pane::new(|doc| doc, |doc| doc, parent_id, ui);
 
         let doc_index = doc_list.add(Doc::new(None, None, DocKind::MultiLine));
         inner.add_tab(doc_index, doc_list);
@@ -35,14 +35,8 @@ impl EditorPane {
         Self { inner }
     }
 
-    pub fn update(
-        &mut self,
-        widget_id: WidgetId,
-        ui: &Ui,
-        doc_list: &mut SlotList<Doc>,
-        ctx: &mut Ctx,
-    ) {
-        let mut action_handler = ui.action_handler(widget_id, ctx.window);
+    pub fn update(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) {
+        let mut action_handler = ctx.ui.action_handler(self.widget_id(), ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
@@ -81,12 +75,13 @@ impl EditorPane {
             }
         }
 
-        self.inner.update(widget_id, ui, ctx.window);
+        self.inner.update(ctx);
 
+        let widget_id = self.widget_id();
         let focused_tab_index = self.focused_tab_index();
 
         if let Some((tab, doc)) = self.get_tab_with_data_mut(focused_tab_index, doc_list) {
-            tab.update(widget_id, ui, doc, ctx);
+            tab.update(widget_id, doc, ctx);
         }
     }
 
