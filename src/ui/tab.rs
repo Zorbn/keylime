@@ -94,9 +94,9 @@ impl Tab {
     //     self.doc_bounds = doc_bounds.shrink_left_by(self.gutter_bounds);
     // }
 
-    pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+    pub fn update(&mut self, background: Option<Color>, doc: &mut Doc, ctx: &mut Ctx, dt: f32) {
         ctx.ui.begin_container(
-            WidgetId::Component,
+            WidgetId::Name("Tab"),
             WidgetLayout::default(),
             ContainerDirection::Horizontal,
         );
@@ -176,6 +176,8 @@ impl Tab {
         doc.combine_overlapping_cursors();
         doc.update_tokens();
 
+        self.update_camera(doc, ctx, dt);
+
         self.tab_bounds = Rect::ZERO; // TODO
 
         let gutter_width = if doc.kind() == DocKind::MultiLine {
@@ -220,7 +222,7 @@ impl Tab {
 
         if doc.kind() == DocKind::MultiLine {
             ctx.ui.begin_widget(
-                WidgetId::Component,
+                WidgetId::Name("Gutter"),
                 WidgetLayout {
                     width: Some(gutter_width),
                     ..Default::default()
@@ -234,10 +236,7 @@ impl Tab {
         }
 
         ctx.ui
-            .begin_widget(WidgetId::Component, WidgetLayout::default(), ctx.gfx);
-
-        // TODO:
-        let background = Some(ctx.config.theme.terminal.background);
+            .begin_widget(WidgetId::Name("Doc"), WidgetLayout::default(), ctx.gfx);
 
         if let Some(background) = background {
             ctx.gfx
@@ -252,6 +251,7 @@ impl Tab {
         self.draw_scroll_bar(doc, camera_position, ctx);
 
         ctx.ui.end_widget(ctx.gfx);
+        ctx.ui.end_container();
     }
 
     pub fn update_camera(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {

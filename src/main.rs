@@ -26,6 +26,8 @@ use platform::app_runner::run_app;
  * Support multiple terminal panes.
  * Add LSP mouse hover documentation/diagnostic support.
  * - If the examine popup originated from a hover the examine popup should be shown even if the cursor is not visible.
+ * Make cursor history (Alt left/right on Windows and Ctrl-Minus on Mac) part of the editor instead of docs so it can work across files
+ * - (eg. so you can go to definition and then jump back)
  * Consider renaming DocKind::Output to DocKind::Raw
  * Consider making DocKinds predefined BitFields that store a list of features such action history, position shifting, multi line, etc.
  */

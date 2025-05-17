@@ -10,7 +10,7 @@ use crate::{
     platform::dialog::{find_file, message, FindFileKind, MessageKind},
     text::doc::{Doc, DocKind},
     ui::{
-        core::{Ui, WidgetId},
+        core::{Ui, WidgetId, WidgetLayout},
         pane::Pane,
         slot_list::SlotList,
     },
@@ -35,7 +35,7 @@ impl EditorPane {
         Self { inner }
     }
 
-    pub fn update(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) {
+    pub fn update(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx, dt: f32) {
         let mut action_handler = ctx.ui.action_handler(ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
@@ -55,9 +55,6 @@ impl EditorPane {
                 action_name!(NewTab) => {
                     let _ = self.new_file(None, doc_list, ctx);
                 }
-                action_name!(CloseTab) => {
-                    self.remove_tab(doc_list, ctx);
-                }
                 action_name!(ReloadFile) => {
                     if let Some((_, doc)) = self.inner.get_focused_tab_with_data_mut(doc_list) {
                         if let Err(err) = doc.reload(ctx) {
@@ -72,7 +69,7 @@ impl EditorPane {
         self.inner.update(ctx);
 
         if let Some((tab, doc)) = self.get_focused_tab_with_data_mut(doc_list) {
-            tab.update(doc, ctx);
+            tab.update(None, doc, ctx, dt);
         }
     }
 

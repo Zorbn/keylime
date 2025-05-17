@@ -56,13 +56,12 @@ impl App {
         gfx.set_font(&config.font, config.font_size);
 
         let mut ui = Ui::new();
-        ui.focus(Editor::WIDGET_ID);
 
-        let mut app = Self {
-            ui,
-            editor: Editor::new(),
+        Self {
+            editor: Editor::new(&mut ui),
             terminal: Terminal::new(),
             command_palette: CommandPalette::new(),
+            ui,
 
             file_watcher: FileWatcher::new(),
             lsp: Lsp::new(),
@@ -70,12 +69,10 @@ impl App {
             config_dir,
             config,
             config_error,
-        };
-
-        // app.layout(window, gfx, time);
-        app
+        }
     }
 
+    // TODO: Should dt be part of ctx?
     pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32, dt: f32) {
         let config_changed = self
             .file_watcher
@@ -112,13 +109,13 @@ impl App {
             .begin(ctx.config.theme.background, ctx.window, ctx.gfx);
 
         status_bar(&self.editor, ctx);
-        self.terminal.update(ctx);
+        self.terminal.update(ctx, dt);
+        self.editor.update(&mut self.file_watcher, ctx, dt);
 
         ctx.ui.end(ctx.gfx);
 
         // self.terminal.update(ctx);
         // self.command_palette.update(&mut self.editor, ctx);
-        // self.editor.update(&mut self.file_watcher, ctx);
 
         // self.terminal.update_camera(ctx, dt);
         // self.command_palette.update_camera(ctx, dt);

@@ -24,6 +24,7 @@ macro_rules! define_pool {
 define_pool!(STRING_POOL, STRING_POOL_ITEMS, String);
 define_pool!(PATH_POOL, PATH_POOL_ITEMS, PathBuf);
 define_pool!(UTF16_POOL, UTF16_POOL_ITEMS, Vec<u16>);
+define_pool!(VEC_WIDGET_ID_POOL, VEC_WIDGET_ID_ITEMS, Vec<WidgetId>);
 
 macro_rules! format_pooled {
     ($($arg:tt)*) => {{
@@ -37,6 +38,8 @@ macro_rules! format_pooled {
 }
 
 pub(crate) use format_pooled;
+
+use crate::ui::core::WidgetId;
 
 pub trait Poolable {
     fn clear(&mut self);
@@ -64,6 +67,16 @@ impl Poolable for PathBuf {
 }
 
 impl Poolable for Vec<u16> {
+    fn clear(&mut self) {
+        self.clear();
+    }
+
+    fn push(&mut self, other: &Self) {
+        self.extend_from_slice(other);
+    }
+}
+
+impl Poolable for Vec<WidgetId> {
     fn clear(&mut self) {
         self.clear();
     }

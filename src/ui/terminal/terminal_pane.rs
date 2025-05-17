@@ -29,7 +29,7 @@ impl TerminalPane {
         Self { inner }
     }
 
-    pub fn update(&mut self, term_list: &mut SlotList<Term>, ctx: &mut Ctx) {
+    pub fn update(&mut self, term_list: &mut SlotList<Term>, ctx: &mut Ctx, dt: f32) {
         ctx.ui.begin_container(
             WidgetId::Name("TerminalPane"),
             WidgetLayout::default(),
@@ -77,7 +77,7 @@ impl TerminalPane {
             emulator.update_input(docs, tab, ctx);
 
             let doc = emulator.doc_mut(docs);
-            tab.update(doc, ctx);
+            tab.update(Some(ctx.config.theme.terminal.background), doc, ctx, dt);
         }
 
         ctx.ui.end_container();

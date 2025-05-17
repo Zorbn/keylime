@@ -148,7 +148,7 @@ impl CommandPalette {
     //     );
     // }
 
-    pub fn update(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
+    pub fn update(&mut self, editor: &mut Editor, ctx: &mut Ctx, dt: f32) {
         // if ctx.ui.is_visible(self.widget_id) && !ctx.ui.is_in_focused_hierarchy(self.widget_id) {
         //     self.close(ctx.ui);
         // }
@@ -206,7 +206,7 @@ impl CommandPalette {
             ResultListInput::Close => self.close(ctx.ui),
         }
 
-        self.tab.update(&mut self.doc, ctx);
+        self.tab.update(None, &mut self.doc, ctx, dt);
         self.update_results(editor, ctx);
     }
 

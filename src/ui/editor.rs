@@ -32,7 +32,7 @@ use crate::{
 };
 
 use super::{
-    core::{Ui, WidgetId},
+    core::{ContainerDirection, Ui, WidgetId, WidgetLayout},
     slot_list::SlotList,
     widget_list::WidgetList,
 };
@@ -58,12 +58,13 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub const WIDGET_ID: WidgetId = WidgetId::Name("Editor");
-
-    pub fn new() -> Self {
+    pub fn new(ui: &mut Ui) -> Self {
         let mut editor = Self {
             doc_list: SlotList::new(),
-            panes: WidgetList::new(|pane| WidgetId::Name("EditorPane")),
+            panes: WidgetList::new(
+                &[WidgetId::Name("Editor"), WidgetId::Name("EditorPane")],
+                &[WidgetId::Name("Tab"), WidgetId::Name("Doc")],
+            ),
             current_dir: current_dir().ok(),
 
             handled_position: None,
@@ -74,7 +75,7 @@ impl Editor {
             completion_list: CompletionList::new(),
         };
 
-        editor.add_pane();
+        editor.add_pane(ui);
 
         editor
     }
@@ -119,7 +120,13 @@ impl Editor {
     //         .set_shown(self.signature_help_popup.widget_id(), is_cursor_visible);
     // }
 
-    pub fn update(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
+    pub fn update(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx, dt: f32) {
+        ctx.ui.begin_container(
+            WidgetId::Name("Editor"),
+            WidgetLayout::default(),
+            ContainerDirection::Horizontal,
+        );
+
         self.panes.update(ctx.ui);
         self.reload_changed_files(file_watcher, ctx);
 
@@ -131,14 +138,29 @@ impl Editor {
 
         let signature_help_triggers = SignatureHelpPopup::get_triggers(doc, ctx);
 
-        self.handle_actions(ctx);
-
         self.pre_pane_update(ctx);
 
-        let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
-        pane.update(&mut self.doc_list, ctx);
-        self.panes
-            .remove_excess(ctx.ui, |pane| pane.tabs.is_empty());
+        // let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
+        // pane.update(&mut self.doc_list, ctx, dt);
+
+        self.handle_actions(ctx);
+
+        let pane_width = (ctx.ui.bounds().width / self.panes.len() as f32).ceil();
+
+        for (index, pane) in self.panes.iter_mut().enumerate() {
+            ctx.ui.begin_container(
+                WidgetId::NameWithIndex("EditorPane", index),
+                WidgetLayout {
+                    width: Some(pane_width),
+                    ..Default::default()
+                },
+                ContainerDirection::Vertical,
+            );
+
+            pane.update(&mut self.doc_list, ctx, dt);
+
+            ctx.ui.end_container();
+        }
 
         self.post_pane_update(signature_help_triggers, ctx);
 
@@ -147,6 +169,8 @@ impl Editor {
         //     self.signature_help_popup.clear(ctx.ui);
         //     self.completion_list.clear(ctx.ui);
         // }
+
+        ctx.ui.end_container();
     }
 
     fn handle_actions(&mut self, ctx: &mut Ctx) {
@@ -164,8 +188,16 @@ impl Editor {
                         }
                     }
                 }
-                action_name!(NewPane) => self.add_pane(),
+                action_name!(NewPane) => self.add_pane(ctx.ui),
                 action_name!(ClosePane) => self.close_pane(ctx),
+                action_name!(CloseTab) => {
+                    let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
+                    pane.remove_tab(&mut self.doc_list);
+
+                    if pane.tabs.is_empty() {
+                        self.close_pane(ctx);
+                    }
+                }
                 action_name!(PreviousPane) => self.panes.focus_previous(ctx.ui),
                 action_name!(NextPane) => self.panes.focus_next(ctx.ui),
                 action_name!(PreviousTab) => {
@@ -409,10 +441,10 @@ impl Editor {
         tab.doc_bounds().contains_position(cursor_visual_position)
     }
 
-    fn add_pane(&mut self) {
+    fn add_pane(&mut self, ui: &mut Ui) {
         let pane = EditorPane::new(&mut self.doc_list);
 
-        self.panes.add(pane);
+        self.panes.add(pane, ui);
 
         // let bounds = ctx.ui.widget(self.widget_id).bounds;
         // self.layout(bounds, ctx);

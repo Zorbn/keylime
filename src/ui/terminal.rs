@@ -74,7 +74,7 @@ impl Terminal {
     //     self.pane.layout(bounds, &mut self.term_list, ctx);
     // }
 
-    pub fn update(&mut self, ctx: &mut Ctx) {
+    pub fn update(&mut self, ctx: &mut Ctx, dt: f32) {
         ctx.ui.begin_container(
             WidgetId::Name("Terminal"),
             WidgetLayout {
@@ -103,7 +103,7 @@ impl Terminal {
             }
         }
 
-        self.pane.update(&mut self.term_list, ctx);
+        self.pane.update(&mut self.term_list, ctx, dt);
 
         ctx.ui.end_container();
     }

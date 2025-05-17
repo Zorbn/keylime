@@ -1,4 +1,4 @@
-use std::f32::consts::E;
+use std::ops::Deref;
 
 use crate::{
     geometry::{rect::Rect, visual_position::VisualPosition},
@@ -8,6 +8,7 @@ use crate::{
         mousebind::{MouseClickKind, Mousebind},
     },
     platform::{gfx::Gfx, window::Window},
+    pool::{Pooled, VEC_WIDGET_ID_POOL},
     text::grapheme::GraphemeCursor,
 };
 
@@ -17,7 +18,15 @@ use super::color::Color;
 pub enum WidgetId {
     Name(&'static str),
     NameWithIndex(&'static str, usize),
-    Component,
+}
+
+impl WidgetId {
+    pub fn name(&self) -> &'static str {
+        match self {
+            WidgetId::Name(name) => name,
+            WidgetId::NameWithIndex(name, _) => name,
+        }
+    }
 }
 
 // TODO: Also allow choosing whether to add to the beginning or end of containers,
@@ -40,26 +49,14 @@ pub struct WidgetLayout {
     pub height: Option<f32>,
 }
 
-struct Container {
-    direction: ContainerDirection,
-    has_focused_widget: bool,
-}
-
-impl Container {
-    pub fn new(direction: ContainerDirection) -> Self {
-        Self {
-            direction,
-            has_focused_widget: false,
-        }
-    }
-}
+const MAX_FOCUS_HISTORY_LEN: usize = 8;
 
 pub struct Ui {
-    focus_history: Vec<WidgetId>,
+    focus_history: Vec<Pooled<Vec<WidgetId>>>,
     id_stack: Vec<WidgetId>,
     is_in_widget: bool,
     left_click_position: Option<VisualPosition>,
-    container_stack: Vec<Container>,
+    container_direction_stack: Vec<ContainerDirection>,
     bounds_stack: Vec<Rect>,
     current_layout: WidgetLayout,
 }
@@ -71,15 +68,13 @@ impl Ui {
             id_stack: Vec::new(),
             is_in_widget: false,
             left_click_position: None,
-            container_stack: Vec::new(),
+            container_direction_stack: Vec::new(),
             bounds_stack: Vec::new(),
             current_layout: WidgetLayout::default(),
         }
     }
 
     pub fn begin(&mut self, clear_color: Color, window: &mut Window, gfx: &mut Gfx) {
-        self.left_click_position = None;
-
         let mut mousebind_handler = window.mousebind_handler();
 
         while let Some(mousebind) = mousebind_handler.next(window) {
@@ -91,7 +86,7 @@ impl Ui {
                 ..
             } = mousebind
             {
-                self.left_click_position = Some(VisualPosition::new(x, y));
+                self.begin_left_click_focus(VisualPosition::new(x, y));
             }
 
             mousebind_handler.unprocessed(window, mousebind);
@@ -100,17 +95,20 @@ impl Ui {
         let bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
 
         self.bounds_stack.push(bounds);
-        self.container_stack
-            .push(Container::new(ContainerDirection::Vertical));
+        self.container_direction_stack
+            .push(ContainerDirection::Vertical);
         gfx.begin_frame(clear_color);
     }
 
     pub fn end(&mut self, gfx: &mut Gfx) {
         gfx.end_frame();
-        self.container_stack.pop();
+        self.container_direction_stack.pop();
         self.bounds_stack.pop();
+
+        self.end_left_click_focus();
     }
 
+    // TODO: Consider accepting &'static str names instead of widget ids in begin_container/widget and counting index automatically within each container.
     pub fn begin_container(
         &mut self,
         id: WidgetId,
@@ -121,19 +119,15 @@ impl Ui {
 
         self.begin_bounds(layout);
         self.id_stack.push(id);
-        self.container_stack.push(Container::new(direction));
+        self.container_direction_stack.push(direction);
     }
 
     pub fn end_container(&mut self) {
         assert!(!self.is_in_widget);
 
         self.id_stack.pop();
-        let container = self.container_stack.pop().unwrap();
+        self.container_direction_stack.pop();
         self.end_bounds();
-
-        if container.has_focused_widget {
-            self.container_stack.last_mut().unwrap().has_focused_widget = true;
-        }
     }
 
     pub fn begin_widget(&mut self, id: WidgetId, layout: WidgetLayout, gfx: &mut Gfx) {
@@ -141,35 +135,16 @@ impl Ui {
         self.is_in_widget = true;
 
         self.begin_bounds(layout);
+        self.id_stack.push(id);
 
         let bounds = self.bounds();
-
-        if let Some(position) = self.left_click_position {
-            println!(
-                "position: {:?}, bounds: {:?}, id: {:?}",
-                position, bounds, id
-            );
-        }
 
         if self
             .left_click_position
             .is_some_and(|position| bounds.contains_position(position))
         {
-            self.left_click_position = None;
-
-            let id = self
-                .id_stack
-                .iter()
-                .rev()
-                .copied()
-                .find(|id| *id != WidgetId::Component);
-
-            if let Some(id) = id {
-                self.focus(id);
-            }
+            self.end_left_click_focus();
         }
-
-        self.id_stack.push(id);
 
         gfx.begin(Some(bounds));
     }
@@ -179,20 +154,14 @@ impl Ui {
         self.is_in_widget = false;
 
         gfx.end();
-
-        if self.is_focused() {
-            self.container_stack.last_mut().unwrap().has_focused_widget = true;
-        }
-
         self.id_stack.pop();
-
         self.end_bounds();
     }
 
     fn begin_bounds(&mut self, layout: WidgetLayout) {
         // TODO: Support choosing if you want to be at the beginning or end of the parent container.
         let container_bounds = self.bounds_stack.last().unwrap();
-        let container = self.container_stack.last().unwrap();
+        let container_direction = self.container_direction_stack.last().unwrap();
 
         let (x, y) = if let Some(position) = layout.position {
             (position.x, position.y)
@@ -200,12 +169,12 @@ impl Ui {
             (container_bounds.x, container_bounds.y)
         };
 
-        let width = match container.direction {
+        let width = match container_direction {
             ContainerDirection::Horizontal => layout.width.unwrap_or(container_bounds.width),
             ContainerDirection::Vertical => container_bounds.width,
         };
 
-        let height = match container.direction {
+        let height = match container_direction {
             ContainerDirection::Horizontal => container_bounds.height,
             ContainerDirection::Vertical => layout.height.unwrap_or(container_bounds.height),
         };
@@ -222,9 +191,9 @@ impl Ui {
         }
 
         let container_bounds = self.bounds_stack.last_mut().unwrap();
-        let container = self.container_stack.last().unwrap();
+        let container_direction = self.container_direction_stack.last().unwrap();
 
-        *container_bounds = match container.direction {
+        *container_bounds = match container_direction {
             ContainerDirection::Horizontal => container_bounds.shrink_left_by(bounds),
             ContainerDirection::Vertical => container_bounds.shrink_top_by(bounds),
         }
@@ -234,52 +203,77 @@ impl Ui {
         *self.bounds_stack.last().unwrap()
     }
 
-    pub fn focus(&mut self, id: WidgetId) {
-        println!("trying to focus: {:?}", id);
+    pub fn focus(&mut self, id_stack: &[WidgetId]) {
+        self.end_left_click_focus();
 
-        if id == WidgetId::Component {
-            return;
+        Self::focus_history_push(&mut self.focus_history, id_stack);
+    }
+
+    fn focus_history_push(focus_history: &mut Vec<Pooled<Vec<WidgetId>>>, id_stack: &[WidgetId]) {
+        while focus_history.len() >= MAX_FOCUS_HISTORY_LEN {
+            focus_history.remove(0);
         }
 
-        let index = self
-            .focus_history
+        let index = focus_history
             .iter()
-            .position(|history_id| *history_id == id);
+            .position(|history_stack| history_stack.deref() == id_stack);
 
         if let Some(index) = index {
-            self.focus_history.remove(index);
+            focus_history.remove(index);
         }
 
-        self.focus_history.push(id);
+        focus_history.push(
+            VEC_WIDGET_ID_POOL.init_item(|focus_stack| focus_stack.extend_from_slice(id_stack)),
+        );
     }
 
     // TODO: When a command palette is closed or a pane is removed it needs to be unfocused if it is focused.
-    pub fn unfocus(&mut self, id: WidgetId) {
-        if id == WidgetId::Component {
-            return;
-        }
+    pub fn unfocus(&mut self, id_stack: &[WidgetId]) {
+        self.end_left_click_focus();
 
-        if self.focus_history.last() != Some(&id) {
+        if !self.is_stack_focused(id_stack) {
             return;
         }
 
         self.focus_history.pop();
     }
 
-    pub fn is_focused(&self) -> bool {
-        let id = self
-            .id_stack
-            .iter()
-            .rev()
-            .copied()
-            .find(|id| *id != WidgetId::Component);
+    fn begin_left_click_focus(&mut self, position: VisualPosition) {
+        if self.left_click_position.is_none() {
+            // Add a placeholder so that the previous widget doesn't
+            // continue to be focused until we reach the widget that was clicked.
+            Self::focus_history_push(&mut self.focus_history, &[]);
+        }
 
-        self.focus_history.last() == id.as_ref()
-            || self
-                .container_stack
-                .last()
-                .as_ref()
-                .is_some_and(|container| container.has_focused_widget)
+        self.left_click_position = Some(position);
+    }
+
+    fn end_left_click_focus(&mut self) {
+        if self.left_click_position.is_none() {
+            return;
+        }
+
+        self.left_click_position = None;
+
+        // Remove the placeholder.
+        self.focus_history.pop();
+        Self::focus_history_push(&mut self.focus_history, &self.id_stack);
+    }
+
+    pub fn is_focused(&self) -> bool {
+        self.is_stack_focused(&self.id_stack)
+    }
+
+    pub fn is_stack_focused(&self, id_stack: &[WidgetId]) -> bool {
+        self.focused_stack().is_some_and(|focus_stack| {
+            id_stack.len() <= focus_stack.len() && id_stack == &focus_stack[..id_stack.len()]
+        })
+    }
+
+    pub fn focused_stack(&self) -> Option<&[WidgetId]> {
+        self.focus_history
+            .last()
+            .map(|focus_stack| focus_stack.as_slice())
     }
 
     pub fn is_hovered(&self, window: &Window) -> bool {
