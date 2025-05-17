@@ -17,7 +17,7 @@ impl Process {
         })
     }
 
-    pub fn flush(&mut self) {}
+    pub fn flush(&self) {}
 
-    pub fn resize(&mut self, _width: usize, _height: usize) {}
+    pub fn resize(&self, _width: usize, _height: usize) {}
 }

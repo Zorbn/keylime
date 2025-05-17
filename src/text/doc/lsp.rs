@@ -122,7 +122,7 @@ impl Doc {
     }
 
     pub fn lsp_did_change(
-        &mut self,
+        &self,
         start: Position,
         end: Position,
         text: &str,
@@ -288,7 +288,7 @@ impl Doc {
         Some(())
     }
 
-    pub fn lsp_formatting(&mut self, ctx: &mut Ctx) -> Option<()> {
+    pub fn lsp_formatting(&self, ctx: &mut Ctx) -> Option<()> {
         if !self.lsp_state.is_open {
             return None;
         }
@@ -304,7 +304,7 @@ impl Doc {
     }
 
     pub fn lsp_text_document_notification(
-        &mut self,
+        &self,
         method: &'static str,
         ctx: &mut Ctx,
     ) -> Option<()> {

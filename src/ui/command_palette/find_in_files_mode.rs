@@ -73,7 +73,7 @@ impl FindInFilesMode {
     }
 
     pub fn jump_to_path_with_position(
-        command_palette: &mut CommandPalette,
+        command_palette: &CommandPalette,
         args: CommandPaletteEventArgs,
         _: ResultListSubmitKind,
     ) -> CommandPaletteAction {

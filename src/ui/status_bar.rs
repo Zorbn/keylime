@@ -25,14 +25,14 @@ impl StatusBar {
         }
     }
 
-    pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
+    pub fn layout(&self, bounds: Rect, ctx: &mut Ctx) {
         ctx.ui.widget_mut(self.widget_id).bounds =
             Rect::new(0.0, 0.0, bounds.width, ctx.gfx.tab_height())
                 .at_bottom_of(bounds)
                 .floor();
     }
 
-    pub fn draw(&mut self, editor: &Editor, ctx: &mut Ctx) {
+    pub fn draw(&self, editor: &Editor, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
         let widget = ctx.ui.widget(self.widget_id);

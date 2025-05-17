@@ -262,10 +262,10 @@ impl<T> Pane<T> {
     }
 
     fn draw_tab_from_index(
-        &mut self,
+        &self,
         index: usize,
         background: Option<Color>,
-        data_list: &mut SlotList<T>,
+        data_list: &SlotList<T>,
         ctx: &mut Ctx,
     ) -> Rect {
         let get_doc = self.get_doc;

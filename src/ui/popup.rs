@@ -36,7 +36,7 @@ impl Popup {
         }
     }
 
-    pub fn layout(&mut self, position: VisualPosition, alignment: PopupAlignment, ctx: &mut Ctx) {
+    pub fn layout(&self, position: VisualPosition, alignment: PopupAlignment, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;
 
         let mut bounds = Rect::ZERO;
@@ -104,7 +104,7 @@ impl Popup {
         gfx.end();
     }
 
-    pub fn hide(&mut self, ui: &mut Ui) {
+    pub fn hide(&self, ui: &mut Ui) {
         ui.hide(self.widget_id());
     }
 
@@ -118,7 +118,7 @@ impl Popup {
         self.widget_id
     }
 
-    fn margin(gfx: &mut Gfx) -> f32 {
+    fn margin(gfx: &Gfx) -> f32 {
         gfx.glyph_width()
     }
 }

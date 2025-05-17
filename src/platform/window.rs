@@ -85,7 +85,7 @@ impl Window {
         self.inner.set_clipboard(text, was_copy_implicit)
     }
 
-    pub fn get_clipboard(&mut self, text: &mut String) -> Result<()> {
+    pub fn get_clipboard(&self, text: &mut String) -> Result<()> {
         self.inner.get_clipboard(text)
     }
 

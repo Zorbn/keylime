@@ -166,7 +166,7 @@ impl CommandPaletteMode for SearchAndReplaceMode {
     }
 }
 
-fn start(editor: &mut Editor, ui: &Ui) -> Position {
+fn start(editor: &Editor, ui: &Ui) -> Position {
     let (pane, doc_list) = editor.last_focused_pane_and_doc_list(ui);
     let focused_tab_index = pane.focused_tab_index();
 

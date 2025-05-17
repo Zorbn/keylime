@@ -174,7 +174,7 @@ impl Text {
         }
     }
 
-    pub fn glyph_span(&mut self, index: usize) -> GlyphSpan {
+    pub fn glyph_span(&self, index: usize) -> GlyphSpan {
         self.cache.glyph_spans[index]
     }
 

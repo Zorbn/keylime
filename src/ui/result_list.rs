@@ -79,7 +79,7 @@ impl<T> ResultList<T> {
         .floor();
     }
 
-    pub fn offset_by(&mut self, bounds: Rect, ui: &mut Ui) {
+    pub fn offset_by(&self, bounds: Rect, ui: &mut Ui) {
         let widget = ui.widget_mut(self.widget_id);
         widget.bounds = widget.bounds.offset_by(bounds);
     }
@@ -211,7 +211,7 @@ impl<T> ResultList<T> {
     }
 
     pub fn draw<'a>(
-        &'a mut self,
+        &'a self,
         ctx: &mut Ctx,
         mut display_result: impl FnMut(&'a T, &Theme) -> (&'a str, Color),
     ) {

@@ -608,7 +608,7 @@ impl Doc {
         self.delete(start, end, ctx);
     }
 
-    pub fn indent_start(&mut self, end: Position, ctx: &mut Ctx) -> Position {
+    pub fn indent_start(&self, end: Position, ctx: &mut Ctx) -> Position {
         let indent_width = ctx.config.indent_width_for_doc(self);
 
         let mut start = self.move_position(end, -1, 0, ctx.gfx);
@@ -1720,7 +1720,7 @@ impl Doc {
         self.kind
     }
 
-    pub fn copy_at_cursors(&mut self, text: &mut String) -> bool {
+    pub fn copy_at_cursors(&self, text: &mut String) -> bool {
         let mut was_copy_implicit = true;
 
         for index in self.cursor_indices() {
@@ -1742,7 +1742,7 @@ impl Doc {
         was_copy_implicit
     }
 
-    pub fn copy_line_at_position(&mut self, position: Position, text: &mut String) {
+    pub fn copy_line_at_position(&self, position: Position, text: &mut String) {
         let start = Position::new(0, position.y);
         let end = self.line_end(start.y);
 

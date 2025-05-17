@@ -9,7 +9,7 @@ impl FileWatcher {
         Self
     }
 
-    pub fn changed_files(&mut self) -> &[Pooled<PathBuf>] {
+    pub fn changed_files(&self) -> &[Pooled<PathBuf>] {
         &[]
     }
 }

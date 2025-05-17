@@ -359,7 +359,7 @@ impl TerminalEmulator {
         }
     }
 
-    fn resize_grid(&mut self, tab: &Tab, gfx: &mut Gfx) {
+    fn resize_grid(&mut self, tab: &Tab, gfx: &Gfx) {
         let (grid_width, grid_height) = Self::grid_size(gfx, tab);
 
         if grid_width == self.grid_width && grid_height == self.grid_height {
@@ -386,7 +386,7 @@ impl TerminalEmulator {
         self.scroll_bottom = grid_height - 1;
     }
 
-    fn grid_size(gfx: &mut Gfx, tab: &Tab) -> (usize, usize) {
+    fn grid_size(gfx: &Gfx, tab: &Tab) -> (usize, usize) {
         let Rect {
             width: doc_width,
             height: doc_height,
@@ -420,7 +420,7 @@ impl TerminalEmulator {
     }
 
     fn scroll_highlighted_lines(
-        &mut self,
+        &self,
         region: RangeInclusive<usize>,
         delta_y: isize,
         doc: &mut Doc,
@@ -566,7 +566,7 @@ impl TerminalEmulator {
         self.doc_position_to_grid_position(doc_position, doc)
     }
 
-    fn move_position_right(&self, position: Position, distance: usize, doc: &mut Doc) -> Position {
+    fn move_position_right(&self, position: Position, distance: usize, doc: &Doc) -> Position {
         let mut doc_position = self.grid_position_to_doc_position(position, doc);
 
         let Some(line) = doc.get_line(doc_position.y) else {
@@ -609,11 +609,11 @@ impl TerminalEmulator {
     }
 
     pub fn move_position(
-        &mut self,
+        &self,
         mut position: Position,
         delta_x: isize,
         delta_y: isize,
-        doc: &mut Doc,
+        doc: &Doc,
     ) -> Position {
         if delta_y != 0 {
             position.x = self.grid_position_byte_to_char(position, doc);
@@ -628,7 +628,7 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn grid_position_char_to_byte(&self, position: Position, doc: &mut Doc) -> Position {
+    pub fn grid_position_char_to_byte(&self, position: Position, doc: &Doc) -> Position {
         self.move_position_right(Position::new(0, position.y), position.x, doc)
     }
 

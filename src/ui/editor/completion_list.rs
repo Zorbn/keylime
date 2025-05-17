@@ -220,7 +220,7 @@ impl CompletionList {
 
     fn lsp_completion_item_resolve(
         item: &DecodedCompletionItem,
-        doc: &mut Doc,
+        doc: &Doc,
         ctx: &mut Ctx,
     ) -> Option<LspSentRequest> {
         let language_server = doc.get_language_server_mut(ctx)?;
@@ -228,7 +228,7 @@ impl CompletionList {
         Some(language_server.completion_item_resolve(item.clone(), doc))
     }
 
-    fn should_open(&mut self, ctx: &mut Ctx) -> bool {
+    fn should_open(&self, ctx: &mut Ctx) -> bool {
         let widget_id = self.result_list.widget_id();
         let mut grapheme_handler = ctx.ui.grapheme_handler(widget_id, ctx.window);
 
@@ -254,7 +254,7 @@ impl CompletionList {
         self.result_list.update_camera(ui, dt);
     }
 
-    pub fn draw(&mut self, ctx: &mut Ctx) {
+    pub fn draw(&self, ctx: &mut Ctx) {
         self.result_list
             .draw(ctx, |result, theme| (result.label(), theme.normal));
 

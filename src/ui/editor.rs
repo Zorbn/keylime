@@ -417,7 +417,7 @@ impl Editor {
         pane.get_tab_with_data(focused_tab_index, &self.doc_list)
     }
 
-    fn is_cursor_visible(&mut self, ctx: &mut Ctx) -> bool {
+    fn is_cursor_visible(&self, ctx: &mut Ctx) -> bool {
         let pane = self.panes.get_last_focused(ctx.ui).unwrap();
 
         let Some((tab, doc)) = pane.get_tab_with_data(pane.focused_tab_index(), &self.doc_list)

@@ -61,7 +61,7 @@ impl GraphemeHandler {
         Some(&graphemes_typed[start..end])
     }
 
-    pub fn unprocessed(&mut self, window: &mut Window) {
+    pub fn unprocessed(&self, window: &mut Window) {
         let (graphemes_typed, grapheme_cursor) = window.graphemes_typed();
         grapheme_cursor.previous_boundary(graphemes_typed);
     }

@@ -40,7 +40,7 @@ impl ExaminePopup {
         }
     }
 
-    pub fn layout(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
+    pub fn layout(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
         if self.kind == ExaminePopupKind::None {
             ctx.ui.hide(self.popup.widget_id());
             return;

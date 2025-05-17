@@ -277,13 +277,7 @@ impl Tab {
         index as f32 * gfx.line_height() - sub_line_offset_y
     }
 
-    pub fn draw(
-        &mut self,
-        background: Option<Color>,
-        doc: &mut Doc,
-        ctx: &mut Ctx,
-        is_focused: bool,
-    ) {
+    pub fn draw(&self, background: Option<Color>, doc: &mut Doc, ctx: &mut Ctx, is_focused: bool) {
         let language = ctx.config.get_language_for_doc(doc);
 
         if let Some(syntax) = language.and_then(|language| language.syntax.as_ref()) {
@@ -330,13 +324,7 @@ impl Tab {
         ctx.gfx.end();
     }
 
-    fn draw_gutter(
-        &mut self,
-        doc: &Doc,
-        visible_lines: VisibleLines,
-        is_focused: bool,
-        ctx: &mut Ctx,
-    ) {
+    fn draw_gutter(&self, doc: &Doc, visible_lines: VisibleLines, is_focused: bool, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
@@ -369,7 +357,7 @@ impl Tab {
     }
 
     fn draw_indent_guides(
-        &mut self,
+        &self,
         doc: &Doc,
         camera_position: VisualPosition,
         visible_lines: VisibleLines,
@@ -412,7 +400,7 @@ impl Tab {
     }
 
     fn draw_lines(
-        &mut self,
+        &self,
         background: Option<Color>,
         doc: &Doc,
         camera_position: VisualPosition,
@@ -472,7 +460,7 @@ impl Tab {
     }
 
     fn draw_diagnostics(
-        &mut self,
+        &self,
         doc: &Doc,
         camera_position: VisualPosition,
         visible_lines: VisibleLines,
@@ -537,7 +525,7 @@ impl Tab {
     }
 
     fn draw_go_to_definition_hint(
-        &mut self,
+        &self,
         doc: &Doc,
         camera_position: VisualPosition,
         ctx: &mut Ctx,
@@ -586,7 +574,7 @@ impl Tab {
     }
 
     fn draw_cursors(
-        &mut self,
+        &self,
         doc: &Doc,
         is_focused: bool,
         camera_position: VisualPosition,
@@ -645,7 +633,7 @@ impl Tab {
         }
     }
 
-    fn draw_scroll_bar(&mut self, doc: &Doc, camera_position: VisualPosition, ctx: &mut Ctx) {
+    fn draw_scroll_bar(&self, doc: &Doc, camera_position: VisualPosition, ctx: &mut Ctx) {
         if doc.kind() != DocKind::MultiLine {
             return;
         }

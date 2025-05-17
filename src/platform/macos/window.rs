@@ -464,7 +464,7 @@ impl Window {
         Ok(())
     }
 
-    pub fn get_clipboard(&mut self, text: &mut String) -> Result<()> {
+    pub fn get_clipboard(&self, text: &mut String) -> Result<()> {
         let pasteboard_string = unsafe {
             let pasteboard = NSPasteboard::generalPasteboard();
             pasteboard.stringForType(NSPasteboardTypeString)

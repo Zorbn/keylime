@@ -443,7 +443,7 @@ fn handle_cut(doc: &mut Doc, ctx: &mut Ctx) {
     }
 }
 
-pub fn handle_copy(doc: &mut Doc, ctx: &mut Ctx) {
+pub fn handle_copy(doc: &Doc, ctx: &mut Ctx) {
     let mut text = STRING_POOL.new_item();
     let was_copy_implicit = doc.copy_at_cursors(&mut text);
 

@@ -35,7 +35,7 @@ impl Window {
         }
     }
 
-    pub fn set_theme(&mut self, _theme: &Theme) {}
+    pub fn set_theme(&self, _theme: &Theme) {}
 
     pub fn is_focused(&self) -> bool {
         true
@@ -65,12 +65,12 @@ impl Window {
         Mods::NONE
     }
 
-    pub fn set_clipboard(&mut self, _text: &str, _was_copy_implicit: bool) -> Result<()> {
+    pub fn set_clipboard(&self, _text: &str, _was_copy_implicit: bool) -> Result<()> {
         Ok(())
     }
 
     #[allow(clippy::ptr_arg)]
-    pub fn get_clipboard(&mut self, _text: &mut String) -> Result<()> {
+    pub fn get_clipboard(&self, _text: &mut String) -> Result<()> {
         Ok(())
     }
 

@@ -344,7 +344,7 @@ impl Window {
         Ok(())
     }
 
-    pub fn get_clipboard(&mut self, text: &mut String) -> Result<()> {
+    pub fn get_clipboard(&self, text: &mut String) -> Result<()> {
         let mut wide_text = UTF16_POOL.new_item();
 
         unsafe {

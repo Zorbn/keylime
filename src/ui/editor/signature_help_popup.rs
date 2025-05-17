@@ -33,7 +33,7 @@ impl SignatureHelpPopup {
         }
     }
 
-    pub fn layout(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
+    pub fn layout(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
         let position = doc.cursor(CursorIndex::Main).position;
 
         let mut position = doc.position_to_visual(position, tab.camera.position(), ctx.gfx);
