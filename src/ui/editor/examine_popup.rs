@@ -5,7 +5,7 @@ use crate::{
     pool::Pooled,
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
-        core::{Ui, WidgetId, WidgetSettings},
+        core::{Ui, WidgetId},
         popup::{Popup, PopupAlignment},
         tab::Tab,
     },
@@ -26,35 +26,29 @@ enum ExaminePopupKind {
 }
 
 pub struct ExaminePopup {
-    widget_id: WidgetId,
-
     popup: Popup,
     kind: ExaminePopupKind,
     position: Position,
 }
 
 impl ExaminePopup {
-    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
-        let widget_id = ui.new_widget(parent_id, WidgetSettings::default());
-
+    pub fn new() -> Self {
         Self {
-            widget_id,
-
-            popup: Popup::new(widget_id, ui),
+            popup: Popup::new(),
             kind: ExaminePopupKind::None,
             position: Position::ZERO,
         }
     }
 
-    pub fn layout(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
-        ctx.ui
-            .set_shown(self.popup.widget_id(), self.kind != ExaminePopupKind::None);
+    // pub fn layout(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
+    //     ctx.ui
+    //         .set_shown(self.popup.widget_id(), self.kind != ExaminePopupKind::None);
 
-        let mut position = doc.position_to_visual(self.position, tab.camera.position(), ctx.gfx);
-        position = position.offset_by(tab.doc_bounds());
+    //     let mut position = doc.position_to_visual(self.position, tab.camera.position(), ctx.gfx);
+    //     position = position.offset_by(tab.doc_bounds());
 
-        self.popup.layout(position, PopupAlignment::Above, ctx);
-    }
+    //     self.popup.layout(position, PopupAlignment::Above, ctx);
+    // }
 
     pub fn update(&mut self, did_cursor_move: bool, doc: &Doc, ctx: &mut Ctx) {
         let position = doc.cursor(CursorIndex::Main).position;
@@ -70,11 +64,11 @@ impl ExaminePopup {
         }
     }
 
-    pub fn draw(&self, ctx: &mut Ctx) {
-        let theme = &ctx.config.theme;
+    // pub fn draw(&self, ctx: &mut Ctx) {
+    //     let theme = &ctx.config.theme;
 
-        self.popup.draw(theme.normal, ctx);
-    }
+    //     self.popup.draw(theme.normal, ctx);
+    // }
 
     pub fn open(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
         let position = doc.cursor(CursorIndex::Main).position;
@@ -105,7 +99,7 @@ impl ExaminePopup {
 
     pub fn clear(&mut self, ui: &mut Ui) {
         self.kind = ExaminePopupKind::None;
-        self.popup.hide(ui);
+        // self.popup.hide(ui);
     }
 
     fn set_data(&mut self, kind: ExaminePopupData, doc: &Doc, ui: &mut Ui) {
@@ -114,19 +108,15 @@ impl ExaminePopup {
         match kind {
             ExaminePopupData::None => {}
             ExaminePopupData::Diagnostic(diagnostic) => {
-                self.popup.show(&diagnostic.message, ui);
+                // self.popup.show(&diagnostic.message, ui);
                 self.position = diagnostic.visible_range(doc).start;
                 self.kind = ExaminePopupKind::Diagnostic;
             }
             ExaminePopupData::Hover(text) => {
-                self.popup.show(&text, ui);
+                // self.popup.show(&text, ui);
                 self.position = doc.cursor(CursorIndex::Main).position;
                 self.kind = ExaminePopupKind::Hover;
             }
         }
-    }
-
-    pub fn widget_id(&self) -> WidgetId {
-        self.widget_id
     }
 }

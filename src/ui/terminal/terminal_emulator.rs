@@ -137,20 +137,14 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn update_input(
-        &mut self,
-        widget_id: WidgetId,
-        docs: &mut TerminalDocs,
-        tab: &mut Tab,
-        ctx: &mut Ctx,
-    ) {
+    pub fn update_input(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
         let Some(mut pty) = self.pty.take() else {
             return;
         };
 
         let doc = self.doc_mut(docs);
 
-        let mut action_handler = ctx.ui.action_handler(widget_id, ctx.window);
+        let mut action_handler = ctx.ui.action_handler(ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
@@ -225,7 +219,7 @@ impl TerminalEmulator {
             }
         }
 
-        let mut grapheme_handler = ctx.ui.grapheme_handler(widget_id, ctx.window);
+        let mut grapheme_handler = ctx.ui.grapheme_handler(ctx.window);
 
         while let Some(grapheme) = grapheme_handler.next(ctx.window) {
             pty.input().extend(grapheme.bytes());
@@ -234,8 +228,6 @@ impl TerminalEmulator {
         pty.flush();
 
         self.pty = Some(pty);
-
-        tab.update(widget_id, doc, ctx);
     }
 
     pub fn update_output(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {

@@ -17,13 +17,14 @@ use crate::{
         cursor_index::CursorIndex,
         doc::{Doc, DocKind},
         grapheme,
+        syntax_highlighter::HighlightKind,
     },
 };
 
 use super::{
     camera::{Camera, RECENTER_DISTANCE},
     color::Color,
-    core::WidgetId,
+    core::{ContainerDirection, WidgetId, WidgetLayout},
 };
 
 const GUTTER_PADDING_WIDTH: f32 = 1.0;
@@ -77,27 +78,33 @@ impl Tab {
         self.camera.is_moving()
     }
 
-    pub fn layout(&mut self, tab_bounds: Rect, doc_bounds: Rect, doc: &Doc, gfx: &Gfx) {
-        self.tab_bounds = tab_bounds;
+    // pub fn layout(&mut self, tab_bounds: Rect, doc_bounds: Rect, doc: &Doc, gfx: &Gfx) {
+    //     self.tab_bounds = tab_bounds;
 
-        let gutter_width = if doc.kind() == DocKind::MultiLine {
-            let max_gutter_digits = (doc.lines().len() as f32).log10().floor() + 1.0;
+    //     let gutter_width = if doc.kind() == DocKind::MultiLine {
+    //         let max_gutter_digits = (doc.lines().len() as f32).log10().floor() + 1.0;
 
-            (max_gutter_digits + GUTTER_PADDING_WIDTH * 2.0 + GUTTER_BORDER_WIDTH)
-                * gfx.glyph_width()
-        } else {
-            0.0
-        };
+    //         (max_gutter_digits + GUTTER_PADDING_WIDTH * 2.0 + GUTTER_BORDER_WIDTH)
+    //             * gfx.glyph_width()
+    //     } else {
+    //         0.0
+    //     };
 
-        self.gutter_bounds = Rect::new(doc_bounds.x, doc_bounds.y, gutter_width, doc_bounds.height);
-        self.doc_bounds = doc_bounds.shrink_left_by(self.gutter_bounds);
-    }
+    //     self.gutter_bounds = Rect::new(doc_bounds.x, doc_bounds.y, gutter_width, doc_bounds.height);
+    //     self.doc_bounds = doc_bounds.shrink_left_by(self.gutter_bounds);
+    // }
 
-    pub fn update(&mut self, widget_id: WidgetId, doc: &mut Doc, ctx: &mut Ctx) {
+    pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+        ctx.ui.begin_container(
+            WidgetId::Component,
+            WidgetLayout::default(),
+            ContainerDirection::Horizontal,
+        );
+
         self.handled_cursor_position = Some(doc.cursor(CursorIndex::Main).position);
         self.handled_doc_len = Some(doc.lines().len());
 
-        let mut grapheme_handler = ctx.ui.grapheme_handler(widget_id, ctx.window);
+        let mut grapheme_handler = ctx.ui.grapheme_handler(ctx.window);
 
         while let Some(grapheme) = grapheme_handler.next(ctx.window) {
             let grapheme: Pooled<String> = grapheme.into();
@@ -105,7 +112,7 @@ impl Tab {
             handle_grapheme(&grapheme, doc, ctx);
         }
 
-        let mut mousebind_handler = ctx.ui.mousebind_handler(widget_id, ctx.window);
+        let mut mousebind_handler = ctx.ui.mousebind_handler(ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
@@ -156,7 +163,7 @@ impl Tab {
             }
         }
 
-        let mut action_handler = ctx.ui.action_handler(widget_id, ctx.window);
+        let mut action_handler = ctx.ui.action_handler(ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             let was_handled = handle_action(action, self, doc, ctx);
@@ -168,10 +175,87 @@ impl Tab {
 
         doc.combine_overlapping_cursors();
         doc.update_tokens();
+
+        self.tab_bounds = Rect::ZERO; // TODO
+
+        let gutter_width = if doc.kind() == DocKind::MultiLine {
+            let max_gutter_digits = (doc.lines().len() as f32).log10().floor() + 1.0;
+
+            (max_gutter_digits + GUTTER_PADDING_WIDTH * 2.0 + GUTTER_BORDER_WIDTH)
+                * ctx.gfx.glyph_width()
+        } else {
+            0.0
+        };
+
+        // TODO: Remove these fields, just calculate gutter_width locally and that should be enough.
+        self.doc_bounds = ctx.ui.bounds();
+        self.gutter_bounds = Rect::new(
+            self.doc_bounds.x,
+            self.doc_bounds.y,
+            gutter_width,
+            self.doc_bounds.height,
+        );
+        self.doc_bounds = self.doc_bounds.shrink_left_by(self.gutter_bounds);
+
+        let language = ctx.config.get_language_for_doc(doc);
+
+        if let Some(syntax) = language.and_then(|language| language.syntax.as_ref()) {
+            doc.update_highlights(self.camera.position(), self.doc_bounds, syntax, ctx.gfx);
+        }
+
+        let camera_position = self.camera.position().floor();
+
+        let min_y = (camera_position.y / ctx.gfx.line_height()) as usize;
+        let sub_line_offset_y = camera_position.y - min_y as f32 * ctx.gfx.line_height();
+
+        let max_y =
+            ((camera_position.y + self.doc_bounds.height) / ctx.gfx.line_height()) as usize + 1;
+        let max_y = max_y.min(doc.lines().len());
+
+        let visible_lines = VisibleLines {
+            offset: sub_line_offset_y,
+            min_y,
+            max_y,
+        };
+
+        if doc.kind() == DocKind::MultiLine {
+            ctx.ui.begin_widget(
+                WidgetId::Component,
+                WidgetLayout {
+                    width: Some(gutter_width),
+                    ..Default::default()
+                },
+                ctx.gfx,
+            );
+
+            self.draw_gutter(doc, visible_lines, ctx);
+
+            ctx.ui.end_widget(ctx.gfx);
+        }
+
+        ctx.ui
+            .begin_widget(WidgetId::Component, WidgetLayout::default(), ctx.gfx);
+
+        // TODO:
+        let background = Some(ctx.config.theme.terminal.background);
+
+        if let Some(background) = background {
+            ctx.gfx
+                .add_rect(self.doc_bounds.unoffset_by(self.doc_bounds), background);
+        }
+
+        self.draw_indent_guides(doc, camera_position, visible_lines, ctx);
+        self.draw_lines(background, doc, camera_position, visible_lines, ctx);
+        self.draw_diagnostics(doc, camera_position, visible_lines, ctx);
+        self.draw_go_to_definition_hint(doc, camera_position, ctx);
+        self.draw_cursors(doc, camera_position, visible_lines, ctx);
+        self.draw_scroll_bar(doc, camera_position, ctx);
+
+        ctx.ui.end_widget(ctx.gfx);
     }
 
-    pub fn update_camera(&mut self, widget_id: WidgetId, doc: &Doc, ctx: &mut Ctx, dt: f32) {
-        let mut mouse_scroll_handler = ctx.ui.mouse_scroll_handler(widget_id, ctx.window);
+    pub fn update_camera(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
+        let mut mouse_scroll_handler = ctx.ui.mouse_scroll_handler(ctx.window);
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
@@ -277,56 +361,57 @@ impl Tab {
         index as f32 * gfx.line_height() - sub_line_offset_y
     }
 
-    pub fn draw(&self, background: Option<Color>, doc: &mut Doc, is_focused: bool, ctx: &mut Ctx) {
-        let language = ctx.config.get_language_for_doc(doc);
+    // pub fn draw(&self, background: Option<Color>, doc: &mut Doc, is_focused: bool, ctx: &mut Ctx) {
+    //     let language = ctx.config.get_language_for_doc(doc);
 
-        if let Some(syntax) = language.and_then(|language| language.syntax.as_ref()) {
-            doc.update_highlights(self.camera.position(), self.doc_bounds, syntax, ctx.gfx);
-        }
+    //     if let Some(syntax) = language.and_then(|language| language.syntax.as_ref()) {
+    //         doc.update_highlights(self.camera.position(), self.doc_bounds, syntax, ctx.gfx);
+    //     }
 
-        let camera_position = self.camera.position().floor();
+    //     let camera_position = self.camera.position().floor();
 
-        let min_y = (camera_position.y / ctx.gfx.line_height()) as usize;
-        let sub_line_offset_y = camera_position.y - min_y as f32 * ctx.gfx.line_height();
+    //     let min_y = (camera_position.y / ctx.gfx.line_height()) as usize;
+    //     let sub_line_offset_y = camera_position.y - min_y as f32 * ctx.gfx.line_height();
 
-        let max_y =
-            ((camera_position.y + self.doc_bounds.height) / ctx.gfx.line_height()) as usize + 1;
-        let max_y = max_y.min(doc.lines().len());
+    //     let max_y =
+    //         ((camera_position.y + self.doc_bounds.height) / ctx.gfx.line_height()) as usize + 1;
+    //     let max_y = max_y.min(doc.lines().len());
 
-        let visible_lines = VisibleLines {
-            offset: sub_line_offset_y,
-            min_y,
-            max_y,
-        };
+    //     let visible_lines = VisibleLines {
+    //         offset: sub_line_offset_y,
+    //         min_y,
+    //         max_y,
+    //     };
 
-        if doc.kind() == DocKind::MultiLine {
-            ctx.gfx.begin(Some(self.gutter_bounds));
+    //     if doc.kind() == DocKind::MultiLine {
+    //         ctx.gfx.begin(Some(self.gutter_bounds));
 
-            self.draw_gutter(doc, visible_lines, is_focused, ctx);
+    //         self.draw_gutter(doc, visible_lines, is_focused, ctx);
 
-            ctx.gfx.end();
-        }
+    //         ctx.gfx.end();
+    //     }
 
-        ctx.gfx.begin(Some(self.doc_bounds));
+    //     ctx.gfx.begin(Some(self.doc_bounds));
 
-        if let Some(background) = background {
-            ctx.gfx
-                .add_rect(self.doc_bounds.unoffset_by(self.doc_bounds), background);
-        }
+    //     if let Some(background) = background {
+    //         ctx.gfx
+    //             .add_rect(self.doc_bounds.unoffset_by(self.doc_bounds), background);
+    //     }
 
-        self.draw_indent_guides(doc, camera_position, visible_lines, ctx);
-        self.draw_lines(background, doc, camera_position, visible_lines, ctx);
-        self.draw_diagnostics(doc, camera_position, visible_lines, ctx);
-        self.draw_go_to_definition_hint(doc, camera_position, ctx);
-        self.draw_cursors(doc, is_focused, camera_position, visible_lines, ctx);
-        self.draw_scroll_bar(doc, camera_position, ctx);
+    //     self.draw_indent_guides(doc, camera_position, visible_lines, ctx);
+    //     self.draw_lines(background, doc, camera_position, visible_lines, ctx);
+    //     self.draw_diagnostics(doc, camera_position, visible_lines, ctx);
+    //     self.draw_go_to_definition_hint(doc, camera_position, ctx);
+    //     self.draw_cursors(doc, is_focused, camera_position, visible_lines, ctx);
+    //     self.draw_scroll_bar(doc, camera_position, ctx);
 
-        ctx.gfx.end();
-    }
+    //     ctx.gfx.end();
+    // }
 
-    fn draw_gutter(&self, doc: &Doc, visible_lines: VisibleLines, is_focused: bool, ctx: &mut Ctx) {
+    fn draw_gutter(&self, doc: &Doc, visible_lines: VisibleLines, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
+        let is_focused = ctx.ui.is_focused();
 
         let cursor_y = doc.cursor(CursorIndex::Main).position.y;
 
@@ -576,13 +661,13 @@ impl Tab {
     fn draw_cursors(
         &self,
         doc: &Doc,
-        is_focused: bool,
         camera_position: VisualPosition,
         visible_lines: VisibleLines,
         ctx: &mut Ctx,
     ) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
+        let is_focused = ctx.ui.is_focused();
 
         for index in doc.cursor_indices() {
             let Some(selection) = doc.cursor(index).get_selection() else {

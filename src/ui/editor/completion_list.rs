@@ -14,7 +14,7 @@ use crate::{
     pool::Pooled,
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
-        core::{Ui, WidgetId, WidgetSettings},
+        core::{Ui, WidgetId},
         popup::{Popup, PopupAlignment},
         result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     },
@@ -58,8 +58,6 @@ pub struct CompletionListResult {
 }
 
 pub struct CompletionList {
-    widget_id: WidgetId,
-
     result_list: ResultList<CompletionResult>,
     // Prevents the result list from shrinking as it's being scrolled through.
     min_width: f32,
@@ -74,19 +72,9 @@ pub struct CompletionList {
 }
 
 impl CompletionList {
-    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
-        let widget_id = ui.new_widget(
-            parent_id,
-            WidgetSettings {
-                is_component: true,
-                ..Default::default()
-            },
-        );
-
+    pub fn new() -> Self {
         Self {
-            widget_id,
-
-            result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS, false, widget_id, ui),
+            result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS, false),
             min_width: 0.0,
             prefix: String::new(),
 
@@ -94,8 +82,8 @@ impl CompletionList {
 
             lsp_expected_responses: HashMap::new(),
 
-            detail_popup: Popup::new(widget_id, ui),
-            documentation_popup: Popup::new(widget_id, ui),
+            detail_popup: Popup::new(),
+            documentation_popup: Popup::new(),
         }
     }
 
@@ -103,58 +91,58 @@ impl CompletionList {
         self.result_list.is_animating()
     }
 
-    pub fn layout(&mut self, visual_position: VisualPosition, ctx: &mut Ctx) {
-        let min_y = self.result_list.min_visible_result_index();
-        let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
-        let mut longest_visible_result = 0;
+    // pub fn layout(&mut self, visual_position: VisualPosition, ctx: &mut Ctx) {
+    //     let min_y = self.result_list.min_visible_result_index();
+    //     let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
+    //     let mut longest_visible_result = 0;
 
-        for y in min_y..max_y {
-            let Some(result) = self.result_list.get(y) else {
-                continue;
-            };
+    //     for y in min_y..max_y {
+    //         let Some(result) = self.result_list.get(y) else {
+    //             continue;
+    //         };
 
-            let label = result.label();
+    //         let label = result.label();
 
-            longest_visible_result = longest_visible_result.max(label.len());
-        }
+    //         longest_visible_result = longest_visible_result.max(label.len());
+    //     }
 
-        let gfx = &ctx.gfx;
+    //     let gfx = &ctx.gfx;
 
-        let width = (longest_visible_result as f32 + 2.0) * gfx.glyph_width();
-        let width = width.max(self.min_width);
+    //     let width = (longest_visible_result as f32 + 2.0) * gfx.glyph_width();
+    //     let width = width.max(self.min_width);
 
-        self.min_width = width;
+    //     self.min_width = width;
 
-        self.result_list.layout(
-            Rect::new(
-                visual_position.x - (self.prefix.len() as f32 + 1.0) * gfx.glyph_width()
-                    + gfx.border_width(),
-                visual_position.y + gfx.line_height(),
-                width,
-                0.0,
-            ),
-            ctx.ui,
-            gfx,
-        );
+    //     self.result_list.layout(
+    //         Rect::new(
+    //             visual_position.x - (self.prefix.len() as f32 + 1.0) * gfx.glyph_width()
+    //                 + gfx.border_width(),
+    //             visual_position.y + gfx.line_height(),
+    //             width,
+    //             0.0,
+    //         ),
+    //         ctx.ui,
+    //         gfx,
+    //     );
 
-        let result_list_bounds = ctx.ui.widget(self.result_list.widget_id()).bounds;
+    //     let result_list_bounds = ctx.ui.widget(self.result_list.widget_id()).bounds;
 
-        let mut position = VisualPosition::new(
-            result_list_bounds.right() - gfx.border_width(),
-            result_list_bounds.y,
-        );
+    //     let mut position = VisualPosition::new(
+    //         result_list_bounds.right() - gfx.border_width(),
+    //         result_list_bounds.y,
+    //     );
 
-        self.detail_popup
-            .layout(position, PopupAlignment::TopLeft, ctx);
+    //     self.detail_popup
+    //         .layout(position, PopupAlignment::TopLeft, ctx);
 
-        if ctx.ui.is_visible(self.detail_popup.widget_id()) {
-            position.y +=
-                ctx.ui.widget(self.detail_popup.widget_id()).bounds.height - ctx.gfx.border_width();
-        }
+    //     if ctx.ui.is_visible(self.detail_popup.widget_id()) {
+    //         position.y +=
+    //             ctx.ui.widget(self.detail_popup.widget_id()).bounds.height - ctx.gfx.border_width();
+    //     }
 
-        self.documentation_popup
-            .layout(position, PopupAlignment::TopLeft, ctx);
-    }
+    //     self.documentation_popup
+    //         .layout(position, PopupAlignment::TopLeft, ctx);
+    // }
 
     pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) -> Option<CompletionListResult> {
         let result_input = self.result_list.update(ctx);
@@ -187,39 +175,39 @@ impl CompletionList {
             }
         }
 
-        self.update_popups(ctx.ui);
+        // self.update_popups(ctx.ui);
 
         self.should_open = self.should_open(ctx);
 
         completion_result
     }
 
-    fn update_popups(&mut self, ui: &mut Ui) {
-        let Some(CompletionResult::Completion {
-            item,
-            resolve_state,
-        }) = self.result_list.get_focused()
-        else {
-            self.detail_popup.hide(ui);
-            self.documentation_popup.hide(ui);
-            return;
-        };
+    // fn update_popups(&mut self, ui: &mut Ui) {
+    //     let Some(CompletionResult::Completion {
+    //         item,
+    //         resolve_state,
+    //     }) = self.result_list.get_focused()
+    //     else {
+    //         self.detail_popup.hide(ui);
+    //         self.documentation_popup.hide(ui);
+    //         return;
+    //     };
 
-        if *resolve_state != CompletionResolveState::Resolved {
-            return;
-        }
+    //     if *resolve_state != CompletionResolveState::Resolved {
+    //         return;
+    //     }
 
-        self.detail_popup.hide(ui);
-        self.documentation_popup.hide(ui);
+    //     self.detail_popup.hide(ui);
+    //     self.documentation_popup.hide(ui);
 
-        if let Some(detail) = &item.detail {
-            self.detail_popup.show(detail, ui);
-        }
+    //     if let Some(detail) = &item.detail {
+    //         self.detail_popup.show(detail, ui);
+    //     }
 
-        if let Some(documentation) = &item.documentation {
-            self.documentation_popup.show(documentation.text(), ui);
-        }
-    }
+    //     if let Some(documentation) = &item.documentation {
+    //         self.documentation_popup.show(documentation.text(), ui);
+    //     }
+    // }
 
     fn lsp_completion_item_resolve(
         item: &DecodedCompletionItem,
@@ -232,14 +220,14 @@ impl CompletionList {
     }
 
     fn should_open(&self, ctx: &mut Ctx) -> bool {
-        let mut grapheme_handler = ctx.ui.grapheme_handler(self.widget_id(), ctx.window);
+        let mut grapheme_handler = ctx.ui.grapheme_handler(ctx.window);
 
         if grapheme_handler.next(ctx.window).is_some() {
             grapheme_handler.unprocessed(ctx.window);
             return true;
         }
 
-        let mut action_handler = ctx.ui.action_handler(self.widget_id(), ctx.window);
+        let mut action_handler = ctx.ui.action_handler(ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             action_handler.unprocessed(ctx.window, action);
@@ -256,15 +244,15 @@ impl CompletionList {
         self.result_list.update_camera(ui, dt);
     }
 
-    pub fn draw(&self, ctx: &mut Ctx) {
-        self.result_list
-            .draw(ctx, |result, theme| (result.label(), theme.normal));
+    // pub fn draw(&self, ctx: &mut Ctx) {
+    //     self.result_list
+    //         .draw(ctx, |result, theme| (result.label(), theme.normal));
 
-        let theme = &ctx.config.theme;
+    //     let theme = &ctx.config.theme;
 
-        self.detail_popup.draw(theme.subtle, ctx);
-        self.documentation_popup.draw(theme.normal, ctx);
-    }
+    //     self.detail_popup.draw(theme.subtle, ctx);
+    //     self.documentation_popup.draw(theme.normal, ctx);
+    // }
 
     pub fn lsp_resolve_completion_item(
         &mut self,
@@ -293,7 +281,7 @@ impl CompletionList {
         *existing_item = item;
         *resolve_state = CompletionResolveState::Resolved;
 
-        self.update_popups(ui);
+        // self.update_popups(ui);
     }
 
     pub fn lsp_update_completion_results(
@@ -398,7 +386,7 @@ impl CompletionList {
         self.result_list.drain();
         self.lsp_expected_responses.clear();
 
-        self.update_popups(ui);
+        // self.update_popups(ui);
 
         self.min_width = 0.0;
     }
@@ -463,9 +451,5 @@ impl CompletionList {
             doc.delete(start, end, ctx);
             doc.insert(start, insert_text, ctx);
         }
-    }
-
-    pub fn widget_id(&self) -> WidgetId {
-        self.widget_id
     }
 }

@@ -9,7 +9,11 @@ use crate::{
     normalizable::Normalizable,
     platform::dialog::{find_file, message, FindFileKind, MessageKind},
     text::doc::{Doc, DocKind},
-    ui::{core::WidgetId, pane::Pane, slot_list::SlotList},
+    ui::{
+        core::{Ui, WidgetId},
+        pane::Pane,
+        slot_list::SlotList,
+    },
 };
 
 use super::{
@@ -22,17 +26,17 @@ pub struct EditorPane {
 }
 
 impl EditorPane {
-    pub fn new(doc_list: &mut SlotList<Doc>, parent_id: WidgetId, ctx: &mut Ctx) -> Self {
-        let mut inner = Pane::new(|doc| doc, |doc| doc, parent_id, ctx.ui);
+    pub fn new(doc_list: &mut SlotList<Doc>) -> Self {
+        let mut inner = Pane::new(|doc| doc, |doc| doc);
 
         let doc_index = doc_list.add(Doc::new(None, None, DocKind::MultiLine));
-        inner.add_tab(doc_index, doc_list, ctx);
+        inner.add_tab(doc_index, doc_list);
 
         Self { inner }
     }
 
     pub fn update(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) {
-        let mut action_handler = ctx.ui.action_handler(self.widget_id(), ctx.window);
+        let mut action_handler = ctx.ui.action_handler(ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
@@ -67,10 +71,8 @@ impl EditorPane {
 
         self.inner.update(ctx);
 
-        let widget_id = self.widget_id();
-
         if let Some((tab, doc)) = self.get_focused_tab_with_data_mut(doc_list) {
-            tab.update(widget_id, doc, ctx);
+            tab.update(doc, ctx);
         }
     }
 
@@ -125,7 +127,7 @@ impl EditorPane {
             }
         }
 
-        self.inner.add_tab(doc_index, doc_list, ctx);
+        self.inner.add_tab(doc_index, doc_list);
     }
 
     fn remove_tab(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) -> bool {

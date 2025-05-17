@@ -306,7 +306,6 @@ impl View {
 
         let (time, dt) = window.inner.time(app.is_animating());
         app.update(window, gfx, time, dt);
-        app.draw(window, gfx, time);
 
         let (file_watcher, files, processes) = app.files_and_processes();
         window.inner.update(file_watcher, files, processes);

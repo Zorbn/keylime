@@ -11,7 +11,7 @@ use crate::{
         command_palette::CommandPalette,
         core::{Ui, WidgetId},
         editor::Editor,
-        status_bar::StatusBar,
+        status_bar::status_bar,
         terminal::Terminal,
     },
 };
@@ -33,7 +33,6 @@ pub struct App {
     ui: Ui,
     editor: Editor,
     terminal: Terminal,
-    status_bar: StatusBar,
     command_palette: CommandPalette,
 
     file_watcher: FileWatcher,
@@ -57,38 +56,23 @@ impl App {
         gfx.set_font(&config.font, config.font_size);
 
         let mut ui = Ui::new();
-        let mut lsp = Lsp::new();
-
-        let mut ctx = Ctx {
-            window,
-            gfx,
-            ui: &mut ui,
-            config: &config,
-            lsp: &mut lsp,
-            time,
-        };
-
-        let editor = Editor::new(WidgetId::ROOT, &mut ctx);
-
-        let (pane, _) = editor.last_focused_pane_and_doc_list(ctx.ui);
-        ctx.ui.focus(pane.widget_id());
+        ui.focus(Editor::WIDGET_ID);
 
         let mut app = Self {
-            editor,
-            terminal: Terminal::new(WidgetId::ROOT, &mut ctx),
-            status_bar: StatusBar::new(WidgetId::ROOT, &mut ui),
-            command_palette: CommandPalette::new(WidgetId::ROOT, &mut ui),
             ui,
+            editor: Editor::new(),
+            terminal: Terminal::new(),
+            command_palette: CommandPalette::new(),
 
             file_watcher: FileWatcher::new(),
-            lsp,
+            lsp: Lsp::new(),
 
             config_dir,
             config,
             config_error,
         };
 
-        app.layout(window, gfx, time);
+        // app.layout(window, gfx, time);
         app
     }
 
@@ -109,7 +93,7 @@ impl App {
             gfx.set_font(&self.config.font, self.config.font_size);
 
             self.editor.clear_doc_highlights();
-            self.layout(window, gfx, time);
+            // self.layout(window, gfx, time);
         }
 
         if let Some(err) = window
@@ -120,54 +104,60 @@ impl App {
             err.show_message();
         }
 
-        self.ui.update(window);
-
         let ctx = ctx_for_app!(self, window, gfx, time);
 
         Lsp::update(&mut self.editor, &mut self.command_palette, ctx);
 
+        ctx.ui
+            .begin(ctx.config.theme.background, ctx.window, ctx.gfx);
+
+        status_bar(&self.editor, ctx);
         self.terminal.update(ctx);
-        self.command_palette.update(&mut self.editor, ctx);
-        self.editor.update(&mut self.file_watcher, ctx);
 
-        self.terminal.update_camera(ctx, dt);
-        self.command_palette.update_camera(ctx, dt);
-        self.editor.update_camera(ctx, dt);
+        ctx.ui.end(ctx.gfx);
 
-        self.layout(window, gfx, time);
+        // self.terminal.update(ctx);
+        // self.command_palette.update(&mut self.editor, ctx);
+        // self.editor.update(&mut self.file_watcher, ctx);
+
+        // self.terminal.update_camera(ctx, dt);
+        // self.command_palette.update_camera(ctx, dt);
+        // self.editor.update_camera(ctx, dt);
+
+        // self.layout(window, gfx, time);
     }
 
-    pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
-        gfx.begin_frame(self.config.theme.background);
+    // pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
+    //     gfx.begin_frame(self.config.theme.background);
 
-        let ctx = ctx_for_app!(self, window, gfx, time);
+    //     let ctx = ctx_for_app!(self, window, gfx, time);
 
-        self.status_bar.draw(&self.editor, ctx);
-        self.terminal.draw(ctx);
-        self.editor.draw(ctx);
-        self.command_palette.draw(ctx);
+    //     self.status_bar.draw(&self.editor, ctx);
+    //     self.terminal.draw(ctx);
+    //     self.editor.draw(ctx);
+    //     self.command_palette.draw(ctx);
 
-        gfx.end_frame();
-    }
+    //     gfx.end_frame();
+    // }
 
-    fn layout(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
-        let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
-        self.ui.widget_mut(WidgetId::ROOT).bounds = bounds;
+    // fn layout(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
+    //     let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
+    //     self.ui.widget_mut(WidgetId::ROOT).bounds = bounds;
 
-        let ctx = ctx_for_app!(self, window, gfx, time);
+    //     let ctx = ctx_for_app!(self, window, gfx, time);
 
-        self.command_palette.layout(bounds, ctx);
+    //     self.command_palette.layout(bounds, ctx);
 
-        self.status_bar.layout(bounds, ctx);
-        let status_bar_bounds = ctx.ui.widget(self.status_bar.widget_id()).bounds;
-        bounds = bounds.shrink_bottom_by(status_bar_bounds);
+    //     self.status_bar.layout(bounds, ctx);
+    //     let status_bar_bounds = ctx.ui.widget(self.status_bar.widget_id()).bounds;
+    //     bounds = bounds.shrink_bottom_by(status_bar_bounds);
 
-        self.terminal.layout(bounds, &self.config, ctx);
-        let terminal_bounds = ctx.ui.widget(self.terminal.widget_id()).bounds;
-        bounds = bounds.shrink_bottom_by(terminal_bounds);
+    //     self.terminal.layout(bounds, &self.config, ctx);
+    //     let terminal_bounds = ctx.ui.widget(self.terminal.widget_id()).bounds;
+    //     bounds = bounds.shrink_bottom_by(terminal_bounds);
 
-        self.editor.layout(bounds, ctx);
-    }
+    //     self.editor.layout(bounds, ctx);
+    // }
 
     pub fn close(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
         let ctx = ctx_for_app!(self, window, gfx, time);

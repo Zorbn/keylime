@@ -13,13 +13,12 @@ use crate::{
         mouse_button::MouseButton,
         mousebind::Mousebind,
     },
-    platform::gfx::Gfx,
 };
 
 use super::{
     camera::{Camera, RECENTER_DISTANCE},
     color::Color,
-    core::{Ui, WidgetId, WidgetSettings},
+    core::{Ui, WidgetId},
     focus_list::FocusList,
 };
 
@@ -44,18 +43,12 @@ pub struct ResultList<T> {
     do_show_when_empty: bool,
 
     result_bounds: Rect,
-    widget_id: WidgetId,
 
     camera: Camera,
 }
 
 impl<T> ResultList<T> {
-    pub fn new(
-        max_visible_results: usize,
-        do_show_when_empty: bool,
-        parent_id: WidgetId,
-        ui: &mut Ui,
-    ) -> Self {
+    pub fn new(max_visible_results: usize, do_show_when_empty: bool) -> Self {
         Self {
             results: FocusList::new(),
             handled_focused_index: None,
@@ -64,38 +57,31 @@ impl<T> ResultList<T> {
             do_show_when_empty,
 
             result_bounds: Rect::ZERO,
-            widget_id: ui.new_widget(
-                parent_id,
-                WidgetSettings {
-                    is_component: true,
-                    ..Default::default()
-                },
-            ),
 
             camera: Camera::new(),
         }
     }
 
-    pub fn layout(&mut self, bounds: Rect, ui: &mut Ui, gfx: &Gfx) {
-        ui.set_shown(
-            self.widget_id,
-            self.do_show_when_empty || !self.results.is_empty(),
-        );
+    // pub fn layout(&mut self, bounds: Rect, ui: &mut Ui, gfx: &Gfx) {
+    //     ui.set_shown(
+    //         self.widget_id,
+    //         self.do_show_when_empty || !self.results.is_empty(),
+    //     );
 
-        self.result_bounds = Rect::new(0.0, 0.0, bounds.width, gfx.line_height() * 1.25);
+    //     self.result_bounds = Rect::new(0.0, 0.0, bounds.width, gfx.line_height() * 1.25);
 
-        ui.widget_mut(self.widget_id).bounds = Rect::new(
-            bounds.x,
-            bounds.y,
-            bounds.width,
-            self.result_bounds.height * self.len().min(self.max_visible_results) as f32,
-        )
-        .floor();
-    }
+    //     ui.widget_mut(self.widget_id).bounds = Rect::new(
+    //         bounds.x,
+    //         bounds.y,
+    //         bounds.width,
+    //         self.result_bounds.height * self.len().min(self.max_visible_results) as f32,
+    //     )
+    //     .floor();
+    // }
 
     pub fn offset_by(&self, bounds: Rect, ui: &mut Ui) {
-        let widget = ui.widget_mut(self.widget_id);
-        widget.bounds = widget.bounds.offset_by(bounds);
+        // let widget = ui.widget_mut(self.widget_id);
+        // widget.bounds = widget.bounds.offset_by(bounds);
     }
 
     pub fn update(&mut self, ctx: &mut Ctx) -> ResultListInput {
@@ -108,9 +94,10 @@ impl<T> ResultList<T> {
     }
 
     fn handle_mouse_inputs(&mut self, input: &mut ResultListInput, ctx: &mut Ctx) {
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
+        // let bounds = ctx.ui.widget(self.widget_id).bounds;
+        let bounds = Rect::ZERO;
 
-        let mut mouse_handler = ctx.ui.mousebind_handler(self.widget_id, ctx.window);
+        let mut mouse_handler = ctx.ui.mousebind_handler(ctx.window);
 
         while let Some(mousebind) = mouse_handler.next(ctx.window) {
             let position = VisualPosition::new(mousebind.x, mousebind.y);
@@ -151,7 +138,7 @@ impl<T> ResultList<T> {
             }
         }
 
-        let mut mouse_scroll_handler = ctx.ui.mouse_scroll_handler(self.widget_id, ctx.window);
+        let mut mouse_scroll_handler = ctx.ui.mouse_scroll_handler(ctx.window);
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
@@ -167,7 +154,7 @@ impl<T> ResultList<T> {
     }
 
     fn handle_keybinds(&mut self, input: &mut ResultListInput, ctx: &mut Ctx) {
-        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
+        let mut action_handler = ctx.ui.action_handler(ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
@@ -192,7 +179,8 @@ impl<T> ResultList<T> {
 
     pub fn update_camera(&mut self, ui: &Ui, dt: f32) {
         let focused_index = self.focused_index();
-        let bounds = ui.widget(self.widget_id).bounds;
+        // let bounds = ui.widget(self.widget_id).bounds;
+        let bounds = Rect::ZERO;
 
         let target_y = (focused_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
         let max_y = (self.len() as f32 * self.result_bounds.height - bounds.height).max(0.0);
@@ -218,14 +206,15 @@ impl<T> ResultList<T> {
         ctx: &mut Ctx,
         mut display_result: impl FnMut(&'a T, &Theme) -> (&'a str, Color),
     ) {
-        if !ctx.ui.is_visible(self.widget_id) {
-            return;
-        }
+        // if !ctx.ui.is_visible(self.widget_id) {
+        //     return;
+        // }
 
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
+        // let bounds = ctx.ui.widget(self.widget_id).bounds;
+        let bounds = Rect::ZERO;
 
         gfx.begin(Some(bounds));
 
@@ -289,10 +278,6 @@ impl<T> ResultList<T> {
         self.handled_focused_index = Some(self.focused_index());
     }
 
-    pub fn widget_id(&self) -> WidgetId {
-        self.widget_id
-    }
-
     pub fn is_animating(&self) -> bool {
         self.camera.is_moving()
     }
@@ -302,7 +287,8 @@ impl<T> ResultList<T> {
     }
 
     pub fn max_visible_result_index(&self, ui: &Ui) -> usize {
-        let bounds = ui.widget(self.widget_id).bounds;
+        // let bounds = ui.widget(self.widget_id).bounds;
+        let bounds = Rect::ZERO;
         let max_y =
             ((self.camera.y().floor() + bounds.height) / self.result_bounds.height) as usize + 1;
 

@@ -55,28 +55,26 @@ pub struct Editor {
     examine_popup: ExaminePopup,
     pub signature_help_popup: SignatureHelpPopup,
     pub completion_list: CompletionList,
-    widget_id: WidgetId,
 }
 
 impl Editor {
-    pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
-        let widget_id = ctx.ui.new_widget(parent_id, Default::default());
+    pub const WIDGET_ID: WidgetId = WidgetId::Name("Editor");
 
+    pub fn new() -> Self {
         let mut editor = Self {
             doc_list: SlotList::new(),
-            panes: WidgetList::new(|pane| pane.widget_id()),
+            panes: WidgetList::new(|pane| WidgetId::Name("EditorPane")),
             current_dir: current_dir().ok(),
 
             handled_position: None,
             handled_path: None,
 
-            examine_popup: ExaminePopup::new(widget_id, ctx.ui),
-            signature_help_popup: SignatureHelpPopup::new(widget_id, ctx.ui),
-            completion_list: CompletionList::new(widget_id, ctx.ui),
-            widget_id,
+            examine_popup: ExaminePopup::new(),
+            signature_help_popup: SignatureHelpPopup::new(),
+            completion_list: CompletionList::new(),
         };
 
-        editor.add_pane(ctx);
+        editor.add_pane();
 
         editor
     }
@@ -85,41 +83,41 @@ impl Editor {
         self.completion_list.is_animating() || self.panes.iter().any(|pane| pane.is_animating())
     }
 
-    pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
-        ctx.ui.widget_mut(self.widget_id).bounds = bounds;
+    // pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
+    //     ctx.ui.widget_mut(self.widget_id).bounds = bounds;
 
-        let mut pane_bounds = bounds;
-        pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
+    //     let mut pane_bounds = bounds;
+    //     pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
 
-        for pane in self.panes.iter_mut() {
-            pane.layout(pane_bounds, &mut self.doc_list, ctx);
-            pane_bounds.x += pane_bounds.width;
-        }
+    //     for pane in self.panes.iter_mut() {
+    //         pane.layout(pane_bounds, &mut self.doc_list, ctx);
+    //         pane_bounds.x += pane_bounds.width;
+    //     }
 
-        let focused_pane = self.panes.get_last_focused(ctx.ui).unwrap();
+    //     let focused_pane = self.panes.get_last_focused(ctx.ui).unwrap();
 
-        let Some((tab, doc)) = focused_pane.get_focused_tab_with_data(&self.doc_list) else {
-            return;
-        };
+    //     let Some((tab, doc)) = focused_pane.get_focused_tab_with_data(&self.doc_list) else {
+    //         return;
+    //     };
 
-        let cursor_position = doc.cursor(CursorIndex::Main).position;
-        let cursor_visual_position = doc
-            .position_to_visual(cursor_position, tab.camera.position().floor(), ctx.gfx)
-            .offset_by(tab.doc_bounds());
+    //     let cursor_position = doc.cursor(CursorIndex::Main).position;
+    //     let cursor_visual_position = doc
+    //         .position_to_visual(cursor_position, tab.camera.position().floor(), ctx.gfx)
+    //         .offset_by(tab.doc_bounds());
 
-        self.completion_list.layout(cursor_visual_position, ctx);
-        self.examine_popup.layout(tab, doc, ctx);
-        self.signature_help_popup.layout(tab, doc, ctx);
+    //     self.completion_list.layout(cursor_visual_position, ctx);
+    //     self.examine_popup.layout(tab, doc, ctx);
+    //     self.signature_help_popup.layout(tab, doc, ctx);
 
-        let is_cursor_visible = self.is_cursor_visible(ctx);
+    //     let is_cursor_visible = self.is_cursor_visible(ctx);
 
-        ctx.ui
-            .set_shown(self.completion_list.widget_id(), is_cursor_visible);
-        ctx.ui
-            .set_shown(self.examine_popup.widget_id(), is_cursor_visible);
-        ctx.ui
-            .set_shown(self.signature_help_popup.widget_id(), is_cursor_visible);
-    }
+    //     ctx.ui
+    //         .set_shown(self.completion_list.widget_id(), is_cursor_visible);
+    //     ctx.ui
+    //         .set_shown(self.examine_popup.widget_id(), is_cursor_visible);
+    //     ctx.ui
+    //         .set_shown(self.signature_help_popup.widget_id(), is_cursor_visible);
+    // }
 
     pub fn update(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
         self.panes.update(ctx.ui);
@@ -131,7 +129,7 @@ impl Editor {
             .get_focused_tab_with_data_mut(&mut self.doc_list)
             .map(|(_, doc)| doc);
 
-        let signature_help_triggers = SignatureHelpPopup::get_triggers(self.widget_id, doc, ctx);
+        let signature_help_triggers = SignatureHelpPopup::get_triggers(doc, ctx);
 
         self.handle_actions(ctx);
 
@@ -144,15 +142,15 @@ impl Editor {
 
         self.post_pane_update(signature_help_triggers, ctx);
 
-        if !ctx.ui.is_in_focused_hierarchy(self.widget_id) {
-            self.examine_popup.clear(ctx.ui);
-            self.signature_help_popup.clear(ctx.ui);
-            self.completion_list.clear(ctx.ui);
-        }
+        // if !ctx.ui.is_in_focused_hierarchy(self.widget_id) {
+        //     self.examine_popup.clear(ctx.ui);
+        //     self.signature_help_popup.clear(ctx.ui);
+        //     self.completion_list.clear(ctx.ui);
+        // }
     }
 
     fn handle_actions(&mut self, ctx: &mut Ctx) {
-        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
+        let mut action_handler = ctx.ui.action_handler(ctx.window);
 
         while let Some(action) = action_handler.next(ctx.window) {
             match action {
@@ -166,7 +164,7 @@ impl Editor {
                         }
                     }
                 }
-                action_name!(NewPane) => self.add_pane(ctx),
+                action_name!(NewPane) => self.add_pane(),
                 action_name!(ClosePane) => self.close_pane(ctx),
                 action_name!(PreviousPane) => self.panes.focus_previous(ctx.ui),
                 action_name!(NextPane) => self.panes.focus_next(ctx.ui),
@@ -381,19 +379,19 @@ impl Editor {
         }
     }
 
-    pub fn draw(&mut self, ctx: &mut Ctx) {
-        for pane in self.panes.iter_mut() {
-            pane.draw(None, &mut self.doc_list, ctx);
-        }
+    // pub fn draw(&mut self, ctx: &mut Ctx) {
+    //     for pane in self.panes.iter_mut() {
+    //         pane.draw(None, &mut self.doc_list, ctx);
+    //     }
 
-        self.completion_list.draw(ctx);
+    //     self.completion_list.draw(ctx);
 
-        if self.signature_help_popup.is_open() {
-            self.signature_help_popup.draw(ctx);
-        } else if self.examine_popup.is_open() {
-            self.examine_popup.draw(ctx);
-        }
-    }
+    //     if self.signature_help_popup.is_open() {
+    //         self.signature_help_popup.draw(ctx);
+    //     } else if self.examine_popup.is_open() {
+    //         self.examine_popup.draw(ctx);
+    //     }
+    // }
 
     fn is_cursor_visible(&self, ctx: &mut Ctx) -> bool {
         let pane = self.panes.get_last_focused(ctx.ui).unwrap();
@@ -411,13 +409,13 @@ impl Editor {
         tab.doc_bounds().contains_position(cursor_visual_position)
     }
 
-    fn add_pane(&mut self, ctx: &mut Ctx) {
-        let pane = EditorPane::new(&mut self.doc_list, self.widget_id, ctx);
+    fn add_pane(&mut self) {
+        let pane = EditorPane::new(&mut self.doc_list);
 
-        self.panes.add(pane, ctx.ui);
+        self.panes.add(pane);
 
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
-        self.layout(bounds, ctx);
+        // let bounds = ctx.ui.widget(self.widget_id).bounds;
+        // self.layout(bounds, ctx);
     }
 
     fn close_pane(&mut self, ctx: &mut Ctx) {

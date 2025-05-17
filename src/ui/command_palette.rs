@@ -24,7 +24,7 @@ use crate::{
 };
 
 use super::{
-    core::{Ui, WidgetId, WidgetSettings},
+    core::{Ui, WidgetId},
     editor::Editor,
     result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     tab::Tab,
@@ -73,32 +73,20 @@ pub struct CommandPalette {
 
     title_bounds: Rect,
     input_bounds: Rect,
-
-    widget_id: WidgetId,
 }
 
 impl CommandPalette {
-    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
-        let widget_id = ui.new_widget(
-            parent_id,
-            WidgetSettings {
-                is_shown: true,
-                ..Default::default()
-            },
-        );
-
+    pub fn new() -> Self {
         Self {
             mode: None,
             tab: Tab::new(0),
             doc: Doc::new(None, None, DocKind::SingleLine),
             last_updated_version: None,
 
-            result_list: ResultList::new(MAX_VISIBLE_RESULTS, true, widget_id, ui),
+            result_list: ResultList::new(MAX_VISIBLE_RESULTS, true),
 
             title_bounds: Rect::ZERO,
             input_bounds: Rect::ZERO,
-
-            widget_id,
         }
     }
 
@@ -108,62 +96,62 @@ impl CommandPalette {
             || self.mode.as_ref().is_some_and(|mode| mode.is_animating())
     }
 
-    pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
-        let Some(mode) = &self.mode else {
-            return;
-        };
+    // pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
+    //     let Some(mode) = &self.mode else {
+    //         return;
+    //     };
 
-        let gfx = &mut ctx.gfx;
+    //     let gfx = &mut ctx.gfx;
 
-        let title = mode.title();
-        let title_padding_x = gfx.glyph_width();
-        let title_width =
-            gfx.measure_text(title) as f32 * gfx.glyph_width() + title_padding_x * 2.0;
+    //     let title = mode.title();
+    //     let title_padding_x = gfx.glyph_width();
+    //     let title_width =
+    //         gfx.measure_text(title) as f32 * gfx.glyph_width() + title_padding_x * 2.0;
 
-        self.title_bounds = Rect::new(0.0, 0.0, title_width, gfx.tab_height()).floor();
+    //     self.title_bounds = Rect::new(0.0, 0.0, title_width, gfx.tab_height()).floor();
 
-        self.input_bounds = Rect::new(0.0, 0.0, gfx.glyph_width() * 64.0, gfx.line_height() * 2.0)
-            .below(self.title_bounds)
-            .shift_y(-gfx.border_width())
-            .floor();
+    //     self.input_bounds = Rect::new(0.0, 0.0, gfx.glyph_width() * 64.0, gfx.line_height() * 2.0)
+    //         .below(self.title_bounds)
+    //         .shift_y(-gfx.border_width())
+    //         .floor();
 
-        self.result_list.layout(
-            Rect::new(0.0, 0.0, self.input_bounds.width, 0.0)
-                .below(self.input_bounds)
-                .shift_y(-gfx.border_width()),
-            ctx.ui,
-            gfx,
-        );
+    //     self.result_list.layout(
+    //         Rect::new(0.0, 0.0, self.input_bounds.width, 0.0)
+    //             .below(self.input_bounds)
+    //             .shift_y(-gfx.border_width()),
+    //         ctx.ui,
+    //         gfx,
+    //     );
 
-        let result_list_bounds = ctx.ui.widget(self.result_list.widget_id()).bounds;
+    //     let result_list_bounds = ctx.ui.widget(self.result_list.widget_id()).bounds;
 
-        ctx.ui.widget_mut(self.widget_id).bounds = self
-            .title_bounds
-            .expand_to_include(self.input_bounds)
-            .expand_to_include(result_list_bounds)
-            .center_x_in(bounds)
-            .offset_by(Rect::new(0.0, gfx.tab_height() * 2.0, 0.0, 0.0))
-            .floor();
+    //     ctx.ui.widget_mut(self.widget_id).bounds = self
+    //         .title_bounds
+    //         .expand_to_include(self.input_bounds)
+    //         .expand_to_include(result_list_bounds)
+    //         .center_x_in(bounds)
+    //         .offset_by(Rect::new(0.0, gfx.tab_height() * 2.0, 0.0, 0.0))
+    //         .floor();
 
-        self.result_list
-            .offset_by(ctx.ui.widget(self.widget_id).bounds, ctx.ui);
+    //     self.result_list
+    //         .offset_by(ctx.ui.widget(self.widget_id).bounds, ctx.ui);
 
-        self.tab.layout(
-            Rect::ZERO,
-            Rect::new(0.0, 0.0, gfx.glyph_width() * 10.0, gfx.line_height())
-                .center_in(self.input_bounds)
-                .expand_width_in(self.input_bounds)
-                .offset_by(ctx.ui.widget(self.widget_id).bounds)
-                .floor(),
-            &self.doc,
-            gfx,
-        );
-    }
+    //     self.tab.layout(
+    //         Rect::ZERO,
+    //         Rect::new(0.0, 0.0, gfx.glyph_width() * 10.0, gfx.line_height())
+    //             .center_in(self.input_bounds)
+    //             .expand_width_in(self.input_bounds)
+    //             .offset_by(ctx.ui.widget(self.widget_id).bounds)
+    //             .floor(),
+    //         &self.doc,
+    //         gfx,
+    //     );
+    // }
 
     pub fn update(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
-        if ctx.ui.is_visible(self.widget_id) && !ctx.ui.is_in_focused_hierarchy(self.widget_id) {
-            self.close(ctx.ui);
-        }
+        // if ctx.ui.is_visible(self.widget_id) && !ctx.ui.is_in_focused_hierarchy(self.widget_id) {
+        //     self.close(ctx.ui);
+        // }
 
         let mut global_action_handler = ctx.window.action_handler();
 
@@ -195,7 +183,7 @@ impl CommandPalette {
         }
 
         if let Some(mut mode) = self.mode.take() {
-            let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
+            let mut action_handler = ctx.ui.action_handler(ctx.window);
 
             while let Some(action) = action_handler.next(ctx.window) {
                 if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
@@ -218,12 +206,12 @@ impl CommandPalette {
             ResultListInput::Close => self.close(ctx.ui),
         }
 
-        self.tab.update(self.widget_id, &mut self.doc, ctx);
+        self.tab.update(&mut self.doc, ctx);
         self.update_results(editor, ctx);
     }
 
     pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.tab.update_camera(self.widget_id, &self.doc, ctx, dt);
+        self.tab.update_camera(&self.doc, ctx, dt);
         self.result_list.update_camera(ctx.ui, dt);
     }
 
@@ -269,67 +257,67 @@ impl CommandPalette {
         self.mode = Some(mode);
     }
 
-    pub fn draw(&mut self, ctx: &mut Ctx) {
-        if !ctx.ui.is_visible(self.widget_id) {
-            return;
-        }
+    // pub fn draw(&mut self, ctx: &mut Ctx) {
+    //     if !ctx.ui.is_visible(self.widget_id) {
+    //         return;
+    //     }
 
-        let Some(mode) = &self.mode else {
-            return;
-        };
+    //     let Some(mode) = &self.mode else {
+    //         return;
+    //     };
 
-        let is_focused = ctx.ui.is_focused(self.widget_id);
-        let widget = ctx.ui.widget(self.widget_id);
+    //     let is_focused = ctx.ui.is_focused(self.widget_id);
+    //     let widget = ctx.ui.widget(self.widget_id);
 
-        let gfx = &mut ctx.gfx;
-        let theme = &ctx.config.theme;
+    //     let gfx = &mut ctx.gfx;
+    //     let theme = &ctx.config.theme;
 
-        gfx.begin(Some(widget.bounds));
+    //     gfx.begin(Some(widget.bounds));
 
-        gfx.add_bordered_rect(
-            self.input_bounds,
-            Sides::ALL,
-            theme.background,
-            theme.border,
-        );
+    //     gfx.add_bordered_rect(
+    //         self.input_bounds,
+    //         Sides::ALL,
+    //         theme.background,
+    //         theme.border,
+    //     );
 
-        gfx.add_bordered_rect(
-            self.title_bounds,
-            Sides::ALL.without(Side::Bottom),
-            theme.background,
-            theme.border,
-        );
+    //     gfx.add_bordered_rect(
+    //         self.title_bounds,
+    //         Sides::ALL.without(Side::Bottom),
+    //         theme.background,
+    //         theme.border,
+    //     );
 
-        gfx.add_rect(
-            self.title_bounds.top_border(gfx.border_width()),
-            theme.keyword,
-        );
+    //     gfx.add_rect(
+    //         self.title_bounds.top_border(gfx.border_width()),
+    //         theme.keyword,
+    //     );
 
-        gfx.add_text(
-            mode.title(),
-            gfx.glyph_width(),
-            gfx.border_width() + gfx.tab_padding_y(),
-            theme.normal,
-        );
+    //     gfx.add_text(
+    //         mode.title(),
+    //         gfx.glyph_width(),
+    //         gfx.border_width() + gfx.tab_padding_y(),
+    //         theme.normal,
+    //     );
 
-        let doc_bounds = self.tab.doc_bounds();
+    //     let doc_bounds = self.tab.doc_bounds();
 
-        gfx.add_bordered_rect(
-            doc_bounds
-                .add_margin(gfx.border_width())
-                .unoffset_by(widget.bounds),
-            Sides::ALL,
-            theme.background,
-            theme.border,
-        );
+    //     gfx.add_bordered_rect(
+    //         doc_bounds
+    //             .add_margin(gfx.border_width())
+    //             .unoffset_by(widget.bounds),
+    //         Sides::ALL,
+    //         theme.background,
+    //         theme.border,
+    //     );
 
-        gfx.end();
+    //     gfx.end();
 
-        self.tab.draw(None, &mut self.doc, is_focused, ctx);
+    //     self.tab.draw(None, &mut self.doc, is_focused, ctx);
 
-        self.result_list
-            .draw(ctx, |result, theme| mode.on_display_result(result, theme));
-    }
+    //     self.result_list
+    //         .draw(ctx, |result, theme| mode.on_display_result(result, theme));
+    // }
 
     pub fn open(
         &mut self,
@@ -342,7 +330,7 @@ impl CommandPalette {
         self.last_updated_version = None;
         self.mode = None;
 
-        ctx.ui.focus(self.widget_id);
+        // ctx.ui.focus(self.widget_id);
 
         mode.on_open(self, CommandPaletteEventArgs::new(editor, ctx));
         self.mode = Some(mode);
@@ -351,7 +339,7 @@ impl CommandPalette {
     }
 
     fn close(&self, ui: &mut Ui) {
-        ui.hide(self.widget_id);
+        // ui.hide(self.widget_id);
     }
 
     pub fn input(&self) -> &str {
