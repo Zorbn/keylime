@@ -29,9 +29,6 @@ impl WidgetId {
     }
 }
 
-// TODO: Also allow choosing whether to add to the beginning or end of containers,
-// eg. the app's main container should stack up from the bottom (status bar, then terminal, then editor fills in the rest).
-// eg. if we add a menu bar at the top of the app, we would add the status bar and terminal to the bottom, add the menu bar to the top, then add the editor last and have it fill remaining space.
 #[derive(Debug)]
 pub enum ContainerDirection {
     Horizontal,
@@ -49,6 +46,20 @@ pub struct WidgetLayout {
     pub height: Option<f32>,
 }
 
+struct Container {
+    direction: ContainerDirection,
+    is_reversed: bool,
+}
+
+impl Container {
+    pub fn new(direction: ContainerDirection) -> Self {
+        Self {
+            direction,
+            is_reversed: false,
+        }
+    }
+}
+
 const MAX_FOCUS_HISTORY_LEN: usize = 8;
 
 pub struct Ui {
@@ -56,9 +67,9 @@ pub struct Ui {
     id_stack: Vec<WidgetId>,
     is_in_widget: bool,
     left_click_position: Option<VisualPosition>,
-    container_direction_stack: Vec<ContainerDirection>,
+    container_stack: Vec<Container>,
     bounds_stack: Vec<Rect>,
-    current_layout: WidgetLayout,
+    layout_stack: Vec<WidgetLayout>,
 }
 
 impl Ui {
@@ -68,9 +79,9 @@ impl Ui {
             id_stack: Vec::new(),
             is_in_widget: false,
             left_click_position: None,
-            container_direction_stack: Vec::new(),
+            container_stack: Vec::new(),
             bounds_stack: Vec::new(),
-            current_layout: WidgetLayout::default(),
+            layout_stack: Vec::new(),
         }
     }
 
@@ -95,14 +106,14 @@ impl Ui {
         let bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
 
         self.bounds_stack.push(bounds);
-        self.container_direction_stack
-            .push(ContainerDirection::Vertical);
+        self.container_stack
+            .push(Container::new(ContainerDirection::Vertical));
         gfx.begin_frame(clear_color);
     }
 
     pub fn end(&mut self, gfx: &mut Gfx) {
         gfx.end_frame();
-        self.container_direction_stack.pop();
+        self.container_stack.pop();
         self.bounds_stack.pop();
 
         self.end_left_click_focus();
@@ -119,15 +130,21 @@ impl Ui {
 
         self.begin_bounds(layout);
         self.id_stack.push(id);
-        self.container_direction_stack.push(direction);
+        self.container_stack.push(Container::new(direction));
     }
 
     pub fn end_container(&mut self) {
         assert!(!self.is_in_widget);
 
         self.id_stack.pop();
-        self.container_direction_stack.pop();
+        self.container_stack.pop();
         self.end_bounds();
+    }
+
+    pub fn reverse_container(&mut self) {
+        if let Some(container) = self.container_stack.last_mut() {
+            container.is_reversed = !container.is_reversed;
+        }
     }
 
     pub fn begin_widget(&mut self, id: WidgetId, layout: WidgetLayout, gfx: &mut Gfx) {
@@ -159,43 +176,64 @@ impl Ui {
     }
 
     fn begin_bounds(&mut self, layout: WidgetLayout) {
-        // TODO: Support choosing if you want to be at the beginning or end of the parent container.
         let container_bounds = self.bounds_stack.last().unwrap();
-        let container_direction = self.container_direction_stack.last().unwrap();
+        let container = self.container_stack.last().unwrap();
 
-        let (x, y) = if let Some(position) = layout.position {
-            (position.x, position.y)
-        } else {
-            (container_bounds.x, container_bounds.y)
-        };
-
-        let width = match container_direction {
+        let width = match container.direction {
             ContainerDirection::Horizontal => layout.width.unwrap_or(container_bounds.width),
             ContainerDirection::Vertical => container_bounds.width,
         };
 
-        let height = match container_direction {
+        let height = match container.direction {
             ContainerDirection::Horizontal => container_bounds.height,
             ContainerDirection::Vertical => layout.height.unwrap_or(container_bounds.height),
         };
 
-        self.current_layout = layout;
+        let (x, y) = if let Some(position) = layout.position {
+            (position.x, position.y)
+        } else if container.is_reversed {
+            match container.direction {
+                ContainerDirection::Horizontal => {
+                    (container_bounds.right() - width, container_bounds.y)
+                }
+                ContainerDirection::Vertical => {
+                    (container_bounds.x, container_bounds.bottom() - height)
+                }
+            }
+        } else {
+            (container_bounds.x, container_bounds.y)
+        };
+
+        self.layout_stack.push(layout);
         self.bounds_stack.push(Rect::new(x, y, width, height));
     }
 
     fn end_bounds(&mut self) {
+        let layout = self.layout_stack.pop().unwrap();
         let bounds = self.bounds_stack.pop().unwrap();
 
-        if self.current_layout.position.is_some() {
+        if layout.position.is_some() {
             return;
         }
 
         let container_bounds = self.bounds_stack.last_mut().unwrap();
-        let container_direction = self.container_direction_stack.last().unwrap();
+        let container = self.container_stack.last().unwrap();
 
-        *container_bounds = match container_direction {
-            ContainerDirection::Horizontal => container_bounds.shrink_left_by(bounds),
-            ContainerDirection::Vertical => container_bounds.shrink_top_by(bounds),
+        *container_bounds = match container.direction {
+            ContainerDirection::Horizontal => {
+                if container.is_reversed {
+                    container_bounds.shrink_right_by(bounds)
+                } else {
+                    container_bounds.shrink_left_by(bounds)
+                }
+            }
+            ContainerDirection::Vertical => {
+                if container.is_reversed {
+                    container_bounds.shrink_bottom_by(bounds)
+                } else {
+                    container_bounds.shrink_top_by(bounds)
+                }
+            }
         }
     }
 

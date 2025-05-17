@@ -108,6 +108,8 @@ impl App {
         ctx.ui
             .begin(ctx.config.theme.background, ctx.window, ctx.gfx);
 
+        ctx.ui.reverse_container();
+
         status_bar(&self.editor, ctx);
         self.terminal.update(ctx, dt);
         self.editor.update(&mut self.file_watcher, ctx, dt);

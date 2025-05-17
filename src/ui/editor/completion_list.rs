@@ -145,6 +145,10 @@ impl CompletionList {
     // }
 
     pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) -> Option<CompletionListResult> {
+        if self.result_list.is_empty() {
+            return None;
+        }
+
         let result_input = self.result_list.update(ctx);
 
         let mut completion_result = None;

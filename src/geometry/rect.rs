@@ -40,6 +40,12 @@ impl Rect {
         )
     }
 
+    pub fn shrink_right_by(&self, other: Rect) -> Rect {
+        let width = (self.right().min(other.left()) - self.x).max(0.0);
+
+        Rect::new(self.x, self.y, width, self.height)
+    }
+
     pub fn shrink_top_by(&self, other: Rect) -> Rect {
         let subtracted_height = (other.bottom() - self.y).max(0.0);
 
