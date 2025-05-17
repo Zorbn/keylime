@@ -104,7 +104,8 @@ impl StatusBar {
     }
 
     fn get_doc_text(editor: &Editor, config: &Config, ui: &Ui) -> Option<Pooled<String>> {
-        let (_, doc) = editor.get_focused_tab_and_doc(ui)?;
+        let (pane, doc_list) = editor.last_focused_pane_and_doc_list(ui);
+        let (_, doc) = pane.get_focused_tab_with_data(doc_list)?;
         let position = doc.cursor(CursorIndex::Main).position;
 
         let mut doc_text = STRING_POOL.new_item();

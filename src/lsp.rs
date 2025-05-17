@@ -192,9 +192,7 @@ impl Lsp {
                     return None;
                 }
 
-                let focused_tab_index = pane.focused_tab_index();
-                let (tab, doc) = pane.get_tab_with_data_mut(focused_tab_index, doc_list)?;
-
+                let (tab, doc) = pane.get_focused_tab_with_data_mut(doc_list)?;
                 let position = range.decode(encoding, doc).start;
 
                 doc.jump_cursors(position, false, ctx.gfx);

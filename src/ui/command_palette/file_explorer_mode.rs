@@ -205,9 +205,8 @@ impl CommandPaletteMode for FileExplorerMode {
 
     fn on_open(&mut self, command_palette: &mut CommandPalette, args: CommandPaletteEventArgs) {
         let (pane, doc_list) = args.editor.last_focused_pane_and_doc_list(args.ctx.ui);
-        let focused_tab_index = pane.focused_tab_index();
 
-        let Some((_, doc)) = pane.get_tab_with_data(focused_tab_index, doc_list) else {
+        let Some((_, doc)) = pane.get_focused_tab_with_data(doc_list) else {
             return;
         };
 

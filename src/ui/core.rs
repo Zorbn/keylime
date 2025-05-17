@@ -125,7 +125,7 @@ impl Ui {
             return;
         }
 
-        if self.focused_widget_id() == widget_id {
+        if self.is_focused(widget_id) {
             self.unfocus(widget_id);
         }
 
@@ -224,7 +224,7 @@ impl Ui {
     }
 
     pub fn unfocus(&mut self, widget_id: WidgetId) {
-        if self.focused_widget_id() != widget_id {
+        if !self.is_focused(widget_id) {
             return;
         }
 

@@ -43,9 +43,7 @@ impl TerminalPane {
                     self.add_tab(term_index, term_list);
                 }
                 action_name!(CloseTab) => {
-                    let focused_tab_index = self.focused_tab_index();
-
-                    if let Some(tab) = self.tabs.get(focused_tab_index) {
+                    if let Some(tab) = self.tabs.get_focused() {
                         let term_index = tab.data_index();
 
                         self.remove_tab(term_list);

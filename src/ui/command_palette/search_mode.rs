@@ -46,14 +46,13 @@ impl CommandPaletteMode for SearchMode {
         args: CommandPaletteEventArgs,
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
-        let search_term = command_palette.input();
-
         let (pane, doc_list) = args.editor.last_focused_pane_and_doc_list_mut(args.ctx.ui);
-        let focused_tab_index = pane.focused_tab_index();
 
-        let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
+        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(doc_list) else {
             return CommandPaletteAction::Stay;
         };
+
+        let search_term = command_palette.input();
 
         search(
             search_term,
@@ -120,12 +119,9 @@ impl CommandPaletteMode for SearchAndReplaceMode {
             return CommandPaletteAction::Stay;
         };
 
-        let replace_term = command_palette.input();
-
         let (pane, doc_list) = args.editor.last_focused_pane_and_doc_list_mut(args.ctx.ui);
-        let focused_tab_index = pane.focused_tab_index();
 
-        let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
+        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(doc_list) else {
             return CommandPaletteAction::Stay;
         };
 
@@ -140,6 +136,8 @@ impl CommandPaletteMode for SearchAndReplaceMode {
                 }
 
                 if has_match {
+                    let replace_term = command_palette.input();
+
                     doc.insert_at_cursor(CursorIndex::Main, replace_term, args.ctx);
 
                     let end =
@@ -168,9 +166,8 @@ impl CommandPaletteMode for SearchAndReplaceMode {
 
 fn start(editor: &Editor, ui: &Ui) -> Position {
     let (pane, doc_list) = editor.last_focused_pane_and_doc_list(ui);
-    let focused_tab_index = pane.focused_tab_index();
 
-    let Some((_, doc)) = pane.get_tab_with_data(focused_tab_index, doc_list) else {
+    let Some((_, doc)) = pane.get_focused_tab_with_data(doc_list) else {
         return Position::ZERO;
     };
 
@@ -183,14 +180,13 @@ fn preview_search(
     editor: &mut Editor,
     ctx: &mut Ctx,
 ) {
-    let search_term = command_palette.input();
-
     let (pane, doc_list) = editor.last_focused_pane_and_doc_list_mut(ctx.ui);
-    let focused_tab_index = pane.focused_tab_index();
 
-    let Some((tab, doc)) = pane.get_tab_with_data_mut(focused_tab_index, doc_list) else {
+    let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(doc_list) else {
         return;
     };
+
+    let search_term = command_palette.input();
 
     search(search_term, Some(start), tab, doc, false, ctx.gfx);
 }

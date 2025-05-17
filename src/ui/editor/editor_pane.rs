@@ -48,10 +48,7 @@ impl EditorPane {
                     }
                 }
                 action_name!(SaveFile) => {
-                    if let Some((_, doc)) = self
-                        .inner
-                        .get_tab_with_data_mut(self.focused_tab_index(), doc_list)
-                    {
+                    if let Some((_, doc)) = self.inner.get_focused_tab_with_data_mut(doc_list) {
                         try_save(doc, ctx);
                     }
                 }
@@ -62,10 +59,7 @@ impl EditorPane {
                     self.remove_tab(doc_list, ctx);
                 }
                 action_name!(ReloadFile) => {
-                    if let Some((_, doc)) = self
-                        .inner
-                        .get_tab_with_data_mut(self.focused_tab_index(), doc_list)
-                    {
+                    if let Some((_, doc)) = self.inner.get_focused_tab_with_data_mut(doc_list) {
                         if let Err(err) = doc.reload(ctx) {
                             message("Failed to Reload File", &err.to_string(), MessageKind::Ok);
                         }
@@ -78,9 +72,8 @@ impl EditorPane {
         self.inner.update(ctx);
 
         let widget_id = self.widget_id();
-        let focused_tab_index = self.focused_tab_index();
 
-        if let Some((tab, doc)) = self.get_tab_with_data_mut(focused_tab_index, doc_list) {
+        if let Some((tab, doc)) = self.get_focused_tab_with_data_mut(doc_list) {
             tab.update(widget_id, doc, ctx);
         }
     }
@@ -128,9 +121,7 @@ impl EditorPane {
             .map(|doc| doc.is_worthless())
             .unwrap_or(false);
 
-        let focused_tab_index = self.focused_tab_index();
-
-        if let Some((_, doc)) = self.get_tab_with_data(focused_tab_index, doc_list) {
+        if let Some((_, doc)) = self.get_focused_tab_with_data(doc_list) {
             let is_focused_doc_worthless = doc.is_worthless();
 
             if !is_doc_worthless && is_focused_doc_worthless {
@@ -142,9 +133,7 @@ impl EditorPane {
     }
 
     fn remove_tab(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) -> bool {
-        let focused_tab_index = self.focused_tab_index();
-
-        let Some((tab, doc)) = self.get_tab_with_data_mut(focused_tab_index, doc_list) else {
+        let Some((tab, doc)) = self.get_focused_tab_with_data_mut(doc_list) else {
             return true;
         };
 

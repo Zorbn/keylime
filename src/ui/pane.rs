@@ -257,7 +257,7 @@ impl<T> Pane<T> {
 
         if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
         {
-            tab.draw(background, get_doc_mut(data), ctx, is_focused);
+            tab.draw(background, get_doc_mut(data), is_focused, ctx);
         }
     }
 
@@ -275,9 +275,10 @@ impl<T> Pane<T> {
         };
 
         let bounds = ctx.ui.widget(self.widget_id).bounds;
+        let is_focused = ctx.ui.is_focused(self.widget_id) && index == self.tabs.focused_index();
 
         Self::draw_tab(
-            index == self.tabs.focused_index(),
+            is_focused,
             self.dragged_tab_offset,
             background,
             tab,
@@ -377,6 +378,20 @@ impl<T> Pane<T> {
         }
 
         None
+    }
+
+    pub fn get_focused_tab_with_data_mut<'a>(
+        &'a mut self,
+        data_list: &'a mut SlotList<T>,
+    ) -> Option<(&'a mut Tab, &'a mut T)> {
+        self.get_tab_with_data_mut(self.focused_tab_index(), data_list)
+    }
+
+    pub fn get_focused_tab_with_data<'a>(
+        &'a self,
+        data_list: &'a SlotList<T>,
+    ) -> Option<(&'a Tab, &'a T)> {
+        self.get_tab_with_data(self.focused_tab_index(), data_list)
     }
 
     pub fn get_existing_tab_for_data(&self, data_index: usize) -> Option<usize> {

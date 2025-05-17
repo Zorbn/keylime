@@ -34,7 +34,6 @@ use crate::{
 use super::{
     core::{Ui, WidgetId},
     slot_list::SlotList,
-    tab::Tab,
     widget_list::WidgetList,
 };
 
@@ -99,9 +98,7 @@ impl Editor {
 
         let focused_pane = self.panes.get_last_focused(ctx.ui).unwrap();
 
-        let Some((tab, doc)) =
-            focused_pane.get_tab_with_data(focused_pane.focused_tab_index(), &self.doc_list)
-        else {
+        let Some((tab, doc)) = focused_pane.get_focused_tab_with_data(&self.doc_list) else {
             return;
         };
 
@@ -120,10 +117,9 @@ impl Editor {
         self.reload_changed_files(file_watcher, ctx);
 
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
-        let focused_tab_index = pane.focused_tab_index();
 
         let doc = pane
-            .get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
+            .get_focused_tab_with_data_mut(&mut self.doc_list)
             .map(|(_, doc)| doc);
 
         let signature_help_triggers = SignatureHelpPopup::get_triggers(self.widget_id, doc, ctx);
@@ -196,11 +192,8 @@ impl Editor {
                     self.signature_help_popup.clear(ctx.ui);
 
                     let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
-                    let focused_tab_index = pane.focused_tab_index();
 
-                    if let Some((_, doc)) =
-                        pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
-                    {
+                    if let Some((_, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) {
                         self.examine_popup.open(doc, ctx);
                     }
                 }
@@ -212,10 +205,8 @@ impl Editor {
     fn pre_pane_update(&mut self, ctx: &mut Ctx) {
         let is_cursor_visible = self.is_cursor_visible(ctx);
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
-        let focused_tab_index = pane.focused_tab_index();
 
-        let Some((_, doc)) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
-        else {
+        let Some((_, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) else {
             return;
         };
 
@@ -230,10 +221,8 @@ impl Editor {
         ctx: &mut Ctx,
     ) {
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
-        let focused_tab_index = pane.focused_tab_index();
 
-        let Some((_, doc)) = pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
-        else {
+        let Some((_, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) else {
             self.signature_help_popup.clear(ctx.ui);
             self.completion_list.clear();
 
@@ -276,7 +265,8 @@ impl Editor {
         self.lsp_apply_edit_lists(result.edit_lists, ctx);
 
         let command = result.command?;
-        let (_, doc) = self.get_focused_tab_and_doc_mut(ctx.ui)?;
+        let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
+        let (_, doc) = pane.get_focused_tab_with_data_mut(&mut self.doc_list)?;
         let language_server = doc.get_language_server_mut(ctx)?;
 
         language_server.execute_command(&command.command, &command.arguments);
@@ -401,27 +391,10 @@ impl Editor {
         }
     }
 
-    // TODO: Get rid of these? Or name them ..._last_focused_...
-    pub fn get_focused_tab_and_doc_mut(&mut self, ui: &Ui) -> Option<(&mut Tab, &mut Doc)> {
-        let pane = self.panes.get_last_focused_mut(ui).unwrap();
-        // TODO: We have this pattern a lot, pane should just offer get_focused_tab_with_data(_mut) and we can simply all these usages.
-        let focused_tab_index = pane.focused_tab_index();
-
-        pane.get_tab_with_data_mut(focused_tab_index, &mut self.doc_list)
-    }
-
-    pub fn get_focused_tab_and_doc(&self, ui: &Ui) -> Option<(&Tab, &Doc)> {
-        let pane = self.panes.get_last_focused(ui).unwrap();
-        let focused_tab_index = pane.focused_tab_index();
-
-        pane.get_tab_with_data(focused_tab_index, &self.doc_list)
-    }
-
     fn is_cursor_visible(&self, ctx: &mut Ctx) -> bool {
         let pane = self.panes.get_last_focused(ctx.ui).unwrap();
 
-        let Some((tab, doc)) = pane.get_tab_with_data(pane.focused_tab_index(), &self.doc_list)
-        else {
+        let Some((tab, doc)) = pane.get_focused_tab_with_data(&self.doc_list) else {
             return false;
         };
 

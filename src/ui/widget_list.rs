@@ -72,6 +72,8 @@ impl<T> WidgetList<T> {
 
             let get_widget_id = self.get_widget_id;
             ui.remove_widget(get_widget_id(&widget));
+
+            self.clamp_last_focused_index();
         }
     }
 
@@ -122,5 +124,13 @@ impl<T> WidgetList<T> {
                 self.widgets.remove(i);
             }
         }
+
+        self.clamp_last_focused_index();
+    }
+
+    fn clamp_last_focused_index(&mut self) {
+        self.last_focused_index = self
+            .last_focused_index
+            .min(self.widgets.len().saturating_sub(1))
     }
 }

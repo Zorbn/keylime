@@ -325,7 +325,7 @@ impl CommandPalette {
 
         gfx.end();
 
-        self.tab.draw(None, &mut self.doc, ctx, is_focused);
+        self.tab.draw(None, &mut self.doc, is_focused, ctx);
 
         self.result_list
             .draw(ctx, |result, theme| mode.on_display_result(result, theme));

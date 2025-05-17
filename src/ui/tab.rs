@@ -277,7 +277,7 @@ impl Tab {
         index as f32 * gfx.line_height() - sub_line_offset_y
     }
 
-    pub fn draw(&self, background: Option<Color>, doc: &mut Doc, ctx: &mut Ctx, is_focused: bool) {
+    pub fn draw(&self, background: Option<Color>, doc: &mut Doc, is_focused: bool, ctx: &mut Ctx) {
         let language = ctx.config.get_language_for_doc(doc);
 
         if let Some(syntax) = language.and_then(|language| language.syntax.as_ref()) {

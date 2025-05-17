@@ -33,13 +33,12 @@ impl CommandPaletteMode for RenameMode {
         _: ResultListSubmitKind,
     ) -> CommandPaletteAction {
         let (pane, doc_list) = args.editor.last_focused_pane_and_doc_list(args.ctx.ui);
-        let focused_tab_index = pane.focused_tab_index();
-        let input = command_palette.input();
 
-        let Some((_, doc)) = pane.get_tab_with_data(focused_tab_index, doc_list) else {
+        let Some((_, doc)) = pane.get_focused_tab_with_data(doc_list) else {
             return CommandPaletteAction::Close;
         };
 
+        let input = command_palette.input();
         doc.lsp_rename(input, args.ctx);
 
         CommandPaletteAction::Close

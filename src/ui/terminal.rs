@@ -100,11 +100,8 @@ impl Terminal {
 
         self.pane.update(&mut self.term_list, ctx);
 
-        let focused_tab_index = self.pane.focused_tab_index();
-
-        if let Some((tab, (docs, emulator))) = self
-            .pane
-            .get_tab_with_data_mut(focused_tab_index, &mut self.term_list)
+        if let Some((tab, (docs, emulator))) =
+            self.pane.get_focused_tab_with_data_mut(&mut self.term_list)
         {
             emulator.update_input(self.widget_id, docs, tab, ctx);
         }
