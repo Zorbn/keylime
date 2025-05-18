@@ -87,6 +87,61 @@ impl<T> Pane<T> {
     }
 
     pub fn update(&mut self, ctx: &mut Ctx) {
+        let mut global_mousebind_handler = ctx.window.mousebind_handler();
+
+        while let Some(mousebind) = global_mousebind_handler.next(ctx.window) {
+            if self.dragged_tab_offset.is_none() {
+                global_mousebind_handler.unprocessed(ctx.window, mousebind);
+                break;
+            }
+
+            let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
+
+            match mousebind {
+                Mousebind {
+                    button: Some(MouseButton::Left),
+                    mods: Mods::NONE,
+                    kind: MouseClickKind::Release,
+                    ..
+                } => self.dragged_tab_offset = None,
+                Mousebind {
+                    button: Some(MouseButton::Left),
+                    mods: Mods::NONE,
+                    kind: MouseClickKind::Drag,
+                    ..
+                } => {
+                    let half_focused_tab_width = self
+                        .tabs
+                        .get_focused()
+                        .map(|tab| tab.tab_bounds().width)
+                        .unwrap_or_default()
+                        / 2.0;
+
+                    let index = self.tabs.iter().enumerate().position(|(index, tab)| {
+                        let tab_bounds = tab.tab_bounds();
+                        let half_tab_width = tab_bounds.width / 2.0;
+
+                        if self.tabs.focused_index() < index {
+                            visual_position.x + half_focused_tab_width
+                                > tab_bounds.x + half_tab_width
+                                && visual_position.x < tab_bounds.right()
+                        } else {
+                            visual_position.x - half_focused_tab_width
+                                < tab_bounds.x + half_tab_width
+                                && visual_position.x > tab_bounds.x
+                        }
+                    });
+
+                    let index = index.filter(|index| *index != self.tabs.focused_index());
+
+                    if let Some(index) = index {
+                        self.tabs.swap(self.tabs.focused_index(), index);
+                    }
+                }
+                _ => global_mousebind_handler.unprocessed(ctx.window, mousebind),
+            }
+        }
+
         let mut mousebind_handler = ctx.ui.mousebind_handler(self.widget_id, ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
@@ -115,46 +170,6 @@ impl<T> Pane<T> {
                         self.dragged_tab_offset = Some(offset);
                     } else {
                         mousebind_handler.unprocessed(ctx.window, mousebind);
-                    }
-                }
-                Mousebind {
-                    button: Some(MouseButton::Left),
-                    mods: Mods::NONE,
-                    kind: MouseClickKind::Release,
-                    ..
-                } => self.dragged_tab_offset = None,
-                Mousebind {
-                    button: Some(MouseButton::Left),
-                    mods: Mods::NONE,
-                    kind: MouseClickKind::Drag,
-                    ..
-                } if self.dragged_tab_offset.is_some() => {
-                    let half_focused_tab_width = self
-                        .tabs
-                        .get_focused()
-                        .map(|tab| tab.tab_bounds().width)
-                        .unwrap_or_default()
-                        / 2.0;
-
-                    let index = self.tabs.iter().enumerate().position(|(index, tab)| {
-                        let tab_bounds = tab.tab_bounds();
-                        let half_tab_width = tab_bounds.width / 2.0;
-
-                        if self.tabs.focused_index() < index {
-                            visual_position.x + half_focused_tab_width
-                                > tab_bounds.x + half_tab_width
-                                && visual_position.x < tab_bounds.right()
-                        } else {
-                            visual_position.x - half_focused_tab_width
-                                < tab_bounds.x + half_tab_width
-                                && visual_position.x > tab_bounds.x
-                        }
-                    });
-
-                    let index = index.filter(|index| *index != self.tabs.focused_index());
-
-                    if let Some(index) = index {
-                        self.tabs.swap(self.tabs.focused_index(), index);
                     }
                 }
                 _ => mousebind_handler.unprocessed(ctx.window, mousebind),
@@ -274,38 +289,29 @@ impl<T> Pane<T> {
             return Rect::ZERO;
         };
 
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
-        let is_focused = ctx.ui.is_focused(self.widget_id) && index == self.tabs.focused_index();
+        let is_focused = index == self.tabs.focused_index();
 
-        Self::draw_tab(
-            is_focused,
-            self.dragged_tab_offset,
-            background,
-            tab,
-            get_doc(data),
-            bounds,
-            ctx,
-        )
+        self.draw_tab(is_focused, background, tab, get_doc(data), ctx)
     }
 
     fn draw_tab(
+        &self,
         is_focused: bool,
-        dragged_tab_offset: Option<f32>,
         background: Option<Color>,
         tab: &Tab,
         doc: &Doc,
-        bounds: Rect,
         ctx: &mut Ctx,
     ) -> Rect {
         let theme = &ctx.config.theme;
 
         let text_color = Self::tab_color(doc, theme, ctx);
 
+        let bounds = ctx.ui.widget(self.widget_id).bounds;
         let mut tab_bounds = tab.tab_bounds().unoffset_by(bounds);
         let mut tab_background = theme.background;
 
         if is_focused {
-            if let Some(offset) = dragged_tab_offset {
+            if let Some(offset) = self.dragged_tab_offset {
                 tab_bounds.x += ctx.window.mouse_position().x - tab_bounds.x + offset;
             }
 
@@ -331,7 +337,7 @@ impl<T> Pane<T> {
             gfx.add_text("*", text_x + text_width, text_y, theme.symbol);
         }
 
-        if is_focused {
+        if ctx.ui.is_focused(self.widget_id) && is_focused {
             gfx.add_rect(tab_bounds.top_border(gfx.border_width()), theme.keyword);
         }
 
