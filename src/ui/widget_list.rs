@@ -131,6 +131,6 @@ impl<T> WidgetList<T> {
     fn clamp_last_focused_index(&mut self) {
         self.last_focused_index = self
             .last_focused_index
-            .min(self.widgets.len().saturating_sub(1))
+            .min(self.widgets.len().saturating_sub(1));
     }
 }

@@ -73,7 +73,7 @@ define_class!(
 
                 for window_delegate in window_delegates.iter() {
                     let view = &window_delegate.ivars().view;
-                    view.setNeedsDisplay(true);
+                    view.update();
                 }
             }
         }

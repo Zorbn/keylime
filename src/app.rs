@@ -133,11 +133,11 @@ impl App {
         self.terminal.update_camera(ctx, dt);
         self.command_palette.update_camera(ctx, dt);
         self.editor.update_camera(ctx, dt);
-
-        self.layout(window, gfx, time);
     }
 
     pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
+        self.layout(window, gfx, time);
+
         gfx.begin_frame(self.config.theme.background);
 
         let ctx = ctx_for_app!(self, window, gfx, time);

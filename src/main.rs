@@ -20,6 +20,7 @@ use platform::app_runner::run_app;
 
 /*
  * TODO:
+ * Move cursor history from the doc to the editor to allow jumping back after doing go-to-definition.
  * If the language server returns no completions for a request use simple completions instead.
  * Bounds could instead be accessed with a ui.bounds(widget_id) fn and set with a ui.layout(widget_id, bounds) fn.
  * - The same could be applied to doc cursors, there is a lot of doc.cursor(...).position or doc.cursor(...).position =, etc.

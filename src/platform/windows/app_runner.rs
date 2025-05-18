@@ -100,6 +100,7 @@ impl AppRunner {
                 .update(is_animating, file_watcher, files, processes);
 
             let (time, dt) = window.inner.time(is_animating);
+
             app.update(window, gfx, time, dt);
             app.draw(window, gfx, time);
         }
@@ -195,10 +196,9 @@ impl AppRunner {
                     ..
                 } = app_runner
                 {
-                    gfx.inner.resize(width, height).unwrap();
+                    let time = window.inner.time;
 
-                    let (time, dt) = window.inner.time(false);
-                    app.update(window, gfx, time, dt);
+                    gfx.inner.resize(width, height).unwrap();
                     app.draw(window, gfx, time);
                 }
 

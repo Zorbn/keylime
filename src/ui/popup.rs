@@ -18,7 +18,7 @@ pub enum PopupAlignment {
 }
 
 pub struct Popup {
-    pub text: Pooled<String>,
+    text: Pooled<String>,
     widget_id: WidgetId,
 }
 
