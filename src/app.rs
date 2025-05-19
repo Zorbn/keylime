@@ -68,14 +68,9 @@ impl App {
             time,
         };
 
-        let editor = Editor::new(WidgetId::ROOT, &mut ctx);
-
-        let (pane, _) = editor.last_focused_pane_and_doc_list(ctx.ui);
-        ctx.ui.focus(pane.widget_id());
-
         let mut app = Self {
             command_palette: CommandPalette::new(WidgetId::ROOT, ctx.ui),
-            editor,
+            editor: Editor::new(WidgetId::ROOT, &mut ctx),
             terminal: Terminal::new(WidgetId::ROOT, &mut ctx),
             status_bar: StatusBar::new(WidgetId::ROOT, ctx.ui),
             ui,
@@ -87,6 +82,9 @@ impl App {
             config,
             config_error,
         };
+
+        let (pane, _) = app.editor.last_focused_pane_and_doc_list(&app.ui);
+        app.ui.focus(pane.widget_id());
 
         app.layout(window, gfx, time);
         app
