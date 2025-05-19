@@ -263,7 +263,7 @@ impl<T> ResultList<T> {
                         self.result_bounds.height,
                     )
                     .add_margin(-gfx.border_width()),
-                    theme.border,
+                    theme.emphasized,
                 );
             }
 

@@ -201,7 +201,6 @@ impl<T> Pane<T> {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
         let bounds = ctx.ui.widget(self.widget_id).bounds;
-        let tab_height = gfx.tab_height();
 
         gfx.begin(Some(bounds));
 
@@ -214,22 +213,6 @@ impl<T> Pane<T> {
             bounds.top_border(gfx.border_width()).unoffset_by(bounds),
             theme.border,
         );
-
-        if self.tabs.is_empty() {
-            gfx.add_rect(
-                Rect::from_sides(
-                    0.0,
-                    tab_height - gfx.border_width(),
-                    bounds.width,
-                    tab_height,
-                ),
-                theme.border,
-            );
-
-            gfx.end();
-
-            return;
-        }
 
         for i in 0..self.tabs.len() {
             if i == self.tabs.focused_index() {
@@ -244,6 +227,7 @@ impl<T> Pane<T> {
 
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
+        let tab_height = gfx.tab_height();
 
         gfx.add_rect(
             Rect::from_sides(
@@ -337,8 +321,14 @@ impl<T> Pane<T> {
             gfx.add_text("*", text_x + text_width, text_y, theme.symbol);
         }
 
-        if ctx.ui.is_focused(self.widget_id) && is_focused {
-            gfx.add_rect(tab_bounds.top_border(gfx.border_width()), theme.keyword);
+        if is_focused {
+            let foreground = if ctx.ui.is_focused(self.widget_id) {
+                theme.keyword
+            } else {
+                theme.emphasized
+            };
+
+            gfx.add_rect(tab_bounds.top_border(gfx.border_width()), foreground);
         }
 
         tab_bounds

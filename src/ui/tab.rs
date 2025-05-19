@@ -302,7 +302,7 @@ impl Tab {
         if doc.kind() == DocKind::MultiLine {
             ctx.gfx.begin(Some(self.gutter_bounds));
 
-            self.draw_gutter(doc, visible_lines, is_focused, ctx);
+            self.draw_gutter(doc, visible_lines, ctx);
 
             ctx.gfx.end();
         }
@@ -324,7 +324,7 @@ impl Tab {
         ctx.gfx.end();
     }
 
-    fn draw_gutter(&self, doc: &Doc, visible_lines: VisibleLines, is_focused: bool, ctx: &mut Ctx) {
+    fn draw_gutter(&self, doc: &Doc, visible_lines: VisibleLines, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
@@ -339,7 +339,7 @@ impl Tab {
                 - width
                 - (GUTTER_PADDING_WIDTH + GUTTER_BORDER_WIDTH) * gfx.glyph_width();
 
-            let color = if is_focused && y == cursor_y {
+            let color = if y == cursor_y {
                 theme.normal
             } else {
                 theme.subtle
@@ -677,7 +677,7 @@ impl Tab {
                 doc,
                 gfx,
             ),
-            theme.scroll_bar,
+            theme.emphasized,
         );
     }
 
