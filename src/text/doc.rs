@@ -794,7 +794,7 @@ impl Doc {
     }
 
     fn update_cursor_desired_visual_x(&mut self, index: CursorIndex, gfx: &mut Gfx) {
-        if self.flags.contains(DocFlag::UpdateCursors) {
+        if !self.flags.contains(DocFlag::UpdateCursors) {
             return;
         }
 
