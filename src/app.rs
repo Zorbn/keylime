@@ -31,10 +31,10 @@ macro_rules! ctx_for_app {
 
 pub struct App {
     ui: Ui,
+    command_palette: CommandPalette,
     editor: Editor,
     terminal: Terminal,
     status_bar: StatusBar,
-    command_palette: CommandPalette,
 
     file_watcher: FileWatcher,
     lsp: Lsp,
@@ -74,10 +74,10 @@ impl App {
         ctx.ui.focus(pane.widget_id());
 
         let mut app = Self {
+            command_palette: CommandPalette::new(WidgetId::ROOT, ctx.ui),
             editor,
             terminal: Terminal::new(WidgetId::ROOT, &mut ctx),
-            status_bar: StatusBar::new(WidgetId::ROOT, &mut ui),
-            command_palette: CommandPalette::new(WidgetId::ROOT, &mut ui),
+            status_bar: StatusBar::new(WidgetId::ROOT, ctx.ui),
             ui,
 
             file_watcher: FileWatcher::new(),
@@ -126,13 +126,13 @@ impl App {
 
         Lsp::update(&mut self.editor, &mut self.command_palette, ctx);
 
-        self.terminal.update(ctx);
         self.command_palette.update(&mut self.editor, ctx);
         self.editor.update(&mut self.file_watcher, ctx);
+        self.terminal.update(ctx);
 
-        self.terminal.update_camera(ctx, dt);
         self.command_palette.update_camera(ctx, dt);
         self.editor.update_camera(ctx, dt);
+        self.terminal.update_camera(ctx, dt);
     }
 
     pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {

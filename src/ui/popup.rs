@@ -75,13 +75,12 @@ impl Popup {
     }
 
     pub fn draw(&self, foreground: Color, ctx: &mut Ctx) {
-        let gfx = &mut ctx.gfx;
-        let theme = &ctx.config.theme;
-
         if !ctx.ui.is_visible(self.widget_id) {
             return;
         }
 
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
         let bounds = ctx.ui.widget(self.widget_id).bounds;
 
         gfx.begin(Some(bounds));

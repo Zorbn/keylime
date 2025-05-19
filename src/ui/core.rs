@@ -153,14 +153,12 @@ impl Ui {
 
     pub fn update(&mut self, window: &mut Window) {
         let mut focused_widget_id = None;
-        let mut hovered_widget_id = None;
 
         let mut mousebind_handler = window.mousebind_handler();
 
         while let Some(mousebind) = mousebind_handler.next(window) {
             let position = VisualPosition::new(mousebind.x, mousebind.y);
             let widget_id = self.get_widget_id_at(position, WidgetId::ROOT);
-            hovered_widget_id = widget_id;
 
             if let Mousebind {
                 button: Some(MouseButton::Left),
@@ -174,19 +172,11 @@ impl Ui {
             mousebind_handler.unprocessed(window, mousebind);
         }
 
-        let mut mouse_scroll_handler = window.mouse_scroll_handler();
-
-        while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
-            let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
-            let widget_id = self.get_widget_id_at(position, WidgetId::ROOT);
-            hovered_widget_id = widget_id;
-
-            mouse_scroll_handler.unprocessed(window, mouse_scroll);
-        }
-
         if let Some(focused_widget_id) = focused_widget_id {
             self.focus(focused_widget_id);
         }
+
+        let hovered_widget_id = self.get_widget_id_at(window.mouse_position(), WidgetId::ROOT);
 
         if let Some(hovered_widget_id) = hovered_widget_id {
             self.hover(hovered_widget_id);
@@ -200,7 +190,7 @@ impl Ui {
 
         let widget = self.widget(widget_id);
 
-        for child_id in widget.child_ids.iter().rev() {
+        for child_id in widget.child_ids.iter() {
             if let Some(widget_id) = self.get_widget_id_at(position, *child_id) {
                 return Some(widget_id);
             }
