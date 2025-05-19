@@ -106,9 +106,9 @@ impl Terminal {
         }
 
         for tab in self.pane.tabs.iter_mut() {
-            let term_index = tab.data_index();
+            let term_id = tab.data_id();
 
-            let Some((docs, emulator)) = self.term_list.get_mut(term_index) else {
+            let Some((docs, emulator)) = self.term_list.get_mut(term_id) else {
                 continue;
             };
 
@@ -135,7 +135,7 @@ impl Terminal {
     pub fn ptys(&mut self) -> impl Iterator<Item = &mut Process> {
         self.term_list
             .iter_mut()
-            .filter_map(|term| term.as_mut().and_then(|(_, emulator)| emulator.pty()))
+            .filter_map(|(_, emulator)| emulator.pty())
     }
 
     pub fn widget_id(&self) -> WidgetId {

@@ -24,6 +24,7 @@ use super::{
     camera::{Camera, RECENTER_DISTANCE},
     color::Color,
     core::WidgetId,
+    slot_list::SlotId,
 };
 
 const GUTTER_PADDING_WIDTH: f32 = 1.0;
@@ -43,7 +44,7 @@ impl VisibleLines {
 }
 
 pub struct Tab {
-    data_index: usize,
+    data_id: SlotId,
 
     pub camera: Camera,
     handled_cursor_position: Option<Position>,
@@ -55,9 +56,9 @@ pub struct Tab {
 }
 
 impl Tab {
-    pub fn new(data_index: usize) -> Self {
+    pub fn new(data_id: SlotId) -> Self {
         Self {
-            data_index,
+            data_id,
 
             camera: Camera::new(),
             handled_cursor_position: None,
@@ -69,8 +70,8 @@ impl Tab {
         }
     }
 
-    pub fn data_index(&self) -> usize {
-        self.data_index
+    pub fn data_id(&self) -> SlotId {
+        self.data_id
     }
 
     pub fn is_animating(&self) -> bool {

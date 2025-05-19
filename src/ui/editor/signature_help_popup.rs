@@ -59,12 +59,12 @@ impl SignatureHelpPopup {
 
     pub fn update(
         &mut self,
-        is_path_different: bool,
+        is_doc_different: bool,
         (trigger_char, retrigger_char): (Option<char>, Option<char>),
         doc: &mut Doc,
         ctx: &mut Ctx,
     ) {
-        if is_path_different {
+        if is_doc_different {
             self.clear(ctx.ui);
         }
 

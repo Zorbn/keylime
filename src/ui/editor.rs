@@ -4,6 +4,7 @@ use std::{
 };
 
 use completion_list::{CompletionList, CompletionListResult};
+use cursor_history::CursorHistory;
 use doc_io::confirm_close_all;
 use editor_pane::EditorPane;
 use examine_popup::ExaminePopup;
@@ -34,11 +35,12 @@ use crate::{
 
 use super::{
     core::{Ui, WidgetId},
-    slot_list::SlotList,
+    slot_list::{SlotId, SlotList},
     widget_list::WidgetList,
 };
 
 pub mod completion_list;
+mod cursor_history;
 mod doc_io;
 pub mod editor_pane;
 mod examine_popup;
@@ -53,7 +55,8 @@ pub struct Editor {
     current_dir: Option<PathBuf>,
 
     handled_position: Option<Position>,
-    handled_path: Option<Pooled<PathBuf>>,
+    handled_doc_id: Option<SlotId>,
+    cursor_history: CursorHistory,
 
     hover_timer: f32,
 
@@ -73,7 +76,8 @@ impl Editor {
             current_dir: current_dir().ok(),
 
             handled_position: None,
-            handled_path: None,
+            handled_doc_id: None,
+            cursor_history: CursorHistory::new(),
 
             hover_timer: 0.0,
 
@@ -216,6 +220,14 @@ impl Editor {
                         self.examine_popup.open(position, doc, ctx);
                     }
                 }
+                action_name!(UndoCursorPosition) => {
+                    self.cursor_history
+                        .undo(&mut self.panes, &mut self.doc_list, ctx);
+                }
+                action_name!(RedoCursorPosition) => {
+                    self.cursor_history
+                        .redo(&mut self.panes, &mut self.doc_list, ctx);
+                }
                 _ => action_handler.unprocessed(ctx.window, action),
             }
         }
@@ -278,21 +290,26 @@ impl Editor {
     ) {
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
 
-        let Some((_, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) else {
+        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) else {
             self.signature_help_popup.clear(ctx.ui);
             self.completion_list.clear(ctx.ui);
 
             return;
         };
 
+        let doc_id = tab.data_id();
         let position = doc.cursor(CursorIndex::Main).position;
+
+        let is_doc_different = Some(doc_id) != self.handled_doc_id;
         let is_position_different = Some(position) != self.handled_position;
-        let is_path_different =
-            self.handled_path.as_ref().map(|path| path.as_path()) != doc.path().some_path();
-        let did_cursor_move = is_position_different || is_path_different;
+
+        let did_cursor_move = is_position_different || is_doc_different;
+
+        self.cursor_history
+            .update(self.handled_doc_id, doc_id, self.handled_position, position);
 
         self.signature_help_popup
-            .update(is_path_different, signature_help_triggers, doc, ctx);
+            .update(is_doc_different, signature_help_triggers, doc, ctx);
 
         self.completion_list
             .update_results(did_cursor_move, doc, ctx);
@@ -300,7 +317,7 @@ impl Editor {
         self.examine_popup.update(did_cursor_move, doc, ctx);
 
         self.handled_position = Some(position);
-        self.handled_path = doc.path().some().cloned();
+        self.handled_doc_id = Some(doc_id);
     }
 
     pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
@@ -393,20 +410,18 @@ impl Editor {
     fn find_doc<'a>(doc_list: &'a SlotList<Doc>, path: &Path) -> Option<&'a Doc> {
         doc_list
             .iter()
-            .flatten()
             .find(|doc| doc.path().some_path() == Some(path))
     }
 
     pub fn find_doc_mut(&mut self, path: &Path) -> Option<&mut Doc> {
         self.doc_list
             .iter_mut()
-            .flatten()
             .find(|doc| doc.path().some_path() == Some(path))
     }
 
     // Necessary when syntax highlighting rules change.
     pub fn clear_doc_highlights(&mut self) {
-        for doc in self.doc_list.iter_mut().flatten() {
+        for doc in self.doc_list.iter_mut() {
             doc.clear_highlights();
         }
     }
@@ -415,7 +430,7 @@ impl Editor {
         let changed_files = file_watcher.changed_files();
 
         for path in changed_files {
-            for doc in self.doc_list.iter_mut().flatten() {
+            for doc in self.doc_list.iter_mut() {
                 if doc.path().some() != Some(path) {
                     continue;
                 }
@@ -508,9 +523,6 @@ impl Editor {
     }
 
     pub fn files(&self) -> impl Iterator<Item = &Path> {
-        self.doc_list
-            .iter()
-            .flatten()
-            .filter_map(|doc| doc.path().on_drive())
+        self.doc_list.iter().filter_map(|doc| doc.path().on_drive())
     }
 }

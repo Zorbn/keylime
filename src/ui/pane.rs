@@ -19,7 +19,7 @@ use super::{
     color::Color,
     core::{Ui, WidgetId, WidgetSettings},
     focus_list::FocusList,
-    slot_list::SlotList,
+    slot_list::{SlotId, SlotList},
     tab::Tab,
 };
 
@@ -353,13 +353,10 @@ impl<T> Pane<T> {
         tab_index: usize,
         data_list: &'a mut SlotList<T>,
     ) -> Option<(&'a mut Tab, &'a mut T)> {
-        if let Some(tab) = self.tabs.get_mut(tab_index) {
-            if let Some(data) = data_list.get_mut(tab.data_index()) {
-                return Some((tab, data));
-            }
-        }
+        let tab = self.tabs.get_mut(tab_index)?;
+        let data = data_list.get_mut(tab.data_id())?;
 
-        None
+        Some((tab, data))
     }
 
     pub fn get_tab_with_data<'a>(
@@ -367,13 +364,10 @@ impl<T> Pane<T> {
         tab_index: usize,
         data_list: &'a SlotList<T>,
     ) -> Option<(&'a Tab, &'a T)> {
-        if let Some(tab) = self.tabs.get(tab_index) {
-            if let Some(data) = data_list.get(tab.data_index()) {
-                return Some((tab, data));
-            }
-        }
+        let tab = self.tabs.get(tab_index)?;
+        let data = data_list.get(tab.data_id())?;
 
-        None
+        Some((tab, data))
     }
 
     pub fn get_focused_tab_with_data_mut<'a>(
@@ -390,9 +384,9 @@ impl<T> Pane<T> {
         self.get_tab_with_data(self.focused_tab_index(), data_list)
     }
 
-    pub fn get_existing_tab_for_data(&self, data_index: usize) -> Option<usize> {
+    pub fn get_existing_tab_for_data(&self, data_id: SlotId) -> Option<usize> {
         for (i, tab) in self.tabs.iter().enumerate() {
-            if tab.data_index() == data_index {
+            if tab.data_id() == data_id {
                 return Some(i);
             }
         }
@@ -400,11 +394,11 @@ impl<T> Pane<T> {
         None
     }
 
-    pub fn add_tab(&mut self, data_index: usize, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
-        let tab = Tab::new(data_index);
+    pub fn add_tab(&mut self, data_id: SlotId, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
+        let tab = Tab::new(data_id);
 
         data_list
-            .get_mut(data_index)
+            .get_mut(data_id)
             .map(|data| (self.get_doc_mut)(data))
             .expect("tried to add a tab referencing a non-existent data")
             .add_usage();

@@ -111,8 +111,6 @@ pub fn handle_action(action: Action, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) ->
         }
         action_name!(ShiftLinesUp) => handle_shift_lines(-1, doc, ctx),
         action_name!(ShiftLinesDown) => handle_shift_lines(1, doc, ctx),
-        action_name!(UndoCursorPosition) => doc.undo_cursor_position(),
-        action_name!(RedoCursorPosition) => doc.redo_cursor_position(),
         action_name!(AddCursorUp) => handle_add_cursor(-1, doc, ctx.gfx),
         action_name!(AddCursorDown) => handle_add_cursor(1, doc, ctx.gfx),
         action_name!(DeleteBackward) => handle_delete_backward(DeleteKind::Char, doc, ctx),

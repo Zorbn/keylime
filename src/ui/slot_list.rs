@@ -1,50 +1,104 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SlotId {
+    index: usize,
+    generation: usize,
+}
+
+impl SlotId {
+    pub const ZERO: Self = Self::new(0, 0);
+
+    const fn new(index: usize, generation: usize) -> Self {
+        Self { index, generation }
+    }
+}
+
+struct Slot<T> {
+    item: Option<T>,
+    generation: usize,
+}
+
 // Like a Vec, but the indices of item in the list are always preserved.
 pub struct SlotList<T> {
-    items: Vec<Option<T>>,
+    slots: Vec<Slot<T>>,
+    unused_slot_indices: Vec<usize>,
 }
 
 impl<T> SlotList<T> {
     pub fn new() -> Self {
-        Self { items: Vec::new() }
+        Self {
+            slots: Vec::new(),
+            unused_slot_indices: Vec::new(),
+        }
     }
 
-    pub fn add(&mut self, item: T) -> usize {
-        let mut index = None;
+    pub fn add(&mut self, item: T) -> SlotId {
+        if let Some(index) = self.unused_slot_indices.pop() {
+            let slot = &mut self.slots[index];
+            slot.item = Some(item);
 
-        for i in 0..self.items.len() {
-            if self.items[i].is_none() {
-                index = Some(i);
-                break;
+            SlotId {
+                index,
+                generation: slot.generation,
             }
-        }
-
-        if let Some(index) = index {
-            self.items[index] = Some(item);
-            index
         } else {
-            self.items.push(Some(item));
-            self.items.len() - 1
+            let index = self.slots.len();
+            let generation = 0;
+
+            self.slots.push(Slot {
+                item: Some(item),
+                generation,
+            });
+
+            SlotId { index, generation }
         }
     }
 
-    pub fn remove(&mut self, index: usize) -> Option<T> {
-        self.items.push(None);
-        self.items.swap_remove(index)
+    pub fn remove(&mut self, id: SlotId) -> Option<T> {
+        if id.index > self.slots.len() {
+            return None;
+        }
+
+        let slot = &mut self.slots[id.index];
+
+        if slot.generation != id.generation {
+            return None;
+        }
+
+        let item = slot.item.take();
+        slot.generation += 1;
+
+        self.unused_slot_indices.push(id.index);
+
+        item
     }
 
-    pub fn get(&self, index: usize) -> Option<&T> {
-        self.items.get(index).and_then(|item| item.as_ref())
+    pub fn get(&self, id: SlotId) -> Option<&T> {
+        self.slots
+            .get(id.index)
+            .filter(|slot| slot.generation == id.generation)
+            .and_then(|slot| slot.item.as_ref())
     }
 
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
-        self.items.get_mut(index).and_then(|item| item.as_mut())
+    pub fn get_mut(&mut self, id: SlotId) -> Option<&mut T> {
+        self.slots
+            .get_mut(id.index)
+            .filter(|slot| slot.generation == id.generation)
+            .and_then(|slot| slot.item.as_mut())
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Option<T>> {
-        self.items.iter()
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.slots.iter().flat_map(|slot| &slot.item)
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Option<T>> {
-        self.items.iter_mut()
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.slots.iter_mut().flat_map(|slot| &mut slot.item)
+    }
+
+    pub fn enumerate(&self) -> impl Iterator<Item = (SlotId, &T)> {
+        self.slots.iter().enumerate().flat_map(|(index, slot)| {
+            slot.item
+                .as_ref()
+                .map(|item| (SlotId::new(index, slot.generation), item))
+        })
     }
 }

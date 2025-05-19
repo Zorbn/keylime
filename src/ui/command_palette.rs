@@ -27,6 +27,7 @@ use super::{
     core::{Ui, WidgetId, WidgetSettings},
     editor::Editor,
     result_list::{ResultList, ResultListInput, ResultListSubmitKind},
+    slot_list::SlotId,
     tab::Tab,
 };
 
@@ -89,7 +90,7 @@ impl CommandPalette {
 
         Self {
             mode: None,
-            tab: Tab::new(0),
+            tab: Tab::new(SlotId::ZERO),
             doc: Doc::new(None, None, DocKind::SingleLine),
             last_updated_version: None,
 

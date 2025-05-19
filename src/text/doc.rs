@@ -99,8 +99,6 @@ impl DocPath {
     }
 }
 
-const CURSOR_POSITION_HISTORY_THRESHOLD: usize = 10;
-
 // One change for File::create, and one change for writing.
 #[cfg(target_os = "windows")]
 const EXPECTED_CHANGE_COUNT_ON_SAVE: usize = 2;
@@ -123,9 +121,6 @@ pub struct Doc {
 
     undo_history: ActionHistory,
     redo_history: ActionHistory,
-
-    cursor_position_undo_history: Vec<Position>,
-    cursor_position_redo_history: Vec<Position>,
 
     syntax_highlighter: SyntaxHighlighter,
     unhighlighted_line_y: usize,
@@ -167,9 +162,6 @@ impl Doc {
 
             undo_history: ActionHistory::new(),
             redo_history: ActionHistory::new(),
-
-            cursor_position_undo_history: Vec::new(),
-            cursor_position_redo_history: Vec::new(),
 
             syntax_highlighter: SyntaxHighlighter::new(),
             unhighlighted_line_y: 0,
@@ -646,45 +638,6 @@ impl Doc {
         }
     }
 
-    pub fn undo_cursor_position(&mut self) {
-        let Some(position) = self.cursor_position_undo_history.pop() else {
-            return;
-        };
-
-        let cursor = self.cursor(CursorIndex::Main);
-        self.cursor_position_redo_history.push(cursor.position);
-
-        let cursor = self.cursor_mut(CursorIndex::Main);
-        cursor.position = position;
-    }
-
-    pub fn redo_cursor_position(&mut self) {
-        let Some(position) = self.cursor_position_redo_history.pop() else {
-            return;
-        };
-
-        let cursor = self.cursor(CursorIndex::Main);
-        self.cursor_position_undo_history.push(cursor.position);
-
-        let cursor = self.cursor_mut(CursorIndex::Main);
-        cursor.position = position;
-    }
-
-    fn update_cursor_position_history(&mut self, index: CursorIndex, last_position: Position) {
-        if !self.is_cursor_index_main(index) {
-            return;
-        }
-
-        let cursor = self.cursor_mut(index);
-
-        if cursor.position.y.abs_diff(last_position.y) < CURSOR_POSITION_HISTORY_THRESHOLD {
-            return;
-        }
-
-        self.cursor_position_redo_history.clear();
-        self.cursor_position_undo_history.push(last_position);
-    }
-
     pub fn move_cursor(
         &mut self,
         index: CursorIndex,
@@ -699,8 +652,6 @@ impl Doc {
         let start_position = cursor.position;
         let desired_visual_x = cursor.desired_visual_x;
 
-        let last_position = cursor.position;
-
         self.cursor_mut(index).position = self.move_position_with_desired_visual_x(
             start_position,
             delta_x,
@@ -708,8 +659,6 @@ impl Doc {
             Some(desired_visual_x),
             gfx,
         );
-
-        self.update_cursor_position_history(index, last_position);
 
         if delta_x != 0 {
             self.update_cursor_desired_visual_x(index, gfx);
@@ -784,12 +733,7 @@ impl Doc {
         gfx: &mut Gfx,
     ) {
         self.update_cursor_selection(index, should_select);
-
-        let last_position = self.cursor(index).position;
-
         self.cursor_mut(index).position = self.clamp_position(position);
-
-        self.update_cursor_position_history(index, last_position);
         self.update_cursor_desired_visual_x(index, gfx);
     }
 
@@ -843,13 +787,6 @@ impl Doc {
         let main_cursor_index = self.main_cursor_index();
 
         index.unwrap_or(main_cursor_index)
-    }
-
-    pub fn is_cursor_index_main(&self, index: CursorIndex) -> bool {
-        match index {
-            CursorIndex::Some(index) => index == self.main_cursor_index(),
-            CursorIndex::Main => true,
-        }
     }
 
     pub fn remove_cursor(&mut self, index: CursorIndex) {

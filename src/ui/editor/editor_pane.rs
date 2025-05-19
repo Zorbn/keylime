@@ -9,7 +9,11 @@ use crate::{
     normalizable::Normalizable,
     platform::dialog::{find_file, message, FindFileKind, MessageKind},
     text::doc::{Doc, DocKind},
-    ui::{core::WidgetId, pane::Pane, slot_list::SlotList},
+    ui::{
+        core::WidgetId,
+        pane::Pane,
+        slot_list::{SlotId, SlotList},
+    },
 };
 
 use super::{
@@ -85,9 +89,9 @@ impl EditorPane {
         let mut doc = Doc::new(path, None, DocKind::MultiLine);
         doc.lsp_did_open("", ctx);
 
-        let doc_index = doc_list.add(doc);
+        let doc_id = doc_list.add(doc);
 
-        self.add_tab(doc_index, doc_list, ctx);
+        self.add_tab(doc_id, doc_list, ctx);
 
         Ok(())
     }
@@ -98,22 +102,22 @@ impl EditorPane {
         doc_list: &mut SlotList<Doc>,
         ctx: &mut Ctx,
     ) -> io::Result<()> {
-        let doc_index = open_or_reuse(doc_list, path, ctx)?;
+        let doc_id = open_or_reuse(doc_list, path, ctx)?;
 
-        self.add_tab(doc_index, doc_list, ctx);
+        self.add_tab(doc_id, doc_list, ctx);
 
         Ok(())
     }
 
-    pub fn add_tab(&mut self, doc_index: usize, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) {
-        if let Some(tab_index) = self.get_existing_tab_for_data(doc_index) {
+    pub fn add_tab(&mut self, doc_id: SlotId, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) {
+        if let Some(tab_index) = self.get_existing_tab_for_data(doc_id) {
             self.set_focused_tab_index(tab_index);
 
             return;
         }
 
         let is_doc_worthless = doc_list
-            .get(doc_index)
+            .get(doc_id)
             .map(|doc| doc.is_worthless())
             .unwrap_or(false);
 
@@ -125,7 +129,7 @@ impl EditorPane {
             }
         }
 
-        self.inner.add_tab(doc_index, doc_list, ctx);
+        self.inner.add_tab(doc_id, doc_list, ctx);
     }
 
     fn remove_tab(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) -> bool {
@@ -133,7 +137,7 @@ impl EditorPane {
             return true;
         };
 
-        let doc_index = tab.data_index();
+        let doc_id = tab.data_id();
 
         if doc.usages() == 1 && !confirm_close(doc, "closing", true, ctx) {
             return false;
@@ -141,8 +145,8 @@ impl EditorPane {
 
         self.inner.remove_tab(doc_list);
 
-        if doc_list.get(doc_index).is_some_and(|doc| doc.usages() == 0) {
-            if let Some(mut doc) = doc_list.remove(doc_index) {
+        if doc_list.get(doc_id).is_some_and(|doc| doc.usages() == 0) {
+            if let Some(mut doc) = doc_list.remove(doc_id) {
                 doc.clear(ctx)
             }
         }

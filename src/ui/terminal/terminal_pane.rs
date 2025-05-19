@@ -40,11 +40,11 @@ impl TerminalPane {
                 }
                 action_name!(CloseTab) => {
                     if let Some(tab) = self.tabs.get_focused() {
-                        let term_index = tab.data_index();
+                        let term_id = tab.data_id();
 
                         self.remove_tab(term_list);
 
-                        if let Some((mut docs, _)) = term_list.remove(term_index) {
+                        if let Some((mut docs, _)) = term_list.remove(term_id) {
                             docs.clear(ctx);
                         }
                     }

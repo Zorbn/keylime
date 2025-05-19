@@ -6,7 +6,7 @@ use crate::{
     platform::dialog::{find_file, message, FindFileKind, MessageKind, MessageResponse},
     pool::format_pooled,
     text::doc::{Doc, DocKind},
-    ui::slot_list::SlotList,
+    ui::slot_list::{SlotId, SlotList},
 };
 
 pub fn confirm_close(doc: &mut Doc, reason: &str, is_cancelable: bool, ctx: &mut Ctx) -> bool {
@@ -64,12 +64,12 @@ pub fn open_or_reuse(
     doc_list: &mut SlotList<Doc>,
     path: &Path,
     ctx: &mut Ctx,
-) -> io::Result<usize> {
+) -> io::Result<SlotId> {
     let path = path.normalized()?;
 
-    for (i, doc) in doc_list.iter().enumerate() {
-        if doc.as_ref().and_then(|doc| doc.path().some()) == Some(&path) {
-            return Ok(i);
+    for (id, doc) in doc_list.enumerate() {
+        if doc.path().some() == Some(&path) {
+            return Ok(id);
         }
     }
 
@@ -80,7 +80,7 @@ pub fn open_or_reuse(
 }
 
 pub fn confirm_close_all(doc_list: &mut SlotList<Doc>, reason: &str, ctx: &mut Ctx) {
-    for doc in doc_list.iter_mut().filter_map(|doc| doc.as_mut()) {
+    for doc in doc_list.iter_mut() {
         confirm_close(doc, reason, false, ctx);
     }
 }
