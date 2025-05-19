@@ -165,9 +165,9 @@ impl Editor {
     }
 
     fn handle_actions(&mut self, ctx: &mut Ctx) {
-        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
+        let mut keybind_handler = ctx.ui.keybind_handler(self.widget_id, ctx.window);
 
-        while let Some(action) = action_handler.next(ctx.window) {
+        while let Some(action) = keybind_handler.next_action(ctx) {
             match action {
                 action_name!(OpenFolder) => {
                     if let Ok(path) = find_file(FindFileKind::OpenFolder) {
@@ -189,7 +189,7 @@ impl Editor {
                     if pane.focused_tab_index() == 0 {
                         self.panes.focus_previous(ctx.ui);
                     } else {
-                        action_handler.unprocessed(ctx.window, action);
+                        keybind_handler.unprocessed(ctx.window, action.keybind);
                     }
                 }
                 action_name!(NextTab) => {
@@ -198,7 +198,7 @@ impl Editor {
                     if pane.focused_tab_index() == pane.tabs.len() - 1 {
                         self.panes.focus_next(ctx.ui);
                     } else {
-                        action_handler.unprocessed(ctx.window, action);
+                        keybind_handler.unprocessed(ctx.window, action.keybind);
                     }
                 }
                 action_keybind!(key: Escape, mods: Mods::NONE) => {
@@ -207,7 +207,7 @@ impl Editor {
                     } else if self.examine_popup.is_open() {
                         self.examine_popup.clear(ctx.ui);
                     } else {
-                        action_handler.unprocessed(ctx.window, action);
+                        keybind_handler.unprocessed(ctx.window, action.keybind);
                     }
                 }
                 action_name!(Examine) => {
@@ -228,7 +228,7 @@ impl Editor {
                     self.cursor_history
                         .redo(&mut self.panes, &mut self.doc_list, ctx);
                 }
-                _ => action_handler.unprocessed(ctx.window, action),
+                _ => keybind_handler.unprocessed(ctx.window, action.keybind),
             }
         }
     }

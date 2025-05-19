@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path, ptr::NonNull};
+use std::{path::Path, ptr::NonNull};
 
 use objc2::{
     rc::{Retained, Weak},
@@ -11,8 +11,7 @@ use crate::{
     config::theme::Theme,
     geometry::visual_position::VisualPosition,
     input::{
-        action::{Action, ActionName},
-        input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
+        input_handlers::{GraphemeHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
         key::Key,
         keybind::Keybind,
         mods::{Mod, Mods},
@@ -25,7 +24,7 @@ use crate::{
     text::grapheme::GraphemeCursor,
 };
 
-use super::{keymaps::new_keymaps, result::Result, view::View};
+use super::{result::Result, view::View};
 
 const DEFAULT_WIDTH: f64 = 768.0;
 const DEFAULT_HEIGHT: f64 = 768.0;
@@ -48,10 +47,9 @@ pub struct Window {
     pub time: f32,
     last_queried_time: Option<f64>,
 
-    keymaps: HashMap<Keybind, ActionName>,
     pub graphemes_typed: String,
     pub grapheme_cursor: GraphemeCursor,
-    pub actions_typed: Vec<Action>,
+    pub keybinds_typed: Vec<Keybind>,
     pub mousebinds_pressed: Vec<Mousebind>,
     pub mouse_scrolls: Vec<MouseScroll>,
     mods: Mods,
@@ -103,10 +101,9 @@ impl Window {
 
             scale,
 
-            keymaps: new_keymaps(),
             graphemes_typed: String::new(),
             grapheme_cursor: GraphemeCursor::new(0, 0),
-            actions_typed: Vec::new(),
+            keybinds_typed: Vec::new(),
             mousebinds_pressed: Vec::new(),
             mouse_scrolls: Vec::new(),
             mods: Mods::NONE,
@@ -190,7 +187,7 @@ impl Window {
     fn clear_inputs(&mut self) {
         self.graphemes_typed.clear();
         self.grapheme_cursor = GraphemeCursor::new(0, 0);
-        self.actions_typed.clear();
+        self.keybinds_typed.clear();
         self.mousebinds_pressed.clear();
         self.mouse_scrolls.clear();
     }
@@ -216,9 +213,7 @@ impl Window {
 
         if let Some(key) = Self::key_from_keycode(key_code) {
             let mods = Self::modifier_flags_to_mods(modifier_flags);
-            let action = Action::from_keybind(Keybind::new(key, mods), &self.keymaps);
-
-            self.actions_typed.push(action);
+            self.keybinds_typed.push(Keybind::new(key, mods));
         }
     }
 
@@ -396,8 +391,8 @@ impl Window {
         GraphemeHandler::new(self.grapheme_cursor.clone())
     }
 
-    pub fn action_handler(&self) -> ActionHandler {
-        ActionHandler::new(self.actions_typed.len())
+    pub fn keybind_handler(&self) -> KeybindHandler {
+        KeybindHandler::new(self.keybinds_typed.len())
     }
 
     pub fn mousebind_handler(&self) -> MousebindHandler {

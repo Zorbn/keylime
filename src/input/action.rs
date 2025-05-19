@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::{keybind::Keybind, mods::Mod};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum ActionName {
     Home,
@@ -134,6 +134,7 @@ macro_rules! action_keybind {
 
 pub(crate) use action_keybind;
 pub(crate) use action_name;
+use serde::Deserialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Action {

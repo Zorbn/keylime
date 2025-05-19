@@ -272,7 +272,7 @@ impl Window {
         GraphemeHandler::new(self.grapheme_cursor.clone())
     }
 
-    pub fn action_handler(&self) -> ActionHandler {
+    pub fn keybind_handler(&self) -> ActionHandler {
         ActionHandler::new(self.actions_typed.len())
     }
 

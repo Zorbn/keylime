@@ -1,0 +1,434 @@
+[
+    {
+        "key": "E",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "OpenFileExplorer"
+    },
+    {
+        "key": "P",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "OpenAllFiles"
+    },
+    {
+        "key": "K",
+        "mods": [
+            "Cmd",
+            "Shift"
+        ],
+        "action": "OpenAllDiagnostics"
+    },
+    {
+        "key": "F",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "OpenSearch"
+    },
+    {
+        "key": "H",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "OpenSearchAndReplace"
+    },
+    {
+        "key": "F",
+        "mods": [
+            "Cmd",
+            "Shift"
+        ],
+        "action": "OpenFindInFiles"
+    },
+    {
+        "key": "G",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "OpenGoToLine"
+    },
+    {
+        "key": "Grave",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "FocusTerminal"
+    },
+    {
+        "key": "O",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "OpenFile"
+    },
+    {
+        "key": "O",
+        "mods": [
+            "Cmd",
+            "Shift"
+        ],
+        "action": "OpenFolder"
+    },
+    {
+        "key": "S",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "SaveFile"
+    },
+    {
+        "key": "N",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "NewTab"
+    },
+    {
+        "key": "W",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "CloseTab"
+    },
+    {
+        "key": "N",
+        "mods": [
+            "Cmd",
+            "Alt"
+        ],
+        "action": "NewPane"
+    },
+    {
+        "key": "W",
+        "mods": [
+            "Cmd",
+            "Alt"
+        ],
+        "action": "ClosePane"
+    },
+    {
+        "key": "Left",
+        "mods": [
+            "Cmd",
+            "Alt"
+        ],
+        "action": "PreviousTab"
+    },
+    {
+        "key": "Right",
+        "mods": [
+            "Cmd",
+            "Alt"
+        ],
+        "action": "NextTab"
+    },
+    {
+        "key": "LBracket",
+        "mods": [
+            "Cmd",
+            "Shift"
+        ],
+        "action": "PreviousTab"
+    },
+    {
+        "key": "RBracket",
+        "mods": [
+            "Cmd",
+            "Shift"
+        ],
+        "action": "NextTab"
+    },
+    {
+        "key": "Left",
+        "mods": [
+            "Cmd",
+            "Shift",
+            "Alt"
+        ],
+        "action": "PreviousPane"
+    },
+    {
+        "key": "Right",
+        "mods": [
+            "Cmd",
+            "Shift",
+            "Alt"
+        ],
+        "action": "NextPane"
+    },
+    {
+        "key": "R",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "FindReferences"
+    },
+    {
+        "key": "R",
+        "mods": [
+            "Cmd",
+            "Shift"
+        ],
+        "action": "Rename"
+    },
+    {
+        "key": "Home",
+        "mods": [],
+        "action": "Home"
+    },
+    {
+        "key": "End",
+        "mods": [],
+        "action": "End"
+    },
+    {
+        "key": "Home",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "GoToStart"
+    },
+    {
+        "key": "End",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "GoToEnd"
+    },
+    {
+        "key": "Left",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "Home"
+    },
+    {
+        "key": "Right",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "End"
+    },
+    {
+        "key": "Up",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "GoToStart"
+    },
+    {
+        "key": "Down",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "GoToEnd"
+    },
+    {
+        "key": "PageUp",
+        "mods": [],
+        "action": "PageUp"
+    },
+    {
+        "key": "PageDown",
+        "mods": [],
+        "action": "PageDown"
+    },
+    {
+        "key": "A",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "SelectAll"
+    },
+    {
+        "key": "Z",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "Undo"
+    },
+    {
+        "key": "Z",
+        "mods": [
+            "Cmd",
+            "Shift"
+        ],
+        "action": "Redo"
+    },
+    {
+        "key": "C",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "Copy"
+    },
+    {
+        "key": "X",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "Cut"
+    },
+    {
+        "key": "V",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "Paste"
+    },
+    {
+        "key": "D",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "AddCursorAtNextOccurance"
+    },
+    {
+        "key": "ForwardSlash",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "ToggleComments"
+    },
+    {
+        "key": "LBracket",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "Unindent"
+    },
+    {
+        "key": "RBracket",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "Indent"
+    },
+    {
+        "key": "Left",
+        "mods": [],
+        "action": "MoveLeft"
+    },
+    {
+        "key": "Right",
+        "mods": [],
+        "action": "MoveRight"
+    },
+    {
+        "key": "Left",
+        "mods": [
+            "Alt"
+        ],
+        "action": "MoveLeftWord"
+    },
+    {
+        "key": "Right",
+        "mods": [
+            "Alt"
+        ],
+        "action": "MoveRightWord"
+    },
+    {
+        "key": "Up",
+        "mods": [],
+        "action": "MoveUp"
+    },
+    {
+        "key": "Down",
+        "mods": [],
+        "action": "MoveDown"
+    },
+    {
+        "key": "Up",
+        "mods": [
+            "Alt"
+        ],
+        "action": "ShiftLinesUp"
+    },
+    {
+        "key": "Down",
+        "mods": [
+            "Alt"
+        ],
+        "action": "ShiftLinesDown"
+    },
+    {
+        "key": "Minus",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "UndoCursorPosition"
+    },
+    {
+        "key": "Minus",
+        "mods": [
+            "Ctrl",
+            "Shift"
+        ],
+        "action": "RedoCursorPosition"
+    },
+    {
+        "key": "Up",
+        "mods": [
+            "Cmd",
+            "Alt"
+        ],
+        "action": "AddCursorUp"
+    },
+    {
+        "key": "Down",
+        "mods": [
+            "Cmd",
+            "Alt"
+        ],
+        "action": "AddCursorDown"
+    },
+    {
+        "key": "Backspace",
+        "mods": [],
+        "action": "DeleteBackward"
+    },
+    {
+        "key": "Backspace",
+        "mods": [
+            "Alt"
+        ],
+        "action": "DeleteBackwardWord"
+    },
+    {
+        "key": "Backspace",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "DeleteBackwardLine"
+    },
+    {
+        "key": "Delete",
+        "mods": [],
+        "action": "DeleteForward"
+    },
+    {
+        "key": "Delete",
+        "mods": [
+            "Alt"
+        ],
+        "action": "DeleteForwardWord"
+    },
+    {
+        "key": "Period",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "RequestCodeAction"
+    },
+    {
+        "key": "K",
+        "mods": [
+            "Cmd"
+        ],
+        "action": "Examine"
+    }
+]

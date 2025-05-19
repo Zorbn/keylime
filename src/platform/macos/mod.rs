@@ -3,7 +3,6 @@ mod delegate;
 pub mod dialog;
 pub mod file_watcher;
 pub mod gfx;
-mod keymaps;
 pub mod process;
 pub mod recycle;
 pub mod result;

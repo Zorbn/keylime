@@ -1,0 +1,391 @@
+[
+    {
+        "key": "E",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "OpenFileExplorer"
+    },
+    {
+        "key": "P",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "OpenAllFiles"
+    },
+    {
+        "key": "K",
+        "mods": [
+            "Ctrl",
+            "Shift"
+        ],
+        "action": "OpenAllDiagnostics"
+    },
+    {
+        "key": "F",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "OpenSearch"
+    },
+    {
+        "key": "H",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "OpenSearchAndReplace"
+    },
+    {
+        "key": "F",
+        "mods": [
+            "Ctrl",
+            "Shift"
+        ],
+        "action": "OpenFindInFiles"
+    },
+    {
+        "key": "G",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "OpenGoToLine"
+    },
+    {
+        "key": "Grave",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "FocusTerminal"
+    },
+    {
+        "key": "O",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "OpenFile"
+    },
+    {
+        "key": "O",
+        "mods": [
+            "Ctrl",
+            "Shift"
+        ],
+        "action": "OpenFolder"
+    },
+    {
+        "key": "S",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "SaveFile"
+    },
+    {
+        "key": "N",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "NewTab"
+    },
+    {
+        "key": "W",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "CloseTab"
+    },
+    {
+        "key": "N",
+        "mods": [
+            "Ctrl",
+            "Alt"
+        ],
+        "action": "NewPane"
+    },
+    {
+        "key": "W",
+        "mods": [
+            "Ctrl",
+            "Alt"
+        ],
+        "action": "ClosePane"
+    },
+    {
+        "key": "PageUp",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "PreviousTab"
+    },
+    {
+        "key": "PageDown",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "NextTab"
+    },
+    {
+        "key": "PageUp",
+        "mods": [
+            "Ctrl",
+            "Alt"
+        ],
+        "action": "PreviousPane"
+    },
+    {
+        "key": "PageDown",
+        "mods": [
+            "Ctrl",
+            "Alt"
+        ],
+        "action": "NextPane"
+    },
+    {
+        "key": "R",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "FindReferences"
+    },
+    {
+        "key": "R",
+        "mods": [
+            "Ctrl",
+            "Shift"
+        ],
+        "action": "Rename"
+    },
+    {
+        "key": "Home",
+        "mods": [],
+        "action": "Home"
+    },
+    {
+        "key": "End",
+        "mods": [],
+        "action": "End"
+    },
+    {
+        "key": "Home",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "GoToStart"
+    },
+    {
+        "key": "End",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "GoToEnd"
+    },
+    {
+        "key": "PageUp",
+        "mods": [],
+        "action": "PageUp"
+    },
+    {
+        "key": "PageDown",
+        "mods": [],
+        "action": "PageDown"
+    },
+    {
+        "key": "A",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "SelectAll"
+    },
+    {
+        "key": "Z",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "Undo"
+    },
+    {
+        "key": "Y",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "Redo"
+    },
+    {
+        "key": "C",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "Copy"
+    },
+    {
+        "key": "X",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "Cut"
+    },
+    {
+        "key": "V",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "Paste"
+    },
+    {
+        "key": "D",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "AddCursorAtNextOccurance"
+    },
+    {
+        "key": "ForwardSlash",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "ToggleComments"
+    },
+    {
+        "key": "LBracket",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "Unindent"
+    },
+    {
+        "key": "RBracket",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "Indent"
+    },
+    {
+        "key": "Left",
+        "mods": [],
+        "action": "MoveLeft"
+    },
+    {
+        "key": "Right",
+        "mods": [],
+        "action": "MoveRight"
+    },
+    {
+        "key": "Left",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "MoveLeftWord"
+    },
+    {
+        "key": "Right",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "MoveRightWord"
+    },
+    {
+        "key": "Up",
+        "mods": [],
+        "action": "MoveUp"
+    },
+    {
+        "key": "Down",
+        "mods": [],
+        "action": "MoveDown"
+    },
+    {
+        "key": "Up",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "MoveUpParagraph"
+    },
+    {
+        "key": "Down",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "MoveDownParagraph"
+    },
+    {
+        "key": "Up",
+        "mods": [
+            "Alt"
+        ],
+        "action": "ShiftLinesUp"
+    },
+    {
+        "key": "Down",
+        "mods": [
+            "Alt"
+        ],
+        "action": "ShiftLinesDown"
+    },
+    {
+        "key": "Left",
+        "mods": [
+            "Alt"
+        ],
+        "action": "UndoCursorPosition"
+    },
+    {
+        "key": "Right",
+        "mods": [
+            "Alt"
+        ],
+        "action": "RedoCursorPosition"
+    },
+    {
+        "key": "Up",
+        "mods": [
+            "Ctrl",
+            "Alt"
+        ],
+        "action": "AddCursorUp"
+    },
+    {
+        "key": "Down",
+        "mods": [
+            "Ctrl",
+            "Alt"
+        ],
+        "action": "AddCursorDown"
+    },
+    {
+        "key": "Backspace",
+        "mods": [],
+        "action": "DeleteBackward"
+    },
+    {
+        "key": "Backspace",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "DeleteBackwardWord"
+    },
+    {
+        "key": "Delete",
+        "mods": [],
+        "action": "DeleteForward"
+    },
+    {
+        "key": "Delete",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "DeleteForwardWord"
+    },
+    {
+        "key": "Period",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "RequestCodeAction"
+    },
+    {
+        "key": "K",
+        "mods": [
+            "Ctrl"
+        ],
+        "action": "Examine"
+    }
+]

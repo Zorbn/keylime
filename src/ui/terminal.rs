@@ -80,9 +80,9 @@ impl Terminal {
     }
 
     pub fn update(&mut self, ctx: &mut Ctx) {
-        let mut global_action_handler = ctx.window.action_handler();
+        let mut global_keybind_handler = ctx.window.keybind_handler();
 
-        while let Some(action) = global_action_handler.next(ctx.window) {
+        while let Some(action) = global_keybind_handler.next_action(ctx) {
             match action {
                 action_name!(FocusTerminal) => {
                     let pane_widget_id = self.pane.widget_id();
@@ -93,7 +93,7 @@ impl Terminal {
                         ctx.ui.focus(pane_widget_id);
                     }
                 }
-                _ => global_action_handler.unprocessed(ctx.window, action),
+                _ => global_keybind_handler.unprocessed(ctx.window, action.keybind),
             }
         }
 

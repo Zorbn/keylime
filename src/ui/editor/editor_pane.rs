@@ -36,9 +36,9 @@ impl EditorPane {
     }
 
     pub fn update(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) {
-        let mut action_handler = ctx.ui.action_handler(self.widget_id(), ctx.window);
+        let mut keybind_handler = ctx.ui.keybind_handler(self.widget_id(), ctx.window);
 
-        while let Some(action) = action_handler.next(ctx.window) {
+        while let Some(action) = keybind_handler.next_action(ctx) {
             match action {
                 action_name!(OpenFile) => {
                     if let Ok(path) = find_file(FindFileKind::OpenFile) {
@@ -65,7 +65,7 @@ impl EditorPane {
                         }
                     }
                 }
-                _ => action_handler.unprocessed(ctx.window, action),
+                _ => keybind_handler.unprocessed(ctx.window, action.keybind),
             }
         }
 

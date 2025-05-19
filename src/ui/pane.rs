@@ -176,13 +176,13 @@ impl<T> Pane<T> {
             }
         }
 
-        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
+        let mut keybind_handler = ctx.ui.keybind_handler(self.widget_id, ctx.window);
 
-        while let Some(action) = action_handler.next(ctx.window) {
+        while let Some(action) = keybind_handler.next_action(ctx) {
             match action {
                 action_name!(PreviousTab) => self.tabs.focus_previous(),
                 action_name!(NextTab) => self.tabs.focus_next(),
-                _ => action_handler.unprocessed(ctx.window, action),
+                _ => keybind_handler.unprocessed(ctx.window, action.keybind),
             }
         }
     }

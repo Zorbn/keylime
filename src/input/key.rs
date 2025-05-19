@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize, Clone, Copy, Hash, PartialEq, Eq)]
 #[allow(dead_code)]
 #[repr(u8)]
 pub enum Key {

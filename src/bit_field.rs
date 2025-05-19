@@ -57,6 +57,18 @@ macro_rules! define_bit_field {
                 Self::new(self.bits & !rhs.bits)
             }
         }
+
+        impl<T: AsRef<[$name]>> From<T> for $bit_field_name {
+            fn from(values: T) -> Self {
+                let mut bit_field = Self::NONE;
+
+                for value in values.as_ref() {
+                    bit_field = bit_field.with(*value);
+                }
+
+                bit_field
+            }
+        }
     };
 }
 

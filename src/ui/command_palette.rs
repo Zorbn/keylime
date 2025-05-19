@@ -166,9 +166,9 @@ impl CommandPalette {
             self.close(ctx.ui);
         }
 
-        let mut global_action_handler = ctx.window.action_handler();
+        let mut global_keybind_handler = ctx.window.keybind_handler();
 
-        while let Some(action) = global_action_handler.next(ctx.window) {
+        while let Some(action) = global_keybind_handler.next_action(ctx) {
             match action {
                 action_name!(OpenFileExplorer) => {
                     self.open(Box::new(FileExplorerMode::new()), editor, ctx);
@@ -191,16 +191,16 @@ impl CommandPalette {
                 action_name!(OpenGoToLine) => {
                     self.open(Box::new(GoToLineMode), editor, ctx);
                 }
-                _ => global_action_handler.unprocessed(ctx.window, action),
+                _ => global_keybind_handler.unprocessed(ctx.window, action.keybind),
             }
         }
 
         if let Some(mut mode) = self.mode.take() {
-            let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
+            let mut keybind_handler = ctx.ui.keybind_handler(self.widget_id, ctx.window);
 
-            while let Some(action) = action_handler.next(ctx.window) {
+            while let Some(action) = keybind_handler.next_action(ctx) {
                 if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
-                    action_handler.unprocessed(ctx.window, action);
+                    keybind_handler.unprocessed(ctx.window, action.keybind);
                 }
             }
 

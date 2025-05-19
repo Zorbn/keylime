@@ -147,13 +147,13 @@ impl Tab {
             }
         }
 
-        let mut action_handler = ctx.ui.action_handler(widget_id, ctx.window);
+        let mut keybind_handler = ctx.ui.keybind_handler(widget_id, ctx.window);
 
-        while let Some(action) = action_handler.next(ctx.window) {
+        while let Some(action) = keybind_handler.next_action(ctx) {
             let was_handled = handle_action(action, self, doc, ctx);
 
             if !was_handled {
-                action_handler.unprocessed(ctx.window, action);
+                keybind_handler.unprocessed(ctx.window, action.keybind);
             }
         }
 

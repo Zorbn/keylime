@@ -13,6 +13,12 @@ use serde::Deserialize;
 use theme::Theme;
 
 use crate::{
+    input::{
+        action::ActionName,
+        key::Key,
+        keybind::Keybind,
+        mods::{Mod, Mods},
+    },
     normalizable::Normalizable,
     platform::dialog::{message, MessageKind},
     pool::{format_pooled, Pooled, PATH_POOL, STRING_POOL},
@@ -24,6 +30,15 @@ use crate::{
 
 const CONFIG_FILE: &str = "config.json";
 const CONFIG_DIR: &str = "config";
+
+#[cfg(target_os = "windows")]
+const KEYMAPS_FILE: &str = "windows.json";
+
+#[cfg(target_os = "macos")]
+const KEYMAPS_FILE: &str = "macos.json";
+
+const KEYMAPS_DIR: &str = "keymaps";
+
 const DEFAULT_COMMENT: fn() -> Pooled<String> = || "//".into();
 const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
 const DEFAULT_FORMAT_ON_SAVE: fn() -> bool = || true;
@@ -34,6 +49,20 @@ const DEFAULT_IGNORED_DIRS: fn() -> Vec<Pooled<String>> = || {
         .copied()
         .map(|str| str.into())
         .collect()
+};
+const DEFAULT_KEYMAPS: fn() -> HashMap<Keybind, ActionName> = || {
+    [
+        (
+            Keybind::new(Key::Backspace, Mods::NONE),
+            ActionName::DeleteBackward,
+        ),
+        (Keybind::new(Key::Up, Mods::NONE), ActionName::MoveUp),
+        (Keybind::new(Key::Down, Mods::NONE), ActionName::MoveDown),
+        (Keybind::new(Key::Left, Mods::NONE), ActionName::MoveLeft),
+        (Keybind::new(Key::Right, Mods::NONE), ActionName::MoveRight),
+    ]
+    .into_iter()
+    .collect()
 };
 
 #[derive(Deserialize, Debug)]
@@ -60,6 +89,13 @@ impl SyntaxDesc<'_> {
             ranges: self.ranges,
         }
     }
+}
+
+#[derive(Deserialize, Debug)]
+struct KeymapDesc {
+    key: Key,
+    mods: Vec<Mod>,
+    action: ActionName,
 }
 
 #[derive(Deserialize, Debug)]
@@ -113,6 +149,7 @@ pub struct Config {
     pub format_on_save: bool,
     pub terminal_height: f32,
     pub theme: Theme,
+    pub keymaps: HashMap<Keybind, ActionName>,
     pub languages: Vec<Language>,
     pub extension_languages: HashMap<Pooled<String>, usize>,
     pub ignored_dirs: HashSet<Pooled<String>>,
@@ -121,6 +158,22 @@ pub struct Config {
 impl Config {
     pub fn load(dir: &Path) -> Result<Config, ConfigError> {
         let mut path = PATH_POOL.new_item();
+
+        path.clear();
+        path.push(dir);
+        path.push(KEYMAPS_DIR);
+        path.push(KEYMAPS_FILE);
+
+        let mut keymaps = HashMap::new();
+
+        let keymaps_desc_string = Self::load_file_string(&path)?;
+        let keymaps_desc = Self::load_file_data::<Vec<KeymapDesc>>(&path, &keymaps_desc_string)?;
+
+        for KeymapDesc { key, mods, action } in keymaps_desc {
+            keymaps.insert(Keybind::new(key, mods.into()), action);
+        }
+
+        path.clear();
         path.push(dir);
         path.push("languages");
 
@@ -174,6 +227,7 @@ impl Config {
             terminal_height: config_desc.terminal_height.max(0.0),
             ignored_dirs,
             theme,
+            keymaps,
             languages,
             extension_languages,
         })
@@ -266,6 +320,7 @@ impl Default for Config {
             format_on_save: DEFAULT_FORMAT_ON_SAVE(),
             terminal_height: DEFAULT_TERMINAL_HEIGHT(),
             theme: Theme::default(),
+            keymaps: DEFAULT_KEYMAPS(),
             languages: Vec::new(),
             extension_languages: HashMap::new(),
             ignored_dirs: HashSet::from_iter(DEFAULT_IGNORED_DIRS()),

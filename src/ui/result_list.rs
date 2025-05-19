@@ -178,9 +178,9 @@ impl<T> ResultList<T> {
     }
 
     fn handle_keybinds(&mut self, input: &mut ResultListInput, ctx: &mut Ctx) {
-        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
+        let mut keybind_handler = ctx.ui.keybind_handler(self.widget_id, ctx.window);
 
-        while let Some(action) = action_handler.next(ctx.window) {
+        while let Some(action) = keybind_handler.next_action(ctx) {
             match action {
                 action_keybind!(key: Escape, mods: Mods::NONE) => *input = ResultListInput::Close,
                 action_keybind!(key: Enter, mods: Mods::NONE) => {
@@ -196,7 +196,7 @@ impl<T> ResultList<T> {
                 action_keybind!(key: Tab, mods: Mods::NONE) => *input = ResultListInput::Complete,
                 action_keybind!(key: Up, mods: Mods::NONE) => self.focus_previous(),
                 action_keybind!(key: Down, mods: Mods::NONE) => self.focus_next(),
-                _ => action_handler.unprocessed(ctx.window, action),
+                _ => keybind_handler.unprocessed(ctx.window, action.keybind),
             }
         }
     }

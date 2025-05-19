@@ -2,8 +2,8 @@ use crate::{
     config::theme::Theme,
     geometry::visual_position::VisualPosition,
     input::{
-        action::Action,
-        input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
+        input_handlers::{GraphemeHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
+        keybind::Keybind,
         mods::Mods,
         mouse_scroll::MouseScroll,
         mousebind::Mousebind,
@@ -45,8 +45,8 @@ impl Window {
         self.inner.grapheme_handler()
     }
 
-    pub fn action_handler(&self) -> ActionHandler {
-        self.inner.action_handler()
+    pub fn keybind_handler(&self) -> KeybindHandler {
+        self.inner.keybind_handler()
     }
 
     pub fn mousebind_handler(&self) -> MousebindHandler {
@@ -61,8 +61,8 @@ impl Window {
         (&self.inner.graphemes_typed, &mut self.inner.grapheme_cursor)
     }
 
-    pub fn actions_typed(&mut self) -> &mut Vec<Action> {
-        &mut self.inner.actions_typed
+    pub fn keybinds_typed(&mut self) -> &mut Vec<Keybind> {
+        &mut self.inner.keybinds_typed
     }
 
     pub fn mousebinds_pressed(&mut self) -> &mut Vec<Mousebind> {

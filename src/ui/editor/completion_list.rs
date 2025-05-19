@@ -239,10 +239,10 @@ impl CompletionList {
             return true;
         }
 
-        let mut action_handler = ctx.ui.action_handler(self.widget_id(), ctx.window);
+        let mut keybind_handler = ctx.ui.keybind_handler(self.widget_id(), ctx.window);
 
-        while let Some(action) = action_handler.next(ctx.window) {
-            action_handler.unprocessed(ctx.window, action);
+        while let Some(action) = keybind_handler.next_action(ctx) {
+            keybind_handler.unprocessed(ctx.window, action.keybind);
 
             if matches!(action, action_keybind!(key: Backspace)) {
                 return true;
