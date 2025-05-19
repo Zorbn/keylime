@@ -15,9 +15,10 @@ use crate::{
     input::{
         action::{action_keybind, action_name},
         mods::Mods,
+        mousebind::MousebindKind,
     },
     lsp::{
-        types::{DecodedEditList, Hover},
+        types::{DecodedEditList, DecodedHover},
         uri::uri_to_path,
     },
     platform::{
@@ -43,6 +44,8 @@ pub mod editor_pane;
 mod examine_popup;
 mod signature_help_popup;
 
+const HOVER_TIME: f32 = 0.25;
+
 pub struct Editor {
     doc_list: SlotList<Doc>,
     // There should always be at least one pane.
@@ -51,6 +54,8 @@ pub struct Editor {
 
     handled_position: Option<Position>,
     handled_path: Option<Pooled<PathBuf>>,
+
+    hover_timer: f32,
 
     examine_popup: ExaminePopup,
     pub signature_help_popup: SignatureHelpPopup,
@@ -70,6 +75,8 @@ impl Editor {
             handled_position: None,
             handled_path: None,
 
+            hover_timer: 0.0,
+
             examine_popup: ExaminePopup::new(widget_id, ctx.ui),
             signature_help_popup: SignatureHelpPopup::new(widget_id, ctx.ui),
             completion_list: CompletionList::new(widget_id, ctx.ui),
@@ -82,7 +89,9 @@ impl Editor {
     }
 
     pub fn is_animating(&self) -> bool {
-        self.completion_list.is_animating() || self.panes.iter().any(|pane| pane.is_animating())
+        self.completion_list.is_animating()
+            || self.panes.iter().any(|pane| pane.is_animating())
+            || self.hover_timer > 0.0
     }
 
     pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
@@ -116,12 +125,10 @@ impl Editor {
         ctx.ui
             .set_shown(self.completion_list.widget_id(), is_cursor_visible);
         ctx.ui
-            .set_shown(self.examine_popup.widget_id(), is_cursor_visible);
-        ctx.ui
             .set_shown(self.signature_help_popup.widget_id(), is_cursor_visible);
     }
 
-    pub fn update(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
+    pub fn update(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx, dt: f32) {
         self.panes.update(ctx.ui);
         self.reload_changed_files(file_watcher, ctx);
 
@@ -134,7 +141,9 @@ impl Editor {
         let signature_help_triggers = SignatureHelpPopup::get_triggers(self.widget_id, doc, ctx);
 
         self.handle_actions(ctx);
+        self.handle_mousebinds(ctx);
 
+        self.update_hover(ctx, dt);
         self.pre_pane_update(ctx);
 
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
@@ -203,12 +212,51 @@ impl Editor {
                     let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
 
                     if let Some((_, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) {
-                        self.examine_popup.open(doc, ctx);
+                        let position = doc.cursor(CursorIndex::Main).position;
+                        self.examine_popup.open(position, doc, ctx);
                     }
                 }
                 _ => action_handler.unprocessed(ctx.window, action),
             }
         }
+    }
+
+    fn handle_mousebinds(&mut self, ctx: &mut Ctx) -> Option<()> {
+        let mut global_mousebind_handler = ctx.window.mousebind_handler();
+
+        while let Some(mousebind) = global_mousebind_handler.next(ctx.window) {
+            if mousebind.kind == MousebindKind::Move {
+                self.hover_timer = HOVER_TIME;
+            }
+
+            global_mousebind_handler.unprocessed(ctx.window, mousebind);
+        }
+
+        Some(())
+    }
+
+    fn update_hover(&mut self, ctx: &mut Ctx, dt: f32) {
+        let last_hover_timer = self.hover_timer;
+        self.hover_timer = (self.hover_timer - dt).max(0.0);
+
+        if last_hover_timer == 0.0
+            || self.hover_timer > 0.0
+            || ctx.ui.is_hovered(self.examine_popup.widget_id())
+        {
+            return;
+        }
+
+        let pane = self.panes.get_hovered_mut(ctx.ui);
+
+        let Some((tab, doc)) =
+            pane.and_then(|pane| pane.get_focused_tab_with_data_mut(&mut self.doc_list))
+        else {
+            self.examine_popup.clear(ctx.ui);
+            return;
+        };
+
+        let position = tab.visual_to_position(ctx.window.mouse_position(), doc, ctx.gfx);
+        self.examine_popup.open(position, doc, ctx);
     }
 
     fn pre_pane_update(&mut self, ctx: &mut Ctx) {
@@ -244,7 +292,7 @@ impl Editor {
         let did_cursor_move = is_position_different || is_path_different;
 
         self.signature_help_popup
-            .update(signature_help_triggers, doc, ctx);
+            .update(is_path_different, signature_help_triggers, doc, ctx);
 
         self.completion_list
             .update_results(did_cursor_move, doc, ctx);
@@ -302,7 +350,7 @@ impl Editor {
 
     pub fn lsp_set_hover(
         &mut self,
-        hover: Option<Hover>,
+        hover: Option<DecodedHover>,
         path: &Pooled<PathBuf>,
         ui: &mut Ui,
     ) -> Option<()> {

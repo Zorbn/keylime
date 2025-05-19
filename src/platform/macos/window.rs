@@ -18,7 +18,7 @@ use crate::{
         mods::{Mod, Mods},
         mouse_button::MouseButton,
         mouse_scroll::MouseScroll,
-        mousebind::{MouseClickCount, MouseClickKind, Mousebind},
+        mousebind::{MouseClickCount, Mousebind, MousebindKind},
     },
     platform::aliases::{AnyFileWatcher, AnyProcess, AnyWindow},
     pool::UTF16_POOL,
@@ -237,8 +237,8 @@ impl Window {
 
         let (button, count, kind) = if is_drag {
             self.current_pressed_button
-                .map(|click| (Some(click.button), click.count, MouseClickKind::Drag))
-                .unwrap_or((None, MouseClickCount::Single, MouseClickKind::Drag))
+                .map(|click| (Some(click.button), click.count, MousebindKind::Move))
+                .unwrap_or((None, MouseClickCount::Single, MousebindKind::Move))
         } else {
             let click_count = unsafe { event.clickCount() - 1 } % 3 + 1;
 
@@ -255,7 +255,7 @@ impl Window {
                 self.current_pressed_button = Some(RecordedMouseClick { button, count });
             }
 
-            (button, count, MouseClickKind::Press)
+            (button, count, MousebindKind::Press)
         };
 
         self.mousebinds_pressed
@@ -280,7 +280,7 @@ impl Window {
             y,
             mods,
             MouseClickCount::Single,
-            MouseClickKind::Release,
+            MousebindKind::Release,
         ));
     }
 

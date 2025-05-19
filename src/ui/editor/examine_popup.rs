@@ -1,11 +1,11 @@
 use crate::{
     ctx::Ctx,
     geometry::position::Position,
-    lsp::types::{DecodedDiagnostic, Hover},
+    lsp::types::{DecodedDiagnostic, DecodedHover, DecodedRange},
     pool::Pooled,
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
-        core::{Ui, WidgetId, WidgetSettings},
+        core::{Ui, WidgetId},
         popup::{Popup, PopupAlignment},
         tab::Tab,
     },
@@ -15,7 +15,7 @@ use crate::{
 enum ExaminePopupData<'a> {
     None,
     Diagnostic(&'a DecodedDiagnostic),
-    Hover(Pooled<String>),
+    Hover(Pooled<String>, Option<DecodedRange>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -26,32 +26,32 @@ enum ExaminePopupKind {
 }
 
 pub struct ExaminePopup {
-    widget_id: WidgetId,
-
     popup: Popup,
     kind: ExaminePopupKind,
     position: Position,
+    open_position: Position,
 }
 
 impl ExaminePopup {
     pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
-        let widget_id = ui.new_widget(parent_id, WidgetSettings::default());
-
         Self {
-            widget_id,
-
-            popup: Popup::new(widget_id, ui),
+            popup: Popup::new(parent_id, ui),
             kind: ExaminePopupKind::None,
             position: Position::ZERO,
+            open_position: Position::ZERO,
         }
     }
 
     pub fn layout(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
-        ctx.ui
-            .set_shown(self.popup.widget_id(), self.kind != ExaminePopupKind::None);
-
         let mut position = doc.position_to_visual(self.position, tab.camera.position(), ctx.gfx);
         position = position.offset_by(tab.doc_bounds());
+
+        let is_position_visible = tab.doc_bounds().contains_position(position);
+
+        ctx.ui.set_shown(
+            self.popup.widget_id(),
+            self.kind != ExaminePopupKind::None && is_position_visible,
+        );
 
         self.popup.layout(position, PopupAlignment::Above, ctx);
     }
@@ -76,8 +76,8 @@ impl ExaminePopup {
         self.popup.draw(theme.normal, ctx);
     }
 
-    pub fn open(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
-        let position = doc.cursor(CursorIndex::Main).position;
+    pub fn open(&mut self, position: Position, doc: &mut Doc, ctx: &mut Ctx) {
+        self.open_position = position;
 
         if let Some(diagnostic) = ctx
             .lsp
@@ -86,13 +86,13 @@ impl ExaminePopup {
         {
             self.set_data(ExaminePopupData::Diagnostic(diagnostic), doc, ctx.ui);
         } else {
-            doc.lsp_hover(ctx);
+            doc.lsp_hover(position, ctx);
         }
     }
 
-    pub fn lsp_set_hover(&mut self, hover: Option<Hover>, doc: &Doc, ui: &mut Ui) {
+    pub fn lsp_set_hover(&mut self, hover: Option<DecodedHover>, doc: &Doc, ui: &mut Ui) {
         let data = match hover {
-            Some(hover) => ExaminePopupData::Hover(hover.contents.text()),
+            Some(hover) => ExaminePopupData::Hover(hover.contents.text(), hover.range),
             None => ExaminePopupData::None,
         };
 
@@ -118,15 +118,15 @@ impl ExaminePopup {
                 self.position = diagnostic.visible_range(doc).start;
                 self.kind = ExaminePopupKind::Diagnostic;
             }
-            ExaminePopupData::Hover(text) => {
+            ExaminePopupData::Hover(text, range) => {
                 self.popup.show(&text, ui);
-                self.position = doc.cursor(CursorIndex::Main).position;
+                self.position = range.map(|range| range.start).unwrap_or(self.open_position);
                 self.kind = ExaminePopupKind::Hover;
             }
         }
     }
 
     pub fn widget_id(&self) -> WidgetId {
-        self.widget_id
+        self.popup.widget_id()
     }
 }

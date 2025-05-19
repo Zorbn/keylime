@@ -127,7 +127,7 @@ impl App {
         Lsp::update(&mut self.editor, &mut self.command_palette, ctx);
 
         self.command_palette.update(&mut self.editor, ctx);
-        self.editor.update(&mut self.file_watcher, ctx);
+        self.editor.update(&mut self.file_watcher, ctx, dt);
         self.terminal.update(ctx);
 
         self.command_palette.update_camera(ctx, dt);

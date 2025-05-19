@@ -8,10 +8,10 @@ pub enum MouseClickCount {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MouseClickKind {
+pub enum MousebindKind {
     Press,
     Release,
-    Drag,
+    Move,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -21,7 +21,7 @@ pub struct Mousebind {
     pub y: f32,
     pub mods: Mods,
     pub count: MouseClickCount,
-    pub kind: MouseClickKind,
+    pub kind: MousebindKind,
 }
 
 impl Mousebind {
@@ -31,7 +31,7 @@ impl Mousebind {
         y: f32,
         mods: Mods,
         count: MouseClickCount,
-        kind: MouseClickKind,
+        kind: MousebindKind,
     ) -> Self {
         Self {
             button,

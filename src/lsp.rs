@@ -206,6 +206,9 @@ impl Lsp {
                     .lsp_set_signature_help(signature_help, ctx.ui);
             }
             MessageResult::Hover(hover) => {
+                let doc = doc?;
+                let hover = hover.map(|hover| hover.decode(encoding, doc));
+
                 editor.lsp_set_hover(hover, path.as_ref()?, ctx.ui);
             }
             MessageResult::Formatting(edits) => {

@@ -10,7 +10,7 @@ use crate::{
         action::action_name,
         mods::Mods,
         mouse_button::MouseButton,
-        mousebind::{MouseClickKind, Mousebind},
+        mousebind::{Mousebind, MousebindKind},
     },
     text::doc::Doc,
 };
@@ -101,13 +101,13 @@ impl<T> Pane<T> {
                 Mousebind {
                     button: Some(MouseButton::Left),
                     mods: Mods::NONE,
-                    kind: MouseClickKind::Release,
+                    kind: MousebindKind::Release,
                     ..
                 } => self.dragged_tab_offset = None,
                 Mousebind {
                     button: Some(MouseButton::Left),
                     mods: Mods::NONE,
-                    kind: MouseClickKind::Drag,
+                    kind: MousebindKind::Move,
                     ..
                 } => {
                     let half_focused_tab_width = self
@@ -151,7 +151,7 @@ impl<T> Pane<T> {
                 Mousebind {
                     button: Some(MouseButton::Left),
                     mods: Mods::NONE,
-                    kind: MouseClickKind::Press,
+                    kind: MousebindKind::Press,
                     ..
                 } => {
                     let mut offset = 0.0;

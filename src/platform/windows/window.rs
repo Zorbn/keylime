@@ -44,7 +44,7 @@ use crate::{
         mods::{Mod, Mods},
         mouse_button::MouseButton,
         mouse_scroll::MouseScroll,
-        mousebind::{MouseClickCount, MouseClickKind, Mousebind},
+        mousebind::{MouseClickCount, Mousebind, MousebindKind},
     },
     platform::aliases::{AnyFileWatcher, AnyProcess, AnyWindow},
     pool::UTF16_POOL,
@@ -531,7 +531,7 @@ impl Window {
                     y,
                     mods,
                     MouseClickCount::Single,
-                    MouseClickKind::Release,
+                    MousebindKind::Release,
                 ));
             }
             WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_MOUSEMOVE => {
@@ -564,7 +564,7 @@ impl Window {
                         self.last_click =
                             self.last_click.filter(|click| x == click.x && y == click.y);
 
-                        (count, MouseClickKind::Drag)
+                        (count, MousebindKind::Move)
                     }
                     _ => {
                         let (is_chained_click, previous_kind) = self
@@ -599,16 +599,16 @@ impl Window {
                         self.last_click = click;
                         self.current_click = click;
 
-                        (count, MouseClickKind::Press)
+                        (count, MousebindKind::Press)
                     }
                 };
 
                 let do_ignore = if let Some(button) = button {
-                    if kind != MouseClickKind::Drag {
+                    if kind != MousebindKind::Move {
                         self.draggable_buttons.insert(button);
                     }
 
-                    kind == MouseClickKind::Drag && !self.draggable_buttons.contains(&button)
+                    kind == MousebindKind::Move && !self.draggable_buttons.contains(&button)
                 } else {
                     false
                 };

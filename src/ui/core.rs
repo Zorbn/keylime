@@ -3,7 +3,7 @@ use crate::{
     input::{
         input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
         mouse_button::MouseButton,
-        mousebind::{MouseClickKind, Mousebind},
+        mousebind::{Mousebind, MousebindKind},
     },
     platform::window::Window,
     text::grapheme::GraphemeCursor,
@@ -162,7 +162,7 @@ impl Ui {
 
             if let Mousebind {
                 button: Some(MouseButton::Left),
-                kind: MouseClickKind::Press,
+                kind: MousebindKind::Press,
                 ..
             } = mousebind
             {

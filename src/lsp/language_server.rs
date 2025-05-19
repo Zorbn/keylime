@@ -29,7 +29,7 @@ use super::{
     position_encoding::PositionEncoding,
     types::{
         DecodedCompletionItem, DecodedDiagnostic, EncodedCompletionItem, EncodedDiagnostic,
-        EncodedRange, EncodedTextEdit, EncodedWorkspaceEdit, Hover, LspPrepareRenameResult,
+        EncodedHover, EncodedRange, EncodedTextEdit, EncodedWorkspaceEdit, LspPrepareRenameResult,
         SignatureHelp,
     },
     uri::path_to_uri,
@@ -91,7 +91,7 @@ pub(super) enum MessageResult<'a> {
         range: EncodedRange,
     },
     SignatureHelp(Option<SignatureHelp>),
-    Hover(Option<Hover>),
+    Hover(Option<EncodedHover>),
     Formatting(Vec<EncodedTextEdit>),
     Diagnostic(Vec<EncodedDiagnostic>),
 }
@@ -461,7 +461,7 @@ impl LanguageServer {
                 let result = message
                     .result
                     .as_ref()
-                    .and_then(|result| serde_json::from_str::<Hover>(result.get()).ok());
+                    .and_then(|result| serde_json::from_str::<EncodedHover>(result.get()).ok());
 
                 Some(MessageResult::Hover(result))
             }

@@ -8,7 +8,7 @@ use crate::{
         editing_actions::{handle_action, handle_grapheme, handle_left_click},
         mods::{Mod, Mods},
         mouse_button::MouseButton,
-        mousebind::{MouseClickKind, Mousebind},
+        mousebind::{Mousebind, MousebindKind},
     },
     lsp::types::DecodedRange,
     platform::gfx::Gfx,
@@ -110,32 +110,22 @@ impl Tab {
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
 
-            if !self
-                .doc_bounds
-                .contains_position(VisualPosition::new(mousebind.x, mousebind.y))
-            {
+            if !self.doc_bounds.contains_position(visual_position) {
                 mousebind_handler.unprocessed(ctx.window, mousebind);
                 continue;
             }
 
-            // Offset the x position slightly to make resulting cursor placement more natural.
-            let visual_position = VisualPosition::new(
-                visual_position.x + 0.25 * ctx.gfx.glyph_width(),
-                visual_position.y,
-            )
-            .unoffset_by(self.doc_bounds);
-
-            let position = doc.visual_to_position(visual_position, self.camera.position(), ctx.gfx);
+            let position = self.visual_to_position(visual_position, doc, ctx.gfx);
 
             match mousebind {
                 Mousebind {
                     button: Some(MouseButton::Left),
                     mods: Mods::NONE | Mods::SHIFT,
                     count,
-                    kind: kind @ (MouseClickKind::Press | MouseClickKind::Drag),
+                    kind: kind @ (MousebindKind::Press | MousebindKind::Move),
                     ..
                 } => {
-                    let is_drag = kind == MouseClickKind::Drag;
+                    let is_drag = kind == MousebindKind::Move;
 
                     handle_left_click(doc, position, mousebind.mods, count, is_drag, ctx.gfx);
                     self.handled_cursor_position = Some(doc.cursor(CursorIndex::Main).position);
@@ -143,7 +133,7 @@ impl Tab {
                 Mousebind {
                     button: Some(MouseButton::Left),
                     mods,
-                    kind: MouseClickKind::Press,
+                    kind: MousebindKind::Press,
                     ..
                 } if mods.contains(Mod::Ctrl) || mods.contains(Mod::Cmd) => {
                     if mods.contains(Mod::Alt) {
@@ -255,6 +245,13 @@ impl Tab {
             can_recenter,
             dt,
         );
+    }
+
+    pub fn visual_to_position(&self, visual: VisualPosition, doc: &Doc, gfx: &mut Gfx) -> Position {
+        let visual = VisualPosition::new(visual.x + 0.25 * gfx.glyph_width(), visual.y)
+            .unoffset_by(self.doc_bounds);
+
+        doc.visual_to_position(visual, self.camera.position(), gfx)
     }
 
     pub fn tab_bounds(&self) -> Rect {
@@ -541,17 +538,13 @@ impl Tab {
             return;
         }
 
-        let position = ctx.window.mouse_position();
+        let visual_position = ctx.window.mouse_position();
 
-        if !self.doc_bounds.contains_position(position) {
+        if !self.doc_bounds.contains_position(visual_position) {
             return;
         }
 
-        let position = doc.visual_to_position(
-            ctx.window.mouse_position().unoffset_by(self.doc_bounds),
-            camera_position,
-            gfx,
-        );
+        let position = self.visual_to_position(visual_position, doc, gfx);
 
         if grapheme::is_whitespace(doc.grapheme(position)) {
             return;

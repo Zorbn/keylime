@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use crate::{
     ctx::Ctx,
     geometry::position::Position,
@@ -15,7 +13,6 @@ use crate::{
 pub struct SignatureHelpPopup {
     widget_id: WidgetId,
 
-    help_path: PathBuf,
     help_position: Position,
     help: Option<SignatureHelp>,
 
@@ -30,7 +27,6 @@ impl SignatureHelpPopup {
         Self {
             widget_id,
 
-            help_path: PathBuf::new(),
             help_position: Position::ZERO,
             help: None,
 
@@ -63,11 +59,12 @@ impl SignatureHelpPopup {
 
     pub fn update(
         &mut self,
+        is_path_different: bool,
         (trigger_char, retrigger_char): (Option<char>, Option<char>),
         doc: &mut Doc,
         ctx: &mut Ctx,
     ) {
-        if Some(self.help_path.as_path()) != doc.path().some_path() {
+        if is_path_different {
             self.clear(ctx.ui);
         }
 
@@ -82,12 +79,6 @@ impl SignatureHelpPopup {
             doc.lsp_signature_help(trigger_char, false, ctx);
 
             self.help_position = position;
-
-            self.help_path.clear();
-
-            if let Some(path) = doc.path().some() {
-                self.help_path.push(path);
-            }
         }
     }
 

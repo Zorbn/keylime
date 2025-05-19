@@ -84,13 +84,10 @@ impl<T> WidgetList<T> {
     pub fn last_focused_index(&self, ui: &Ui) -> usize {
         let get_widget_id = self.get_widget_id;
 
-        let index = self
-            .widgets
+        self.widgets
             .iter()
             .position(|widget| ui.is_focused(get_widget_id(widget)))
-            .unwrap_or(self.last_focused_index);
-
-        index
+            .unwrap_or(self.last_focused_index)
     }
 
     pub fn get_last_focused(&self, ui: &Ui) -> Option<&T> {
@@ -100,6 +97,19 @@ impl<T> WidgetList<T> {
 
     pub fn get_last_focused_mut(&mut self, ui: &Ui) -> Option<&mut T> {
         let index = self.last_focused_index(ui);
+        self.widgets.get_mut(index)
+    }
+
+    pub fn hovered_index(&self, ui: &Ui) -> Option<usize> {
+        let get_widget_id = self.get_widget_id;
+
+        self.widgets
+            .iter()
+            .position(|widget| ui.is_hovered(get_widget_id(widget)))
+    }
+
+    pub fn get_hovered_mut(&mut self, ui: &Ui) -> Option<&mut T> {
+        let index = self.hovered_index(ui)?;
         self.widgets.get_mut(index)
     }
 

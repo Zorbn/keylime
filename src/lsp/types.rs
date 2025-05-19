@@ -497,9 +497,25 @@ impl HoverContents {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
-pub struct Hover {
+#[derive(Debug, Deserialize)]
+pub struct EncodedHover {
     pub contents: HoverContents,
+    pub range: Option<EncodedRange>,
+}
+
+impl EncodedHover {
+    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> DecodedHover {
+        DecodedHover {
+            contents: self.contents,
+            range: self.range.map(|range| range.decode(encoding, doc)),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct DecodedHover {
+    pub contents: HoverContents,
+    pub range: Option<DecodedRange>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
