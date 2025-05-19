@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     mem::transmute,
     path::Path,
     ptr::{copy_nonoverlapping, null_mut},
@@ -37,8 +37,7 @@ use crate::{
     config::theme::Theme,
     geometry::visual_position::VisualPosition,
     input::{
-        action::{Action, ActionName},
-        input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
+        input_handlers::{GraphemeHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
         key::Key,
         keybind::Keybind,
         mods::{Mod, Mods},
@@ -51,7 +50,7 @@ use crate::{
     text::grapheme::GraphemeCursor,
 };
 
-use super::{deferred_call::defer, keymaps::new_keymaps};
+use super::deferred_call::defer;
 
 const DEFAULT_WIDTH: i32 = 640;
 const DEFAULT_HEIGHT: i32 = 480;
@@ -98,10 +97,9 @@ pub struct Window {
     last_click: Option<RecordedMouseClick>,
     double_click_time: f32,
 
-    keymaps: HashMap<Keybind, ActionName>,
     pub graphemes_typed: String,
     pub grapheme_cursor: GraphemeCursor,
-    pub actions_typed: Vec<Action>,
+    pub keybinds_typed: Vec<Keybind>,
     pub mousebinds_pressed: Vec<Mousebind>,
     pub mouse_scrolls: Vec<MouseScroll>,
     mods: Mods,
@@ -142,10 +140,9 @@ impl Window {
             last_click: None,
             double_click_time: triple_click_time,
 
-            keymaps: new_keymaps(),
             graphemes_typed: String::new(),
             grapheme_cursor: GraphemeCursor::new(0, 0),
-            actions_typed: Vec::new(),
+            keybinds_typed: Vec::new(),
             mousebinds_pressed: Vec::new(),
             mouse_scrolls: Vec::new(),
             mods: Mods::NONE,
@@ -171,7 +168,7 @@ impl Window {
     fn clear_inputs(&mut self) {
         self.graphemes_typed.clear();
         self.grapheme_cursor = GraphemeCursor::new(0, 0);
-        self.actions_typed.clear();
+        self.keybinds_typed.clear();
         self.mousebinds_pressed.clear();
         self.mouse_scrolls.clear();
     }
@@ -272,8 +269,8 @@ impl Window {
         GraphemeHandler::new(self.grapheme_cursor.clone())
     }
 
-    pub fn keybind_handler(&self) -> ActionHandler {
-        ActionHandler::new(self.actions_typed.len())
+    pub fn keybind_handler(&self) -> KeybindHandler {
+        KeybindHandler::new(self.keybinds_typed.len())
     }
 
     pub fn mousebind_handler(&self) -> MousebindHandler {
@@ -496,9 +493,7 @@ impl Window {
                     return DefWindowProcW(hwnd, msg, wparam, lparam);
                 };
 
-                let action = Action::from_keybind(Keybind::new(key, self.mods), &self.keymaps);
-
-                self.actions_typed.push(action);
+                self.keybinds_typed.push(Keybind::new(key, self.mods));
 
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
