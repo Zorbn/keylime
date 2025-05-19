@@ -15,7 +15,7 @@ use crate::{
     pool::{format_pooled, Pooled},
     text::{
         cursor_index::CursorIndex,
-        doc::{Doc, DocKind},
+        doc::{Doc, DocFlag},
         grapheme,
     },
 };
@@ -81,7 +81,7 @@ impl Tab {
     pub fn layout(&mut self, tab_bounds: Rect, doc_bounds: Rect, doc: &Doc, gfx: &Gfx) {
         self.tab_bounds = tab_bounds;
 
-        let gutter_width = if doc.kind() == DocKind::MultiLine {
+        let gutter_width = if doc.flags().contains(DocFlag::ShowGutter) {
             let max_gutter_digits = (doc.lines().len() as f32).log10().floor() + 1.0;
 
             (max_gutter_digits + GUTTER_PADDING_WIDTH * 2.0 + GUTTER_BORDER_WIDTH)
@@ -193,14 +193,13 @@ impl Tab {
         let doc_len = doc.lines().len();
         let max_y = (doc_len - 1) as f32 * gfx.line_height();
 
-        let (target_y, can_recenter, recenter_distance) = match doc.kind() {
-            DocKind::Output => {
+        let (target_y, can_recenter, recenter_distance) =
+            if doc.flags().contains(DocFlag::RecenterOnBottom) {
                 let can_recenter = self.handled_doc_len != Some(doc_len);
                 let target_y = max_y - self.camera.y();
 
                 (target_y, can_recenter, 1)
-            }
-            _ => {
+            } else {
                 let new_cursor_position = doc.cursor(CursorIndex::Main).position;
                 let new_cursor_visual_position =
                     doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
@@ -209,8 +208,7 @@ impl Tab {
                 let target_y = new_cursor_visual_position.y + gfx.line_height() / 2.0;
 
                 (target_y, can_recenter, RECENTER_DISTANCE)
-            }
-        };
+            };
 
         let scroll_border_top = gfx.line_height() * recenter_distance as f32;
         let scroll_border_bottom = self.doc_bounds.height - scroll_border_top;
@@ -297,7 +295,7 @@ impl Tab {
             max_y,
         };
 
-        if doc.kind() == DocKind::MultiLine {
+        if doc.flags().contains(DocFlag::ShowGutter) {
             ctx.gfx.begin(Some(self.gutter_bounds));
 
             self.draw_gutter(doc, visible_lines, ctx);
@@ -628,7 +626,7 @@ impl Tab {
     }
 
     fn draw_scroll_bar(&self, doc: &Doc, camera_position: VisualPosition, ctx: &mut Ctx) {
-        if doc.kind() != DocKind::MultiLine {
+        if !doc.flags().contains(DocFlag::AllowMultipleLines) {
             return;
         }
 

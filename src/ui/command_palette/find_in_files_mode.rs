@@ -11,7 +11,7 @@ use crate::{
     pool::{format_pooled, Pooled, PATH_POOL},
     text::{
         cursor_index::CursorIndex,
-        doc::{Doc, DocKind},
+        doc::{Doc, DocFlags},
     },
     ui::result_list::ResultListSubmitKind,
 };
@@ -139,7 +139,7 @@ impl FindInFilesMode {
         }
 
         let path = Pooled::new(path, &PATH_POOL);
-        let mut doc = Doc::new(Some(path), None, DocKind::Output);
+        let mut doc = Doc::new(Some(path), None, DocFlags::RAW);
 
         if doc.load(ctx).is_ok() {
             self.pending_doc = Some(doc);

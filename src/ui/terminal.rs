@@ -7,7 +7,7 @@ use crate::{
     geometry::rect::Rect,
     input::action::action_name,
     platform::process::Process,
-    text::doc::{Doc, DocKind},
+    text::doc::{Doc, DocFlags},
 };
 
 use super::{core::WidgetId, slot_list::SlotList};
@@ -27,8 +27,8 @@ pub struct TerminalDocs {
 impl TerminalDocs {
     pub fn new() -> Self {
         Self {
-            normal: Doc::new(None, Some(TERMINAL_DISPLAY_NAME.into()), DocKind::Output),
-            alternate: Doc::new(None, Some(TERMINAL_DISPLAY_NAME.into()), DocKind::Output),
+            normal: Doc::new(None, Some(TERMINAL_DISPLAY_NAME.into()), DocFlags::TERMINAL),
+            alternate: Doc::new(None, Some(TERMINAL_DISPLAY_NAME.into()), DocFlags::TERMINAL),
         }
     }
 

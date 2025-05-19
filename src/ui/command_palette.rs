@@ -20,7 +20,7 @@ use crate::{
     input::action::action_name,
     lsp::{position_encoding::PositionEncoding, types::EncodedPosition},
     pool::Pooled,
-    text::doc::{Doc, DocKind},
+    text::doc::{Doc, DocFlags},
 };
 
 use super::{
@@ -91,7 +91,7 @@ impl CommandPalette {
         Self {
             mode: None,
             tab: Tab::new(SlotId::ZERO),
-            doc: Doc::new(None, None, DocKind::SingleLine),
+            doc: Doc::new(None, None, DocFlags::SINGLE_LINE),
             last_updated_version: None,
 
             result_list: ResultList::new(MAX_VISIBLE_RESULTS, true, widget_id, ui),

@@ -12,6 +12,7 @@ use std::{
 use lsp::DocLspState;
 
 use crate::{
+    bit_field::define_bit_field,
     ctx::{ctx_with_time, Ctx},
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     lsp::types::DecodedDiagnostic,
@@ -59,11 +60,35 @@ impl Default for LineEnding {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
-pub enum DocKind {
-    MultiLine,
-    SingleLine,
-    Output,
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum DocFlag {
+    TrackHistory,
+    TrackSaving,
+    UpdateCursors,
+    AllowLanguageServer,
+    AllowMultipleLines,
+    RecenterOnBottom,
+    MatchPairs,
+    ShowGutter,
+}
+
+define_bit_field!(DocFlags, DocFlag, u8);
+
+impl DocFlags {
+    pub const RAW: Self = DocFlags::from(DocFlag::AllowMultipleLines);
+
+    pub const SINGLE_LINE: Self = DocFlags::NONE
+        .with(DocFlag::TrackHistory)
+        .with(DocFlag::TrackSaving)
+        .with(DocFlag::UpdateCursors);
+
+    pub const MULTI_LINE: Self = Self::SINGLE_LINE
+        .with(DocFlag::AllowLanguageServer)
+        .with(DocFlag::AllowMultipleLines)
+        .with(DocFlag::MatchPairs)
+        .with(DocFlag::ShowGutter);
+
+    pub const TERMINAL: Self = Self::RAW.with(DocFlag::RecenterOnBottom);
 }
 
 #[derive(Debug, Default)]
@@ -129,14 +154,14 @@ pub struct Doc {
 
     lsp_state: DocLspState,
 
-    kind: DocKind,
+    flags: DocFlags,
 }
 
 impl Doc {
     pub fn new(
         path: Option<Pooled<PathBuf>>,
         display_name: Option<Pooled<String>>,
-        kind: DocKind,
+        flags: DocFlags,
     ) -> Self {
         assert!(path.as_ref().is_none_or(|path| path.is_normal()));
 
@@ -170,7 +195,7 @@ impl Doc {
 
             lsp_state: Default::default(),
 
-            kind,
+            flags,
         };
 
         doc.reset_cursors();
@@ -769,7 +794,7 @@ impl Doc {
     }
 
     fn update_cursor_desired_visual_x(&mut self, index: CursorIndex, gfx: &mut Gfx) {
-        if self.kind == DocKind::Output {
+        if self.flags.contains(DocFlag::UpdateCursors) {
             return;
         }
 
@@ -931,7 +956,7 @@ impl Doc {
     }
 
     pub fn add_cursors_to_action_history(&mut self, action_kind: ActionKind, time: f32) {
-        if self.kind == DocKind::Output {
+        if self.flags.contains(DocFlag::TrackHistory) {
             return;
         }
 
@@ -994,7 +1019,7 @@ impl Doc {
             self.add_cursors_to_action_history(action_kind, ctx.time);
         }
 
-        if self.kind != DocKind::Output {
+        if self.flags.contains(DocFlag::TrackHistory) {
             let mut undone_text = STRING_POOL.new_item();
             self.collect_string(start, end, &mut undone_text);
 
@@ -1064,7 +1089,7 @@ impl Doc {
             match grapheme {
                 "\r" => continue,
                 "\r\n" | "\n" => {
-                    if self.kind == DocKind::SingleLine {
+                    if !self.flags.contains(DocFlag::AllowMultipleLines) {
                         continue;
                     }
 
@@ -1093,7 +1118,7 @@ impl Doc {
             position.x += grapheme.len();
         }
 
-        if self.kind != DocKind::Output {
+        if self.flags.contains(DocFlag::TrackHistory) {
             action_history!(self, action_kind).push_insert(start, position, ctx.time);
         }
 
@@ -1582,10 +1607,10 @@ impl Doc {
                         LineEnding::Lf
                     };
 
-                    let len = if self.kind == DocKind::SingleLine {
-                        len
-                    } else {
+                    let len = if self.flags.contains(DocFlag::AllowMultipleLines) {
                         string.len()
+                    } else {
+                        len
                     };
 
                     return (line_ending, len);
@@ -1632,7 +1657,7 @@ impl Doc {
     }
 
     pub fn is_saved(&self) -> bool {
-        self.is_saved || self.kind == DocKind::Output
+        self.is_saved || !self.flags.contains(DocFlag::TrackSaving)
     }
 
     pub fn is_worthless(&self) -> bool {
@@ -1650,11 +1675,11 @@ impl Doc {
     }
 
     fn do_shift(&self) -> bool {
-        !self.do_skip_shifting && self.kind != DocKind::Output
+        !self.do_skip_shifting && self.flags.contains(DocFlag::UpdateCursors)
     }
 
-    pub fn kind(&self) -> DocKind {
-        self.kind
+    pub fn flags(&self) -> DocFlags {
+        self.flags
     }
 
     pub fn copy_at_cursors(&self, text: &mut String) -> bool {

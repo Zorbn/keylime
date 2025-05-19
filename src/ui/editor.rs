@@ -29,7 +29,7 @@ use crate::{
     pool::Pooled,
     text::{
         cursor_index::CursorIndex,
-        doc::{Doc, DocKind},
+        doc::{Doc, DocFlags},
     },
 };
 
@@ -389,7 +389,7 @@ impl Editor {
         let mut loaded_doc = None;
 
         let doc = doc.or_else(|| {
-            loaded_doc = Some(Doc::new(Some(path), None, DocKind::Output));
+            loaded_doc = Some(Doc::new(Some(path), None, DocFlags::RAW));
 
             let doc = loaded_doc.as_mut()?;
             doc.load(ctx).ok()?;

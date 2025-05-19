@@ -8,7 +8,7 @@ use crate::{
     ctx::Ctx,
     normalizable::Normalizable,
     platform::dialog::{find_file, message, FindFileKind, MessageKind},
-    text::doc::{Doc, DocKind},
+    text::doc::{Doc, DocFlags},
     ui::{
         core::WidgetId,
         pane::Pane,
@@ -29,7 +29,7 @@ impl EditorPane {
     pub fn new(doc_list: &mut SlotList<Doc>, parent_id: WidgetId, ctx: &mut Ctx) -> Self {
         let mut inner = Pane::new(|doc| doc, |doc| doc, parent_id, ctx.ui);
 
-        let doc_index = doc_list.add(Doc::new(None, None, DocKind::MultiLine));
+        let doc_index = doc_list.add(Doc::new(None, None, DocFlags::MULTI_LINE));
         inner.add_tab(doc_index, doc_list, ctx);
 
         Self { inner }
@@ -86,7 +86,7 @@ impl EditorPane {
     ) -> io::Result<()> {
         let path = path.and_then(|path| path.normalized().ok());
 
-        let mut doc = Doc::new(path, None, DocKind::MultiLine);
+        let mut doc = Doc::new(path, None, DocFlags::MULTI_LINE);
         doc.lsp_did_open("", ctx);
 
         let doc_id = doc_list.add(doc);

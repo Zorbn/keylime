@@ -19,7 +19,7 @@ macro_rules! test_with_doc {
             };
 
             let mut doc =
-                crate::text::doc::Doc::new(None, None, crate::text::doc::DocKind::MultiLine);
+                crate::text::doc::Doc::new(None, None, crate::text::doc::DocFlags::MULTI_LINE);
 
             doc.insert(crate::geometry::position::Position::ZERO, $text, ctx);
 

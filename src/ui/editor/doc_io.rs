@@ -5,7 +5,7 @@ use crate::{
     normalizable::Normalizable,
     platform::dialog::{find_file, message, FindFileKind, MessageKind, MessageResponse},
     pool::format_pooled,
-    text::doc::{Doc, DocKind},
+    text::doc::{Doc, DocFlags},
     ui::slot_list::{SlotId, SlotList},
 };
 
@@ -73,7 +73,7 @@ pub fn open_or_reuse(
         }
     }
 
-    let mut doc = Doc::new(Some(path), None, DocKind::MultiLine);
+    let mut doc = Doc::new(Some(path), None, DocFlags::MULTI_LINE);
     doc.load(ctx)?;
 
     Ok(doc_list.add(doc))

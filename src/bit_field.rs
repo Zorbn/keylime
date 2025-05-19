@@ -1,8 +1,8 @@
 macro_rules! define_bit_field {
-    ($bit_field_name:ident, $name:ident) => {
+    ($bit_field_name:ident, $name:ident, $inner_type:ty) => {
         #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
         pub struct $bit_field_name {
-            bits: u8,
+            bits: $inner_type,
             _phantom: std::marker::PhantomData<$name>,
         }
 
@@ -12,7 +12,7 @@ macro_rules! define_bit_field {
 
             pub const ALL: Self = Self::new(0xFF);
 
-            const fn new(bits: u8) -> Self {
+            const fn new(bits: $inner_type) -> Self {
                 Self {
                     bits,
                     _phantom: std::marker::PhantomData,
@@ -24,19 +24,19 @@ macro_rules! define_bit_field {
             }
 
             pub const fn with(self, value: $name) -> Self {
-                let value = 1 << value as u8;
+                let value = 1 << value as $inner_type;
 
                 Self::new(self.bits | value)
             }
 
             pub const fn without(self, value: $name) -> Self {
-                let value = 1 << value as u8;
+                let value = 1 << value as $inner_type;
 
                 Self::new(self.bits & !value)
             }
 
             pub const fn contains(self, value: $name) -> bool {
-                let value = 1 << value as u8;
+                let value = 1 << value as $inner_type;
 
                 self.bits & value == value
             }

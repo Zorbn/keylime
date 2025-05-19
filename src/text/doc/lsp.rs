@@ -12,7 +12,7 @@ use crate::{
 
 use crate::text::cursor_index::CursorIndex;
 
-use super::{Doc, DocKind};
+use super::{Doc, DocFlag};
 
 #[derive(Debug, Default)]
 pub(super) struct DocLspState {
@@ -23,7 +23,7 @@ pub(super) struct DocLspState {
 
 impl Doc {
     pub fn get_language_server_mut<'a>(&self, ctx: &'a mut Ctx) -> Option<&'a mut LanguageServer> {
-        if self.kind == DocKind::Output {
+        if !self.flags.contains(DocFlag::AllowLanguageServer) {
             return None;
         }
 

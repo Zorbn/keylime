@@ -8,7 +8,7 @@ use crate::{
     text::{
         action_history::ActionKind,
         cursor_index::CursorIndex,
-        doc::{Doc, DocKind},
+        doc::{Doc, DocFlag},
         grapheme,
         selection::Selection,
     },
@@ -28,7 +28,7 @@ pub(crate) enum DeleteKind {
 }
 
 pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, ctx: &mut Ctx) {
-    if doc.kind() == DocKind::SingleLine {
+    if doc.flags().contains(DocFlag::MatchPairs) {
         for index in doc.cursor_indices() {
             doc.insert_at_cursor(index, grapheme, ctx);
         }

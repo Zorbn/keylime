@@ -8,7 +8,7 @@ pub enum Mod {
     Cmd,
 }
 
-define_bit_field!(Mods, Mod);
+define_bit_field!(Mods, Mod, u8);
 
 impl Mods {
     pub const SHIFT: Self = Self::from(Mod::Shift);
