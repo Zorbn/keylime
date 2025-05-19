@@ -144,7 +144,7 @@ impl<T> ResultList<T> {
         let mut mouse_scroll_handler = ctx.ui.mouse_scroll_handler(self.widget_id, ctx.window);
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
-            let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
+            let position = ctx.window.mouse_position();
 
             if mouse_scroll.is_horizontal || !bounds.contains_position(position) {
                 mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
