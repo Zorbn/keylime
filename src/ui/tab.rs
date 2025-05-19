@@ -193,12 +193,13 @@ impl Tab {
         let doc_len = doc.lines().len();
         let max_y = (doc_len - 1) as f32 * gfx.line_height();
 
-        let (target_y, can_recenter, recenter_distance) =
+        let (target_y, max_y, can_recenter, recenter_distance) =
             if doc.flags().contains(DocFlag::RecenterOnBottom) {
                 let can_recenter = self.handled_doc_len != Some(doc_len);
                 let target_y = max_y - self.camera.y();
+                let max_y = (max_y - self.doc_bounds().height + gfx.line_height()).max(0.0);
 
-                (target_y, can_recenter, 1)
+                (target_y, max_y, can_recenter, 1)
             } else {
                 let new_cursor_position = doc.cursor(CursorIndex::Main).position;
                 let new_cursor_visual_position =
@@ -207,7 +208,7 @@ impl Tab {
                 let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
                 let target_y = new_cursor_visual_position.y + gfx.line_height() / 2.0;
 
-                (target_y, can_recenter, RECENTER_DISTANCE)
+                (target_y, max_y, can_recenter, RECENTER_DISTANCE)
             };
 
         let scroll_border_top = gfx.line_height() * recenter_distance as f32;
