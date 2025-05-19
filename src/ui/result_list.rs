@@ -125,20 +125,10 @@ impl<T> ResultList<T> {
                 continue;
             };
 
-            if !bounds.contains_position(position) {
+            if !self.try_focus_position(position, ctx) {
                 mouse_handler.unprocessed(ctx.window, mousebind);
                 continue;
             }
-
-            let clicked_result_index =
-                ((position.y + self.camera.y() - bounds.y) / self.result_bounds.height) as usize;
-
-            if clicked_result_index >= self.len() {
-                continue;
-            }
-
-            self.set_focused_index(clicked_result_index);
-            self.mark_focused_handled();
 
             if mousebind.button.is_some() {
                 let kind = if mods.contains(Mod::Shift) {
@@ -163,7 +153,28 @@ impl<T> ResultList<T> {
 
             let delta = mouse_scroll.delta * self.result_bounds.height;
             self.camera.vertical.scroll(delta, mouse_scroll.is_precise);
+            self.try_focus_position(position, ctx);
         }
+    }
+
+    fn try_focus_position(&mut self, position: VisualPosition, ctx: &mut Ctx) -> bool {
+        let bounds = ctx.ui.widget(self.widget_id).bounds;
+
+        if !bounds.contains_position(position) {
+            return false;
+        }
+
+        let clicked_result_index =
+            ((position.y + self.camera.y() - bounds.y) / self.result_bounds.height) as usize;
+
+        if clicked_result_index >= self.len() {
+            return false;
+        }
+
+        self.set_focused_index(clicked_result_index);
+        self.mark_focused_handled();
+
+        true
     }
 
     fn handle_keybinds(&mut self, input: &mut ResultListInput, ctx: &mut Ctx) {

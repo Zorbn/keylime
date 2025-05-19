@@ -17,6 +17,7 @@ const SCROLL_FRICTION: f32 = 0.0001;
 pub struct CameraAxis {
     pub is_locked: bool,
     position: f32,
+    max_position: f32,
     velocity: f32,
     recenter_kind: CameraRecenterKind,
 }
@@ -26,6 +27,7 @@ impl CameraAxis {
         Self {
             is_locked: false,
             position: 0.0,
+            max_position: 0.0,
             velocity: 0.0,
             recenter_kind: CameraRecenterKind::None,
         }
@@ -44,6 +46,8 @@ impl CameraAxis {
         can_recenter: bool,
         dt: f32,
     ) {
+        self.max_position = max_position;
+
         if self.is_locked {
             self.reset();
             return;
@@ -127,6 +131,8 @@ impl CameraAxis {
         } else {
             self.velocity -= delta * SCROLL_SPEED;
         }
+
+        self.position = self.position.clamp(0.0, self.max_position);
     }
 
     pub fn jump_visual_distance(&mut self, visual_distance: f32) {
