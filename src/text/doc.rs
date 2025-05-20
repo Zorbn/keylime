@@ -1411,16 +1411,46 @@ impl Doc {
         camera_position: VisualPosition,
         gfx: &mut Gfx,
     ) -> Position {
-        let mut position = Position::new(
-            ((visual.x + camera_position.x) / gfx.glyph_width()).max(0.0) as usize,
-            ((visual.y + camera_position.y) / gfx.line_height()).max(0.0) as usize,
-        );
+        let mut position = self.visual_to_position_with_visual_x(visual, camera_position, gfx);
+        let visual_x = position.x;
 
-        let desired_x = position.x;
         position = self.clamp_position(position);
-        position.x = gfx.find_x_for_visual_x(&self.lines[position.y], desired_x);
+        position.x = gfx.find_x_for_visual_x(&self.lines[position.y], visual_x);
 
         position
+    }
+
+    pub fn visual_to_position_unclamped(
+        &self,
+        visual: VisualPosition,
+        camera_position: VisualPosition,
+        gfx: &mut Gfx,
+    ) -> Option<Position> {
+        if visual.y < 0.0 {
+            return None;
+        }
+
+        let mut position = self.visual_to_position_with_visual_x(visual, camera_position, gfx);
+
+        if position.y >= self.lines.len() {
+            return None;
+        }
+
+        position.x = gfx.find_x_for_visual_x_unclamped(&self.lines[position.y], position.x)?;
+
+        Some(position)
+    }
+
+    fn visual_to_position_with_visual_x(
+        &self,
+        visual: VisualPosition,
+        camera_position: VisualPosition,
+        gfx: &Gfx,
+    ) -> Position {
+        Position::new(
+            ((visual.x + camera_position.x) / gfx.glyph_width()).max(0.0) as usize,
+            ((visual.y + camera_position.y) / gfx.line_height()).max(0.0) as usize,
+        )
     }
 
     pub fn trim_trailing_whitespace(&mut self, ctx: &mut Ctx) {

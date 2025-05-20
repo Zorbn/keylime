@@ -49,6 +49,20 @@ impl Gfx {
     }
 
     pub fn find_x_for_visual_x(&mut self, text: &str, visual_x: usize) -> usize {
+        self.find_x_for_visual_x_with_clamping(text, visual_x, true)
+            .unwrap()
+    }
+
+    pub fn find_x_for_visual_x_unclamped(&mut self, text: &str, visual_x: usize) -> Option<usize> {
+        self.find_x_for_visual_x_with_clamping(text, visual_x, false)
+    }
+
+    fn find_x_for_visual_x_with_clamping(
+        &mut self,
+        text: &str,
+        visual_x: usize,
+        do_clamp: bool,
+    ) -> Option<usize> {
         let mut current_visual_x = 0;
         let mut x = 0;
 
@@ -56,13 +70,17 @@ impl Gfx {
             current_visual_x += self.measure_text(grapheme);
 
             if current_visual_x > visual_x {
-                return x;
+                return Some(x);
             }
 
             x += grapheme.len();
         }
 
-        x
+        if do_clamp || current_visual_x + self.measure_text("\n") > visual_x {
+            Some(x)
+        } else {
+            None
+        }
     }
 
     fn glyph_spans(&mut self, text: &str) -> GlyphSpans {

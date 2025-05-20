@@ -267,7 +267,8 @@ impl Editor {
             return;
         };
 
-        if let Some(position) = tab.get_hovered_position(ctx.window.mouse_position(), doc, ctx.gfx)
+        if let Some(position) =
+            tab.visual_to_position_unclamped(ctx.window.mouse_position(), doc, ctx.gfx)
         {
             self.examine_popup.open(position, doc, ctx);
         } else {

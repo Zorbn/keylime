@@ -109,7 +109,8 @@ impl Tab {
         let mut mousebind_handler = ctx.ui.mousebind_handler(widget_id, ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
-            let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
+            let visual_position =
+                VisualPosition::new(mousebind.x + 0.25 * ctx.gfx.glyph_width(), mousebind.y);
 
             if !self.doc_bounds.contains_position(visual_position) {
                 mousebind_handler.unprocessed(ctx.window, mousebind);
@@ -248,29 +249,22 @@ impl Tab {
     }
 
     pub fn visual_to_position(&self, visual: VisualPosition, doc: &Doc, gfx: &mut Gfx) -> Position {
-        let visual = VisualPosition::new(visual.x + 0.25 * gfx.glyph_width(), visual.y)
-            .unoffset_by(self.doc_bounds);
-
+        let visual = visual.unoffset_by(self.doc_bounds);
         doc.visual_to_position(visual, self.camera.position(), gfx)
     }
 
-    pub fn get_hovered_position(
+    pub fn visual_to_position_unclamped(
         &self,
-        visual_position: VisualPosition,
+        visual: VisualPosition,
         doc: &Doc,
         gfx: &mut Gfx,
     ) -> Option<Position> {
-        if !self.doc_bounds.contains_position(visual_position) {
+        if !self.doc_bounds.contains_position(visual) {
             return None;
         }
 
-        let position = self.visual_to_position(visual_position, doc, gfx);
-
-        if grapheme::is_whitespace(doc.grapheme(position)) {
-            return None;
-        }
-
-        Some(position)
+        let visual = visual.unoffset_by(self.doc_bounds);
+        doc.visual_to_position_unclamped(visual, self.camera.position(), gfx)
     }
 
     pub fn tab_bounds(&self) -> Rect {
@@ -556,7 +550,12 @@ impl Tab {
         }
 
         let visual_position = ctx.window.mouse_position();
-        let position = self.get_hovered_position(visual_position, doc, gfx)?;
+        let position = self.visual_to_position_unclamped(visual_position, doc, gfx)?;
+
+        if grapheme::is_whitespace(doc.grapheme(position)) {
+            return None;
+        }
+
         let selection = doc.select_current_word_at_position(position, gfx);
 
         let start = doc.position_to_visual(selection.start, camera_position, gfx);
