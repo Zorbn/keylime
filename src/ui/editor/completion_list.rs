@@ -270,8 +270,8 @@ impl CompletionList {
 
         let theme = &ctx.config.theme;
 
-        self.detail_popup.draw(theme.subtle, ctx);
-        self.documentation_popup.draw(theme.normal, ctx);
+        self.detail_popup.draw(Some(theme.subtle), ctx);
+        self.documentation_popup.draw(None, ctx);
     }
 
     pub fn lsp_resolve_completion_item(

@@ -105,7 +105,7 @@ impl Popup {
         self.tab.update_camera(self.widget_id, &self.doc, ctx, dt);
     }
 
-    pub fn draw(&mut self, foreground: Color, ctx: &mut Ctx) {
+    pub fn draw(&mut self, foreground: Option<Color>, ctx: &mut Ctx) {
         if !ctx.ui.is_visible(self.widget_id) {
             return;
         }
@@ -129,8 +129,12 @@ impl Popup {
             self.tab.update_highlights(language, &mut self.doc, ctx.gfx);
         }
 
-        self.tab
-            .draw(None, &mut self.doc, ctx.ui.is_focused(self.widget_id), ctx);
+        self.tab.draw(
+            (foreground, None),
+            &mut self.doc,
+            ctx.ui.is_focused(self.widget_id),
+            ctx,
+        );
     }
 
     pub fn hide(&self, ui: &mut Ui) {

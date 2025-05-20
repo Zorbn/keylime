@@ -256,7 +256,7 @@ impl<T> Pane<T> {
 
         if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
         {
-            tab.draw(background, get_doc_mut(data), is_focused, ctx);
+            tab.draw((None, background), get_doc_mut(data), is_focused, ctx);
         }
     }
 

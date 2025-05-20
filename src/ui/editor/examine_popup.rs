@@ -81,9 +81,7 @@ impl ExaminePopup {
     }
 
     pub fn draw(&mut self, ctx: &mut Ctx) {
-        let theme = &ctx.config.theme;
-
-        self.popup.draw(theme.normal, ctx);
+        self.popup.draw(None, ctx);
     }
 
     pub fn open(&mut self, position: Position, doc: &mut Doc, ctx: &mut Ctx) {

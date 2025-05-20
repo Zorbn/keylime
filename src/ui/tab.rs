@@ -303,7 +303,13 @@ impl Tab {
         }
     }
 
-    pub fn draw(&self, background: Option<Color>, doc: &mut Doc, is_focused: bool, ctx: &mut Ctx) {
+    pub fn draw(
+        &self,
+        colors @ (_, background): (Option<Color>, Option<Color>),
+        doc: &mut Doc,
+        is_focused: bool,
+        ctx: &mut Ctx,
+    ) {
         let language = ctx.config.get_language_for_doc(doc);
 
         if let Some(language) = language {
@@ -341,7 +347,7 @@ impl Tab {
         }
 
         self.draw_indent_guides(doc, camera_position, visible_lines, ctx);
-        self.draw_lines(background, doc, camera_position, visible_lines, ctx);
+        self.draw_lines(colors, doc, camera_position, visible_lines, ctx);
         self.draw_diagnostics(doc, camera_position, visible_lines, ctx);
         self.draw_go_to_definition_hint(doc, camera_position, ctx);
         self.draw_cursors(doc, is_focused, camera_position, visible_lines, ctx);
@@ -427,7 +433,7 @@ impl Tab {
 
     fn draw_lines(
         &self,
-        background: Option<Color>,
+        (foreground, background): (Option<Color>, Option<Color>),
         doc: &Doc,
         camera_position: VisualPosition,
         visible_lines: VisibleLines,
@@ -446,13 +452,17 @@ impl Tab {
             let foreground_visual_y = Self::line_foreground_visual_y(i, visible_lines.offset, gfx);
             let background_visual_y = Self::line_background_visual_y(i, visible_lines.offset, gfx);
 
+            if let Some(foreground) = foreground {
+                gfx.add_text(line, visual_x, foreground_visual_y, foreground);
+                continue;
+            }
+
             let Some(highlights) = highlighted_lines
                 .get(y)
                 .map(|highlighted_line| highlighted_line.highlights())
                 .filter(|highlights| !highlights.is_empty())
             else {
-                gfx.add_text(&line[..], visual_x, foreground_visual_y, theme.normal);
-
+                gfx.add_text(line, visual_x, foreground_visual_y, theme.normal);
                 continue;
             };
 

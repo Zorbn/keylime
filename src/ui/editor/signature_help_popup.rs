@@ -97,8 +97,8 @@ impl SignatureHelpPopup {
     pub fn draw(&mut self, ctx: &mut Ctx) -> Option<()> {
         let theme = &ctx.config.theme;
 
-        self.documentation_popup.draw(theme.normal, ctx);
-        self.label_popup.draw(theme.subtle, ctx);
+        self.label_popup.draw(Some(theme.subtle), ctx);
+        self.documentation_popup.draw(None, ctx);
 
         Some(())
     }
