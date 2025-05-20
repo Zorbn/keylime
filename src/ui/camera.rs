@@ -174,6 +174,11 @@ impl Camera {
         self.horizontal.recenter(CameraRecenterKind::OnScrollBorder);
     }
 
+    pub fn reset(&mut self) {
+        self.horizontal.reset();
+        self.vertical.reset();
+    }
+
     pub fn y(&self) -> f32 {
         self.vertical.position
     }

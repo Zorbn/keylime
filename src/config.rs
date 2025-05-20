@@ -40,6 +40,7 @@ const KEYMAPS_FILE: &str = "macos.json";
 const KEYMAPS_DIR: &str = "keymaps";
 
 const DEFAULT_COMMENT: fn() -> Pooled<String> = || "//".into();
+const DEFAULT_HAS_IDENTIFIERS: fn() -> bool = || true;
 const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
 const DEFAULT_FORMAT_ON_SAVE: fn() -> bool = || true;
 const DEFAULT_TERMINAL_HEIGHT: fn() -> f32 = || 12.0;
@@ -67,6 +68,8 @@ const DEFAULT_KEYMAPS: fn() -> HashMap<Keybind, ActionName> = || {
 
 #[derive(Deserialize, Debug)]
 struct SyntaxDesc<'a> {
+    #[serde(default = "DEFAULT_HAS_IDENTIFIERS")]
+    has_identifiers: bool,
     #[serde(default, borrow)]
     keywords: Vec<&'a str>,
     #[serde(default)]
@@ -84,6 +87,7 @@ impl SyntaxDesc<'_> {
         }
 
         Syntax {
+            has_identifiers: self.has_identifiers,
             keywords,
             tokens: self.tokens,
             ranges: self.ranges,

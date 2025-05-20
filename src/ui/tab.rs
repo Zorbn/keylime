@@ -2,6 +2,7 @@ use core::f32;
 use std::{iter::Enumerate, ops::Range};
 
 use crate::{
+    config::language::Language,
     ctx::Ctx,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     input::{
@@ -194,13 +195,12 @@ impl Tab {
         let doc_len = doc.lines().len();
         let max_y = (doc_len - 1) as f32 * gfx.line_height();
 
-        let (target_y, max_y, can_recenter, recenter_distance) =
+        let (target_y, can_recenter, recenter_distance) =
             if doc.flags().contains(DocFlag::RecenterOnBottom) {
                 let can_recenter = self.handled_doc_len != Some(doc_len);
                 let target_y = max_y - self.camera.y();
-                let max_y = (max_y - self.doc_bounds().height + gfx.line_height()).max(0.0);
 
-                (target_y, max_y, can_recenter, 1)
+                (target_y, can_recenter, 1)
             } else {
                 let new_cursor_position = doc.cursor(CursorIndex::Main).position;
                 let new_cursor_visual_position =
@@ -209,8 +209,14 @@ impl Tab {
                 let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
                 let target_y = new_cursor_visual_position.y + gfx.line_height() / 2.0;
 
-                (target_y, max_y, can_recenter, RECENTER_DISTANCE)
+                (target_y, can_recenter, RECENTER_DISTANCE)
             };
+
+        let max_y = if doc.flags().contains(DocFlag::AllowScrollingPastBottom) {
+            max_y
+        } else {
+            (max_y - self.doc_bounds().height + gfx.line_height()).max(0.0)
+        };
 
         let scroll_border_top = gfx.line_height() * recenter_distance as f32;
         let scroll_border_bottom = self.doc_bounds.height - scroll_border_top;
@@ -279,6 +285,10 @@ impl Tab {
         (self.doc_bounds.height / gfx.line_height()) as usize
     }
 
+    pub fn cursor_width(gfx: &Gfx) -> f32 {
+        gfx.border_width() * 2.0
+    }
+
     fn line_foreground_visual_y(index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
         Self::line_background_visual_y(index, sub_line_offset_y, gfx) + gfx.line_padding_y()
     }
@@ -287,11 +297,17 @@ impl Tab {
         index as f32 * gfx.line_height() - sub_line_offset_y
     }
 
+    pub fn update_highlights(&self, language: &Language, doc: &mut Doc, gfx: &mut Gfx) {
+        if let Some(syntax) = language.syntax.as_ref() {
+            doc.update_highlights(self.camera.position(), self.doc_bounds, syntax, gfx);
+        }
+    }
+
     pub fn draw(&self, background: Option<Color>, doc: &mut Doc, is_focused: bool, ctx: &mut Ctx) {
         let language = ctx.config.get_language_for_doc(doc);
 
-        if let Some(syntax) = language.and_then(|language| language.syntax.as_ref()) {
-            doc.update_highlights(self.camera.position(), self.doc_bounds, syntax, ctx.gfx);
+        if let Some(language) = language {
+            self.update_highlights(language, doc, ctx.gfx);
         }
 
         let camera_position = self.camera.position().floor();
@@ -615,7 +631,7 @@ impl Tab {
         }
 
         if is_focused && ctx.window.is_focused() {
-            let cursor_width = gfx.border_width() * 2.0;
+            let cursor_width = Self::cursor_width(gfx);
 
             for index in doc.cursor_indices() {
                 let cursor_position =
@@ -635,7 +651,7 @@ impl Tab {
     }
 
     fn draw_scroll_bar(&self, doc: &Doc, camera_position: VisualPosition, ctx: &mut Ctx) {
-        if !doc.flags().contains(DocFlag::AllowMultipleLines) {
+        if doc.lines().len() == 1 {
             return;
         }
 

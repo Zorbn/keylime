@@ -273,7 +273,10 @@ impl SyntaxHighlighter {
                     }
 
                     default_end = end;
-                    default_foreground = HighlightKind::Identifier;
+
+                    if syntax.has_identifiers {
+                        default_foreground = HighlightKind::Identifier;
+                    }
                 }
 
                 for (i, range) in syntax.ranges.iter().enumerate() {

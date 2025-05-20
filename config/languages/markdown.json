@@ -1,0 +1,60 @@
+{
+    "name": "Markdown",
+    "extensions": [
+        "md"
+    ],
+    "indent_width": 4,
+    "syntax": {
+        "has_identifiers": false,
+        "keywords": [
+            "true",
+            "false"
+        ],
+        "ranges": [
+            {
+                "end": "```",
+                "kind": "String",
+                "start": "```"
+            },
+            {
+                "end": "`",
+                "kind": "String",
+                "start": "`"
+            }
+        ],
+        "tokens": [
+            {
+                "kind": "Keyword",
+                "pattern": "#+%.*"
+            },
+            {
+                "kind": "Identifier",
+                "pattern": "%*%.-%*"
+            },
+            {
+                "kind": "Identifier",
+                "pattern": "__%.-__"
+            },
+            {
+                "kind": "Identifier",
+                "pattern": "%*%*%.-%*%*"
+            },
+            {
+                "kind": "Identifier",
+                "pattern": "___%.-___"
+            },
+            {
+                "kind": "Identifier",
+                "pattern": "%*%*%*%.-%*%*%*"
+            },
+            {
+                "kind": "Comment",
+                "pattern": "%-%-%-%.*"
+            },
+            {
+                "kind": "Comment",
+                "pattern": "]%((%.%.-)%)"
+            }
+        ]
+    }
+}

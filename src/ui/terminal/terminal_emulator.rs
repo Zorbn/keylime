@@ -145,6 +145,14 @@ impl TerminalEmulator {
         ctx: &mut Ctx,
     ) {
         let Some(mut pty) = self.pty.take() else {
+            ctx.ui
+                .keybind_handler(widget_id, ctx.window)
+                .drain(ctx.window);
+
+            ctx.ui
+                .grapheme_handler(widget_id, ctx.window)
+                .drain(ctx.window);
+
             return;
         };
 

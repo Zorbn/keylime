@@ -20,6 +20,7 @@ pub struct SyntaxRange {
 
 #[derive(Debug)]
 pub struct Syntax {
+    pub has_identifiers: bool,
     pub keywords: HashSet<String>,
     pub tokens: Vec<SyntaxToken>,
     pub ranges: Vec<SyntaxRange>,

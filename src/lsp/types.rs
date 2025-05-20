@@ -11,7 +11,7 @@ use crate::{
     ui::color::Color,
 };
 
-use super::{markdown::markdown_to_plaintext, position_encoding::PositionEncoding};
+use super::position_encoding::PositionEncoding;
 
 const DEFAULT_SEVERITY: fn() -> usize = || 1;
 
@@ -480,24 +480,17 @@ impl HoverContents {
         let mut text = STRING_POOL.new_item();
 
         match self {
-            HoverContents::MarkedString(marked_string) => {
-                let string = markdown_to_plaintext(&marked_string.value);
-                text.push_str(&string);
-            }
+            HoverContents::MarkedString(marked_string) => text.push_str(&marked_string.value),
             HoverContents::MarkedStrings(marked_strings) => {
                 for marked_string in marked_strings {
                     if !text.is_empty() {
                         text.push('\n');
                     }
 
-                    let string = markdown_to_plaintext(&marked_string.value);
-                    text.push_str(&string);
+                    text.push_str(&marked_string.value);
                 }
             }
-            HoverContents::MarkupContent(markup_content) => {
-                let string = markdown_to_plaintext(&markup_content.value);
-                text.push_str(&string);
-            }
+            HoverContents::MarkupContent(markup_content) => text.push_str(&markup_content.value),
         };
 
         text
@@ -533,10 +526,10 @@ pub enum Documentation {
 }
 
 impl Documentation {
-    pub fn text(&self) -> Pooled<String> {
+    pub fn text(&self) -> &str {
         match self {
-            Documentation::PlainText(text) => text.clone(),
-            Documentation::MarkupContent(content) => markdown_to_plaintext(&content.value),
+            Documentation::PlainText(text) => text,
+            Documentation::MarkupContent(content) => &content.value,
         }
     }
 }

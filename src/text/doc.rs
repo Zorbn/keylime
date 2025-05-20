@@ -67,12 +67,13 @@ pub enum DocFlag {
     UpdateCursors,
     AllowLanguageServer,
     AllowMultipleLines,
+    AllowScrollingPastBottom,
     RecenterOnBottom,
     MatchPairs,
     ShowGutter,
 }
 
-define_bit_field!(DocFlags, DocFlag, u8);
+define_bit_field!(DocFlags, DocFlag, u16);
 
 impl DocFlags {
     pub const RAW: Self = DocFlags::from(DocFlag::AllowMultipleLines);
@@ -85,6 +86,7 @@ impl DocFlags {
     pub const MULTI_LINE: Self = Self::SINGLE_LINE
         .with(DocFlag::AllowLanguageServer)
         .with(DocFlag::AllowMultipleLines)
+        .with(DocFlag::AllowScrollingPastBottom)
         .with(DocFlag::MatchPairs)
         .with(DocFlag::ShowGutter);
 

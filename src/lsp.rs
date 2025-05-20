@@ -1,5 +1,4 @@
 pub mod language_server;
-mod markdown;
 pub mod position_encoding;
 pub mod types;
 pub mod uri;
@@ -107,7 +106,7 @@ impl Lsp {
                 editor.completion_list.lsp_update_completion_results(
                     items,
                     server.needs_completion_resolve(),
-                    ctx.ui,
+                    ctx,
                 );
             }
             MessageResult::CompletionItemResolve(item) => {
@@ -116,7 +115,7 @@ impl Lsp {
 
                 editor
                     .completion_list
-                    .lsp_resolve_completion_item(message.id, item, ctx.ui);
+                    .lsp_resolve_completion_item(message.id, item, ctx);
             }
             MessageResult::CodeAction(results) => {
                 let doc = doc?;
@@ -127,7 +126,7 @@ impl Lsp {
 
                 editor
                     .completion_list
-                    .lsp_update_code_action_results(results, ctx.ui);
+                    .lsp_update_code_action_results(results, ctx);
             }
             MessageResult::PrepareRename { range, placeholder } => {
                 let doc = doc?;
@@ -204,13 +203,13 @@ impl Lsp {
             MessageResult::SignatureHelp(signature_help) => {
                 editor
                     .signature_help_popup
-                    .lsp_set_signature_help(signature_help, ctx.ui);
+                    .lsp_set_signature_help(signature_help, ctx);
             }
             MessageResult::Hover(hover) => {
                 let doc = doc?;
                 let hover = hover.map(|hover| hover.decode(encoding, doc));
 
-                editor.lsp_set_hover(hover, path.as_ref()?, ctx.ui);
+                editor.lsp_set_hover(hover, path.as_ref()?, ctx);
             }
             MessageResult::Formatting(edits) => {
                 let doc = doc?;

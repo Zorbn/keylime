@@ -330,7 +330,7 @@ impl Ui {
     }
 
     pub fn mousebind_handler(&self, widget_id: WidgetId, window: &Window) -> MousebindHandler {
-        if self.is_hovered(widget_id) {
+        if self.is_focused(widget_id) {
             window.mousebind_handler()
         } else {
             MousebindHandler::new(0)
@@ -338,7 +338,7 @@ impl Ui {
     }
 
     pub fn mouse_scroll_handler(&self, widget_id: WidgetId, window: &Window) -> MouseScrollHandler {
-        if self.is_hovered(widget_id) {
+        if self.is_hovered(widget_id) && self.is_visible(widget_id) {
             window.mouse_scroll_handler()
         } else {
             MouseScrollHandler::new(0)

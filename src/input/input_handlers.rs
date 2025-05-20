@@ -34,6 +34,10 @@ macro_rules! define_handler {
                 self.i += 1;
                 self.len += 1;
             }
+
+            pub fn drain(&mut self, window: &mut Window) {
+                while self.next(window).is_some() {}
+            }
         }
     };
 }
@@ -71,5 +75,9 @@ impl GraphemeHandler {
     pub fn unprocessed(&self, window: &mut Window) {
         let (graphemes_typed, grapheme_cursor) = window.graphemes_typed();
         grapheme_cursor.previous_boundary(graphemes_typed);
+    }
+
+    pub fn drain(&mut self, window: &mut Window) {
+        while self.next(window).is_some() {}
     }
 }

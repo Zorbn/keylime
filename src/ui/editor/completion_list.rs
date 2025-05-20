@@ -101,6 +101,8 @@ impl CompletionList {
 
     pub fn is_animating(&self) -> bool {
         self.result_list.is_animating()
+            || self.detail_popup.is_animating()
+            || self.documentation_popup.is_animating()
     }
 
     pub fn layout(&mut self, visual_position: VisualPosition, ctx: &mut Ctx) {
@@ -167,9 +169,9 @@ impl CompletionList {
                 kind: ResultListSubmitKind::Normal,
             } => {
                 completion_result = self.perform_result_action(doc, ctx);
-                self.clear(ctx.ui);
+                self.clear(ctx);
             }
-            ResultListInput::Close => self.clear(ctx.ui),
+            ResultListInput::Close => self.clear(ctx),
             _ => {}
         }
 
@@ -187,21 +189,23 @@ impl CompletionList {
             }
         }
 
-        self.update_popups(ctx.ui);
+        self.set_popups_shown(ctx);
+        self.detail_popup.update(ctx);
+        self.documentation_popup.update(ctx);
 
         self.should_open = self.should_open(ctx);
 
         completion_result
     }
 
-    fn update_popups(&mut self, ui: &mut Ui) {
+    fn set_popups_shown(&mut self, ctx: &mut Ctx) {
         let Some(CompletionResult::Completion {
             item,
             resolve_state,
         }) = self.result_list.get_focused()
         else {
-            self.detail_popup.hide(ui);
-            self.documentation_popup.hide(ui);
+            self.detail_popup.hide(ctx.ui);
+            self.documentation_popup.hide(ctx.ui);
             return;
         };
 
@@ -209,16 +213,24 @@ impl CompletionList {
             return;
         }
 
-        self.detail_popup.hide(ui);
-        self.documentation_popup.hide(ui);
-
         if let Some(detail) = &item.detail {
-            self.detail_popup.show(detail, ui);
+            self.detail_popup.show(detail, ctx);
+        } else {
+            self.detail_popup.hide(ctx.ui);
         }
 
         if let Some(documentation) = &item.documentation {
-            self.documentation_popup.show(&documentation.text(), ui);
+            self.documentation_popup.show(documentation.text(), ctx);
+        } else {
+            self.documentation_popup.hide(ctx.ui);
         }
+    }
+
+    pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
+        self.result_list.update_camera(ctx.ui, dt);
+
+        self.detail_popup.update_camera(ctx, dt);
+        self.documentation_popup.update_camera(ctx, dt);
     }
 
     fn lsp_completion_item_resolve(
@@ -252,11 +264,7 @@ impl CompletionList {
         false
     }
 
-    pub fn update_camera(&mut self, ui: &Ui, dt: f32) {
-        self.result_list.update_camera(ui, dt);
-    }
-
-    pub fn draw(&self, ctx: &mut Ctx) {
+    pub fn draw(&mut self, ctx: &mut Ctx) {
         self.result_list
             .draw(ctx, |result, theme| (result.label(), theme.normal));
 
@@ -270,7 +278,7 @@ impl CompletionList {
         &mut self,
         id: Option<usize>,
         item: DecodedCompletionItem,
-        ui: &mut Ui,
+        ctx: &mut Ctx,
     ) {
         let Some(id) = id else {
             return;
@@ -293,16 +301,16 @@ impl CompletionList {
         *existing_item = item;
         *resolve_state = CompletionResolveState::Resolved;
 
-        self.update_popups(ui);
+        self.set_popups_shown(ctx);
     }
 
     pub fn lsp_update_completion_results(
         &mut self,
         mut items: Vec<DecodedCompletionItem>,
         needs_resolve: bool,
-        ui: &mut Ui,
+        ctx: &mut Ctx,
     ) {
-        self.clear(ui);
+        self.clear(ctx);
 
         items.retain(|item| item.filter_text().starts_with(&self.prefix));
         items.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
@@ -324,9 +332,9 @@ impl CompletionList {
     pub fn lsp_update_code_action_results(
         &mut self,
         results: Vec<DecodedCodeActionResult>,
-        ui: &mut Ui,
+        ctx: &mut Ctx,
     ) {
-        self.clear(ui);
+        self.clear(ctx);
 
         for result in results {
             match result {
@@ -359,7 +367,7 @@ impl CompletionList {
         if !self.should_open {
             if did_cursor_move {
                 self.prefix.clear();
-                self.clear(ctx.ui);
+                self.clear(ctx);
             }
 
             return None;
@@ -368,7 +376,7 @@ impl CompletionList {
         self.prefix.clear();
 
         let Some(prefix) = doc.get_completion_prefix(ctx.gfx) else {
-            self.clear(ctx.ui);
+            self.clear(ctx);
 
             return None;
         };
@@ -381,7 +389,7 @@ impl CompletionList {
             return Some(());
         }
 
-        self.clear(ctx.ui);
+        self.clear(ctx);
 
         if !self.prefix.is_empty() {
             doc.tokens().traverse(&self.prefix, |result| {
@@ -394,11 +402,11 @@ impl CompletionList {
         Some(())
     }
 
-    pub fn clear(&mut self, ui: &mut Ui) {
+    pub fn clear(&mut self, ctx: &mut Ctx) {
         self.result_list.drain();
         self.lsp_expected_responses.clear();
 
-        self.update_popups(ui);
+        self.set_popups_shown(ctx);
 
         self.min_width = 0.0;
     }

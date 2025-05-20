@@ -94,6 +94,8 @@ impl Editor {
 
     pub fn is_animating(&self) -> bool {
         self.completion_list.is_animating()
+            || self.signature_help_popup.is_animating()
+            || self.examine_popup.is_animating()
             || self.panes.iter().any(|pane| pane.is_animating())
             || self.hover_timer > 0.0
     }
@@ -160,7 +162,7 @@ impl Editor {
         if !ctx.ui.is_in_focused_hierarchy(self.widget_id) {
             self.examine_popup.clear(ctx.ui);
             self.signature_help_popup.clear(ctx.ui);
-            self.completion_list.clear(ctx.ui);
+            self.completion_list.clear(ctx);
         }
     }
 
@@ -297,7 +299,7 @@ impl Editor {
 
         let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) else {
             self.signature_help_popup.clear(ctx.ui);
-            self.completion_list.clear(ctx.ui);
+            self.completion_list.clear(ctx);
 
             return;
         };
@@ -330,7 +332,9 @@ impl Editor {
             pane.update_camera(&mut self.doc_list, ctx, dt);
         }
 
-        self.completion_list.update_camera(ctx.ui, dt);
+        self.signature_help_popup.update_camera(ctx, dt);
+        self.completion_list.update_camera(ctx, dt);
+        self.examine_popup.update_camera(ctx, dt);
     }
 
     pub fn lsp_handle_completion_list_result(
@@ -374,11 +378,11 @@ impl Editor {
         &mut self,
         hover: Option<DecodedHover>,
         path: &Pooled<PathBuf>,
-        ui: &mut Ui,
+        ctx: &mut Ctx,
     ) -> Option<()> {
         let doc = Self::find_doc(&self.doc_list, path)?;
 
-        self.examine_popup.lsp_set_hover(hover, doc, ui);
+        self.examine_popup.lsp_set_hover(hover, doc, ctx);
 
         Some(())
     }

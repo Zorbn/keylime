@@ -42,7 +42,11 @@ impl ExaminePopup {
         }
     }
 
-    pub fn layout(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
+    pub fn is_animating(&self) -> bool {
+        self.popup.is_animating()
+    }
+
+    pub fn layout(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
         let mut position = doc.position_to_visual(self.position, tab.camera.position(), ctx.gfx);
         position = position.offset_by(tab.doc_bounds());
 
@@ -68,9 +72,15 @@ impl ExaminePopup {
         if needs_clear {
             self.clear(ctx.ui);
         }
+
+        self.popup.update(ctx);
     }
 
-    pub fn draw(&self, ctx: &mut Ctx) {
+    pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
+        self.popup.update_camera(ctx, dt);
+    }
+
+    pub fn draw(&mut self, ctx: &mut Ctx) {
         let theme = &ctx.config.theme;
 
         self.popup.draw(theme.normal, ctx);
@@ -84,19 +94,21 @@ impl ExaminePopup {
             .get_diagnostic_at(position, doc)
             .filter(|_| self.kind != ExaminePopupKind::Diagnostic)
         {
-            self.set_data(ExaminePopupData::Diagnostic(diagnostic), doc, ctx.ui);
+            let diagnostic = diagnostic.clone();
+
+            self.set_data(ExaminePopupData::Diagnostic(&diagnostic), doc, ctx);
         } else {
             doc.lsp_hover(position, ctx);
         }
     }
 
-    pub fn lsp_set_hover(&mut self, hover: Option<DecodedHover>, doc: &Doc, ui: &mut Ui) {
+    pub fn lsp_set_hover(&mut self, hover: Option<DecodedHover>, doc: &Doc, ctx: &mut Ctx) {
         let data = match hover {
             Some(hover) => ExaminePopupData::Hover(hover.contents.text(), hover.range),
             None => ExaminePopupData::None,
         };
 
-        self.set_data(data, doc, ui);
+        self.set_data(data, doc, ctx);
     }
 
     pub fn is_open(&self) -> bool {
@@ -108,18 +120,18 @@ impl ExaminePopup {
         self.popup.hide(ui);
     }
 
-    fn set_data(&mut self, kind: ExaminePopupData, doc: &Doc, ui: &mut Ui) {
-        self.clear(ui);
+    fn set_data(&mut self, kind: ExaminePopupData, doc: &Doc, ctx: &mut Ctx) {
+        self.clear(ctx.ui);
 
         match kind {
             ExaminePopupData::None => {}
             ExaminePopupData::Diagnostic(diagnostic) => {
-                self.popup.show(&diagnostic.message, ui);
+                self.popup.show(&diagnostic.message, ctx);
                 self.position = diagnostic.visible_range(doc).start;
                 self.kind = ExaminePopupKind::Diagnostic;
             }
             ExaminePopupData::Hover(text, range) => {
-                self.popup.show(&text, ui);
+                self.popup.show(&text, ctx);
                 self.position = range.map(|range| range.start).unwrap_or(self.open_position);
                 self.kind = ExaminePopupKind::Hover;
             }

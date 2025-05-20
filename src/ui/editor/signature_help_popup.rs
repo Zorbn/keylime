@@ -35,7 +35,11 @@ impl SignatureHelpPopup {
         }
     }
 
-    pub fn layout(&self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
+    pub fn is_animating(&self) -> bool {
+        self.label_popup.is_animating() || self.documentation_popup.is_animating()
+    }
+
+    pub fn layout(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
         let position = doc.cursor(CursorIndex::Main).position;
 
         let mut position = doc.position_to_visual(position, tab.camera.position(), ctx.gfx);
@@ -80,9 +84,17 @@ impl SignatureHelpPopup {
 
             self.help_position = position;
         }
+
+        self.label_popup.update(ctx);
+        self.documentation_popup.update(ctx);
     }
 
-    pub fn draw(&self, ctx: &mut Ctx) -> Option<()> {
+    pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
+        self.label_popup.update_camera(ctx, dt);
+        self.documentation_popup.update_camera(ctx, dt);
+    }
+
+    pub fn draw(&mut self, ctx: &mut Ctx) -> Option<()> {
         let theme = &ctx.config.theme;
 
         self.documentation_popup.draw(theme.normal, ctx);
@@ -128,22 +140,22 @@ impl SignatureHelpPopup {
     pub fn lsp_set_signature_help(
         &mut self,
         help: Option<SignatureHelp>,
-        ui: &mut Ui,
+        ctx: &mut Ctx,
     ) -> Option<()> {
         self.help = help;
 
-        self.label_popup.hide(ui);
-        self.documentation_popup.hide(ui);
+        self.label_popup.hide(ctx.ui);
+        self.documentation_popup.hide(ctx.ui);
 
         let signature_help = self.help.as_ref()?;
         let active_signature = signature_help
             .signatures
             .get(signature_help.active_signature)?;
 
-        self.label_popup.show(&active_signature.label, ui);
+        self.label_popup.show(&active_signature.label, ctx);
 
         let documentation = active_signature.documentation.as_ref()?;
-        self.documentation_popup.show(&documentation.text(), ui);
+        self.documentation_popup.show(&documentation.text(), ctx);
 
         Some(())
     }

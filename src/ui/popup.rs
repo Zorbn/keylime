@@ -1,14 +1,17 @@
 use crate::{
     ctx::Ctx,
-    geometry::{rect::Rect, sides::Sides, visual_position::VisualPosition},
+    geometry::{position::Position, rect::Rect, sides::Sides, visual_position::VisualPosition},
     platform::gfx::Gfx,
-    pool::{Pooled, STRING_POOL},
+    pool::STRING_POOL,
+    text::doc::{Doc, DocFlags},
     ui::core::WidgetSettings,
 };
 
 use super::{
     color::Color,
     core::{Ui, WidgetId},
+    slot_list::SlotId,
+    tab::Tab,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -17,15 +20,19 @@ pub enum PopupAlignment {
     Above,
 }
 
+const MAX_LINES: usize = 10;
+
 pub struct Popup {
-    text: Pooled<String>,
+    tab: Tab,
+    doc: Doc,
     widget_id: WidgetId,
 }
 
 impl Popup {
     pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
         Self {
-            text: STRING_POOL.new_item(),
+            tab: Tab::new(SlotId::ZERO),
+            doc: Doc::new(None, None, DocFlags::RAW),
             widget_id: ui.new_widget(
                 parent_id,
                 WidgetSettings {
@@ -36,15 +43,17 @@ impl Popup {
         }
     }
 
-    pub fn layout(&self, position: VisualPosition, alignment: PopupAlignment, ctx: &mut Ctx) {
+    pub fn layout(&mut self, position: VisualPosition, alignment: PopupAlignment, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;
 
         let mut bounds = Rect::ZERO;
+        bounds.height = self.doc.lines().len().min(MAX_LINES) as f32 * gfx.line_height();
 
-        for line in self.text.lines() {
-            bounds.height += gfx.line_height();
+        for line in self.doc.lines() {
+            let line_width = gfx.measure_text(line) as f32 * gfx.glyph_width()
+                + gfx.line_padding_x()
+                + Tab::cursor_width(gfx);
 
-            let line_width = gfx.measure_text(line) as f32 * gfx.glyph_width();
             bounds.width = bounds.width.max(line_width);
         }
 
@@ -71,10 +80,33 @@ impl Popup {
             bounds.y = bounds.y.max(margin);
         }
 
+        self.tab
+            .layout(Rect::ZERO, bounds.add_margin(-margin), &self.doc, gfx);
+
         ctx.ui.widget_mut(self.widget_id).bounds = bounds;
     }
 
-    pub fn draw(&self, foreground: Color, ctx: &mut Ctx) {
+    pub fn is_animating(&self) -> bool {
+        self.tab.is_animating()
+    }
+
+    pub fn update(&mut self, ctx: &mut Ctx) {
+        ctx.ui
+            .keybind_handler(self.widget_id, ctx.window)
+            .drain(ctx.window);
+
+        ctx.ui
+            .grapheme_handler(self.widget_id, ctx.window)
+            .drain(ctx.window);
+
+        self.tab.update(self.widget_id, &mut self.doc, ctx);
+    }
+
+    pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
+        self.tab.update_camera(self.widget_id, &self.doc, ctx, dt);
+    }
+
+    pub fn draw(&mut self, foreground: Color, ctx: &mut Ctx) {
         if !ctx.ui.is_visible(self.widget_id) {
             return;
         }
@@ -92,25 +124,37 @@ impl Popup {
             theme.border,
         );
 
-        let margin = Self::margin(gfx);
+        gfx.end();
 
-        for (y, line) in self.text.lines().enumerate() {
-            let y = y as f32 * gfx.line_height() + gfx.line_padding_y() + margin;
-
-            gfx.add_text(line, margin, y, foreground);
+        if let Some(language) = ctx.config.get_language("md") {
+            self.tab.update_highlights(language, &mut self.doc, ctx.gfx);
         }
 
-        gfx.end();
+        self.tab
+            .draw(None, &mut self.doc, ctx.ui.is_focused(self.widget_id), ctx);
     }
 
     pub fn hide(&self, ui: &mut Ui) {
         ui.hide(self.widget_id());
     }
 
-    pub fn show(&mut self, text: &str, ui: &mut Ui) {
-        self.text.clear();
-        self.text.push_str(text);
-        ui.show(self.widget_id());
+    pub fn show(&mut self, text: &str, ctx: &mut Ctx) {
+        if ctx.ui.is_visible(self.widget_id) {
+            let mut current_text = STRING_POOL.new_item();
+            self.doc
+                .collect_string(Position::ZERO, self.doc.end(), &mut current_text);
+
+            if current_text.as_str() == text {
+                return;
+            }
+        }
+
+        self.doc.clear(ctx);
+        self.doc.insert(Position::ZERO, text, ctx);
+
+        self.tab.camera.reset();
+
+        ctx.ui.show(self.widget_id);
     }
 
     pub fn widget_id(&self) -> WidgetId {
