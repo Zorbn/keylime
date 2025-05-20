@@ -1,4 +1,4 @@
-use std::{time::Instant, usize};
+use std::time::Instant;
 
 use super::{CommandPalette, CommandPaletteResult, MAX_VISIBLE_RESULTS};
 
@@ -9,7 +9,7 @@ enum IncrementalResultsState {
     All,
 }
 
-const TARGET_STEP_TIME: f32 = 0.005;
+pub const TARGET_STEP_TIME: f32 = 0.005;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum IncrementalStepState {

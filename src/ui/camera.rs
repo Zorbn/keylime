@@ -141,6 +141,7 @@ impl CameraAxis {
 
     pub fn reset(&mut self) {
         self.position = 0.0;
+        self.max_position = 0.0;
         self.velocity = 0.0;
         self.recenter_kind = CameraRecenterKind::None;
     }
@@ -171,11 +172,6 @@ impl Camera {
     pub fn recenter(&mut self) {
         self.vertical.recenter(CameraRecenterKind::OnCursor);
         self.horizontal.recenter(CameraRecenterKind::OnScrollBorder);
-    }
-
-    pub fn reset(&mut self) {
-        self.horizontal.reset();
-        self.vertical.reset();
     }
 
     pub fn y(&self) -> f32 {

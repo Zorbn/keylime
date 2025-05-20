@@ -46,7 +46,7 @@ pub trait CommandPaletteMode {
         command_palette: &mut CommandPalette,
         _: CommandPaletteEventArgs,
     ) {
-        command_palette.result_list.reset_focused();
+        command_palette.result_list.set_focused_index(0);
 
         if command_palette.input().is_empty() {
             command_palette

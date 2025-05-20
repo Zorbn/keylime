@@ -284,15 +284,8 @@ impl<T> ResultList<T> {
         gfx.end();
     }
 
-    pub fn reset_focused(&mut self) {
-        self.set_focused_index(0);
-        self.handled_focused_index = None;
-    }
-
     pub fn drain(&mut self) -> Drain<T> {
-        self.reset_focused();
-        self.camera.reset();
-
+        self.set_focused_index(0);
         self.results.drain()
     }
 

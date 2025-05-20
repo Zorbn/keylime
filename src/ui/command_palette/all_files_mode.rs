@@ -12,23 +12,25 @@ use crate::{
 };
 
 use super::{
-    incremental_results::{IncrementalResults, IncrementalStepState},
+    incremental_results::TARGET_STEP_TIME,
     mode::{CommandPaletteEventArgs, CommandPaletteMode},
     CommandPalette, CommandPaletteAction, CommandPaletteMetaData, CommandPaletteResult,
 };
 
 pub struct AllFilesMode {
     root: PathBuf,
-    incremental_results: IncrementalResults,
+    needs_new_results: bool,
     pending_dir_entries: VecDeque<ReadDir>,
+    pending_results: Vec<CommandPaletteResult>,
 }
 
 impl AllFilesMode {
     pub fn new() -> Self {
         Self {
             root: PathBuf::new(),
-            incremental_results: IncrementalResults::new(None),
+            needs_new_results: false,
             pending_dir_entries: VecDeque::new(),
+            pending_results: Vec::new(),
         }
     }
 
@@ -71,7 +73,7 @@ impl AllFilesMode {
             file_name.into()
         };
 
-        self.incremental_results.push(CommandPaletteResult {
+        self.pending_results.push(CommandPaletteResult {
             text,
             meta_data: CommandPaletteMetaData::Path(path),
         });
@@ -85,7 +87,7 @@ impl CommandPaletteMode for AllFilesMode {
 
     fn on_open(&mut self, _: &mut CommandPalette, args: CommandPaletteEventArgs) {
         self.pending_dir_entries.clear();
-        self.incremental_results.start();
+        self.needs_new_results = true;
 
         let Some(current_dir) = args.editor.current_dir() else {
             return;
@@ -123,7 +125,7 @@ impl CommandPaletteMode for AllFilesMode {
     }
 
     fn on_update(&mut self, command_palette: &mut CommandPalette, args: CommandPaletteEventArgs) {
-        if self.incremental_results.is_finished() {
+        if !self.needs_new_results {
             return;
         }
 
@@ -137,30 +139,24 @@ impl CommandPaletteMode for AllFilesMode {
 
                 self.handle_entry(entry, args.ctx);
 
-                match self
-                    .incremental_results
-                    .try_finish(start_time, command_palette)
-                {
-                    IncrementalStepState::InProgress => {}
-                    IncrementalStepState::DoneWithStep => {
-                        self.pending_dir_entries.push_front(entries);
-                        self.on_update_results(command_palette, args);
-                        return;
-                    }
-                    IncrementalStepState::DoneWithAllSteps => {
-                        self.pending_dir_entries.clear();
-                        self.on_update_results(command_palette, args);
-                        return;
-                    }
+                if start_time.elapsed().as_secs_f32() > TARGET_STEP_TIME {
+                    self.pending_dir_entries.push_front(entries);
+                    return;
                 }
             }
         }
 
-        self.incremental_results.finish(command_palette);
+        command_palette.result_list.drain();
+        command_palette
+            .result_list
+            .results
+            .append(&mut self.pending_results);
+
+        self.needs_new_results = false;
         self.on_update_results(command_palette, args);
     }
 
     fn is_animating(&self) -> bool {
-        !self.incremental_results.is_finished()
+        self.needs_new_results
     }
 }
