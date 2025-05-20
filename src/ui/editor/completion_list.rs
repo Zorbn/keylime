@@ -217,7 +217,7 @@ impl CompletionList {
         }
 
         if let Some(documentation) = &item.documentation {
-            self.documentation_popup.show(documentation.text(), ui);
+            self.documentation_popup.show(&documentation.text(), ui);
         }
     }
 

@@ -509,7 +509,7 @@ impl Doc {
         let mut grapheme_cursor = GraphemeCursor::new(start, comment.len());
 
         for comment_grapheme in GraphemeIterator::new(comment) {
-            let start = grapheme_cursor.cur_cursor();
+            let start = grapheme_cursor.index();
             let Some(end) = grapheme_cursor.next_boundary(line) else {
                 break;
             };
@@ -1254,10 +1254,10 @@ impl Doc {
 
             for c in CharIterator::with_offset(x, line) {
                 for _ in 0..2 {
-                    if grapheme::char_at(match_cursor.cur_cursor(), text) == c {
+                    if grapheme::char_at(match_cursor.index(), text) == c {
                         match_cursor.next_boundary(text);
 
-                        if match_cursor.cur_cursor() >= text.len() {
+                        if match_cursor.index() >= text.len() {
                             let match_x =
                                 c.as_ptr() as usize + c.len() - line.as_ptr() as usize - text.len();
 
@@ -1265,8 +1265,8 @@ impl Doc {
                         }
 
                         break;
-                    } else if match_cursor.cur_cursor() > 0 {
-                        match_cursor.set_cursor(0);
+                    } else if match_cursor.index() > 0 {
+                        match_cursor.set_index(0);
 
                         // Now retry matching from the start of the text.
                         continue;
@@ -1319,18 +1319,18 @@ impl Doc {
 
             for c in CharIterator::with_offset(x, line).rev() {
                 for _ in 0..2 {
-                    if grapheme::char_ending_at(match_cursor.cur_cursor(), text) == c {
+                    if grapheme::char_ending_at(match_cursor.index(), text) == c {
                         match_cursor.previous_boundary(text);
 
-                        if match_cursor.cur_cursor() == 0 {
+                        if match_cursor.index() == 0 {
                             let match_x = c.as_ptr() as usize - line.as_ptr() as usize;
 
                             return Some(Position::new(match_x, y as usize));
                         }
 
                         break;
-                    } else if match_cursor.cur_cursor() < text.len() {
-                        match_cursor.set_cursor(text.len());
+                    } else if match_cursor.index() < text.len() {
+                        match_cursor.set_index(text.len());
 
                         // Now retry matching from the start of the text.
                         continue;
@@ -1461,13 +1461,13 @@ impl Doc {
             let mut grapheme_cursor = GraphemeCursor::new(line.len(), line.len());
 
             loop {
-                let grapheme = grapheme::at(grapheme_cursor.cur_cursor(), line);
+                let grapheme = grapheme::at(grapheme_cursor.index(), line);
 
                 if !grapheme::is_whitespace(grapheme) {
                     break;
                 };
 
-                whitespace_start = grapheme_cursor.cur_cursor();
+                whitespace_start = grapheme_cursor.index();
 
                 if grapheme_cursor.previous_boundary(line).is_none() {
                     break;

@@ -1,4 +1,5 @@
 pub mod language_server;
+mod markdown;
 pub mod position_encoding;
 pub mod types;
 pub mod uri;

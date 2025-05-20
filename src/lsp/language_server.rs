@@ -140,6 +140,7 @@ impl LanguageServer {
             .unwrap_or_default();
 
         let uri = path_to_uri(current_dir);
+        let documentation_formats = ["plaintext", "markdown"];
 
         language_server.send_request(
             None,
@@ -177,11 +178,18 @@ impl LanguageServer {
                                 "resolveSupport": {
                                     "properties": ["documentation", "textEdit", "additionalTextEdits"],
                                 },
+                                "documentationFormat": documentation_formats,
                                 "labelDetailsSupport": true,
                             },
                         },
                         "signatureHelp": {
+                            "signatureInformation": {
+                                "documentationFormat": documentation_formats,
+                            },
                             "contextSupport": true,
+                        },
+                        "hover": {
+                            "contentFormat": documentation_formats,
                         },
                         "definition": {
                             "linkSupport": true,

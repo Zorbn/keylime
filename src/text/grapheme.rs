@@ -5,19 +5,19 @@ pub struct GraphemeCursor {
 }
 
 impl GraphemeCursor {
-    pub fn new(offset: usize, len: usize) -> Self {
+    pub fn new(index: usize, len: usize) -> Self {
         Self {
-            inner: unicode_segmentation::GraphemeCursor::new(offset, len, true),
+            inner: unicode_segmentation::GraphemeCursor::new(index, len, true),
             len,
         }
     }
 
     pub fn next_boundary(&mut self, text: &str) -> Option<usize> {
-        let offset = self.inner.cur_cursor();
+        let index = self.inner.cur_cursor();
 
-        if offset < self.len && text.as_bytes()[offset] < 0x7F {
-            self.inner.set_cursor(offset + 1);
-            return Some(offset + 1);
+        if index < self.len && text.as_bytes()[index] < 0x7F {
+            self.inner.set_cursor(index + 1);
+            return Some(index + 1);
         }
 
         match self.inner.next_boundary(text, 0) {
@@ -33,11 +33,11 @@ impl GraphemeCursor {
         }
     }
 
-    pub fn set_cursor(&mut self, offset: usize) {
-        self.inner.set_cursor(offset);
+    pub fn set_index(&mut self, index: usize) {
+        self.inner.set_cursor(index);
     }
 
-    pub fn cur_cursor(&self) -> usize {
+    pub fn index(&self) -> usize {
         self.inner.cur_cursor()
     }
 }
@@ -60,7 +60,7 @@ impl<'a> Iterator for GraphemeIterator<'a> {
     type Item = &'a str;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let start = self.grapheme_cursor.cur_cursor();
+        let start = self.grapheme_cursor.index();
 
         match self.grapheme_cursor.next_boundary(self.text) {
             Some(end) => Some(&self.text[start..end]),
@@ -73,7 +73,7 @@ pub fn at(index: usize, text: &str) -> &str {
     let mut grapheme_cursor = GraphemeCursor::new(index, text.len());
     grapheme_cursor.next_boundary(text);
 
-    &text[index..grapheme_cursor.cur_cursor()]
+    &text[index..grapheme_cursor.index()]
 }
 
 pub fn get(index: usize, text: &str) -> Option<&str> {
@@ -120,49 +120,49 @@ pub fn is_ascii_hexdigit(grapheme: &str) -> bool {
 
 #[derive(Debug, Clone)]
 pub struct CharCursor {
-    offset: usize,
+    index: usize,
     len: usize,
 }
 
 impl CharCursor {
-    pub fn new(offset: usize, len: usize) -> Self {
-        Self { offset, len }
+    pub fn new(index: usize, len: usize) -> Self {
+        Self { index, len }
     }
 
     pub fn next_boundary(&mut self, text: &str) -> Option<usize> {
-        if self.offset >= self.len {
+        if self.index >= self.len {
             return None;
         }
 
-        self.offset += 1;
+        self.index += 1;
 
-        while !text.is_char_boundary(self.offset) {
-            self.offset += 1;
+        while !text.is_char_boundary(self.index) {
+            self.index += 1;
         }
 
-        Some(self.offset)
+        Some(self.index)
     }
 
     pub fn previous_boundary(&mut self, text: &str) -> Option<usize> {
-        if self.offset == 0 {
+        if self.index == 0 {
             return None;
         }
 
-        self.offset -= 1;
+        self.index -= 1;
 
-        while !text.is_char_boundary(self.offset) {
-            self.offset -= 1;
+        while !text.is_char_boundary(self.index) {
+            self.index -= 1;
         }
 
-        Some(self.offset)
+        Some(self.index)
     }
 
-    pub fn set_cursor(&mut self, offset: usize) {
-        self.offset = offset;
+    pub fn set_index(&mut self, index: usize) {
+        self.index = index;
     }
 
-    pub fn cur_cursor(&self) -> usize {
-        self.offset
+    pub fn index(&self) -> usize {
+        self.index
     }
 }
 
@@ -191,7 +191,7 @@ impl<'a> Iterator for CharIterator<'a> {
     type Item = &'a str;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let start = self.char_cursor.cur_cursor();
+        let start = self.char_cursor.index();
 
         match self.char_cursor.next_boundary(self.text) {
             Some(end) => Some(&self.text[start..end]),
@@ -202,7 +202,7 @@ impl<'a> Iterator for CharIterator<'a> {
 
 impl DoubleEndedIterator for CharIterator<'_> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        let end = self.char_cursor.cur_cursor();
+        let end = self.char_cursor.index();
 
         match self.char_cursor.previous_boundary(self.text) {
             Some(start) => Some(&self.text[start..end]),
@@ -215,12 +215,12 @@ pub fn char_at(index: usize, text: &str) -> &str {
     let mut char_cursor = CharCursor::new(index, text.len());
     char_cursor.next_boundary(text);
 
-    &text[index..char_cursor.cur_cursor()]
+    &text[index..char_cursor.index()]
 }
 
 pub fn char_ending_at(index: usize, text: &str) -> &str {
     let mut char_cursor = CharCursor::new(index, text.len());
     char_cursor.previous_boundary(text);
 
-    &text[char_cursor.cur_cursor()..index]
+    &text[char_cursor.index()..index]
 }

@@ -41,7 +41,7 @@ impl Trie {
     fn insert_at_node(&mut self, mut index: usize, text: &str) {
         let mut char_cursor = CharCursor::new(0, text.len());
 
-        while let Some(c) = text[char_cursor.cur_cursor()..].chars().nth(0) {
+        while let Some(c) = text[char_cursor.index()..].chars().nth(0) {
             index = self.get_or_add_child(index, c);
             char_cursor.next_boundary(text);
         }
@@ -77,7 +77,7 @@ impl Trie {
         char_cursor.next_boundary(remaining);
 
         let c = remaining.chars().nth(0).unwrap();
-        let remaining = &remaining[char_cursor.cur_cursor()..];
+        let remaining = &remaining[char_cursor.index()..];
 
         for i in 0..node.len {
             let child = &self.data[node.start + i];

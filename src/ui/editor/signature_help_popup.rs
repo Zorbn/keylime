@@ -143,7 +143,7 @@ impl SignatureHelpPopup {
         self.label_popup.show(&active_signature.label, ui);
 
         let documentation = active_signature.documentation.as_ref()?;
-        self.documentation_popup.show(documentation.text(), ui);
+        self.documentation_popup.show(&documentation.text(), ui);
 
         Some(())
     }

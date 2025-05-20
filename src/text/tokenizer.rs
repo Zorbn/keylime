@@ -22,7 +22,7 @@ impl Tokenizer {
         for line in lines {
             let mut grapheme_cursor = GraphemeCursor::new(0, line.len());
 
-            while grapheme_cursor.cur_cursor() < line.len() {
+            while grapheme_cursor.index() < line.len() {
                 let Some((start, end)) = Self::tokenize_identifier(line, &mut grapheme_cursor)
                 else {
                     grapheme_cursor.next_boundary(line);
@@ -40,7 +40,7 @@ impl Tokenizer {
         line: &str,
         grapheme_cursor: &mut GraphemeCursor,
     ) -> Option<(usize, usize)> {
-        let start = grapheme_cursor.cur_cursor();
+        let start = grapheme_cursor.index();
         let start_grapheme = grapheme::at(start, line);
 
         if start_grapheme != "_" && !grapheme::is_alphabetic(start_grapheme) {
@@ -49,8 +49,8 @@ impl Tokenizer {
 
         grapheme_cursor.next_boundary(line);
 
-        while grapheme_cursor.cur_cursor() < line.len() {
-            let grapheme = grapheme::at(grapheme_cursor.cur_cursor(), line);
+        while grapheme_cursor.index() < line.len() {
+            let grapheme = grapheme::at(grapheme_cursor.index(), line);
 
             if grapheme != "_" && !grapheme::is_alphanumeric(grapheme) {
                 break;
@@ -59,7 +59,7 @@ impl Tokenizer {
             grapheme_cursor.next_boundary(line);
         }
 
-        Some((start, grapheme_cursor.cur_cursor()))
+        Some((start, grapheme_cursor.index()))
     }
 
     pub fn tokens(&self) -> &Trie {

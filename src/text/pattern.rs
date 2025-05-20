@@ -79,8 +79,8 @@ impl Pattern {
 
         let mut grapheme_cursor = GraphemeCursor::new(0, code.len());
 
-        while grapheme_cursor.cur_cursor() < code.len() {
-            let index = grapheme_cursor.cur_cursor();
+        while grapheme_cursor.index() < code.len() {
+            let index = grapheme_cursor.index();
 
             if is_escaped {
                 is_escaped = false;
@@ -210,8 +210,8 @@ impl Pattern {
         let mut is_positive = true;
         let mut is_first = true;
 
-        while grapheme_cursor.cur_cursor() < code.len() {
-            let index = grapheme_cursor.cur_cursor();
+        while grapheme_cursor.index() < code.len() {
+            let index = grapheme_cursor.index();
             let grapheme = grapheme::at(index, code);
 
             if is_escaped {
@@ -286,15 +286,15 @@ impl Pattern {
 
             match part {
                 PatternPart::TextStart => {
-                    if grapheme_cursor.cur_cursor() != 0 {
+                    if grapheme_cursor.index() != 0 {
                         return None;
                     }
                 }
                 PatternPart::CaptureStart => {
-                    capture_start = Some(grapheme_cursor.cur_cursor());
+                    capture_start = Some(grapheme_cursor.index());
                 }
                 PatternPart::CaptureEnd => {
-                    capture_end = Some(grapheme_cursor.cur_cursor());
+                    capture_end = Some(grapheme_cursor.index());
                 }
                 PatternPart::Modifier(modifier) => {
                     let next_part = &parts[part_index + 1];
@@ -306,14 +306,14 @@ impl Pattern {
                             modifier,
                             next_part,
                             remaining_parts,
-                            grapheme_cursor.cur_cursor(),
+                            grapheme_cursor.index(),
                         )
                         .map(|pattern_match| {
                             pattern_match.combine_with_existing_capture(capture_start, capture_end)
                         });
                 }
                 _ => {
-                    if self.match_literal_or_class(text, grapheme_cursor.cur_cursor(), part) {
+                    if self.match_literal_or_class(text, grapheme_cursor.index(), part) {
                         grapheme_cursor.next_boundary(text);
                     } else {
                         return None;
@@ -327,7 +327,7 @@ impl Pattern {
         Some(PartialPatternMatch {
             capture_start,
             capture_end,
-            end: grapheme_cursor.cur_cursor(),
+            end: grapheme_cursor.index(),
         })
     }
 
@@ -364,7 +364,7 @@ impl Pattern {
     ) -> Option<PartialPatternMatch> {
         let mut grapheme_cursor = GraphemeCursor::new(start, text.len());
 
-        if !self.match_literal_or_class(text, grapheme_cursor.cur_cursor(), next_part) {
+        if !self.match_literal_or_class(text, grapheme_cursor.index(), next_part) {
             return None;
         }
 
@@ -374,7 +374,7 @@ impl Pattern {
             text,
             next_part,
             remaining_parts,
-            grapheme_cursor.cur_cursor(),
+            grapheme_cursor.index(),
         )
     }
 
@@ -390,14 +390,14 @@ impl Pattern {
 
         loop {
             pattern_match = self
-                .match_parts(text, remaining_parts, grapheme_cursor.cur_cursor())
+                .match_parts(text, remaining_parts, grapheme_cursor.index())
                 .or(pattern_match);
 
-            if grapheme_cursor.cur_cursor() >= text.len() {
+            if grapheme_cursor.index() >= text.len() {
                 break;
             }
 
-            if self.match_literal_or_class(text, grapheme_cursor.cur_cursor(), next_part) {
+            if self.match_literal_or_class(text, grapheme_cursor.index(), next_part) {
                 grapheme_cursor.next_boundary(text);
             } else {
                 break;
@@ -418,16 +418,16 @@ impl Pattern {
 
         loop {
             if let Some(pattern_match) =
-                self.match_parts(text, remaining_parts, grapheme_cursor.cur_cursor())
+                self.match_parts(text, remaining_parts, grapheme_cursor.index())
             {
                 return Some(pattern_match);
             }
 
-            if grapheme_cursor.cur_cursor() >= text.len() {
+            if grapheme_cursor.index() >= text.len() {
                 break;
             }
 
-            if self.match_literal_or_class(text, grapheme_cursor.cur_cursor(), next_part) {
+            if self.match_literal_or_class(text, grapheme_cursor.index(), next_part) {
                 grapheme_cursor.next_boundary(text);
             } else {
                 break;
@@ -447,11 +447,11 @@ impl Pattern {
         let mut pattern_match = self.match_parts(text, remaining_parts, start);
         let mut grapheme_cursor = GraphemeCursor::new(start, text.len());
 
-        if self.match_literal_or_class(text, grapheme_cursor.cur_cursor(), next_part) {
+        if self.match_literal_or_class(text, grapheme_cursor.index(), next_part) {
             grapheme_cursor.next_boundary(text);
 
             pattern_match = self
-                .match_parts(text, remaining_parts, grapheme_cursor.cur_cursor())
+                .match_parts(text, remaining_parts, grapheme_cursor.index())
                 .or(pattern_match);
         }
 

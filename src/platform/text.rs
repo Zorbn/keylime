@@ -105,10 +105,10 @@ impl Text {
         let mut char_cursor = CharCursor::new(0, text.len());
         let mut result = GlyphCacheResult::Hit;
 
-        while char_cursor.cur_cursor() < text.len() {
+        while char_cursor.index() < text.len() {
             let mut reset_glyphs_start = true;
 
-            match grapheme::char_at(char_cursor.cur_cursor(), text) {
+            match grapheme::char_at(char_cursor.index(), text) {
                 " " | "\n" => {
                     result = result.worse(Self::flush_glyphs(
                         inner,
@@ -137,7 +137,7 @@ impl Text {
             char_cursor.next_boundary(text);
 
             if reset_glyphs_start {
-                glyphs_start = char_cursor.cur_cursor();
+                glyphs_start = char_cursor.index();
             }
         }
 
@@ -157,7 +157,7 @@ impl Text {
         char_cursor: &CharCursor,
         text: &str,
     ) -> GlyphCacheResult {
-        let glyph_text = &text[glyphs_start..char_cursor.cur_cursor()];
+        let glyph_text = &text[glyphs_start..char_cursor.index()];
 
         unsafe {
             inner.glyphs(

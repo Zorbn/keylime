@@ -61,7 +61,7 @@ impl GraphemeHandler {
     pub fn next<'a>(&mut self, window: &'a mut Window) -> Option<&'a str> {
         let (graphemes_typed, grapheme_cursor) = window.graphemes_typed();
 
-        let start = self.grapheme_cursor.cur_cursor();
+        let start = self.grapheme_cursor.index();
         let end = self.grapheme_cursor.next_boundary(graphemes_typed)?;
         grapheme_cursor.next_boundary(graphemes_typed);
 

@@ -157,13 +157,13 @@ impl SyntaxHighlighter {
 
         if !is_in_progress {
             match range.start.match_text(line, start) {
-                Some(pattern_match) => grapheme_cursor.set_cursor(pattern_match.end),
+                Some(pattern_match) => grapheme_cursor.set_index(pattern_match.end),
                 None => return HighlightResult::None,
             }
         }
 
-        while grapheme_cursor.cur_cursor() < line.len() {
-            let index = grapheme_cursor.cur_cursor();
+        while grapheme_cursor.index() < line.len() {
+            let index = grapheme_cursor.index();
 
             if Some(grapheme::at(index, line)) == range.escape.as_deref() {
                 grapheme_cursor.next_boundary(line);
@@ -184,7 +184,7 @@ impl SyntaxHighlighter {
 
         HighlightResult::Range {
             start,
-            end: grapheme_cursor.cur_cursor(),
+            end: grapheme_cursor.index(),
             is_finished: false,
         }
     }
@@ -216,7 +216,7 @@ impl SyntaxHighlighter {
                         start,
                         end,
                         is_finished,
-                    } = Self::match_range(line, grapheme_cursor.cur_cursor(), range, true)
+                    } = Self::match_range(line, grapheme_cursor.index(), range, true)
                     {
                         self.highlighted_lines[y].push(Highlight {
                             start,
@@ -224,7 +224,7 @@ impl SyntaxHighlighter {
                             foreground: range.kind,
                             background: None,
                         });
-                        grapheme_cursor.set_cursor(end);
+                        grapheme_cursor.set_index(end);
 
                         if !is_finished {
                             self.highlighted_lines[y].unfinished_range_index =
@@ -245,18 +245,18 @@ impl SyntaxHighlighter {
         grapheme_cursor: &mut GraphemeCursor,
         y: usize,
     ) {
-        'tokenize: while grapheme_cursor.cur_cursor() < line.len() {
-            let default_start = grapheme_cursor.cur_cursor();
+        'tokenize: while grapheme_cursor.index() < line.len() {
+            let default_start = grapheme_cursor.index();
             grapheme_cursor.next_boundary(line);
 
-            let mut default_end = grapheme_cursor.cur_cursor();
-            grapheme_cursor.set_cursor(default_start);
+            let mut default_end = grapheme_cursor.index();
+            grapheme_cursor.set_index(default_start);
 
             let mut default_foreground = HighlightKind::Normal;
 
-            if !grapheme::is_whitespace(grapheme::at(grapheme_cursor.cur_cursor(), line)) {
+            if !grapheme::is_whitespace(grapheme::at(grapheme_cursor.index(), line)) {
                 if let HighlightResult::Token { start, end } =
-                    Self::match_identifier(line, grapheme_cursor.cur_cursor())
+                    Self::match_identifier(line, grapheme_cursor.index())
                 {
                     let identifier = &line[start..end];
 
@@ -267,7 +267,7 @@ impl SyntaxHighlighter {
                             foreground: HighlightKind::Keyword,
                             background: None,
                         });
-                        grapheme_cursor.set_cursor(end);
+                        grapheme_cursor.set_index(end);
 
                         continue;
                     }
@@ -281,12 +281,12 @@ impl SyntaxHighlighter {
                         start,
                         end,
                         is_finished,
-                    } = Self::match_range(line, grapheme_cursor.cur_cursor(), range, false)
+                    } = Self::match_range(line, grapheme_cursor.index(), range, false)
                     else {
                         continue;
                     };
 
-                    if start > grapheme_cursor.cur_cursor() {
+                    if start > grapheme_cursor.index() {
                         self.highlight_line(&line[..start], syntax, grapheme_cursor, y);
                     }
 
@@ -296,7 +296,7 @@ impl SyntaxHighlighter {
                         foreground: range.kind,
                         background: None,
                     });
-                    grapheme_cursor.set_cursor(end);
+                    grapheme_cursor.set_index(end);
 
                     if !is_finished {
                         self.highlighted_lines[y].unfinished_range_index = Some(i);
@@ -307,12 +307,12 @@ impl SyntaxHighlighter {
 
                 for token in &syntax.tokens {
                     let HighlightResult::Token { start, end } =
-                        Self::match_token(line, grapheme_cursor.cur_cursor(), token)
+                        Self::match_token(line, grapheme_cursor.index(), token)
                     else {
                         continue;
                     };
 
-                    if start > grapheme_cursor.cur_cursor() {
+                    if start > grapheme_cursor.index() {
                         self.highlight_line(&line[..start], syntax, grapheme_cursor, y);
                     }
 
@@ -322,7 +322,7 @@ impl SyntaxHighlighter {
                         foreground: token.kind,
                         background: None,
                     });
-                    grapheme_cursor.set_cursor(end);
+                    grapheme_cursor.set_index(end);
 
                     continue 'tokenize;
                 }
@@ -334,7 +334,7 @@ impl SyntaxHighlighter {
                 foreground: default_foreground,
                 background: None,
             });
-            grapheme_cursor.set_cursor(default_end);
+            grapheme_cursor.set_index(default_end);
         }
     }
 
