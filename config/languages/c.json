@@ -5,8 +5,10 @@
         "m"
     ],
     "indent_width": 4,
-    "lsp_command": "clangd --log=error",
-    "lsp_language_id": "c",
+    "lsp": {
+        "command": "clangd --log=error",
+        "language_id": "c"
+    },
     "syntax": {
         "keywords": [
             "alignas",

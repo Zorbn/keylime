@@ -269,8 +269,8 @@ impl Lsp {
         let language = config.get_language_for_doc(doc)?;
 
         if let Entry::Vacant(entry) = self.servers.entry(language.index) {
-            let command = language.lsp_command.as_ref()?;
-            let language_server = LanguageServer::new(command, current_dir, &language.lsp_options);
+            let command = language.lsp.command.as_ref()?;
+            let language_server = LanguageServer::new(command, current_dir, &language.lsp.options);
 
             entry.insert(language_server);
         }

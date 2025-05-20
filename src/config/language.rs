@@ -33,15 +33,20 @@ impl IndentWidth {
     }
 }
 
+#[derive(Debug, Default, Deserialize)]
+pub struct LanguageLsp {
+    pub language_id: Option<Pooled<String>>,
+    pub command: Option<Pooled<String>>,
+    pub options: Option<Value>,
+}
+
 pub struct Language {
     pub index: usize,
     pub name: Pooled<String>,
     pub indent_width: IndentWidth,
     pub syntax: Option<Syntax>,
     pub comment: Pooled<String>,
-    pub lsp_language_id: Option<Pooled<String>>,
-    pub lsp_command: Option<Pooled<String>>,
-    pub lsp_options: Option<Value>,
+    pub lsp: LanguageLsp,
 }
 
 impl Language {
@@ -51,9 +56,7 @@ impl Language {
             name: desc.name,
             indent_width: desc.indent_width,
             comment: desc.comment,
-            lsp_language_id: desc.lsp_language_id,
-            lsp_command: desc.lsp_command,
-            lsp_options: desc.lsp_options,
+            lsp: desc.lsp,
             syntax: desc.syntax.map(|syntax_desc| syntax_desc.syntax()),
         }
     }

@@ -8,9 +8,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use language::{IndentWidth, Language};
+use language::{IndentWidth, Language, LanguageLsp};
 use serde::Deserialize;
-use serde_json::Value;
 use theme::Theme;
 
 use crate::{
@@ -107,9 +106,8 @@ struct LanguageDesc<'a> {
     indent_width: IndentWidth,
     #[serde(default = "DEFAULT_COMMENT")]
     comment: Pooled<String>,
-    lsp_language_id: Option<Pooled<String>>,
-    lsp_command: Option<Pooled<String>>,
-    lsp_options: Option<Value>,
+    #[serde(default)]
+    lsp: LanguageLsp,
     #[serde(borrow)]
     syntax: Option<SyntaxDesc<'a>>,
 }

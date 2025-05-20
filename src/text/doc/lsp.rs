@@ -98,7 +98,7 @@ impl Doc {
 
         let language = ctx.config.get_language_for_doc(self)?;
         let language_server = self.get_language_server_mut(ctx)?;
-        let language_id = language.lsp_language_id.as_ref()?;
+        let language_id = language.lsp.language_id.as_ref()?;
         let path = self.path.some()?;
 
         language_server.did_open(path, language_id, self.version, text);
