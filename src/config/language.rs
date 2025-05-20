@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use serde_json::Value;
 
 use crate::{platform::gfx::Gfx, pool::Pooled, text::syntax::Syntax};
 
@@ -39,7 +40,8 @@ pub struct Language {
     pub syntax: Option<Syntax>,
     pub comment: Pooled<String>,
     pub lsp_language_id: Option<Pooled<String>>,
-    pub language_server_command: Option<Pooled<String>>,
+    pub lsp_command: Option<Pooled<String>>,
+    pub lsp_options: Option<Value>,
 }
 
 impl Language {
@@ -50,7 +52,8 @@ impl Language {
             indent_width: desc.indent_width,
             comment: desc.comment,
             lsp_language_id: desc.lsp_language_id,
-            language_server_command: desc.language_server_command,
+            lsp_command: desc.lsp_command,
+            lsp_options: desc.lsp_options,
             syntax: desc.syntax.map(|syntax_desc| syntax_desc.syntax()),
         }
     }

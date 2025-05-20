@@ -4,7 +4,7 @@
         "rs"
     ],
     "indent_width": 4,
-    "language_server_command": "rust-analyzer",
+    "lsp_command": "rust-analyzer",
     "lsp_language_id": "rust",
     "syntax": {
         "keywords": [

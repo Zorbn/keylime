@@ -10,6 +10,7 @@ use std::{
 
 use language::{IndentWidth, Language};
 use serde::Deserialize;
+use serde_json::Value;
 use theme::Theme;
 
 use crate::{
@@ -107,7 +108,8 @@ struct LanguageDesc<'a> {
     #[serde(default = "DEFAULT_COMMENT")]
     comment: Pooled<String>,
     lsp_language_id: Option<Pooled<String>>,
-    language_server_command: Option<Pooled<String>>,
+    lsp_command: Option<Pooled<String>>,
+    lsp_options: Option<Value>,
     #[serde(borrow)]
     syntax: Option<SyntaxDesc<'a>>,
 }

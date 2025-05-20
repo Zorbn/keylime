@@ -114,7 +114,7 @@ pub struct LanguageServer {
 }
 
 impl LanguageServer {
-    pub fn new(command: &str, current_dir: &Path) -> Option<Self> {
+    pub fn new(command: &str, current_dir: &Path, options: &Option<Value>) -> Option<Self> {
         let process = Process::new(&[command], ProcessKind::Normal).ok()?;
 
         let mut language_server = LanguageServer {
@@ -145,6 +145,7 @@ impl LanguageServer {
             None,
             "initialize",
             json!({
+                "initializationOptions": options,
                 "rootUri": uri,
                 "workspaceFolders": [
                     {
