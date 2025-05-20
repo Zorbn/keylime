@@ -3,7 +3,7 @@ use crate::{
     geometry::position::Position,
     lsp::types::{DecodedDiagnostic, DecodedHover, DecodedRange},
     pool::Pooled,
-    text::{cursor_index::CursorIndex, doc::Doc},
+    text::doc::Doc,
     ui::{
         core::{Ui, WidgetId},
         popup::{Popup, PopupAlignment},
@@ -57,11 +57,11 @@ impl ExaminePopup {
     }
 
     pub fn update(&mut self, did_cursor_move: bool, doc: &Doc, ctx: &mut Ctx) {
-        let position = doc.cursor(CursorIndex::Main).position;
-
         let needs_clear = match self.kind {
             ExaminePopupKind::None => false,
-            ExaminePopupKind::Diagnostic => ctx.lsp.get_diagnostic_at(position, doc).is_none(),
+            ExaminePopupKind::Diagnostic => {
+                did_cursor_move || ctx.lsp.get_diagnostic_at(self.open_position, doc).is_none()
+            }
             ExaminePopupKind::Hover => did_cursor_move,
         };
 

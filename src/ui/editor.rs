@@ -267,8 +267,12 @@ impl Editor {
             return;
         };
 
-        let position = tab.visual_to_position(ctx.window.mouse_position(), doc, ctx.gfx);
-        self.examine_popup.open(position, doc, ctx);
+        if let Some(position) = tab.get_hovered_position(ctx.window.mouse_position(), doc, ctx.gfx)
+        {
+            self.examine_popup.open(position, doc, ctx);
+        } else {
+            self.examine_popup.clear(ctx.ui);
+        }
     }
 
     fn pre_pane_update(&mut self, ctx: &mut Ctx) {

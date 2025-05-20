@@ -254,6 +254,25 @@ impl Tab {
         doc.visual_to_position(visual, self.camera.position(), gfx)
     }
 
+    pub fn get_hovered_position(
+        &self,
+        visual_position: VisualPosition,
+        doc: &Doc,
+        gfx: &mut Gfx,
+    ) -> Option<Position> {
+        if !self.doc_bounds.contains_position(visual_position) {
+            return None;
+        }
+
+        let position = self.visual_to_position(visual_position, doc, gfx);
+
+        if grapheme::is_whitespace(doc.grapheme(position)) {
+            return None;
+        }
+
+        Some(position)
+    }
+
     pub fn tab_bounds(&self) -> Rect {
         self.tab_bounds
     }
@@ -526,30 +545,18 @@ impl Tab {
         doc: &Doc,
         camera_position: VisualPosition,
         ctx: &mut Ctx,
-    ) {
-        if doc.get_language_server_mut(ctx).is_none() {
-            return;
-        }
+    ) -> Option<()> {
+        doc.get_language_server_mut(ctx)?;
 
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
         if !ctx.window.mods().contains(Mod::Ctrl) && !ctx.window.mods().contains(Mod::Cmd) {
-            return;
+            return None;
         }
 
         let visual_position = ctx.window.mouse_position();
-
-        if !self.doc_bounds.contains_position(visual_position) {
-            return;
-        }
-
-        let position = self.visual_to_position(visual_position, doc, gfx);
-
-        if grapheme::is_whitespace(doc.grapheme(position)) {
-            return;
-        }
-
+        let position = self.get_hovered_position(visual_position, doc, gfx)?;
         let selection = doc.select_current_word_at_position(position, gfx);
 
         let start = doc.position_to_visual(selection.start, camera_position, gfx);
@@ -564,6 +571,8 @@ impl Tab {
             ),
             theme.normal,
         );
+
+        Some(())
     }
 
     fn draw_cursors(

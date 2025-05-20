@@ -1418,7 +1418,7 @@ impl Doc {
 
         let desired_x = position.x;
         position = self.clamp_position(position);
-        position.x = gfx.find_x_for_visual_x(&self.lines[position.y][..], desired_x);
+        position.x = gfx.find_x_for_visual_x(&self.lines[position.y], desired_x);
 
         position
     }
