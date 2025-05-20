@@ -3,7 +3,10 @@ use crate::{
     geometry::{position::Position, rect::Rect, sides::Sides, visual_position::VisualPosition},
     platform::gfx::Gfx,
     pool::STRING_POOL,
-    text::doc::{Doc, DocFlags},
+    text::{
+        doc::{Doc, DocFlags},
+        grapheme::{self, CharCursor},
+    },
     ui::core::WidgetSettings,
 };
 
@@ -64,20 +67,16 @@ impl Popup {
         bounds.y = position.y;
 
         if alignment == PopupAlignment::Above {
-            bounds.x -= margin;
-            bounds.y -= bounds.height;
+            bounds.x = (bounds.x - margin).max(margin);
+            bounds.y = (bounds.y - bounds.height).max(margin);
+        }
 
-            if bounds.right() > gfx.width() - margin {
-                bounds.x -= bounds.right() - (gfx.width() - margin);
-            }
+        if bounds.right() > gfx.width() - margin {
+            bounds.width -= bounds.right() - (gfx.width() - margin);
+        }
 
-            bounds.x = bounds.x.max(margin);
-
-            if bounds.bottom() > gfx.height() - margin {
-                bounds.y -= bounds.bottom() - (gfx.height() - margin);
-            }
-
-            bounds.y = bounds.y.max(margin);
+        if bounds.bottom() > gfx.height() - margin {
+            bounds.height -= bounds.bottom() - (gfx.height() - margin);
         }
 
         self.tab
@@ -139,6 +138,20 @@ impl Popup {
     }
 
     pub fn show(&mut self, text: &str, ctx: &mut Ctx) {
+        let mut char_cursor = CharCursor::new(0, text.len());
+
+        while char_cursor.index() < text.len() {
+            let grapheme = grapheme::at(char_cursor.index(), text);
+
+            if !grapheme::is_whitespace(grapheme) {
+                break;
+            }
+
+            char_cursor.next_boundary(text);
+        }
+
+        let text = &text[char_cursor.index()..];
+
         if ctx.ui.is_visible(self.widget_id) {
             let mut current_text = STRING_POOL.new_item();
             self.doc

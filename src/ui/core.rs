@@ -57,6 +57,7 @@ pub struct Ui {
     hovered_widget_id: WidgetId,
     focus_history: Vec<WidgetId>,
     unused_widget_indices: Vec<usize>,
+    is_dragging: bool,
 }
 
 impl Ui {
@@ -77,6 +78,7 @@ impl Ui {
             hovered_widget_id: WidgetId::ROOT,
             focus_history: Vec::new(),
             unused_widget_indices: Vec::new(),
+            is_dragging: false,
         }
     }
 
@@ -160,13 +162,22 @@ impl Ui {
             let position = VisualPosition::new(mousebind.x, mousebind.y);
             let widget_id = self.get_widget_id_at(position, WidgetId::ROOT);
 
-            if let Mousebind {
-                button: Some(MouseButton::Left),
-                kind: MousebindKind::Press,
-                ..
-            } = mousebind
-            {
-                focused_widget_id = widget_id;
+            match mousebind {
+                Mousebind {
+                    button: Some(MouseButton::Left),
+                    kind: MousebindKind::Press,
+                    ..
+                } => {
+                    focused_widget_id = widget_id;
+
+                    self.is_dragging = true;
+                }
+                Mousebind {
+                    button: Some(MouseButton::Left),
+                    kind: MousebindKind::Release,
+                    ..
+                } => self.is_dragging = false,
+                _ => {}
             }
 
             mousebind_handler.unprocessed(window, mousebind);
@@ -174,6 +185,10 @@ impl Ui {
 
         if let Some(focused_widget_id) = focused_widget_id {
             self.focus(focused_widget_id);
+        }
+
+        if self.is_dragging {
+            return;
         }
 
         let hovered_widget_id = self.get_widget_id_at(window.mouse_position(), WidgetId::ROOT);
@@ -330,7 +345,7 @@ impl Ui {
     }
 
     pub fn mousebind_handler(&self, widget_id: WidgetId, window: &Window) -> MousebindHandler {
-        if self.is_focused(widget_id) {
+        if self.is_hovered(widget_id) && self.is_visible(widget_id) {
             window.mousebind_handler()
         } else {
             MousebindHandler::new(0)

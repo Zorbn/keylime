@@ -651,7 +651,9 @@ impl Tab {
     }
 
     fn draw_scroll_bar(&self, doc: &Doc, camera_position: VisualPosition, ctx: &mut Ctx) {
-        if doc.lines().len() == 1 {
+        if !doc.flags().contains(DocFlag::AllowScrollingPastBottom)
+            && doc.lines().len() as f32 * ctx.gfx.line_height() <= self.doc_bounds.height
+        {
             return;
         }
 

@@ -155,7 +155,7 @@ impl SignatureHelpPopup {
         self.label_popup.show(&active_signature.label, ctx);
 
         let documentation = active_signature.documentation.as_ref()?;
-        self.documentation_popup.show(&documentation.text(), ctx);
+        self.documentation_popup.show(documentation.text(), ctx);
 
         Some(())
     }
