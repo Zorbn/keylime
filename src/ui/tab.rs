@@ -54,6 +54,7 @@ pub struct Tab {
     tab_bounds: Rect,
     gutter_bounds: Rect,
     doc_bounds: Rect,
+    margin: f32,
 }
 
 impl Tab {
@@ -68,6 +69,7 @@ impl Tab {
             tab_bounds: Rect::ZERO,
             gutter_bounds: Rect::ZERO,
             doc_bounds: Rect::ZERO,
+            margin: 0.0,
         }
     }
 
@@ -79,7 +81,14 @@ impl Tab {
         self.camera.is_moving()
     }
 
-    pub fn layout(&mut self, tab_bounds: Rect, doc_bounds: Rect, doc: &Doc, gfx: &Gfx) {
+    pub fn layout(
+        &mut self,
+        tab_bounds: Rect,
+        doc_bounds: Rect,
+        margin: f32,
+        doc: &Doc,
+        gfx: &Gfx,
+    ) {
         self.tab_bounds = tab_bounds;
 
         let gutter_width = if doc.flags().contains(DocFlag::ShowGutter) {
@@ -93,6 +102,7 @@ impl Tab {
 
         self.gutter_bounds = Rect::new(doc_bounds.x, doc_bounds.y, gutter_width, doc_bounds.height);
         self.doc_bounds = doc_bounds.shrink_left_by(self.gutter_bounds);
+        self.margin = margin;
     }
 
     pub fn update(&mut self, widget_id: WidgetId, doc: &mut Doc, ctx: &mut Ctx) {
@@ -193,7 +203,7 @@ impl Tab {
 
     fn update_camera_vertical(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
         let doc_len = doc.lines().len();
-        let max_y = (doc_len - 1) as f32 * gfx.line_height();
+        let max_y = (doc_len - 1) as f32 * gfx.line_height() + self.margin * 2.0;
 
         let (target_y, can_recenter, recenter_distance) =
             if doc.flags().contains(DocFlag::RecenterOnBottom) {
@@ -204,7 +214,7 @@ impl Tab {
             } else {
                 let new_cursor_position = doc.cursor(CursorIndex::Main).position;
                 let new_cursor_visual_position =
-                    doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
+                    self.position_to_visual(new_cursor_position, self.camera.position(), doc, gfx);
 
                 let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
                 let target_y = new_cursor_visual_position.y + gfx.line_height() / 2.0;
@@ -234,7 +244,7 @@ impl Tab {
     fn update_camera_horizontal(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
         let new_cursor_position = doc.cursor(CursorIndex::Main).position;
         let new_cursor_visual_position =
-            doc.position_to_visual(new_cursor_position, self.camera.position(), gfx);
+            self.position_to_visual(new_cursor_position, self.camera.position(), doc, gfx);
 
         let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
 
@@ -255,7 +265,7 @@ impl Tab {
     }
 
     pub fn visual_to_position(&self, visual: VisualPosition, doc: &Doc, gfx: &mut Gfx) -> Position {
-        let visual = visual.unoffset_by(self.doc_bounds);
+        let visual = self.visual_position_in_doc(visual);
         doc.visual_to_position(visual, self.camera.position(), gfx)
     }
 
@@ -269,8 +279,28 @@ impl Tab {
             return None;
         }
 
-        let visual = visual.unoffset_by(self.doc_bounds);
+        let visual = self.visual_position_in_doc(visual);
         doc.visual_to_position_unclamped(visual, self.camera.position(), gfx)
+    }
+
+    fn visual_position_in_doc(&self, visual: VisualPosition) -> VisualPosition {
+        let mut visual = visual.unoffset_by(self.doc_bounds);
+        visual.x -= self.margin;
+        visual.y -= self.margin;
+        visual
+    }
+
+    fn position_to_visual(
+        &self,
+        position: Position,
+        camera_position: VisualPosition,
+        doc: &Doc,
+        gfx: &mut Gfx,
+    ) -> VisualPosition {
+        let mut visual = doc.position_to_visual(position, camera_position, gfx);
+        visual.x += self.margin;
+        visual.y += self.margin;
+        visual
     }
 
     pub fn tab_bounds(&self) -> Rect {
@@ -289,12 +319,12 @@ impl Tab {
         gfx.border_width() * 2.0
     }
 
-    fn line_foreground_visual_y(index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
-        Self::line_background_visual_y(index, sub_line_offset_y, gfx) + gfx.line_padding_y()
+    fn line_foreground_visual_y(&self, index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
+        self.line_background_visual_y(index, sub_line_offset_y, gfx) + gfx.line_padding_y()
     }
 
-    fn line_background_visual_y(index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
-        index as f32 * gfx.line_height() - sub_line_offset_y
+    fn line_background_visual_y(&self, index: usize, sub_line_offset_y: f32, gfx: &Gfx) -> f32 {
+        index as f32 * gfx.line_height() - sub_line_offset_y + self.margin
     }
 
     pub fn update_highlights(&self, language: &Language, doc: &mut Doc, gfx: &mut Gfx) {
@@ -364,7 +394,7 @@ impl Tab {
 
         for (i, y) in visible_lines.enumerate() {
             let line_number = format_pooled!("{}", y + 1);
-            let visual_y = Self::line_foreground_visual_y(i, visible_lines.offset, gfx);
+            let visual_y = self.line_foreground_visual_y(i, visible_lines.offset, gfx);
 
             let width = line_number.len() as f32 * gfx.glyph_width();
             let visual_x = self.gutter_bounds.width
@@ -408,15 +438,15 @@ impl Tab {
         let mut indent_guide_x = 0;
 
         for (i, y) in visible_lines.enumerate() {
-            let background_visual_y = Self::line_background_visual_y(i, visible_lines.offset, gfx);
+            let background_visual_y = self.line_background_visual_y(i, visible_lines.offset, gfx);
 
             if !doc.is_line_whitespace(y) {
                 indent_guide_x = doc.line_start(y)
             };
 
             for x in (indent_width..indent_guide_x).step_by(indent_width) {
-                let visual_x =
-                    gfx.line_padding_x() + gfx.glyph_width() * x as f32 - camera_position.x;
+                let visual_x = gfx.line_padding_x() + self.margin + gfx.glyph_width() * x as f32
+                    - camera_position.x;
 
                 gfx.add_rect(
                     Rect::new(
@@ -448,9 +478,9 @@ impl Tab {
         for (i, y) in visible_lines.enumerate() {
             let line = &lines[y];
 
-            let mut visual_x = gfx.line_padding_x() - camera_position.x;
-            let foreground_visual_y = Self::line_foreground_visual_y(i, visible_lines.offset, gfx);
-            let background_visual_y = Self::line_background_visual_y(i, visible_lines.offset, gfx);
+            let mut visual_x = gfx.line_padding_x() + self.margin - camera_position.x;
+            let foreground_visual_y = self.line_foreground_visual_y(i, visible_lines.offset, gfx);
+            let background_visual_y = self.line_background_visual_y(i, visible_lines.offset, gfx);
 
             if let Some(foreground) = foreground {
                 gfx.add_text(line, visual_x, foreground_visual_y, foreground);
@@ -513,7 +543,8 @@ impl Tab {
 
                 if start == end && start.y >= visible_lines.min_y && start.y <= visible_lines.max_y
                 {
-                    let highlight_position = doc.position_to_visual(start, camera_position, gfx);
+                    let highlight_position =
+                        self.position_to_visual(start, camera_position, doc, gfx);
 
                     gfx.add_rect(
                         Rect::new(
@@ -539,7 +570,8 @@ impl Tab {
                         continue;
                     }
 
-                    let highlight_position = doc.position_to_visual(position, camera_position, gfx);
+                    let highlight_position =
+                        self.position_to_visual(position, camera_position, doc, gfx);
 
                     let grapheme = doc.grapheme(position);
                     let grapheme_width = gfx.measure_text(grapheme);
@@ -584,8 +616,8 @@ impl Tab {
 
         let selection = doc.select_current_word_at_position(position, gfx);
 
-        let start = doc.position_to_visual(selection.start, camera_position, gfx);
-        let end = doc.position_to_visual(selection.end, camera_position, gfx);
+        let start = self.position_to_visual(selection.start, camera_position, doc, gfx);
+        let end = self.position_to_visual(selection.end, camera_position, doc, gfx);
 
         gfx.add_rect(
             Rect::new(
@@ -621,7 +653,8 @@ impl Tab {
             let mut position = start;
 
             while position < end {
-                let highlight_position = doc.position_to_visual(position, camera_position, gfx);
+                let highlight_position =
+                    self.position_to_visual(position, camera_position, doc, gfx);
 
                 let grapheme = doc.grapheme(position);
                 let grapheme_width = gfx.measure_text(grapheme);
@@ -645,7 +678,7 @@ impl Tab {
 
             for index in doc.cursor_indices() {
                 let cursor_position =
-                    doc.position_to_visual(doc.cursor(index).position, camera_position, gfx);
+                    self.position_to_visual(doc.cursor(index).position, camera_position, doc, gfx);
 
                 gfx.add_rect(
                     Rect::new(

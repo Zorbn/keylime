@@ -82,7 +82,7 @@ impl<T> Pane<T> {
 
             tab_x += tab_width - gfx.border_width();
 
-            tab.layout(tab_bounds, doc_bounds, doc, gfx);
+            tab.layout(tab_bounds, doc_bounds, 0.0, doc, gfx);
         }
     }
 

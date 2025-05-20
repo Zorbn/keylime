@@ -157,6 +157,7 @@ impl CommandPalette {
                 .expand_width_in(self.input_bounds)
                 .offset_by(ctx.ui.widget(self.widget_id).bounds)
                 .floor(),
+            0.0,
             &self.doc,
             gfx,
         );

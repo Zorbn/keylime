@@ -79,8 +79,7 @@ impl Popup {
             bounds.height -= bounds.bottom() - (gfx.height() - margin);
         }
 
-        self.tab
-            .layout(Rect::ZERO, bounds.add_margin(-margin), &self.doc, gfx);
+        self.tab.layout(Rect::ZERO, bounds, margin, &self.doc, gfx);
 
         ctx.ui.widget_mut(self.widget_id).bounds = bounds;
     }
