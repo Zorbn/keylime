@@ -3,6 +3,7 @@ mod all_files_mode;
 mod file_explorer_mode;
 pub mod find_in_files_mode;
 mod go_to_line_mode;
+mod incremental_results;
 mod mode;
 pub mod references_mode;
 pub mod rename_mode;

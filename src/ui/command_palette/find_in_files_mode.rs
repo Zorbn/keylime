@@ -17,29 +17,27 @@ use crate::{
 };
 
 use super::{
+    incremental_results::{IncrementalResults, IncrementalStepState},
     mode::{CommandPaletteEventArgs, CommandPaletteMode},
     CommandPalette, CommandPaletteAction, CommandPaletteMetaData, CommandPaletteResult,
 };
 
-const MAX_RESULTS: usize = 100;
-const TARGET_FIND_TIME: f32 = 0.005;
+const MAX_RESULTS_LEN: usize = 100;
 
 pub struct FindInFilesMode {
     root: PathBuf,
-    needs_new_results: bool,
+    incremental_results: IncrementalResults,
     pending_doc: Option<Doc>,
     pending_dir_entries: VecDeque<ReadDir>,
-    pending_results: Vec<CommandPaletteResult>,
 }
 
 impl FindInFilesMode {
     pub fn new() -> Self {
         Self {
             root: PathBuf::new(),
-            needs_new_results: false,
+            incremental_results: IncrementalResults::new(Some(MAX_RESULTS_LEN)),
             pending_doc: None,
             pending_dir_entries: VecDeque::new(),
-            pending_results: Vec::new(),
         }
     }
 
@@ -152,9 +150,9 @@ impl FindInFilesMode {
         start_time: Instant,
         command_palette: &mut CommandPalette,
         ctx: &mut Ctx,
-    ) {
+    ) -> IncrementalStepState {
         let Some(mut doc) = self.pending_doc.take() else {
-            return;
+            return IncrementalStepState::InProgress;
         };
 
         while let Some(result_position) = doc.search_forward(
@@ -175,50 +173,34 @@ impl FindInFilesMode {
                 continue;
             };
 
-            self.pending_results.push(result);
+            self.incremental_results.push(result);
 
-            if self.try_finish_finding(start_time, command_palette) {
-                self.pending_doc = Some(doc);
-                return;
+            match self
+                .incremental_results
+                .try_finish(start_time, command_palette)
+            {
+                IncrementalStepState::InProgress => {}
+                IncrementalStepState::DoneWithStep => {
+                    self.pending_doc = Some(doc);
+
+                    return IncrementalStepState::DoneWithStep;
+                }
+                IncrementalStepState::DoneWithAllSteps => {
+                    self.clear_pending();
+
+                    return IncrementalStepState::DoneWithAllSteps;
+                }
             }
         }
 
         doc.clear(ctx);
-    }
 
-    fn try_finish_finding(
-        &mut self,
-        start_time: Instant,
-        command_palette: &mut CommandPalette,
-    ) -> bool {
-        if self.pending_results.len() >= MAX_RESULTS {
-            self.flush_pending_results(command_palette);
-            return true;
-        }
-
-        start_time.elapsed().as_secs_f32() > TARGET_FIND_TIME
-    }
-
-    fn flush_pending_results(&mut self, command_palette: &mut CommandPalette) {
-        if !self.needs_new_results {
-            return;
-        }
-
-        self.needs_new_results = false;
-
-        command_palette.result_list.drain();
-        command_palette
-            .result_list
-            .results
-            .append(&mut self.pending_results);
-
-        self.clear_pending();
+        IncrementalStepState::InProgress
     }
 
     fn clear_pending(&mut self) {
         self.pending_dir_entries.clear();
         self.pending_doc = None;
-        self.pending_results.clear();
     }
 }
 
@@ -242,10 +224,10 @@ impl CommandPaletteMode for FindInFilesMode {
         args: CommandPaletteEventArgs,
     ) {
         self.clear_pending();
-        self.needs_new_results = true;
+        self.incremental_results.start();
 
         if command_palette.input().is_empty() {
-            self.flush_pending_results(command_palette);
+            self.incremental_results.finish(command_palette);
             return;
         };
 
@@ -262,15 +244,15 @@ impl CommandPaletteMode for FindInFilesMode {
     }
 
     fn on_update(&mut self, command_palette: &mut CommandPalette, args: CommandPaletteEventArgs) {
-        if !self.needs_new_results {
+        if self.incremental_results.is_finished() {
             return;
         }
 
         let start_time = Instant::now();
 
-        self.handle_doc(start_time, command_palette, args.ctx);
-
-        if self.try_finish_finding(start_time, command_palette) {
+        if self.handle_doc(start_time, command_palette, args.ctx)
+            != IncrementalStepState::InProgress
+        {
             return;
         }
 
@@ -282,17 +264,27 @@ impl CommandPaletteMode for FindInFilesMode {
 
                 self.handle_entry(entry, start_time, command_palette, args.ctx);
 
-                if self.try_finish_finding(start_time, command_palette) {
-                    self.pending_dir_entries.push_front(entries);
-                    return;
+                match self
+                    .incremental_results
+                    .try_finish(start_time, command_palette)
+                {
+                    IncrementalStepState::InProgress => {}
+                    IncrementalStepState::DoneWithStep => {
+                        self.pending_dir_entries.push_front(entries);
+                        return;
+                    }
+                    IncrementalStepState::DoneWithAllSteps => {
+                        self.clear_pending();
+                        return;
+                    }
                 }
             }
         }
 
-        self.flush_pending_results(command_palette);
+        self.incremental_results.finish(command_palette);
     }
 
     fn is_animating(&self) -> bool {
-        self.needs_new_results
+        !self.incremental_results.is_finished()
     }
 }
