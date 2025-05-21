@@ -219,9 +219,9 @@ impl AppRunner {
 impl Drop for AppRunner {
     fn drop(&mut self) {
         unsafe {
-            self.app.take();
             self.gfx.take();
             ManuallyDrop::drop(&mut self.window);
+            self.app.take();
             CoUninitialize();
         }
     }
