@@ -17,7 +17,7 @@ use crate::{
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocFlag},
-        grapheme,
+        grapheme_category::GraphemeCategory,
     },
 };
 
@@ -604,7 +604,7 @@ impl Tab {
         let visual_position = ctx.window.mouse_position();
         let position = self.visual_to_position_unclamped(visual_position, doc, gfx)?;
 
-        if !grapheme::is_alphanumeric(doc.grapheme(position)) {
+        if GraphemeCategory::new(doc.grapheme(position)) != GraphemeCategory::Identifier {
             return None;
         }
 

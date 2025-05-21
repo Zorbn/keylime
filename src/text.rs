@@ -4,7 +4,7 @@ pub mod cursor;
 pub mod cursor_index;
 pub mod doc;
 pub mod grapheme;
-mod grapheme_category;
+pub mod grapheme_category;
 mod pattern;
 pub mod selection;
 pub mod syntax;
