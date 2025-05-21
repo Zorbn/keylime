@@ -150,8 +150,8 @@ impl CompletionList {
             .layout(position, PopupAlignment::TopLeft, ctx);
 
         if ctx.ui.is_visible(self.detail_popup.widget_id()) {
-            position.y +=
-                ctx.ui.widget(self.detail_popup.widget_id()).bounds.height - ctx.gfx.border_width();
+            let detail_popup_bounds = ctx.ui.widget(self.detail_popup.widget_id()).bounds;
+            position.y += detail_popup_bounds.height - ctx.gfx.border_width();
         }
 
         self.documentation_popup

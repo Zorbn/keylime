@@ -147,15 +147,16 @@ impl CommandPalette {
             .offset_by(Rect::new(0.0, gfx.tab_height() * 2.0, 0.0, 0.0))
             .floor();
 
-        self.result_list
-            .offset_by(ctx.ui.widget(self.widget_id).bounds, ctx.ui);
+        let bounds = ctx.ui.widget(self.widget_id).bounds;
+
+        self.result_list.offset_by(bounds, ctx.ui);
 
         self.tab.layout(
             Rect::ZERO,
             Rect::new(0.0, 0.0, gfx.glyph_width() * 10.0, gfx.line_height())
                 .center_in(self.input_bounds)
                 .expand_width_in(self.input_bounds)
-                .offset_by(ctx.ui.widget(self.widget_id).bounds)
+                .offset_by(bounds)
                 .floor(),
             0.0,
             &self.doc,
