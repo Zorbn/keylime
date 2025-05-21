@@ -63,7 +63,9 @@ pub trait CommandPaletteMode {
             let a_score = score_fuzzy_match(&a.text, input);
             let b_score = score_fuzzy_match(&b.text, input);
 
-            b_score.total_cmp(&a_score)
+            b_score
+                .total_cmp(&a_score)
+                .then(a.text.len().cmp(&b.text.len()))
         });
     }
     fn on_update(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
