@@ -8,7 +8,9 @@ use std::{
 use windows::{
     core::{Result, HSTRING, PWSTR},
     Win32::{
-        Foundation::{CloseHandle, SetHandleInformation, HANDLE, HANDLE_FLAG_INHERIT},
+        Foundation::{
+            CloseHandle, SetHandleInformation, HANDLE, HANDLE_FLAGS, HANDLE_FLAG_INHERIT,
+        },
         Security::SECURITY_ATTRIBUTES,
         Storage::FileSystem::{ReadFile, WriteFile},
         System::{
@@ -72,8 +74,8 @@ impl Process {
                 0,
             )?;
 
-            SetHandleInformation(output_read, 0, HANDLE_FLAG_INHERIT)?;
-            SetHandleInformation(input_write, 0, HANDLE_FLAG_INHERIT)?;
+            SetHandleInformation(output_read, HANDLE_FLAG_INHERIT.0, HANDLE_FLAGS(0))?;
+            SetHandleInformation(input_write, HANDLE_FLAG_INHERIT.0, HANDLE_FLAGS(0))?;
 
             hconsole = if let ProcessKind::Pty { width, height } = kind {
                 Some(CreatePseudoConsole(
