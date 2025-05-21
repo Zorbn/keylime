@@ -243,7 +243,7 @@ impl Gfx {
             let base_angle = if i % 2 == 0 { -PI / 2.0 } else { 0.0 };
 
             let forward = VisualPosition::from_angle(base_angle + PI / 4.0);
-            let right = VisualPosition::from_angle(base_angle - PI / 4.0);
+            let right = VisualPosition::from_angle(base_angle + 3.0 * PI / 4.0);
 
             let center_left = center - forward.scale(segment_side_length);
             let center_right = center + forward.scale(segment_side_length);

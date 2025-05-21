@@ -1,5 +1,6 @@
 use super::{rect::Rect, visual_position::VisualPosition};
 
+#[derive(Debug)]
 pub struct Quad {
     pub top_left: VisualPosition,
     pub top_right: VisualPosition,

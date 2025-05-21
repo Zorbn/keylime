@@ -21,7 +21,7 @@ use windows::{
 };
 
 use crate::{
-    geometry::{matrix::ortho, rect::Rect},
+    geometry::{matrix::ortho, quad::Quad, rect::Rect},
     platform::{
         aliases::AnyText,
         gfx::SpriteKind,
@@ -110,6 +110,9 @@ struct Vertex {
     a: f32,
 }
 
+const SAMPLE_COUNT: u32 = 4;
+const PIXEL_FORMAT: DXGI_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
+
 pub struct Gfx {
     device: ID3D11Device,
     context: ID3D11DeviceContext,
@@ -122,6 +125,7 @@ pub struct Gfx {
     texture_data: Option<TextureData>,
     uniform_buffer: ID3D11Buffer,
 
+    msaa_color_texture: Option<ID3D11Texture2D>,
     render_target_view: Option<ID3D11RenderTargetView>,
     width: i32,
     height: i32,
@@ -171,7 +175,7 @@ impl Gfx {
             let factory: IDXGIFactory2 = CreateDXGIFactory2(DXGI_CREATE_FACTORY_FLAGS::default())?;
 
             let desc = DXGI_SWAP_CHAIN_DESC1 {
-                Format: DXGI_FORMAT_R8G8B8A8_UNORM,
+                Format: PIXEL_FORMAT,
                 SampleDesc: DXGI_SAMPLE_DESC {
                     Count: 1,
                     ..Default::default()
@@ -371,6 +375,7 @@ impl Gfx {
             texture_data: None,
             uniform_buffer,
 
+            msaa_color_texture: None,
             render_target_view: None,
             width: 0,
             height: 0,
@@ -426,7 +431,7 @@ impl Gfx {
                 Height: height,
                 MipLevels: 1,
                 ArraySize: 1,
-                Format: DXGI_FORMAT_R8G8B8A8_UNORM,
+                Format: PIXEL_FORMAT,
                 SampleDesc: DXGI_SAMPLE_DESC {
                     Count: 1,
                     ..Default::default()
@@ -492,21 +497,44 @@ impl Gfx {
         self.context.OMSetRenderTargets(None, None);
         self.render_target_view = None;
 
-        self.swap_chain.ResizeBuffers(
-            0,
-            self.width as u32,
-            self.height as u32,
-            DXGI_FORMAT_UNKNOWN,
-            DXGI_SWAP_CHAIN_FLAG::default(),
-        )?;
+        let quality = self
+            .device
+            .CheckMultisampleQualityLevels(PIXEL_FORMAT, SAMPLE_COUNT)?;
 
-        let backbuffer: ID3D11Texture2D = self.swap_chain.GetBuffer(0).unwrap();
+        let desc = D3D11_TEXTURE2D_DESC {
+            Width: width as u32,
+            Height: height as u32,
+            MipLevels: 1,
+            ArraySize: 1,
+            Format: PIXEL_FORMAT,
+            SampleDesc: DXGI_SAMPLE_DESC {
+                Count: SAMPLE_COUNT,
+                Quality: quality - 1,
+            },
+            Usage: D3D11_USAGE_DEFAULT,
+            BindFlags: D3D11_BIND_RENDER_TARGET.0 as u32,
+            ..Default::default()
+        };
+
+        self.device
+            .CreateTexture2D(&desc, None, Some(&mut self.msaa_color_texture))?;
+        let msaa_color_texture = self.msaa_color_texture.as_ref().unwrap();
 
         self.device.CreateRenderTargetView(
-            &backbuffer,
+            msaa_color_texture,
             None,
             Some(&mut self.render_target_view),
         )?;
+
+        self.swap_chain
+            .ResizeBuffers(
+                0,
+                self.width as u32,
+                self.height as u32,
+                DXGI_FORMAT_UNKNOWN,
+                DXGI_SWAP_CHAIN_FLAG::default(),
+            )
+            .unwrap();
 
         let viewport = D3D11_VIEWPORT {
             TopLeftX: 0.0,
@@ -784,14 +812,21 @@ impl Gfx {
                 .OMSetBlendState(&self.blend_state, None, 0xFFFFFFFFu32);
 
             self.context.DrawIndexed(self.indices.len() as u32, 0, 0);
+
+            let backbuffer: ID3D11Texture2D = self.swap_chain.GetBuffer(0).unwrap();
+
+            self.context.ResolveSubresource(
+                &backbuffer,
+                0,
+                self.msaa_color_texture.as_ref().unwrap(),
+                0,
+                PIXEL_FORMAT,
+            );
         }
     }
 
-    pub fn add_sprite(&mut self, src: Rect, dst: Rect, color: Color, kind: SpriteKind) {
-        let left = (dst.x + self.bounds.x).floor();
-        let top = (dst.y + self.bounds.y).floor();
-        let right = left + dst.width;
-        let bottom = top + dst.height;
+    pub fn add_sprite(&mut self, src: Rect, dst: Quad, color: Color, kind: SpriteKind) {
+        let dst = dst.offset_by(self.bounds);
 
         let uv_left = src.x;
         let uv_right = src.x + src.width;
@@ -818,8 +853,8 @@ impl Gfx {
 
         self.vertices.extend_from_slice(&[
             Vertex {
-                x: left,
-                y: top,
+                x: dst.top_left.x,
+                y: dst.top_left.y,
                 u: uv_left,
                 v: uv_top,
                 kind,
@@ -829,8 +864,8 @@ impl Gfx {
                 a,
             },
             Vertex {
-                x: right,
-                y: top,
+                x: dst.top_right.x,
+                y: dst.top_right.y,
                 u: uv_right,
                 v: uv_top,
                 kind,
@@ -840,8 +875,8 @@ impl Gfx {
                 a,
             },
             Vertex {
-                x: right,
-                y: bottom,
+                x: dst.bottom_right.x,
+                y: dst.bottom_right.y,
                 u: uv_right,
                 v: uv_bottom,
                 kind,
@@ -851,8 +886,8 @@ impl Gfx {
                 a,
             },
             Vertex {
-                x: left,
-                y: bottom,
+                x: dst.bottom_left.x,
+                y: dst.bottom_left.y,
                 u: uv_left,
                 v: uv_bottom,
                 kind,

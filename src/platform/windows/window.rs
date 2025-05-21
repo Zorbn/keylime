@@ -480,7 +480,7 @@ impl Window {
                         self.graphemes_typed.push(c);
 
                         self.grapheme_cursor = GraphemeCursor::new(
-                            self.grapheme_cursor.cur_cursor(),
+                            self.grapheme_cursor.index(),
                             self.graphemes_typed.len(),
                         );
                     }

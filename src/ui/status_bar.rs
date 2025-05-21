@@ -3,7 +3,10 @@ use std::{cmp::Ordering, fmt::Write};
 use crate::{
     config::Config,
     ctx::Ctx,
-    geometry::{rect::Rect, sides::Sides},
+    geometry::{
+        rect::Rect,
+        sides::{Side, Sides},
+    },
     lsp::{types::DecodedDiagnostic, Lsp},
     pool::{format_pooled, Pooled, STRING_POOL},
     text::{cursor_index::CursorIndex, doc::LineEnding},
@@ -41,7 +44,7 @@ impl StatusBar {
 
         gfx.add_bordered_rect(
             widget.bounds.unoffset_by(widget.bounds),
-            Sides::ALL,
+            Sides::from(Side::Top),
             theme.background,
             theme.border,
         );
