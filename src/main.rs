@@ -26,7 +26,6 @@ use platform::app_runner::run_app;
  * Bounds could instead be accessed with a ui.bounds(widget_id) fn and set with a ui.layout(widget_id, bounds) fn.
  * - The same could be applied to doc cursors, there is a lot of doc.cursor(...).position or doc.cursor(...).position =, etc.
  * Support multiple terminal panes.
- * Rust analyzer format on save pushes cursor to the bottom of the doc on Windows.
  * Closing crashes on Windows?
  */
 
