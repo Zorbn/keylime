@@ -219,7 +219,7 @@ impl Editor {
 
                     if let Some((_, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) {
                         let position = doc.cursor(CursorIndex::Main).position;
-                        self.examine_popup.open(position, doc, ctx);
+                        self.examine_popup.open(position, true, doc, ctx);
                     }
                 }
                 action_name!(UndoCursorPosition) => {
@@ -272,7 +272,7 @@ impl Editor {
         if let Some(position) =
             tab.visual_to_position_unclamped(ctx.window.mouse_position(), doc, ctx.gfx)
         {
-            self.examine_popup.open(position, doc, ctx);
+            self.examine_popup.open(position, false, doc, ctx);
         } else {
             self.examine_popup.clear(ctx.ui);
         }

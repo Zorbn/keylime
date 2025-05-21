@@ -546,13 +546,10 @@ impl Tab {
                     let highlight_position =
                         self.position_to_visual(start, camera_position, doc, gfx);
 
-                    gfx.add_rect(
-                        Rect::new(
-                            highlight_position.x - gfx.glyph_width() / 2.0,
-                            highlight_position.y + gfx.line_height() - gfx.border_width(),
-                            gfx.glyph_width(),
-                            gfx.border_width(),
-                        ),
+                    gfx.add_zig_zag_underline(
+                        highlight_position.x - gfx.glyph_width() / 2.0,
+                        highlight_position.y + gfx.line_height(),
+                        gfx.glyph_width(),
                         color,
                     );
 
@@ -576,13 +573,10 @@ impl Tab {
                     let grapheme = doc.grapheme(position);
                     let grapheme_width = gfx.measure_text(grapheme);
 
-                    gfx.add_rect(
-                        Rect::new(
-                            highlight_position.x,
-                            highlight_position.y + gfx.line_height() - gfx.border_width(),
-                            grapheme_width as f32 * gfx.glyph_width(),
-                            gfx.border_width(),
-                        ),
+                    gfx.add_zig_zag_underline(
+                        highlight_position.x,
+                        highlight_position.y + gfx.line_height(),
+                        grapheme_width as f32 * gfx.glyph_width(),
                         color,
                     );
 
@@ -610,7 +604,7 @@ impl Tab {
         let visual_position = ctx.window.mouse_position();
         let position = self.visual_to_position_unclamped(visual_position, doc, gfx)?;
 
-        if grapheme::is_whitespace(doc.grapheme(position)) {
+        if !grapheme::is_alphanumeric(doc.grapheme(position)) {
             return None;
         }
 
@@ -619,13 +613,10 @@ impl Tab {
         let start = self.position_to_visual(selection.start, camera_position, doc, gfx);
         let end = self.position_to_visual(selection.end, camera_position, doc, gfx);
 
-        gfx.add_rect(
-            Rect::new(
-                start.x,
-                start.y + gfx.line_height() - gfx.border_width(),
-                end.x - start.x,
-                gfx.border_width(),
-            ),
+        gfx.add_underline(
+            start.x,
+            start.y + gfx.line_height(),
+            end.x - start.x,
             theme.normal,
         );
 

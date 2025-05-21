@@ -84,13 +84,14 @@ impl ExaminePopup {
         self.popup.draw(None, ctx);
     }
 
-    pub fn open(&mut self, position: Position, doc: &mut Doc, ctx: &mut Ctx) {
+    pub fn open(&mut self, position: Position, do_toggle: bool, doc: &mut Doc, ctx: &mut Ctx) {
         self.open_position = position;
 
-        if let Some(diagnostic) = ctx
-            .lsp
-            .get_diagnostic_at(position, doc)
-            .filter(|_| self.kind != ExaminePopupKind::Diagnostic)
+        let can_open_diagnostic = !do_toggle || self.kind != ExaminePopupKind::Diagnostic;
+
+        if let Some(diagnostic) = can_open_diagnostic
+            .then(|| ctx.lsp.get_diagnostic_at(position, doc))
+            .flatten()
         {
             let diagnostic = diagnostic.clone();
 

@@ -1,7 +1,11 @@
+use std::f32::consts::PI;
+
 use crate::{
     geometry::{
+        quad::Quad,
         rect::Rect,
         sides::{Side, Sides},
+        visual_position::VisualPosition,
     },
     text::grapheme::GraphemeIterator,
     ui::color::Color,
@@ -137,7 +141,8 @@ impl Gfx {
                             destination_y,
                             destination_width,
                             destination_height,
-                        ),
+                        )
+                        .into(),
                         color,
                         kind,
                     );
@@ -221,16 +226,57 @@ impl Gfx {
         self.add_rect(Rect::new(left, top, right - left, bottom - top), color);
     }
 
-    pub fn add_rect(&mut self, rect: Rect, color: Color) {
-        self.add_sprite(
-            Rect::new(-1.0, 0.0, -1.0, -1.0),
-            rect,
-            color,
-            SpriteKind::Rect,
-        );
+    pub fn add_zig_zag_underline(&mut self, x: f32, y: f32, width: f32, color: Color) {
+        let corner_width = self.underline_width();
+
+        let segment_length = self.glyph_width() / 2.0;
+        let segment_side_length = segment_length / 2.0 + corner_width;
+
+        let segment_width = corner_width / 2.0;
+        let segment_count = (width / segment_length).floor() as usize;
+
+        let x = x + (width - segment_count as f32 * segment_length) / 2.0;
+
+        for i in 0..segment_count {
+            let center = VisualPosition::new(x + (i as f32 + 0.5) * segment_length, y);
+
+            let base_angle = if i % 2 == 0 { -PI / 2.0 } else { 0.0 };
+
+            let forward = VisualPosition::from_angle(base_angle + PI / 4.0);
+            let right = VisualPosition::from_angle(base_angle - PI / 4.0);
+
+            let center_left = center - forward.scale(segment_side_length);
+            let center_right = center + forward.scale(segment_side_length);
+
+            let top_left = center_left - right.scale(segment_width);
+            let bottom_left = center_left + right.scale(segment_width);
+
+            let top_right = center_right - right.scale(segment_width);
+            let bottom_right = center_right + right.scale(segment_width);
+
+            self.add_sprite(
+                Rect::ZERO,
+                Quad {
+                    top_left,
+                    top_right,
+                    bottom_left,
+                    bottom_right,
+                },
+                color,
+                SpriteKind::Rect,
+            );
+        }
     }
 
-    fn add_sprite(&mut self, src: Rect, dst: Rect, color: Color, kind: SpriteKind) {
+    pub fn add_underline(&mut self, x: f32, y: f32, width: f32, color: Color) {
+        self.add_rect(Rect::new(x, y, width, self.underline_width()), color);
+    }
+
+    pub fn add_rect(&mut self, rect: Rect, color: Color) {
+        self.add_sprite(Rect::ZERO, rect.into(), color, SpriteKind::Rect);
+    }
+
+    fn add_sprite(&mut self, src: Rect, dst: Quad, color: Color, kind: SpriteKind) {
         self.inner.add_sprite(src, dst, color, kind);
     }
 
@@ -261,6 +307,10 @@ impl Gfx {
 
     pub fn border_width(&self) -> f32 {
         self.inner.scale().floor()
+    }
+
+    pub fn underline_width(&self) -> f32 {
+        (self.glyph_width() / 8.0).ceil()
     }
 
     pub fn width(&self) -> f32 {

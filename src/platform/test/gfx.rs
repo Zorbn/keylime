@@ -1,5 +1,5 @@
 use crate::{
-    geometry::rect::Rect,
+    geometry::{quad::Quad, rect::Rect},
     platform::{
         gfx::SpriteKind,
         text_cache::{AtlasDimensions, GlyphSpan, GlyphSpans},
@@ -29,7 +29,7 @@ impl Gfx {
         Default::default()
     }
 
-    pub fn add_sprite(&self, _src: Rect, _dst: Rect, _color: Color, _kind: SpriteKind) {}
+    pub fn add_sprite(&self, _src: Rect, _dst: Quad, _color: Color, _kind: SpriteKind) {}
 
     pub fn set_font(&self, _font_name: &str, _font_size: f32, _scale: f32) {}
 

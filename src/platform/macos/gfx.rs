@@ -12,7 +12,7 @@ use objc2_metal::*;
 use objc2_quartz_core::CAMetalDrawable;
 
 use crate::{
-    geometry::{matrix::ortho, rect::Rect},
+    geometry::{matrix::ortho, quad::Quad, rect::Rect},
     platform::{
         aliases::{AnyText, AnyWindow},
         gfx::SpriteKind,
@@ -92,6 +92,7 @@ struct VertexInput {
 }
 
 pub const PIXEL_FORMAT: MTLPixelFormat = MTLPixelFormat::BGRA8Unorm;
+const SAMPLE_COUNT: usize = 4;
 
 pub struct Gfx {
     device: Retained<ProtocolObject<dyn MTLDevice>>,
@@ -118,6 +119,7 @@ pub struct Gfx {
     width: f32,
     height: f32,
     scale: f32,
+    render_target: Option<Retained<ProtocolObject<dyn MTLTexture>>>,
 
     pub is_fullscreen: bool,
 }
@@ -137,8 +139,10 @@ impl Gfx {
             pipeline_descriptor
                 .colorAttachments()
                 .objectAtIndexedSubscript(0)
-                .setPixelFormat(PIXEL_FORMAT)
+                .setPixelFormat(PIXEL_FORMAT);
         }
+
+        pipeline_descriptor.setRasterSampleCount(SAMPLE_COUNT);
 
         let library = device.newLibraryWithSource_options_error(ns_string!(SHADER_CODE), None);
 
@@ -203,6 +207,7 @@ impl Gfx {
             width: 0.0,
             height: 0.0,
             scale,
+            render_target: None,
 
             is_fullscreen: false,
         };
@@ -213,6 +218,27 @@ impl Gfx {
     pub fn resize(&mut self, width: f64, height: f64) -> Result<()> {
         self.width = width as f32;
         self.height = height as f32;
+
+        let render_target_descriptor = unsafe {
+            MTLTextureDescriptor::texture2DDescriptorWithPixelFormat_width_height_mipmapped(
+                PIXEL_FORMAT,
+                width as usize,
+                height as usize,
+                false,
+            )
+        };
+
+        render_target_descriptor.setTextureType(MTLTextureType::Type2DMultisample);
+        render_target_descriptor.setStorageMode(MTLStorageMode::Private);
+        render_target_descriptor.setUsage(MTLTextureUsage::RenderTarget);
+
+        unsafe {
+            render_target_descriptor.setSampleCount(SAMPLE_COUNT);
+        }
+
+        self.render_target = self
+            .device
+            .newTextureWithDescriptor(&render_target_descriptor);
 
         Ok(())
     }
@@ -263,12 +289,7 @@ impl Gfx {
                     )
                 };
 
-                let texture = self
-                    .device
-                    .newTextureWithDescriptor(&texture_descriptor)
-                    .unwrap();
-
-                self.texture = Some(texture);
+                self.texture = self.device.newTextureWithDescriptor(&texture_descriptor);
 
                 (0, atlas.dimensions.width)
             }
@@ -311,11 +332,12 @@ impl Gfx {
         let color_attachment = MTLRenderPassColorAttachmentDescriptor::new();
 
         unsafe {
-            color_attachment.setTexture(Some(&drawable.texture()));
+            color_attachment.setResolveTexture(Some(&drawable.texture()));
         }
 
+        color_attachment.setTexture(self.render_target.as_deref());
         color_attachment.setLoadAction(MTLLoadAction::Clear);
-        color_attachment.setStoreAction(MTLStoreAction::Store);
+        color_attachment.setStoreAction(MTLStoreAction::MultisampleResolve);
         color_attachment.setClearColor(MTLClearColor {
             red: clear_color.r as f64 / 255.0f64,
             green: clear_color.g as f64 / 255.0f64,
@@ -488,7 +510,7 @@ impl Gfx {
         Some(buffer)
     }
 
-    pub fn add_sprite(&mut self, src: Rect, dst: Rect, color: Color, kind: SpriteKind) {
+    pub fn add_sprite(&mut self, src: Rect, dst: Quad, color: Color, kind: SpriteKind) {
         let vertex_count = self.vertices.len() as u32;
 
         self.indices.extend_from_slice(&[
@@ -500,10 +522,7 @@ impl Gfx {
             vertex_count + 3,
         ]);
 
-        let left = (dst.x + self.bounds.x).floor();
-        let top = (dst.y + self.bounds.y).floor();
-        let right = left + dst.width;
-        let bottom = top + dst.height;
+        let dst = dst.offset_by(self.bounds);
 
         let uv_left = src.x;
         let uv_right = src.x + src.width;
@@ -521,22 +540,22 @@ impl Gfx {
 
         self.vertices.extend_from_slice(&[
             VertexInput {
-                position: [left, top, 0.0, 0.0],
+                position: [dst.top_left.x, dst.top_left.y, 0.0, 0.0],
                 color,
                 uv: [uv_left, uv_top, kind],
             },
             VertexInput {
-                position: [right, top, 0.0, 0.0],
+                position: [dst.top_right.x, dst.top_right.y, 0.0, 0.0],
                 color,
                 uv: [uv_right, uv_top, kind],
             },
             VertexInput {
-                position: [right, bottom, 0.0, 0.0],
+                position: [dst.bottom_right.x, dst.bottom_right.y, 0.0, 0.0],
                 color,
                 uv: [uv_right, uv_bottom, kind],
             },
             VertexInput {
-                position: [left, bottom, 0.0, 0.0],
+                position: [dst.bottom_left.x, dst.bottom_left.y, 0.0, 0.0],
                 color,
                 uv: [uv_left, uv_bottom, kind],
             },

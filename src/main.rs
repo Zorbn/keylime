@@ -1,4 +1,5 @@
 #![cfg_attr(test, allow(dead_code))]
+#![warn(clippy::use_self)]
 
 mod app;
 mod bit_field;
