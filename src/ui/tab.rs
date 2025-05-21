@@ -673,7 +673,7 @@ impl Tab {
 
                 gfx.add_rect(
                     Rect::new(
-                        cursor_position.x,
+                        cursor_position.x - cursor_width / 2.0,
                         cursor_position.y,
                         cursor_width,
                         gfx.line_height(),
