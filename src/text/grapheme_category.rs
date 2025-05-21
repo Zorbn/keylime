@@ -9,15 +9,15 @@ pub enum GraphemeCategory {
 }
 
 impl GraphemeCategory {
-    pub fn new(grapheme: &str) -> GraphemeCategory {
+    pub fn new(grapheme: &str) -> Self {
         if grapheme == "\n" {
-            GraphemeCategory::Newline
+            Self::Newline
         } else if grapheme::is_whitespace(grapheme) {
-            GraphemeCategory::Space
+            Self::Space
         } else if grapheme == "_" || grapheme::is_alphanumeric(grapheme) {
-            GraphemeCategory::Identifier
+            Self::Identifier
         } else {
-            GraphemeCategory::Symbol
+            Self::Symbol
         }
     }
 }

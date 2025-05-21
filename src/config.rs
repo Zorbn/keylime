@@ -160,7 +160,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load(dir: &Path) -> Result<Config, ConfigError> {
+    pub fn load(dir: &Path) -> Result<Self, ConfigError> {
         let mut path = PATH_POOL.new_item();
 
         path.clear();
@@ -223,7 +223,7 @@ impl Config {
 
         let ignored_dirs = HashSet::from_iter(config_desc.ignored_dirs);
 
-        Ok(Config {
+        Ok(Self {
             font: config_desc.font,
             font_size: config_desc.font_size,
             trim_trailing_whitespace: config_desc.trim_trailing_whitespace,

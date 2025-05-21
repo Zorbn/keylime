@@ -7,7 +7,7 @@ pub struct Selection {
 }
 
 impl Selection {
-    pub fn union(a: Option<Selection>, b: Option<Selection>) -> Option<Selection> {
+    pub fn union(a: Option<Self>, b: Option<Self>) -> Option<Self> {
         let Some(a) = a else {
             return b;
         };
@@ -16,13 +16,13 @@ impl Selection {
             return Some(a);
         };
 
-        Some(Selection {
+        Some(Self {
             start: a.start.min(b.start),
             end: a.end.max(b.end),
         })
     }
 
-    pub fn trim(&self) -> Selection {
+    pub fn trim(&self) -> Self {
         let mut result = *self;
 
         if self.end.y > self.start.y && self.end.x == 0 {

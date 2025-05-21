@@ -53,9 +53,9 @@ pub enum LineEnding {
 impl Default for LineEnding {
     fn default() -> Self {
         if cfg!(target_os = "windows") {
-            LineEnding::CrLf
+            Self::CrLf
         } else {
-            LineEnding::Lf
+            Self::Lf
         }
     }
 }
@@ -76,9 +76,9 @@ pub enum DocFlag {
 define_bit_field!(DocFlags, DocFlag, u16);
 
 impl DocFlags {
-    pub const RAW: Self = DocFlags::from(DocFlag::AllowMultipleLines);
+    pub const RAW: Self = Self::from(DocFlag::AllowMultipleLines);
 
-    pub const SINGLE_LINE: Self = DocFlags::NONE
+    pub const SINGLE_LINE: Self = Self::NONE
         .with(DocFlag::TrackHistory)
         .with(DocFlag::TrackSaving)
         .with(DocFlag::UpdateCursors);
@@ -104,9 +104,9 @@ pub enum DocPath {
 impl DocPath {
     pub fn some(&self) -> Option<&Pooled<PathBuf>> {
         match &self {
-            DocPath::None => None,
-            DocPath::InMemory(path) => Some(path),
-            DocPath::OnDrive(path) => Some(path),
+            Self::None => None,
+            Self::InMemory(path) => Some(path),
+            Self::OnDrive(path) => Some(path),
         }
     }
 
@@ -115,12 +115,12 @@ impl DocPath {
     }
 
     pub fn is_none(&self) -> bool {
-        matches!(self, DocPath::None)
+        matches!(self, Self::None)
     }
 
     pub fn on_drive(&self) -> Option<&Path> {
         match &self {
-            DocPath::OnDrive(path) => Some(path),
+            Self::OnDrive(path) => Some(path),
             _ => None,
         }
     }

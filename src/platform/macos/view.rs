@@ -231,7 +231,7 @@ impl View {
             display_link: OnceCell::new(),
         });
 
-        let view: Retained<View> = unsafe {
+        let view: Retained<Self> = unsafe {
             msg_send![
                 super(this),
                 initWithFrame: frame_rect

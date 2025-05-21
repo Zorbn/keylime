@@ -16,8 +16,8 @@ pub enum IndentWidth {
 impl IndentWidth {
     pub fn grapheme_count(&self) -> usize {
         match self {
-            IndentWidth::Tab => 1,
-            IndentWidth::Spaces(indent_width) => *indent_width,
+            Self::Tab => 1,
+            Self::Spaces(indent_width) => *indent_width,
         }
     }
 
@@ -27,8 +27,8 @@ impl IndentWidth {
 
     pub fn grapheme(&self) -> &'static str {
         match self {
-            IndentWidth::Tab => "\t",
-            IndentWidth::Spaces(_) => " ",
+            Self::Tab => "\t",
+            Self::Spaces(_) => " ",
         }
     }
 }

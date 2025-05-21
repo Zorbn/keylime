@@ -7,8 +7,8 @@ pub enum CursorIndex {
 impl CursorIndex {
     pub fn unwrap_or(self, main_index: usize) -> usize {
         match self {
-            CursorIndex::Some(index) => index,
-            CursorIndex::Main => main_index,
+            Self::Some(index) => index,
+            Self::Main => main_index,
         }
     }
 }

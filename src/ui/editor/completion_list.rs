@@ -43,10 +43,10 @@ enum CompletionResult {
 impl CompletionResult {
     pub fn label(&self) -> &str {
         match self {
-            CompletionResult::SimpleCompletion(text) => text,
-            CompletionResult::Completion { item, .. } => &item.label,
-            CompletionResult::Command(command) => &command.title,
-            CompletionResult::CodeAction(code_action) => &code_action.title,
+            Self::SimpleCompletion(text) => text,
+            Self::Completion { item, .. } => &item.label,
+            Self::Command(command) => &command.title,
+            Self::CodeAction(code_action) => &code_action.title,
         }
     }
 }

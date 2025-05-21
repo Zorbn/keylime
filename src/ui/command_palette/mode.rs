@@ -14,7 +14,7 @@ pub struct CommandPaletteEventArgs<'a, 'b> {
 }
 
 impl<'a, 'b> CommandPaletteEventArgs<'a, 'b> {
-    pub fn new(editor: &'a mut Editor, ctx: &'a mut Ctx<'b>) -> CommandPaletteEventArgs<'a, 'b> {
+    pub fn new(editor: &'a mut Editor, ctx: &'a mut Ctx<'b>) -> Self {
         CommandPaletteEventArgs { editor, ctx }
     }
 }

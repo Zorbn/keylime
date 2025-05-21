@@ -34,7 +34,7 @@ impl Text {
         };
 
         unsafe {
-            let Text {
+            let Self {
                 ref mut inner,
                 ref mut cache,
             } = text;
@@ -99,7 +99,7 @@ impl Text {
     }
 
     fn uncached_layout_glyph_spans(&mut self, text: &str) -> GlyphCacheResult {
-        let Text { inner, cache } = self;
+        let Self { inner, cache } = self;
 
         let mut glyphs_start = 0;
         let mut char_cursor = CharCursor::new(0, text.len());

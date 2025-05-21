@@ -117,7 +117,7 @@ impl LanguageServer {
     pub fn new(command: &str, current_dir: &Path, options: &Option<Value>) -> Option<Self> {
         let process = Process::new(&[command], ProcessKind::Normal).ok()?;
 
-        let mut language_server = LanguageServer {
+        let mut language_server = Self {
             process,
             next_request_id: 0,
             pending_requests: HashMap::new(),

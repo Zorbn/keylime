@@ -157,7 +157,7 @@ impl<T: Serialize + Debug + Default + Poolable + 'static> Serialize for Pooled<T
 }
 
 impl<'de> Deserialize<'de> for Pooled<String> {
-    fn deserialize<D>(deserializer: D) -> Result<Pooled<String>, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {

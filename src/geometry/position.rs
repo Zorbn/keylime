@@ -15,7 +15,7 @@ impl Position {
         Self { x, y }
     }
 
-    pub fn min(self, other: Position) -> Position {
+    pub fn min(self, other: Self) -> Self {
         if self < other {
             self
         } else {
@@ -23,7 +23,7 @@ impl Position {
         }
     }
 
-    pub fn max(self, other: Position) -> Position {
+    pub fn max(self, other: Self) -> Self {
         if self > other {
             self
         } else {

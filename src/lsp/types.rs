@@ -22,15 +22,15 @@ pub struct EncodedPosition {
 }
 
 impl EncodedPosition {
-    pub fn encode(position: Position, encoding: PositionEncoding, doc: &Doc) -> EncodedPosition {
+    pub fn encode(position: Position, encoding: PositionEncoding, doc: &Doc) -> Self {
         let line = doc.get_line(position.y).unwrap_or_default();
 
         match encoding {
-            PositionEncoding::Utf8 => EncodedPosition {
+            PositionEncoding::Utf8 => Self {
                 line: position.y,
                 character: position.x,
             },
-            PositionEncoding::Utf16 => EncodedPosition {
+            PositionEncoding::Utf16 => Self {
                 line: position.y,
                 character: line[..position.x].encode_utf16().count(),
             },
@@ -364,11 +364,11 @@ pub(super) enum LspCodeActionResult {
 impl LspCodeActionResult {
     pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> DecodedCodeActionResult {
         match self {
-            LspCodeActionResult::Command(command) => DecodedCodeActionResult::Command(command),
-            LspCodeActionResult::CodeAction(code_action) => {
+            Self::Command(command) => DecodedCodeActionResult::Command(command),
+            Self::CodeAction(code_action) => {
                 DecodedCodeActionResult::CodeAction(code_action.decode(encoding, doc))
             }
-            LspCodeActionResult::None => panic!(),
+            Self::None => panic!(),
         }
     }
 }
@@ -480,8 +480,8 @@ impl HoverContents {
         let mut text = STRING_POOL.new_item();
 
         match self {
-            HoverContents::MarkedString(marked_string) => text.push_str(&marked_string.value),
-            HoverContents::MarkedStrings(marked_strings) => {
+            Self::MarkedString(marked_string) => text.push_str(&marked_string.value),
+            Self::MarkedStrings(marked_strings) => {
                 for marked_string in marked_strings {
                     if !text.is_empty() {
                         text.push('\n');
@@ -490,7 +490,7 @@ impl HoverContents {
                     text.push_str(&marked_string.value);
                 }
             }
-            HoverContents::MarkupContent(markup_content) => text.push_str(&markup_content.value),
+            Self::MarkupContent(markup_content) => text.push_str(&markup_content.value),
         };
 
         text
@@ -528,8 +528,8 @@ pub enum Documentation {
 impl Documentation {
     pub fn text(&self) -> &str {
         match self {
-            Documentation::PlainText(text) => text,
-            Documentation::MarkupContent(content) => &content.value,
+            Self::PlainText(text) => text,
+            Self::MarkupContent(content) => &content.value,
         }
     }
 }

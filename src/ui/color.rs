@@ -24,7 +24,7 @@ impl Color {
 }
 
 impl<'de> Deserialize<'de> for Color {
-    fn deserialize<D>(deserializer: D) -> Result<Color, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -49,6 +49,6 @@ impl<'de> Deserialize<'de> for Color {
             value
         };
 
-        Ok(Color::from_hex(value))
+        Ok(Self::from_hex(value))
     }
 }

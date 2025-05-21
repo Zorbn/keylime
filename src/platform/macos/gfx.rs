@@ -182,7 +182,7 @@ impl Gfx {
 
         let scale = window.inner.scale as f32;
 
-        let gfx = Gfx {
+        let gfx = Self {
             device,
             command_queue,
             pipeline_state,

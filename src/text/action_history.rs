@@ -10,8 +10,8 @@ pub enum ActionKind {
 impl ActionKind {
     pub fn reverse(self) -> Self {
         match self {
-            ActionKind::Done | ActionKind::Redone => ActionKind::Undone,
-            ActionKind::Undone => ActionKind::Redone,
+            Self::Done | Self::Redone => Self::Undone,
+            Self::Undone => Self::Redone,
         }
     }
 }

@@ -20,7 +20,7 @@ pub struct AtlasDimensions {
 }
 
 impl AtlasDimensions {
-    pub const ZERO: Self = AtlasDimensions {
+    pub const ZERO: Self = Self {
         origin_x: 0.0,
         origin_y: 0.0,
         width: 0,
@@ -39,7 +39,7 @@ pub struct Atlas {
 }
 
 impl Atlas {
-    fn copy_to(&self, other: &mut Atlas, offset_x: usize) {
+    fn copy_to(&self, other: &mut Self, offset_x: usize) {
         for y in 0..self.dimensions.height {
             for x in 0..self.dimensions.width {
                 let i = (x + y * self.dimensions.width) * 4;
@@ -111,17 +111,17 @@ pub enum GlyphCacheResult {
 }
 
 impl GlyphCacheResult {
-    pub fn worse(self, other: GlyphCacheResult) -> GlyphCacheResult {
+    pub fn worse(self, other: Self) -> Self {
         match other {
-            GlyphCacheResult::Hit => self,
-            GlyphCacheResult::Miss => {
-                if self == GlyphCacheResult::Hit {
+            Self::Hit => self,
+            Self::Miss => {
+                if self == Self::Hit {
                     other
                 } else {
                     self
                 }
             }
-            GlyphCacheResult::Resize => other,
+            Self::Resize => other,
         }
     }
 }

@@ -506,12 +506,12 @@ impl Pattern {
 }
 
 impl<'de> Deserialize<'de> for Pattern {
-    fn deserialize<D>(deserializer: D) -> Result<Pattern, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         let s: Pooled<String> = Deserialize::deserialize(deserializer)?;
 
-        Pattern::parse(s).map_err(D::Error::custom)
+        Self::parse(s).map_err(D::Error::custom)
     }
 }
