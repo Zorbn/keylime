@@ -48,8 +48,8 @@ pub struct Tab {
     data_id: SlotId,
 
     pub camera: Camera,
-    handled_cursor_position: Option<Position>,
-    handled_doc_len: Option<usize>,
+    handled_cursor_position: Position,
+    handled_doc_len: usize,
 
     tab_bounds: Rect,
     gutter_bounds: Rect,
@@ -63,8 +63,8 @@ impl Tab {
             data_id,
 
             camera: Camera::new(),
-            handled_cursor_position: None,
-            handled_doc_len: None,
+            handled_cursor_position: Position::ZERO,
+            handled_doc_len: 1,
 
             tab_bounds: Rect::ZERO,
             gutter_bounds: Rect::ZERO,
@@ -106,9 +106,6 @@ impl Tab {
     }
 
     pub fn update(&mut self, widget_id: WidgetId, doc: &mut Doc, ctx: &mut Ctx) {
-        self.handled_cursor_position = Some(doc.cursor(CursorIndex::Main).position);
-        self.handled_doc_len = Some(doc.lines().len());
-
         let mut grapheme_handler = ctx.ui.grapheme_handler(widget_id, ctx.window);
 
         while let Some(grapheme) = grapheme_handler.next(ctx.window) {
@@ -141,7 +138,7 @@ impl Tab {
                     let is_drag = kind == MousebindKind::Move;
 
                     handle_left_click(doc, position, mousebind.mods, count, is_drag, ctx.gfx);
-                    self.handled_cursor_position = Some(doc.cursor(CursorIndex::Main).position);
+                    self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
                 }
                 Mousebind {
                     button: Some(MouseButton::Left),
@@ -199,6 +196,9 @@ impl Tab {
 
         self.update_camera_vertical(doc, ctx.gfx, dt);
         self.update_camera_horizontal(doc, ctx.gfx, dt);
+
+        self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
+        self.handled_doc_len = doc.lines().len();
     }
 
     fn update_camera_vertical(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
@@ -207,7 +207,7 @@ impl Tab {
 
         let (target_y, can_recenter, recenter_distance) =
             if doc.flags().contains(DocFlag::RecenterOnBottom) {
-                let can_recenter = self.handled_doc_len != Some(doc_len);
+                let can_recenter = self.handled_doc_len != doc_len;
                 let target_y = max_y - self.camera.y();
 
                 (target_y, can_recenter, 1)
@@ -216,7 +216,7 @@ impl Tab {
                 let new_cursor_visual_position =
                     self.position_to_visual(new_cursor_position, self.camera.position(), doc, gfx);
 
-                let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
+                let can_recenter = self.handled_cursor_position != new_cursor_position;
                 let target_y = new_cursor_visual_position.y + gfx.line_height() / 2.0;
 
                 (target_y, can_recenter, RECENTER_DISTANCE)
@@ -246,7 +246,7 @@ impl Tab {
         let new_cursor_visual_position =
             self.position_to_visual(new_cursor_position, self.camera.position(), doc, gfx);
 
-        let can_recenter = self.handled_cursor_position != Some(new_cursor_position);
+        let can_recenter = self.handled_cursor_position != new_cursor_position;
 
         let target_x = new_cursor_visual_position.x + gfx.glyph_width() / 2.0;
         let max_x = f32::MAX;
