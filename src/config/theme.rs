@@ -6,6 +6,7 @@ use crate::{
 };
 
 #[derive(Deserialize, Debug)]
+#[serde(default)]
 pub struct TerminalTheme {
     pub background: Color,
     pub foreground: Color,
