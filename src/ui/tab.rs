@@ -650,11 +650,18 @@ impl Tab {
                 let grapheme = doc.grapheme(position);
                 let grapheme_width = gfx.measure_text(grapheme);
 
+                // Make the selection flush with the side of the doc.
+                let padding_x = if position.x == 0 {
+                    gfx.line_padding_x()
+                } else {
+                    0.0
+                };
+
                 gfx.add_rect(
                     Rect::new(
-                        highlight_position.x,
+                        highlight_position.x - padding_x,
                         highlight_position.y,
-                        grapheme_width as f32 * gfx.glyph_width(),
+                        grapheme_width as f32 * gfx.glyph_width() + padding_x,
                         gfx.line_height(),
                     ),
                     theme.selection,
