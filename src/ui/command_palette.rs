@@ -172,6 +172,30 @@ impl CommandPalette {
             self.close(ctx.ui);
         }
 
+        if let Some(mut mode) = self.mode.take() {
+            let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
+
+            while let Some(action) = action_handler.next(ctx) {
+                if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
+                    action_handler.unprocessed(ctx.window, action);
+                }
+            }
+
+            mode.on_update(self, CommandPaletteEventArgs::new(editor, ctx));
+            self.mode = Some(mode);
+        }
+
+        let result_input = self.result_list.update(ctx);
+
+        match result_input {
+            ResultListInput::None => {}
+            ResultListInput::Complete => self.complete_result(editor, ctx),
+            ResultListInput::Submit { kind } => {
+                self.submit(kind, editor, ctx);
+            }
+            ResultListInput::Close => self.close(ctx.ui),
+        }
+
         let mut global_action_handler = ctx.window.action_handler();
 
         while let Some(action) = global_action_handler.next(ctx) {
@@ -202,30 +226,6 @@ impl CommandPalette {
                 }
                 _ => global_action_handler.unprocessed(ctx.window, action),
             }
-        }
-
-        if let Some(mut mode) = self.mode.take() {
-            let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
-
-            while let Some(action) = action_handler.next(ctx) {
-                if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
-                    action_handler.unprocessed(ctx.window, action);
-                }
-            }
-
-            mode.on_update(self, CommandPaletteEventArgs::new(editor, ctx));
-            self.mode = Some(mode);
-        }
-
-        let result_input = self.result_list.update(ctx);
-
-        match result_input {
-            ResultListInput::None => {}
-            ResultListInput::Complete => self.complete_result(editor, ctx),
-            ResultListInput::Submit { kind } => {
-                self.submit(kind, editor, ctx);
-            }
-            ResultListInput::Close => self.close(ctx.ui),
         }
 
         self.tab.update(self.widget_id, &mut self.doc, ctx);
