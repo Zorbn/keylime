@@ -87,11 +87,11 @@ pub fn get(index: usize, text: &str) -> Option<&str> {
 }
 
 pub fn is_whitespace(grapheme: &str) -> bool {
-    grapheme.chars().all(|c| c.is_whitespace())
+    grapheme.chars().all(char::is_whitespace)
 }
 
 pub fn is_alphabetic(grapheme: &str) -> bool {
-    grapheme.chars().all(|c| c.is_alphabetic())
+    grapheme.chars().all(char::is_alphabetic)
 }
 
 pub fn is_ascii_digit(grapheme: &str) -> bool {
@@ -99,7 +99,7 @@ pub fn is_ascii_digit(grapheme: &str) -> bool {
 }
 
 pub fn is_lowercase(grapheme: &str) -> bool {
-    grapheme.chars().all(|c| c.is_lowercase())
+    grapheme.chars().all(char::is_lowercase)
 }
 
 pub fn is_ascii_punctuation(grapheme: &str) -> bool {
@@ -107,11 +107,11 @@ pub fn is_ascii_punctuation(grapheme: &str) -> bool {
 }
 
 pub fn is_uppercase(grapheme: &str) -> bool {
-    grapheme.chars().all(|c| c.is_uppercase())
+    grapheme.chars().all(char::is_uppercase)
 }
 
 pub fn is_alphanumeric(grapheme: &str) -> bool {
-    grapheme.chars().all(|c| c.is_alphanumeric())
+    grapheme.chars().all(char::is_alphanumeric)
 }
 
 pub fn is_ascii_hexdigit(grapheme: &str) -> bool {

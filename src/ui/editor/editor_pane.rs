@@ -116,10 +116,7 @@ impl EditorPane {
             return;
         }
 
-        let is_doc_worthless = doc_list
-            .get(doc_id)
-            .map(|doc| doc.is_worthless())
-            .unwrap_or(false);
+        let is_doc_worthless = doc_list.get(doc_id).map(Doc::is_worthless).unwrap_or(false);
 
         if let Some((_, doc)) = self.get_focused_tab_with_data(doc_list) {
             let is_focused_doc_worthless = doc.is_worthless();

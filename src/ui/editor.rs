@@ -34,8 +34,8 @@ use crate::{
 
 use super::{
     core::{Ui, WidgetId},
+    pane_list::PaneList,
     slot_list::{SlotId, SlotList},
-    widget_list::WidgetList,
 };
 
 pub mod completion_list;
@@ -49,8 +49,7 @@ const HOVER_TIME: f32 = 0.25;
 
 pub struct Editor {
     doc_list: SlotList<Doc>,
-    // There should always be at least one pane.
-    panes: WidgetList<EditorPane>,
+    panes: PaneList<EditorPane, Doc>,
     current_dir: Option<PathBuf>,
 
     handled_position: Option<Position>,
@@ -71,7 +70,7 @@ impl Editor {
 
         let mut editor = Self {
             doc_list: SlotList::new(),
-            panes: WidgetList::new(|pane| pane.widget_id()),
+            panes: PaneList::new(),
             current_dir: current_dir().ok(),
 
             handled_position: None,
@@ -95,20 +94,14 @@ impl Editor {
         self.completion_list.is_animating()
             || self.signature_help_popup.is_animating()
             || self.examine_popup.is_animating()
-            || self.panes.iter().any(|pane| pane.is_animating())
+            || self.panes.is_animating()
             || self.hover_timer > 0.0
     }
 
     pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
         ctx.ui.widget_mut(self.widget_id).bounds = bounds;
 
-        let mut pane_bounds = bounds;
-        pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
-
-        for pane in self.panes.iter_mut() {
-            pane.layout(pane_bounds, &mut self.doc_list, ctx);
-            pane_bounds.x += pane_bounds.width;
-        }
+        self.panes.layout(bounds, &mut self.doc_list, ctx);
 
         let focused_pane = self.panes.get_last_focused(ctx.ui).unwrap();
 
@@ -134,7 +127,7 @@ impl Editor {
     }
 
     pub fn update(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx, dt: f32) {
-        self.panes.update(ctx.ui);
+        self.panes.update(self.widget_id, ctx);
         self.reload_changed_files(file_watcher, ctx);
 
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
@@ -182,26 +175,6 @@ impl Editor {
                 }
                 action_name!(NewPane) => self.add_pane(ctx),
                 action_name!(ClosePane) => self.close_pane(ctx),
-                action_name!(PreviousPane) => self.panes.focus_previous(ctx.ui),
-                action_name!(NextPane) => self.panes.focus_next(ctx.ui),
-                action_name!(PreviousTab) => {
-                    let pane = self.panes.get_last_focused(ctx.ui).unwrap();
-
-                    if pane.focused_tab_index() == 0 {
-                        self.panes.focus_previous(ctx.ui);
-                    } else {
-                        keybind_handler.unprocessed(ctx.window, action.keybind);
-                    }
-                }
-                action_name!(NextTab) => {
-                    let pane = self.panes.get_last_focused(ctx.ui).unwrap();
-
-                    if pane.focused_tab_index() == pane.tabs.len() - 1 {
-                        self.panes.focus_next(ctx.ui);
-                    } else {
-                        keybind_handler.unprocessed(ctx.window, action.keybind);
-                    }
-                }
                 action_keybind!(key: Escape, mods: Mods::NONE) => {
                     if self.signature_help_popup.is_open() {
                         self.signature_help_popup.clear(ctx.ui);
@@ -325,9 +298,7 @@ impl Editor {
     }
 
     pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
-        for pane in self.panes.iter_mut() {
-            pane.update_camera(&mut self.doc_list, ctx, dt);
-        }
+        self.panes.update_camera(&mut self.doc_list, ctx, dt);
 
         self.signature_help_popup.update_camera(ctx, dt);
         self.completion_list.update_camera(ctx, dt);
@@ -451,9 +422,7 @@ impl Editor {
     }
 
     pub fn draw(&mut self, ctx: &mut Ctx) {
-        for pane in self.panes.iter_mut() {
-            pane.draw(None, &mut self.doc_list, ctx);
-        }
+        self.panes.draw(None, &mut self.doc_list, ctx);
 
         self.completion_list.draw(ctx);
 

@@ -3,7 +3,7 @@ use serde_json::Value;
 
 use crate::{platform::gfx::Gfx, pool::Pooled, text::syntax::Syntax};
 
-use super::LanguageDesc;
+use super::{LanguageDesc, SyntaxDesc};
 
 #[derive(Deserialize, Debug, Default, Clone, Copy)]
 #[serde(untagged)]
@@ -57,7 +57,7 @@ impl Language {
             indent_width: desc.indent_width,
             comment: desc.comment,
             lsp: desc.lsp,
-            syntax: desc.syntax.map(|syntax_desc| syntax_desc.syntax()),
+            syntax: desc.syntax.map(SyntaxDesc::syntax),
         }
     }
 }

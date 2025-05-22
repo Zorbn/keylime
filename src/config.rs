@@ -48,7 +48,7 @@ const DEFAULT_IGNORED_DIRS: fn() -> Vec<Pooled<String>> = || {
     ["target", "build", "out", ".git"]
         .iter()
         .copied()
-        .map(|str| str.into())
+        .map(Into::into)
         .collect()
 };
 const DEFAULT_KEYMAPS: fn() -> HashMap<Keybind, ActionName> = || {

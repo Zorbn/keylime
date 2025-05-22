@@ -165,7 +165,7 @@ impl Doc {
         display_name: Option<Pooled<String>>,
         flags: DocFlags,
     ) -> Self {
-        assert!(path.as_ref().is_none_or(|path| path.is_normal()));
+        assert!(path.as_ref().is_none_or(Normalizable::is_normal));
 
         let lines = vec![STRING_POOL.new_item()];
 

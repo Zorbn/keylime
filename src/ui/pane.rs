@@ -52,9 +52,7 @@ impl<T> Pane<T> {
     }
 
     pub fn is_animating(&self) -> bool {
-        self.tabs
-            .get_focused()
-            .is_some_and(|tab| tab.is_animating())
+        self.tabs.get_focused().is_some_and(Tab::is_animating)
     }
 
     pub fn layout(&mut self, bounds: Rect, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
@@ -78,7 +76,10 @@ impl<T> Pane<T> {
                 + gfx.measure_text(doc.file_name()) as f32 * gfx.glyph_width();
 
             let tab_bounds = Rect::new(tab_x, bounds.y, tab_width, tab_height);
-            let doc_bounds = bounds.shrink_top_by(tab_bounds);
+
+            let doc_bounds = bounds
+                .shrink_left_by(bounds.left_border(gfx.border_width()))
+                .shrink_top_by(tab_bounds);
 
             tab_x += tab_width - gfx.border_width();
 

@@ -18,7 +18,7 @@ impl FileWatcher {
     pub fn changed_files(&mut self) -> &[Pooled<PathBuf>] {
         let changed_files = self.inner.changed_files();
 
-        assert!(changed_files.iter().all(|path| path.is_normal()));
+        assert!(changed_files.iter().all(Normalizable::is_normal));
 
         changed_files
     }

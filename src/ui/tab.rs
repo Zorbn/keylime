@@ -18,6 +18,7 @@ use crate::{
         cursor_index::CursorIndex,
         doc::{Doc, DocFlag},
         grapheme_category::GraphemeCategory,
+        syntax_highlighter::HighlightedLine,
     },
 };
 
@@ -489,7 +490,7 @@ impl Tab {
 
             let Some(highlights) = highlighted_lines
                 .get(y)
-                .map(|highlighted_line| highlighted_line.highlights())
+                .map(HighlightedLine::highlights)
                 .filter(|highlights| !highlights.is_empty())
             else {
                 gfx.add_text(line, visual_x, foreground_visual_y, theme.normal);

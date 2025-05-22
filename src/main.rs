@@ -1,4 +1,5 @@
 #![cfg_attr(test, allow(dead_code))]
+#![warn(clippy::redundant_closure_for_method_calls)]
 #![warn(clippy::use_self)]
 
 mod app;
@@ -22,7 +23,6 @@ use platform::app_runner::run_app;
 /*
  * TODO:
  * If the language server returns no completions for a request use simple completions instead.
- * Support multiple terminal panes.
  */
 
 fn main() {

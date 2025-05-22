@@ -160,7 +160,7 @@ impl App {
         let status_bar_bounds = ctx.ui.widget(self.status_bar.widget_id()).bounds;
         bounds = bounds.shrink_bottom_by(status_bar_bounds);
 
-        self.terminal.layout(bounds, &self.config, ctx);
+        self.terminal.layout(bounds, ctx);
         let terminal_bounds = ctx.ui.widget(self.terminal.widget_id()).bounds;
         bounds = bounds.shrink_bottom_by(terminal_bounds);
 
