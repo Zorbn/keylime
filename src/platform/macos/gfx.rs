@@ -369,6 +369,7 @@ impl Gfx {
         encoder.endEncoding();
 
         command_buffer.commit();
+        command_buffer.waitUntilScheduled();
         drawable.present();
 
         self.encoder = None;
