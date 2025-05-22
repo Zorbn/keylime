@@ -111,7 +111,7 @@ impl DocPath {
     }
 
     pub fn some_path(&self) -> Option<&Path> {
-        self.some().map(|path| path.as_path())
+        self.some().map(AsRef::as_ref)
     }
 
     pub fn is_none(&self) -> bool {

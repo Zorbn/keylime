@@ -442,7 +442,7 @@ impl CommandPaletteMode for FileExplorerMode {
             ..
         } = result
         {
-            if path.as_path() == self.clipboard_path {
+            if path.as_ref() == self.clipboard_path {
                 return (&result.text, theme.subtle);
             }
         }
@@ -471,7 +471,7 @@ fn input_dir<'a>(input: &str, path: &'a mut PathBuf) -> &'a Path {
     let can_path_be_dir = ends_with_dir || input.is_empty() || ends_with_path_separator(input);
 
     if can_path_be_dir && path.is_dir() {
-        path.as_path()
+        path
     } else {
         path.parent().unwrap_or(Path::new("."))
     }
