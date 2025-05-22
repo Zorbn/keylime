@@ -38,7 +38,7 @@ macro_rules! format_pooled {
 
 pub(crate) use format_pooled;
 
-pub trait Poolable {
+pub trait Poolable: Default + 'static {
     fn clear(&mut self);
     fn push(&mut self, other: &Self);
 }
@@ -73,12 +73,12 @@ impl Poolable for Vec<u16> {
     }
 }
 
-pub struct Pooled<T: Default + Poolable + 'static> {
+pub struct Pooled<T: Poolable> {
     pool: &'static Pool<T>,
     item: Option<T>,
 }
 
-impl<T: Default + Poolable + 'static> Pooled<T> {
+impl<T: Poolable> Pooled<T> {
     pub fn new(item: T, pool: &'static Pool<T>) -> Self {
         Self {
             pool,
@@ -87,7 +87,7 @@ impl<T: Default + Poolable + 'static> Pooled<T> {
     }
 }
 
-impl<T: Default + Poolable + 'static> Drop for Pooled<T> {
+impl<T: Poolable> Drop for Pooled<T> {
     fn drop(&mut self) {
         let item = self.item.take().unwrap();
 
@@ -98,7 +98,7 @@ impl<T: Default + Poolable + 'static> Drop for Pooled<T> {
     }
 }
 
-impl<T: Default + Poolable + 'static> Clone for Pooled<T> {
+impl<T: Poolable> Clone for Pooled<T> {
     fn clone(&self) -> Self {
         let mut clone = Self::new(Default::default(), self.pool);
         clone.push(self);
@@ -107,7 +107,7 @@ impl<T: Default + Poolable + 'static> Clone for Pooled<T> {
     }
 }
 
-impl<T: Default + Poolable + 'static> Deref for Pooled<T> {
+impl<T: Poolable> Deref for Pooled<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -115,39 +115,39 @@ impl<T: Default + Poolable + 'static> Deref for Pooled<T> {
     }
 }
 
-impl<T: Default + Poolable + 'static> DerefMut for Pooled<T> {
+impl<T: Poolable> DerefMut for Pooled<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.item.as_mut().unwrap()
     }
 }
 
-impl<T: Debug + Default + Poolable + 'static> Debug for Pooled<T> {
+impl<T: Debug + Poolable> Debug for Pooled<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.deref().fmt(f)
     }
 }
 
-impl<T: Display + Default + Poolable + 'static> Display for Pooled<T> {
+impl<T: Display + Poolable> Display for Pooled<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.deref().fmt(f)
     }
 }
 
-impl<T: Hash + Default + Poolable + 'static> Hash for Pooled<T> {
+impl<T: Hash + Poolable> Hash for Pooled<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.deref().hash(state);
     }
 }
 
-impl<T: PartialEq + Default + Poolable + 'static> PartialEq for Pooled<T> {
+impl<T: PartialEq + Poolable> PartialEq for Pooled<T> {
     fn eq(&self, other: &Self) -> bool {
         self.deref().eq(other.deref())
     }
 }
 
-impl<T: Eq + Default + Poolable + 'static> Eq for Pooled<T> {}
+impl<T: Eq + Poolable> Eq for Pooled<T> {}
 
-impl<T: Serialize + Debug + Default + Poolable + 'static> Serialize for Pooled<T> {
+impl<T: Serialize + Poolable> Serialize for Pooled<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -198,11 +198,11 @@ impl From<&str> for Pooled<String> {
     }
 }
 
-pub struct Pool<T: Default + Poolable + 'static> {
+pub struct Pool<T: Poolable> {
     items: &'static LocalKey<RefCell<Vec<T>>>,
 }
 
-impl<T: Default + Poolable + 'static> Pool<T> {
+impl<T: Poolable> Pool<T> {
     pub const fn new(items: &'static LocalKey<RefCell<Vec<T>>>) -> Self {
         Self { items }
     }

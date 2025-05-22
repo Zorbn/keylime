@@ -1,4 +1,7 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
 
 use crate::{
     ctx::Ctx,
@@ -13,16 +16,23 @@ use super::{
     color::Color, core::WidgetId, pane::Pane, slot_list::SlotList, widget_list::WidgetList,
 };
 
-pub struct PaneList<TPane: Deref<Target = Pane<TData>> + DerefMut<Target = Pane<TData>>, TData> {
-    panes: WidgetList<TPane>,
+pub trait PaneWrapper<T>: Deref<Target = Pane<T>> + DerefMut<Target = Pane<T>> {}
+
+impl<TPane: Deref<Target = Pane<TData>> + DerefMut<Target = Pane<TData>>, TData> PaneWrapper<TData>
+    for TPane
+{
 }
 
-impl<TPane: Deref<Target = Pane<TData>> + DerefMut<Target = Pane<TData>>, TData>
-    PaneList<TPane, TData>
-{
+pub struct PaneList<TPane: PaneWrapper<TData>, TData> {
+    panes: WidgetList<TPane>,
+    _phantom: PhantomData<TData>,
+}
+
+impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
     pub fn new() -> Self {
         Self {
             panes: WidgetList::new(|pane| pane.widget_id()),
+            _phantom: PhantomData,
         }
     }
 
@@ -103,9 +113,7 @@ impl<TPane: Deref<Target = Pane<TData>> + DerefMut<Target = Pane<TData>>, TData>
     }
 }
 
-impl<TPane: Deref<Target = Pane<TData>> + DerefMut<Target = Pane<TData>>, TData> Deref
-    for PaneList<TPane, TData>
-{
+impl<TPane: PaneWrapper<TData>, TData> Deref for PaneList<TPane, TData> {
     type Target = WidgetList<TPane>;
 
     fn deref(&self) -> &Self::Target {
@@ -113,9 +121,7 @@ impl<TPane: Deref<Target = Pane<TData>> + DerefMut<Target = Pane<TData>>, TData>
     }
 }
 
-impl<TPane: Deref<Target = Pane<TData>> + DerefMut<Target = Pane<TData>>, TData> DerefMut
-    for PaneList<TPane, TData>
-{
+impl<TPane: PaneWrapper<TData>, TData> DerefMut for PaneList<TPane, TData> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.panes
     }
