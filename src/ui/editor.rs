@@ -16,7 +16,6 @@ use crate::{
     input::{
         action::{action_keybind, action_name},
         mods::Mods,
-        mousebind::MousebindKind,
     },
     lsp::{
         types::{DecodedEditList, DecodedHover},
@@ -239,9 +238,7 @@ impl Editor {
         let mut global_mousebind_handler = ctx.window.mousebind_handler();
 
         while let Some(mousebind) = global_mousebind_handler.next(ctx.window) {
-            if mousebind.kind == MousebindKind::Move {
-                self.hover_timer = HOVER_TIME;
-            }
+            self.hover_timer = HOVER_TIME;
 
             global_mousebind_handler.unprocessed(ctx.window, mousebind);
         }
