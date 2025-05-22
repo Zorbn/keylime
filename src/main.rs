@@ -20,11 +20,6 @@ mod tests;
 
 use platform::app_runner::run_app;
 
-/*
- * TODO:
- * If the language server returns no completions for a request use simple completions instead.
- */
-
 fn main() {
     println!("Hello, world!");
 

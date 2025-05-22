@@ -308,18 +308,24 @@ impl CompletionList {
         &mut self,
         mut items: Vec<DecodedCompletionItem>,
         needs_resolve: bool,
+        doc: &Doc,
         ctx: &mut Ctx,
     ) {
         self.clear(ctx);
-
-        items.retain(|item| item.filter_text().starts_with(&self.prefix));
-        items.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
 
         let resolve_state = if needs_resolve {
             CompletionResolveState::NeedsRequest
         } else {
             CompletionResolveState::Resolved
         };
+
+        if items.is_empty() {
+            self.add_token_results(doc);
+            return;
+        }
+
+        items.retain(|item| item.filter_text().starts_with(&self.prefix));
+        items.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
 
         for item in items {
             self.result_list.push(CompletionResult::Completion {
@@ -390,16 +396,21 @@ impl CompletionList {
         }
 
         self.clear(ctx);
-
-        if !self.prefix.is_empty() {
-            doc.tokens().traverse(&self.prefix, |result| {
-                self.result_list
-                    .results
-                    .push(CompletionResult::SimpleCompletion(result));
-            });
-        }
+        self.add_token_results(doc);
 
         Some(())
+    }
+
+    fn add_token_results(&mut self, doc: &Doc) {
+        if self.prefix.is_empty() {
+            return;
+        }
+
+        doc.tokens().traverse(&self.prefix, |result| {
+            self.result_list
+                .results
+                .push(CompletionResult::SimpleCompletion(result));
+        });
     }
 
     pub fn clear(&mut self, ctx: &mut Ctx) {

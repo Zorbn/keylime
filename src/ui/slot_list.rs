@@ -101,4 +101,12 @@ impl<T> SlotList<T> {
                 .map(|item| (SlotId::new(index, slot.generation), item))
         })
     }
+
+    pub fn enumerate_mut(&mut self) -> impl Iterator<Item = (SlotId, &mut T)> {
+        self.slots.iter_mut().enumerate().flat_map(|(index, slot)| {
+            slot.item
+                .as_mut()
+                .map(|item| (SlotId::new(index, slot.generation), item))
+        })
+    }
 }

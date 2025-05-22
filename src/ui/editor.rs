@@ -18,7 +18,7 @@ use crate::{
         mods::Mods,
     },
     lsp::{
-        types::{DecodedEditList, DecodedHover},
+        types::{DecodedCompletionItem, DecodedEditList, DecodedHover},
         uri::uri_to_path,
     },
     platform::{
@@ -342,13 +342,28 @@ impl Editor {
         Some(())
     }
 
+    pub fn lsp_update_completion_results(
+        &mut self,
+        items: Vec<DecodedCompletionItem>,
+        needs_resolve: bool,
+        doc_id: SlotId,
+        ctx: &mut Ctx,
+    ) -> Option<()> {
+        let doc = self.doc_list.get(doc_id)?;
+
+        self.completion_list
+            .lsp_update_completion_results(items, needs_resolve, doc, ctx);
+
+        Some(())
+    }
+
     pub fn lsp_set_hover(
         &mut self,
         hover: Option<DecodedHover>,
-        path: &Pooled<PathBuf>,
+        doc_id: SlotId,
         ctx: &mut Ctx,
     ) -> Option<()> {
-        let doc = Self::find_doc(&self.doc_list, path)?;
+        let doc = self.doc_list.get(doc_id)?;
 
         self.examine_popup.lsp_set_hover(hover, doc, ctx);
 
@@ -384,16 +399,16 @@ impl Editor {
         }
     }
 
-    fn find_doc<'a>(doc_list: &'a SlotList<Doc>, path: &Path) -> Option<&'a Doc> {
-        doc_list
-            .iter()
-            .find(|doc| doc.path().some_path() == Some(path))
-    }
-
     pub fn find_doc_mut(&mut self, path: &Path) -> Option<&mut Doc> {
         self.doc_list
             .iter_mut()
             .find(|doc| doc.path().some_path() == Some(path))
+    }
+
+    pub fn find_doc_with_id_mut(&mut self, path: &Path) -> Option<(SlotId, &mut Doc)> {
+        self.doc_list
+            .enumerate_mut()
+            .find(|(_, doc)| doc.path().some_path() == Some(path))
     }
 
     // Necessary when syntax highlighting rules change.

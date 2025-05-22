@@ -81,7 +81,10 @@ impl Lsp {
         let (path, method) = server.get_message_path_and_method(&message);
         let method = method.unwrap_or_default();
 
-        let mut doc = path.as_ref().and_then(|path| editor.find_doc_mut(path));
+        let (doc_id, mut doc) = path
+            .as_ref()
+            .and_then(|path| editor.find_doc_with_id_mut(path))
+            .unzip();
 
         if let Some(ref mut doc) = doc {
             if !doc.lsp_is_response_expected(method, message.id, ctx) {
@@ -103,9 +106,10 @@ impl Lsp {
                     .map(|item| item.decode(encoding, doc))
                     .collect();
 
-                editor.completion_list.lsp_update_completion_results(
+                editor.lsp_update_completion_results(
                     items,
                     server.needs_completion_resolve(),
+                    doc_id?,
                     ctx,
                 );
             }
@@ -209,7 +213,7 @@ impl Lsp {
                 let doc = doc?;
                 let hover = hover.map(|hover| hover.decode(encoding, doc));
 
-                editor.lsp_set_hover(hover, path.as_ref()?, ctx);
+                editor.lsp_set_hover(hover, doc_id?, ctx);
             }
             MessageResult::Formatting(edits) => {
                 let doc = doc?;
