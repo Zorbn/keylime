@@ -19,14 +19,12 @@ macro_rules! define_handler {
             }
 
             pub fn next(&mut self, window: &mut Window) -> Option<$t> {
-                if self.i < self.len {
-                    let result = Some(window.$buffer().remove(self.i as usize));
+                (self.i < self.len).then(|| {
+                    let result = window.$buffer().remove(self.i as usize);
                     self.len -= 1;
 
                     result
-                } else {
-                    None
-                }
+                })
             }
 
             pub fn unprocessed(&mut self, window: &mut Window, t: $t) {

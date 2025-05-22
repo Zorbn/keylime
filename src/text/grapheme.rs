@@ -79,11 +79,9 @@ pub fn at(index: usize, text: &str) -> &str {
 pub fn get(index: usize, text: &str) -> Option<&str> {
     let mut grapheme_cursor = GraphemeCursor::new(index, text.len());
 
-    if let Some(end) = grapheme_cursor.next_boundary(text) {
-        Some(&text[index..end])
-    } else {
-        None
-    }
+    grapheme_cursor
+        .next_boundary(text)
+        .map(|end| &text[index..end])
 }
 
 pub fn is_whitespace(grapheme: &str) -> bool {

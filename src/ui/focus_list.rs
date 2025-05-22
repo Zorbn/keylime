@@ -59,11 +59,8 @@ impl<T> FocusList<T> {
     }
 
     pub fn remove(&mut self) -> Option<T> {
-        let item = if self.focused_index >= self.items.len() {
-            None
-        } else {
-            Some(self.items.remove(self.focused_index))
-        };
+        let item =
+            (self.focused_index < self.items.len()).then(|| self.items.remove(self.focused_index));
 
         self.clamp_focused();
 

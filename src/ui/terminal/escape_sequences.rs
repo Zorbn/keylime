@@ -587,12 +587,8 @@ impl TerminalEmulator {
             Some(&b' ') => {
                 output = &output[1..];
 
-                if output.first() == Some(&b'q') {
-                    // Set cursor shape, ignored.
-                    Some(&output[1..])
-                } else {
-                    None
-                }
+                // Set cursor shape, ignored.
+                (output.first() == Some(&b'q')).then_some(&output[1..])
             }
             Some(&b't') => {
                 // Xterm window controls, ignored.
@@ -611,8 +607,7 @@ impl TerminalEmulator {
             Some(&b'n') => {
                 // Device status report.
 
-                if parameters.first() == Some(&6) {
-                    // Report cursor position (1-based).
+                (parameters.first() == Some(&6)).then(|| {
                     let char_x = self.grid_position_byte_to_char(self.grid_cursor, doc);
 
                     let response =
@@ -620,10 +615,8 @@ impl TerminalEmulator {
 
                     input.extend(response.bytes());
 
-                    Some(&output[1..])
-                } else {
-                    None
-                }
+                    &output[1..]
+                })
             }
             _ => None,
         }

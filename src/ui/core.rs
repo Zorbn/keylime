@@ -211,11 +211,7 @@ impl Ui {
             }
         }
 
-        if widget.bounds.contains_position(position) {
-            Some(widget_id)
-        } else {
-            None
-        }
+        (widget.bounds.contains_position(position)).then_some(widget_id)
     }
 
     fn focused_widget_id(&self) -> WidgetId {

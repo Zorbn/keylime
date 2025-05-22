@@ -29,28 +29,24 @@ impl Iterator for CursorIndices {
     type Item = CursorIndex;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.i < self.len {
+        (self.i < self.len).then(|| {
             let index = CursorIndex::Some(self.i);
 
             self.i += 1;
 
-            Some(index)
-        } else {
-            None
-        }
+            index
+        })
     }
 }
 
 impl DoubleEndedIterator for CursorIndices {
     fn next_back(&mut self) -> Option<Self::Item> {
-        if self.len > self.i {
+        (self.len > self.i).then(|| {
             let index = CursorIndex::Some(self.len - 1);
 
             self.len -= 1;
 
-            Some(index)
-        } else {
-            None
-        }
+            index
+        })
     }
 }

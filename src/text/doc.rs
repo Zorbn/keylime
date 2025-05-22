@@ -432,11 +432,7 @@ impl Doc {
     }
 
     pub fn get_line(&self, y: usize) -> Option<&str> {
-        if y >= self.lines.len() {
-            None
-        } else {
-            Some(&self.lines[y])
-        }
+        self.lines.get(y).map(|line| line.as_str())
     }
 
     pub fn line_len(&self, y: usize) -> usize {

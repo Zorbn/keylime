@@ -80,11 +80,7 @@ impl Gfx {
             x += grapheme.len();
         }
 
-        if do_clamp || current_visual_x + self.measure_text("\n") > visual_x {
-            Some(x)
-        } else {
-            None
-        }
+        (do_clamp || current_visual_x + self.measure_text("\n") > visual_x).then_some(x)
     }
 
     fn glyph_spans(&mut self, text: &str) -> GlyphSpans {
