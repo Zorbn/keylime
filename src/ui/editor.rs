@@ -210,10 +210,18 @@ impl Editor {
     fn handle_mousebinds(&mut self, ctx: &mut Ctx) -> Option<()> {
         let mut global_mousebind_handler = ctx.window.mousebind_handler();
 
-        while let Some(mousebind) = global_mousebind_handler.next(ctx.window) {
+        if let Some(mousebind) = global_mousebind_handler.next(ctx.window) {
             self.hover_timer = HOVER_TIME;
 
             global_mousebind_handler.unprocessed(ctx.window, mousebind);
+        }
+
+        let mut global_mouse_scroll_handler = ctx.window.mouse_scroll_handler();
+
+        if let Some(mouse_scroll) = global_mouse_scroll_handler.next(ctx.window) {
+            self.hover_timer = HOVER_TIME;
+
+            global_mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
         }
 
         Some(())
