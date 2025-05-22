@@ -311,7 +311,7 @@ impl CompletionList {
         doc: &Doc,
         ctx: &mut Ctx,
     ) {
-        self.clear(ctx);
+        self.clear_results();
 
         let resolve_state = if needs_resolve {
             CompletionResolveState::NeedsRequest
@@ -321,7 +321,6 @@ impl CompletionList {
 
         if items.is_empty() {
             self.add_token_results(doc);
-            return;
         }
 
         items.retain(|item| item.filter_text().starts_with(&self.prefix));
@@ -333,6 +332,8 @@ impl CompletionList {
                 resolve_state,
             });
         }
+
+        self.set_popups_shown(ctx);
     }
 
     pub fn lsp_update_code_action_results(
@@ -414,11 +415,13 @@ impl CompletionList {
     }
 
     pub fn clear(&mut self, ctx: &mut Ctx) {
+        self.clear_results();
+        self.set_popups_shown(ctx);
+    }
+
+    fn clear_results(&mut self) {
         self.result_list.drain();
         self.lsp_expected_responses.clear();
-
-        self.set_popups_shown(ctx);
-
         self.min_width = 0.0;
     }
 
