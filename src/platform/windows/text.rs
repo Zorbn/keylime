@@ -26,7 +26,7 @@ use Common::{D2D1_ALPHA_MODE_IGNORE, D2D1_ALPHA_MODE_PREMULTIPLIED};
 
 use crate::{
     platform::{
-        text::GlyphFn,
+        text::OnGlyph,
         text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
     },
     pool::UTF16_POOL,
@@ -47,7 +47,7 @@ struct DrawingContext<'a> {
     text: &'a mut Text,
     text_cache: &'a mut TextCache,
     glyph_cache_result: GlyphCacheResult,
-    glyph_fn: GlyphFn,
+    on_glyph: OnGlyph,
 }
 
 pub struct Text {
@@ -380,7 +380,7 @@ impl Text {
         text_cache: &mut TextCache,
         glyph_cache_result: GlyphCacheResult,
         text: &str,
-        glyph_fn: GlyphFn,
+        on_glyph: OnGlyph,
     ) -> GlyphCacheResult {
         let mut wide_text = UTF16_POOL.new_item();
 
@@ -403,7 +403,7 @@ impl Text {
             text: self,
             text_cache,
             glyph_cache_result,
-            glyph_fn,
+            on_glyph,
         };
 
         text_layout
@@ -468,7 +468,7 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
                 measuring_mode,
             };
 
-            context.glyph_cache_result = (context.glyph_fn)(
+            context.glyph_cache_result = (context.on_glyph)(
                 context.text,
                 context.text_cache,
                 glyph,

@@ -26,8 +26,8 @@ impl Trie {
         self.insert_at_node(0, text);
     }
 
-    pub fn traverse(&self, prefix: &str, mut result_fn: impl FnMut(Pooled<String>)) {
-        self.traverse_with_prefix_at_node(0, prefix, prefix, &mut result_fn);
+    pub fn traverse(&self, prefix: &str, mut on_result: impl FnMut(Pooled<String>)) {
+        self.traverse_with_prefix_at_node(0, prefix, prefix, &mut on_result);
     }
 
     pub fn clear(&mut self) {
@@ -55,7 +55,7 @@ impl Trie {
         index: usize,
         prefix: &str,
         remaining: &str,
-        result_fn: &mut impl FnMut(Pooled<String>),
+        on_result: &mut impl FnMut(Pooled<String>),
     ) {
         let node = &self.nodes[index];
 
@@ -67,7 +67,7 @@ impl Trie {
                 new_prefix.push_str(prefix);
                 new_prefix.push(child.0);
 
-                self.traverse_at_node(child.1, new_prefix, result_fn);
+                self.traverse_at_node(child.1, new_prefix, on_result);
             }
 
             return;
@@ -83,7 +83,7 @@ impl Trie {
             let child = &self.data[node.start + i];
 
             if child.0 == c {
-                self.traverse_with_prefix_at_node(child.1, prefix, remaining, result_fn);
+                self.traverse_with_prefix_at_node(child.1, prefix, remaining, on_result);
             }
         }
     }
@@ -93,7 +93,7 @@ impl Trie {
         &self,
         index: usize,
         prefix: Pooled<String>,
-        result_fn: &mut impl FnMut(Pooled<String>),
+        on_result: &mut impl FnMut(Pooled<String>),
     ) {
         let node = &self.nodes[index];
 
@@ -101,7 +101,7 @@ impl Trie {
             let mut new_prefix = STRING_POOL.new_item();
             new_prefix.push_str(&prefix);
 
-            result_fn(prefix);
+            on_result(prefix);
 
             new_prefix
         } else {
@@ -113,7 +113,7 @@ impl Trie {
             new_prefix.push_str(&prefix);
             new_prefix.push(child.0);
 
-            self.traverse_at_node(child.1, new_prefix, result_fn);
+            self.traverse_at_node(child.1, new_prefix, on_result);
         }
     }
 

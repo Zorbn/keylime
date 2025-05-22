@@ -1133,16 +1133,16 @@ impl Doc {
         &mut self,
         start: Position,
         end: Position,
-        shift_fn: fn(&Self, Position, Position, Position) -> Position,
+        shift: fn(&Self, Position, Position, Position) -> Position,
         ctx: &mut Ctx,
     ) {
         for index in self.cursor_indices() {
             let cursor = self.cursor(index);
 
-            let position = shift_fn(self, start, end, cursor.position);
+            let position = shift(self, start, end, cursor.position);
             let selection_anchor = cursor
                 .selection_anchor
-                .map(|selection_anchor| shift_fn(self, start, end, selection_anchor));
+                .map(|selection_anchor| shift(self, start, end, selection_anchor));
 
             let cursor = self.cursor_mut(index);
 
@@ -1154,8 +1154,8 @@ impl Doc {
 
         for language_server in ctx.lsp.iter_servers_mut() {
             for DecodedDiagnostic { range, .. } in language_server.diagnostics_mut(self) {
-                range.start = shift_fn(self, start, end, range.start);
-                range.end = shift_fn(self, start, end, range.end);
+                range.start = shift(self, start, end, range.start);
+                range.end = shift(self, start, end, range.end);
             }
         }
     }

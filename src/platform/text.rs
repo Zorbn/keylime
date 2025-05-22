@@ -7,7 +7,7 @@ use super::{
     text_cache::{CachedLayout, GlyphCacheResult, GlyphSpan, GlyphSpans, TextCache},
 };
 
-pub type GlyphFn =
+pub type OnGlyph =
     fn(&mut PlatformText, &mut TextCache, Glyph, GlyphCacheResult) -> GlyphCacheResult;
 
 pub struct Text {
@@ -22,11 +22,8 @@ const BACKUP_FONT_NAME: &str = "Consolas";
 const BACKUP_FONT_NAME: &str = "Menlo";
 
 impl Text {
-    pub fn new(
-        font_name: &str,
-        new_inner_fn: impl Fn(&str) -> Result<PlatformText>,
-    ) -> Result<Self> {
-        let inner = new_inner_fn(font_name).or(new_inner_fn(BACKUP_FONT_NAME))?;
+    pub fn new(font_name: &str, new_inner: impl Fn(&str) -> Result<PlatformText>) -> Result<Self> {
+        let inner = new_inner(font_name).or(new_inner(BACKUP_FONT_NAME))?;
 
         let mut text = Self {
             inner,

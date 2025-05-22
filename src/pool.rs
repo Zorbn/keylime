@@ -221,9 +221,9 @@ impl<T: Poolable> Pool<T> {
         Pooled::<T>::new(item, self)
     }
 
-    pub fn init_item(&'static self, mut init_fn: impl FnMut(&mut Pooled<T>)) -> Pooled<T> {
+    pub fn init_item(&'static self, mut init: impl FnMut(&mut Pooled<T>)) -> Pooled<T> {
         let mut item = self.new_item();
-        init_fn(&mut item);
+        init(&mut item);
 
         item
     }

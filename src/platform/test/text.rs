@@ -1,5 +1,5 @@
 use crate::platform::{
-    text::GlyphFn,
+    text::OnGlyph,
     text_cache::{Atlas, GlyphCacheResult, TextCache},
 };
 
@@ -23,7 +23,7 @@ impl Text {
         _text_cache: &mut TextCache,
         _glyph_cache_result: GlyphCacheResult,
         _text: &str,
-        _glyph_fn: GlyphFn,
+        _on_glyph: OnGlyph,
     ) -> GlyphCacheResult {
         GlyphCacheResult::Hit
     }

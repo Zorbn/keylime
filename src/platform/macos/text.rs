@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::platform::{
-    text::GlyphFn,
+    text::OnGlyph,
     text_cache::{Atlas, AtlasDimensions, GlyphCacheResult, TextCache},
 };
 
@@ -171,7 +171,7 @@ impl Text {
         text_cache: &mut TextCache,
         mut glyph_cache_result: GlyphCacheResult,
         text: &str,
-        glyph_fn: GlyphFn,
+        on_glyph: OnGlyph,
     ) -> GlyphCacheResult {
         let attributed_string = NSMutableAttributedString::from_nsstring(&NSString::from_str(text));
 
@@ -241,7 +241,7 @@ impl Text {
                 let index = self.glyph_indices[i];
                 let advance = self.glyph_advances[i].width as usize;
 
-                glyph_cache_result = glyph_fn(
+                glyph_cache_result = on_glyph(
                     self,
                     text_cache,
                     Glyph {

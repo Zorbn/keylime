@@ -359,7 +359,7 @@ impl Editor {
         &mut self,
         path: Pooled<PathBuf>,
         ctx: &mut Ctx,
-        mut doc_fn: impl FnMut(&mut Doc, &mut Ctx),
+        mut on_doc: impl FnMut(&mut Doc, &mut Ctx),
     ) {
         let doc = self.find_doc_mut(&path);
 
@@ -375,7 +375,7 @@ impl Editor {
         });
 
         if let Some(doc) = doc {
-            doc_fn(doc, ctx);
+            on_doc(doc, ctx);
         };
 
         if let Some(mut doc) = loaded_doc {
