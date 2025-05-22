@@ -28,9 +28,9 @@ impl TerminalPane {
     }
 
     pub fn update(&mut self, term_list: &mut SlotList<Term>, ctx: &mut Ctx) {
-        let mut keybind_handler = ctx.ui.keybind_handler(self.widget_id(), ctx.window);
+        let mut action_handler = ctx.ui.action_handler(self.widget_id(), ctx.window);
 
-        while let Some(action) = keybind_handler.next_action(ctx) {
+        while let Some(action) = action_handler.next(ctx) {
             match action {
                 action_name!(NewTab) => {
                     let term = Self::new_term();
@@ -49,7 +49,7 @@ impl TerminalPane {
                         }
                     }
                 }
-                _ => keybind_handler.unprocessed(ctx.window, action.keybind),
+                _ => action_handler.unprocessed(ctx.window, action),
             }
         }
 

@@ -1,7 +1,7 @@
 use crate::{
     geometry::{rect::Rect, visual_position::VisualPosition},
     input::{
-        input_handlers::{GraphemeHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
+        input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
         mouse_button::MouseButton,
         mousebind::{Mousebind, MousebindKind},
     },
@@ -332,11 +332,11 @@ impl Ui {
         }
     }
 
-    pub fn keybind_handler(&self, widget_id: WidgetId, window: &Window) -> KeybindHandler {
+    pub fn action_handler(&self, widget_id: WidgetId, window: &Window) -> ActionHandler {
         if self.is_in_focused_hierarchy(widget_id) {
-            window.keybind_handler()
+            window.action_handler()
         } else {
-            KeybindHandler::new(0)
+            ActionHandler::new(0)
         }
     }
 

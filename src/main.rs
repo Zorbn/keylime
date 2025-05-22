@@ -22,7 +22,6 @@ use platform::app_runner::run_app;
 
 /*
  * TODO:
- * Add action list command palette mode.
  * If the language server returns no completions for a request use simple completions instead.
  */
 

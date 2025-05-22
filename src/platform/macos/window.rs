@@ -11,7 +11,8 @@ use crate::{
     config::theme::Theme,
     geometry::visual_position::VisualPosition,
     input::{
-        input_handlers::{GraphemeHandler, KeybindHandler, MouseScrollHandler, MousebindHandler},
+        action::Action,
+        input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
         key::Key,
         keybind::Keybind,
         mods::{Mod, Mods},
@@ -49,7 +50,7 @@ pub struct Window {
 
     pub graphemes_typed: String,
     pub grapheme_cursor: GraphemeCursor,
-    pub keybinds_typed: Vec<Keybind>,
+    pub actions_typed: Vec<Action>,
     pub mousebinds_pressed: Vec<Mousebind>,
     pub mouse_scrolls: Vec<MouseScroll>,
     mods: Mods,
@@ -103,7 +104,7 @@ impl Window {
 
             graphemes_typed: String::new(),
             grapheme_cursor: GraphemeCursor::new(0, 0),
-            keybinds_typed: Vec::new(),
+            actions_typed: Vec::new(),
             mousebinds_pressed: Vec::new(),
             mouse_scrolls: Vec::new(),
             mods: Mods::NONE,
@@ -187,7 +188,7 @@ impl Window {
     fn clear_inputs(&mut self) {
         self.graphemes_typed.clear();
         self.grapheme_cursor = GraphemeCursor::new(0, 0);
-        self.keybinds_typed.clear();
+        self.actions_typed.clear();
         self.mousebinds_pressed.clear();
         self.mouse_scrolls.clear();
     }
@@ -213,7 +214,8 @@ impl Window {
 
         if let Some(key) = Self::key_from_keycode(key_code) {
             let mods = Self::modifier_flags_to_mods(modifier_flags);
-            self.keybinds_typed.push(Keybind::new(key, mods));
+            self.actions_typed
+                .push(Action::from_keybind(Keybind::new(key, mods)));
         }
     }
 
@@ -389,8 +391,8 @@ impl Window {
         GraphemeHandler::new(self.grapheme_cursor.clone())
     }
 
-    pub fn keybind_handler(&self) -> KeybindHandler {
-        KeybindHandler::new(self.keybinds_typed.len())
+    pub fn action_handler(&self) -> ActionHandler {
+        ActionHandler::new(self.actions_typed.len())
     }
 
     pub fn mousebind_handler(&self) -> MousebindHandler {

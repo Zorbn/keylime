@@ -1,3 +1,4 @@
+mod all_actions_mode;
 mod all_diagnostics_mode;
 mod all_files_mode;
 mod file_explorer_mode;
@@ -18,7 +19,7 @@ use crate::{
         rect::Rect,
         sides::{Side, Sides},
     },
-    input::action::action_name,
+    input::action::{action_name, ActionName},
     lsp::{position_encoding::PositionEncoding, types::EncodedPosition},
     pool::Pooled,
     text::doc::{Doc, DocFlags},
@@ -32,6 +33,7 @@ use super::{
     tab::Tab,
 };
 
+use all_actions_mode::AllActionsMode;
 use all_diagnostics_mode::AllDiagnosticsMode;
 use all_files_mode::AllFilesMode;
 use file_explorer_mode::FileExplorerMode;
@@ -46,6 +48,7 @@ pub struct CommandPaletteResult {
 }
 
 pub enum CommandPaletteMetaData {
+    ActionName(ActionName),
     Path(Pooled<PathBuf>),
     PathWithPosition {
         path: Pooled<PathBuf>,
@@ -169,10 +172,13 @@ impl CommandPalette {
             self.close(ctx.ui);
         }
 
-        let mut global_keybind_handler = ctx.window.keybind_handler();
+        let mut global_action_handler = ctx.window.action_handler();
 
-        while let Some(action) = global_keybind_handler.next_action(ctx) {
+        while let Some(action) = global_action_handler.next(ctx) {
             match action {
+                action_name!(OpenAllActions) => {
+                    self.open(Box::new(AllActionsMode), editor, ctx);
+                }
                 action_name!(OpenFileExplorer) => {
                     self.open(Box::new(FileExplorerMode::new()), editor, ctx);
                 }
@@ -194,16 +200,16 @@ impl CommandPalette {
                 action_name!(OpenGoToLine) => {
                     self.open(Box::new(GoToLineMode), editor, ctx);
                 }
-                _ => global_keybind_handler.unprocessed(ctx.window, action.keybind),
+                _ => global_action_handler.unprocessed(ctx.window, action),
             }
         }
 
         if let Some(mut mode) = self.mode.take() {
-            let mut keybind_handler = ctx.ui.keybind_handler(self.widget_id, ctx.window);
+            let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
 
-            while let Some(action) = keybind_handler.next_action(ctx) {
+            while let Some(action) = action_handler.next(ctx) {
                 if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
-                    keybind_handler.unprocessed(ctx.window, action.keybind);
+                    action_handler.unprocessed(ctx.window, action);
                 }
             }
 
@@ -343,7 +349,7 @@ impl CommandPalette {
         ctx: &mut Ctx,
     ) {
         self.doc.clear(ctx);
-        self.result_list.drain();
+        self.result_list.reset();
         self.last_updated_version = None;
         self.mode = None;
 

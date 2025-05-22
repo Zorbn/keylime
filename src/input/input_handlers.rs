@@ -1,6 +1,6 @@
 use crate::{ctx::Ctx, platform::window::Window, text::grapheme::GraphemeCursor};
 
-use super::{action::Action, keybind::Keybind, mouse_scroll::MouseScroll, mousebind::Mousebind};
+use super::{action::Action, mouse_scroll::MouseScroll, mousebind::Mousebind};
 
 macro_rules! define_handler {
     ($name:ident, $buffer:ident, $t:ident) => {
@@ -40,14 +40,33 @@ macro_rules! define_handler {
     };
 }
 
-define_handler!(KeybindHandler, keybinds_typed, Keybind);
+define_handler!(RawActionHandler, actions_typed, Action);
 define_handler!(MousebindHandler, mousebinds_pressed, Mousebind);
 define_handler!(MouseScrollHandler, mouse_scrolls, MouseScroll);
 
-impl KeybindHandler {
-    pub fn next_action(&mut self, ctx: &mut Ctx) -> Option<Action> {
-        self.next(ctx.window)
-            .map(|keybind| Action::from_keybind(keybind, &ctx.config.keymaps))
+pub struct ActionHandler {
+    raw: RawActionHandler,
+}
+
+impl ActionHandler {
+    pub fn new(len: usize) -> Self {
+        Self {
+            raw: RawActionHandler::new(len),
+        }
+    }
+
+    pub fn next(&mut self, ctx: &mut Ctx) -> Option<Action> {
+        self.raw
+            .next(ctx.window)
+            .map(|action| action.translate(&ctx.config.keymaps))
+    }
+
+    pub fn unprocessed(&mut self, window: &mut Window, action: Action) {
+        self.raw.unprocessed(window, action);
+    }
+
+    pub fn drain(&mut self, window: &mut Window) {
+        self.raw.drain(window);
     }
 }
 

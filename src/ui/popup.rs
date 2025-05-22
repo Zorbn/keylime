@@ -90,7 +90,7 @@ impl Popup {
 
     pub fn update(&mut self, ctx: &mut Ctx) {
         ctx.ui
-            .keybind_handler(self.widget_id, ctx.window)
+            .action_handler(self.widget_id, ctx.window)
             .drain(ctx.window);
 
         ctx.ui

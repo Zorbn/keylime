@@ -8,7 +8,7 @@ use crate::{
     geometry::rect::Rect,
     input::{
         action::{action_name, Action},
-        input_handlers::KeybindHandler,
+        input_handlers::ActionHandler,
     },
 };
 
@@ -53,15 +53,15 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
     pub fn update(&mut self, widget_id: WidgetId, ctx: &mut Ctx) {
         self.panes.update(ctx.ui);
 
-        let mut keybind_handler = ctx.ui.keybind_handler(widget_id, ctx.window);
+        let mut action_handler = ctx.ui.action_handler(widget_id, ctx.window);
 
-        while let Some(action) = keybind_handler.next_action(ctx) {
+        while let Some(action) = action_handler.next(ctx) {
             match action {
                 action_name!(PreviousPane) => self.panes.focus_previous(ctx.ui),
                 action_name!(NextPane) => self.panes.focus_next(ctx.ui),
-                action_name!(PreviousTab) => self.previous_tab(action, &mut keybind_handler, ctx),
-                action_name!(NextTab) => self.next_tab(action, &mut keybind_handler, ctx),
-                _ => keybind_handler.unprocessed(ctx.window, action.keybind),
+                action_name!(PreviousTab) => self.previous_tab(action, &mut action_handler, ctx),
+                action_name!(NextTab) => self.next_tab(action, &mut action_handler, ctx),
+                _ => action_handler.unprocessed(ctx.window, action),
             }
         }
     }
@@ -83,12 +83,7 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
         }
     }
 
-    fn previous_tab(
-        &mut self,
-        action: Action,
-        keybind_handler: &mut KeybindHandler,
-        ctx: &mut Ctx,
-    ) {
+    fn previous_tab(&mut self, action: Action, action_handler: &mut ActionHandler, ctx: &mut Ctx) {
         let Some(pane) = self.panes.get_last_focused(ctx.ui) else {
             return;
         };
@@ -96,11 +91,11 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
         if pane.focused_tab_index() == 0 {
             self.panes.focus_previous(ctx.ui);
         } else {
-            keybind_handler.unprocessed(ctx.window, action.keybind);
+            action_handler.unprocessed(ctx.window, action);
         }
     }
 
-    fn next_tab(&mut self, action: Action, keybind_handler: &mut KeybindHandler, ctx: &mut Ctx) {
+    fn next_tab(&mut self, action: Action, action_handler: &mut ActionHandler, ctx: &mut Ctx) {
         let Some(pane) = self.panes.get_last_focused(ctx.ui) else {
             return;
         };
@@ -108,7 +103,7 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
         if pane.focused_tab_index() == pane.tabs.len() - 1 {
             self.panes.focus_next(ctx.ui);
         } else {
-            keybind_handler.unprocessed(ctx.window, action.keybind);
+            action_handler.unprocessed(ctx.window, action);
         }
     }
 }

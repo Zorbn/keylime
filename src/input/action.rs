@@ -1,16 +1,36 @@
 use std::collections::HashMap;
 
-use super::{keybind::Keybind, mods::Mod};
+use super::{
+    key::Key,
+    keybind::Keybind,
+    mods::{Mod, Mods},
+};
 
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub enum ActionName {
+macro_rules! enum_variants {
+    ($name:ident, [$($derive:ident),+], $($variant:ident,)*) => {
+        #[derive($($derive),+)]
+        pub enum $name {
+            $($variant,)*
+        }
+
+        impl $name {
+            pub const VARIANTS: &[$name] = &[
+                $($name::$variant,)*
+            ];
+        }
+    };
+}
+
+enum_variants!(
+    ActionName,
+    [Debug, Deserialize, Clone, Copy, PartialEq, Eq],
     Home,
     End,
     GoToStart,
     GoToEnd,
     SelectAll,
     OpenFileExplorer,
+    OpenAllActions,
     OpenAllFiles,
     OpenAllDiagnostics,
     OpenSearch,
@@ -64,7 +84,7 @@ pub enum ActionName {
     Rename,
     FindReferences,
     Examine,
-}
+);
 
 macro_rules! action_name {
     ($name:ident) => {
@@ -143,29 +163,44 @@ pub struct Action {
 }
 
 impl Action {
-    pub fn from_keybind(keybind: Keybind, keymaps: &HashMap<Keybind, ActionName>) -> Self {
-        if let Some(action_name) = keymaps.get(&keybind) {
+    pub fn from_keybind(keybind: Keybind) -> Self {
+        Self {
+            keybind,
+            name: None,
+        }
+    }
+
+    pub fn from_name(name: ActionName) -> Self {
+        Self {
+            keybind: Keybind::new(Key::Null, Mods::NONE),
+            name: Some(name),
+        }
+    }
+
+    pub fn translate(&self, keymaps: &HashMap<Keybind, ActionName>) -> Self {
+        if self.name.is_some() {
+            return *self;
+        }
+
+        if let Some(action_name) = keymaps.get(&self.keybind) {
             return Self {
-                keybind,
+                keybind: self.keybind,
                 name: Some(*action_name),
             };
         }
 
-        if keybind.mods.contains(Mod::Shift) {
+        if self.keybind.mods.contains(Mod::Shift) {
             if let Some(action_name) = keymaps.get(&Keybind {
-                key: keybind.key,
-                mods: keybind.mods.without(Mod::Shift),
+                key: self.keybind.key,
+                mods: self.keybind.mods.without(Mod::Shift),
             }) {
                 return Self {
-                    keybind,
+                    keybind: self.keybind,
                     name: Some(*action_name),
                 };
             }
         }
 
-        Self {
-            keybind,
-            name: None,
-        }
+        *self
     }
 }

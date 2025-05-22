@@ -88,9 +88,9 @@ impl Terminal {
 
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
 
-        let mut global_keybind_handler = ctx.window.keybind_handler();
+        let mut global_action_handler = ctx.window.action_handler();
 
-        while let Some(action) = global_keybind_handler.next_action(ctx) {
+        while let Some(action) = global_action_handler.next(ctx) {
             match action {
                 action_name!(FocusTerminal) => {
                     let pane_widget_id = pane.widget_id();
@@ -101,7 +101,7 @@ impl Terminal {
                         ctx.ui.focus(pane_widget_id);
                     }
                 }
-                _ => global_keybind_handler.unprocessed(ctx.window, action.keybind),
+                _ => global_action_handler.unprocessed(ctx.window, action),
             }
         }
 
@@ -128,13 +128,13 @@ impl Terminal {
     }
 
     fn handle_actions(&mut self, ctx: &mut Ctx) {
-        let mut keybind_handler = ctx.ui.keybind_handler(self.widget_id, ctx.window);
+        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
 
-        while let Some(action) = keybind_handler.next_action(ctx) {
+        while let Some(action) = action_handler.next(ctx) {
             match action {
                 action_name!(NewPane) => self.add_pane(ctx),
                 action_name!(ClosePane) => self.close_pane(ctx),
-                _ => keybind_handler.unprocessed(ctx.window, action.keybind),
+                _ => action_handler.unprocessed(ctx.window, action),
             }
         }
     }

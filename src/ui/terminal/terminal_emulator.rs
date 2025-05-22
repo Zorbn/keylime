@@ -146,7 +146,7 @@ impl TerminalEmulator {
     ) {
         let Some(mut pty) = self.pty.take() else {
             ctx.ui
-                .keybind_handler(widget_id, ctx.window)
+                .action_handler(widget_id, ctx.window)
                 .drain(ctx.window);
 
             ctx.ui
@@ -158,9 +158,9 @@ impl TerminalEmulator {
 
         let doc = self.doc_mut(docs);
 
-        let mut keybind_handler = ctx.ui.keybind_handler(widget_id, ctx.window);
+        let mut action_handler = ctx.ui.action_handler(widget_id, ctx.window);
 
-        while let Some(action) = keybind_handler.next_action(ctx) {
+        while let Some(action) = action_handler.next(ctx) {
             match action {
                 action_keybind!(key: Enter) => {
                     pty.input().push(b'\r');
