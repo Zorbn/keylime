@@ -205,13 +205,10 @@ impl<T> Pane<T> {
 
         gfx.begin(Some(bounds));
 
-        gfx.add_rect(
-            bounds.left_border(gfx.border_width()).unoffset_by(bounds),
-            theme.border,
-        );
-
-        gfx.add_rect(
-            bounds.top_border(gfx.border_width()).unoffset_by(bounds),
+        gfx.add_bordered_rect(
+            bounds.unoffset_by(bounds),
+            [Side::Top, Side::Left].into(),
+            theme.background,
             theme.border,
         );
 

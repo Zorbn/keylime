@@ -155,6 +155,11 @@ impl Popup {
 
         let text = &text[char_cursor.index()..];
 
+        if text.is_empty() {
+            self.hide(ctx.ui);
+            return;
+        }
+
         if ctx.ui.is_visible(self.widget_id) {
             let mut current_text = STRING_POOL.new_item();
             self.doc
