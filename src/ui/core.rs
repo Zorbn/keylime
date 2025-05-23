@@ -232,6 +232,12 @@ impl Ui {
         self.focus_history.pop();
     }
 
+    pub fn unfocus_hierarchy(&mut self, widget_id: WidgetId) {
+        while !self.focus_history.is_empty() && self.is_in_focused_hierarchy(widget_id) {
+            self.focus_history.pop();
+        }
+    }
+
     fn remove_from_focused(&mut self, widget_id: WidgetId) {
         let index = self
             .focus_history

@@ -93,12 +93,10 @@ impl Terminal {
         while let Some(action) = global_action_handler.next(ctx) {
             match action {
                 action_name!(FocusTerminal) => {
-                    let pane_widget_id = pane.widget_id();
-
-                    if ctx.ui.is_focused(pane_widget_id) {
-                        ctx.ui.unfocus(pane_widget_id);
+                    if ctx.ui.is_in_focused_hierarchy(self.widget_id) {
+                        ctx.ui.unfocus_hierarchy(self.widget_id);
                     } else {
-                        ctx.ui.focus(pane_widget_id);
+                        ctx.ui.focus(pane.widget_id());
                     }
                 }
                 _ => global_action_handler.unprocessed(ctx.window, action),
