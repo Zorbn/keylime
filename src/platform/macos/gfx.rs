@@ -229,7 +229,7 @@ impl Gfx {
         };
 
         render_target_descriptor.setTextureType(MTLTextureType::Type2DMultisample);
-        render_target_descriptor.setStorageMode(MTLStorageMode::Private);
+        render_target_descriptor.setStorageMode(MTLStorageMode::Memoryless);
         render_target_descriptor.setUsage(MTLTextureUsage::RenderTarget);
 
         unsafe {
