@@ -542,8 +542,7 @@ impl Tab {
                 let color = diagnostic.color(theme);
                 let DecodedRange { start, end } = diagnostic.visible_range(doc);
 
-                if start == end && start.y >= visible_lines.min_y && start.y <= visible_lines.max_y
-                {
+                if start == end && start.y >= visible_lines.min_y && start.y < visible_lines.max_y {
                     let highlight_position =
                         self.position_to_visual(start, camera_position, doc, gfx);
 
@@ -558,7 +557,7 @@ impl Tab {
                 }
 
                 let start = start.max(Position::new(0, visible_lines.min_y));
-                let end = end.min(Position::new(0, visible_lines.max_y));
+                let end = end.min(doc.line_end(visible_lines.max_y - 1));
                 let mut position = start;
 
                 while position < end {
