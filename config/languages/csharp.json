@@ -98,21 +98,21 @@
         ],
         "ranges": [
             {
+                "kind": "String",
+                "start": "\"",
                 "end": "\"",
-                "escape": "\\",
-                "kind": "String",
-                "start": "\""
+                "escape": "\\"
             },
             {
+                "kind": "String",
+                "start": "'",
                 "end": "'",
-                "escape": "\\",
-                "kind": "String",
-                "start": "'"
+                "escape": "\\"
             },
             {
-                "end": "%*/",
                 "kind": "Comment",
-                "start": "/%*"
+                "start": "/%*",
+                "end": "%*/"
             }
         ],
         "tokens": [

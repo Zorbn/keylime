@@ -48,30 +48,30 @@
         ],
         "ranges": [
             {
+                "kind": "String",
+                "start": "\"",
                 "end": "\"",
-                "escape": "\\",
+                "escape": "\\"
+            },
+            {
                 "kind": "String",
-                "start": "\""
+                "start": "r#*\"",
+                "end": "\"#*"
             },
             {
-                "end": "\"#*",
-                "kind": "String",
-                "start": "r#*\""
-            },
-            {
-                "end": "%]",
                 "kind": "Meta",
-                "start": "#%["
+                "start": "#%[",
+                "end": "%]"
             },
             {
-                "end": "%]",
                 "kind": "Meta",
-                "start": "#!%["
+                "start": "#!%[",
+                "end": "%]"
             },
             {
-                "end": "%*/",
                 "kind": "Comment",
-                "start": "/%*"
+                "start": "/%*",
+                "end": "%*/"
             }
         ],
         "tokens": [

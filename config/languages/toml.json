@@ -12,15 +12,15 @@
         ],
         "ranges": [
             {
-                "end": "\"",
-                "escape": "\\",
                 "kind": "String",
-                "start": "\""
+                "start": "\"",
+                "end": "\"",
+                "escape": "\\"
             },
             {
-                "end": "'",
                 "kind": "String",
-                "start": "'"
+                "start": "'",
+                "end": "'"
             }
         ],
         "tokens": [

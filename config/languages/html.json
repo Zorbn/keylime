@@ -8,14 +8,14 @@
     "syntax": {
         "ranges": [
             {
-                "end": "\"",
                 "kind": "String",
-                "start": "\""
+                "start": "\"",
+                "end": "\""
             },
             {
-                "end": "%-%->",
                 "kind": "Comment",
-                "start": "<!%-%-"
+                "start": "<!%-%-",
+                "end": "%-%->"
             }
         ],
         "tokens": [

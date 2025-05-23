@@ -45,21 +45,21 @@
         ],
         "ranges": [
             {
-                "end": "\"\"\"",
                 "kind": "String",
-                "start": "\"\"\""
+                "start": "\"\"\"",
+                "end": "\"\"\""
             },
             {
+                "kind": "String",
+                "start": "\"",
                 "end": "\"",
-                "escape": "\\",
-                "kind": "String",
-                "start": "\""
+                "escape": "\\"
             },
             {
-                "end": "'",
-                "escape": "\\",
                 "kind": "String",
-                "start": "'"
+                "start": "'",
+                "end": "'",
+                "escape": "\\"
             }
         ],
         "tokens": [

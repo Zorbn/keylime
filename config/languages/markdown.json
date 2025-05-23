@@ -12,14 +12,14 @@
         ],
         "ranges": [
             {
-                "end": "```",
                 "kind": "String",
-                "start": "```"
+                "start": "```",
+                "end": "```"
             },
             {
-                "end": "`",
                 "kind": "String",
-                "start": "`"
+                "start": "`",
+                "end": "`"
             }
         ],
         "tokens": [

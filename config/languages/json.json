@@ -7,41 +7,41 @@
     "syntax": {
         "tokens": [
             {
-                "pattern": "//%.*",
-                "kind": "Comment"
+                "kind": "Comment",
+                "pattern": "//%.*"
             },
             {
-                "pattern": "0x%x+",
-                "kind": "Number"
+                "kind": "Number",
+                "pattern": "0x%x+"
             },
             {
-                "pattern": "0b[01]+",
-                "kind": "Number"
+                "kind": "Number",
+                "pattern": "0b[01]+"
             },
             {
-                "pattern": "(%d[%d_]*.?[%d_]*)[^.]",
-                "kind": "Number"
+                "kind": "Number",
+                "pattern": "(%d[%d_]*.?[%d_]*)[^.]"
             },
             {
-                "pattern": "%d[%d_]*",
-                "kind": "Number"
+                "kind": "Number",
+                "pattern": "%d[%d_]*"
             },
             {
-                "pattern": "[!=&,><./:@|;{}()%%%^%*%+%-%?%[%]]",
-                "kind": "Symbol"
+                "kind": "Symbol",
+                "pattern": "[!=&,><./:@|;{}()%%%^%*%+%-%?%[%]]"
             }
         ],
         "ranges": [
             {
+                "kind": "String",
                 "start": "\"",
                 "end": "\"",
-                "escape": "\\",
-                "kind": "String"
+                "escape": "\\"
             },
             {
+                "kind": "Comment",
                 "start": "/%*",
-                "end": "%*/",
-                "kind": "Comment"
+                "end": "%*/"
             }
         ]
     }
