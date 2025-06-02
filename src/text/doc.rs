@@ -1,4 +1,6 @@
 mod lsp;
+
+#[cfg(test)]
 mod tests;
 
 use std::{
