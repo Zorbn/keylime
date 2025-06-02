@@ -21,7 +21,7 @@ use super::{
     mousebind::MouseClickCount,
 };
 
-pub(crate) enum DeleteKind {
+pub enum DeleteKind {
     Char,
     Word,
     Line,
@@ -280,7 +280,7 @@ pub fn handle_left_click(
     doc.jump_cursors(end, true, gfx);
 }
 
-pub(crate) fn handle_delete_backward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
+pub fn handle_delete_backward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
     for index in doc.cursor_indices() {
         let cursor = doc.cursor(index);
 
@@ -341,7 +341,7 @@ fn handle_delete_forward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
     }
 }
 
-fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
+pub fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
     for index in doc.cursor_indices() {
         let cursor = doc.cursor(index);
 

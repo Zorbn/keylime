@@ -36,3 +36,7 @@ pub(crate) use test_with_doc;
 
 pub const HELLO_GOODBYE_TEXT: &str = r"hello world
 goodbye world";
+
+pub const HELLO_WORLD_CODE_TEXT: &str = r#"fn main() {
+    println!("Hello, world!");
+}"#;

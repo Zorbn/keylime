@@ -1,10 +1,10 @@
 use crate::{
     geometry::position::Position,
-    tests::{test_with_doc, HELLO_GOODBYE_TEXT},
+    tests::{test_with_doc, HELLO_GOODBYE_TEXT, HELLO_WORLD_CODE_TEXT},
     text::{cursor_index::CursorIndex, doc::DocFlags},
 };
 
-use super::editing_actions::{handle_delete_backward, handle_grapheme, DeleteKind};
+use super::editing_actions::{handle_delete_backward, handle_enter, handle_grapheme, DeleteKind};
 
 test_with_doc!(
     delete_backward_wrap_to_previous_line,
@@ -88,3 +88,59 @@ test_with_doc!(surround_selection_with_pair, "hi there", |ctx, doc| {
 
     assert_eq!(doc.to_string(), "[{('\"hi there\"')}]");
 });
+
+test_with_doc!(
+    auto_indent_from_end_of_line,
+    HELLO_WORLD_CODE_TEXT,
+    |ctx, doc| {
+        doc.jump_cursor(CursorIndex::Main, Position::new(30, 1), false, ctx.gfx);
+        handle_enter(doc, ctx);
+
+        assert_eq!(
+            doc.to_string(),
+            "fn main() {\n    println!(\"Hello, world!\");\n    \n}"
+        );
+    }
+);
+
+test_with_doc!(
+    auto_indent_from_start_of_line,
+    HELLO_WORLD_CODE_TEXT,
+    |ctx, doc| {
+        doc.jump_cursor(CursorIndex::Main, Position::new(4, 1), false, ctx.gfx);
+        handle_enter(doc, ctx);
+
+        assert_eq!(
+            doc.to_string(),
+            "fn main() {\n    \n    println!(\"Hello, world!\");\n}"
+        );
+    }
+);
+
+test_with_doc!(
+    auto_indent_before_existing_indentation,
+    HELLO_WORLD_CODE_TEXT,
+    |ctx, doc| {
+        doc.jump_cursor(CursorIndex::Main, Position::new(0, 1), false, ctx.gfx);
+        handle_enter(doc, ctx);
+
+        assert_eq!(
+            doc.to_string(),
+            "fn main() {\n\n    println!(\"Hello, world!\");\n}"
+        );
+    }
+);
+
+test_with_doc!(
+    auto_indent_within_existing_indentation,
+    HELLO_WORLD_CODE_TEXT,
+    |ctx, doc| {
+        doc.jump_cursor(CursorIndex::Main, Position::new(2, 1), false, ctx.gfx);
+        handle_enter(doc, ctx);
+
+        assert_eq!(
+            doc.to_string(),
+            "fn main() {\n  \n    println!(\"Hello, world!\");\n}"
+        );
+    }
+);
