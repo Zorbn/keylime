@@ -1,6 +1,7 @@
 use crate::{
     geometry::position::Position,
     tests::{test_with_doc, HELLO_GOODBYE_TEXT},
+    text::cursor_index::CursorIndex,
 };
 
 test_with_doc!(search_forward, HELLO_GOODBYE_TEXT, |ctx, doc| {
@@ -38,5 +39,52 @@ test_with_doc!(
     |ctx, doc| {
         let position = doc.search_backward("goodbye", Position::new(0, 1), false, ctx.gfx);
         assert_eq!(position, None);
+    }
+);
+
+test_with_doc!(repeated_search_forward, HELLO_GOODBYE_TEXT, |ctx, doc| {
+    let position = doc.search("world", Position::ZERO, false, ctx.gfx);
+    assert_eq!(position, Some(Position::new(6, 0)));
+
+    let position = doc.search("world", position.unwrap(), false, ctx.gfx);
+    assert_eq!(position, Some(Position::new(8, 1)));
+
+    let position = doc.search("world", position.unwrap(), false, ctx.gfx);
+    assert_eq!(position, Some(Position::new(6, 0)));
+});
+
+test_with_doc!(repeated_search_backward, HELLO_GOODBYE_TEXT, |ctx, doc| {
+    let position = doc.search("world", Position::ZERO, true, ctx.gfx);
+    assert_eq!(position, Some(Position::new(8, 1)));
+
+    let position = doc.search("world", position.unwrap(), true, ctx.gfx);
+    assert_eq!(position, Some(Position::new(6, 0)));
+
+    let position = doc.search("world", position.unwrap(), true, ctx.gfx);
+    assert_eq!(position, Some(Position::new(8, 1)));
+});
+
+test_with_doc!(select_next_occurances, HELLO_GOODBYE_TEXT, |ctx, doc| {
+    doc.jump_cursor(CursorIndex::Main, Position::new(6, 0), false, ctx.gfx);
+
+    doc.add_cursor_at_next_occurance(ctx.gfx);
+    assert_eq!(doc.cursor(CursorIndex::Main).position, Position::new(11, 0));
+    assert_eq!(doc.cursors_len(), 1);
+
+    doc.add_cursor_at_next_occurance(ctx.gfx);
+    assert_eq!(doc.cursor(CursorIndex::Main).position, Position::new(13, 1));
+    assert_eq!(doc.cursors_len(), 2);
+});
+
+test_with_doc!(
+    select_next_occurance_from_selection,
+    HELLO_GOODBYE_TEXT,
+    |ctx, doc| {
+        doc.jump_cursor(CursorIndex::Main, Position::new(11, 0), false, ctx.gfx);
+        doc.jump_cursor(CursorIndex::Main, Position::new(6, 0), true, ctx.gfx);
+
+        doc.add_cursor_at_next_occurance(ctx.gfx);
+        assert_eq!(doc.cursor(CursorIndex::Main).position, Position::new(13, 1));
+        assert_eq!(doc.cursors_len(), 2);
     }
 );
