@@ -1,5 +1,9 @@
 macro_rules! test_with_doc {
     ($name:ident, $text:expr, $test:expr) => {
+        test_with_doc!($name, $text, crate::text::doc::DocFlags::MULTI_LINE, $test);
+    };
+
+    ($name:ident, $text:expr, $flags:expr, $test:expr) => {
         #[test]
         fn $name() {
             let mut window = crate::platform::window::Window::new();
@@ -18,8 +22,7 @@ macro_rules! test_with_doc {
                 time,
             };
 
-            let mut doc =
-                crate::text::doc::Doc::new(None, None, crate::text::doc::DocFlags::MULTI_LINE);
+            let mut doc = crate::text::doc::Doc::new(None, None, $flags);
 
             doc.insert(crate::geometry::position::Position::ZERO, $text, ctx);
 

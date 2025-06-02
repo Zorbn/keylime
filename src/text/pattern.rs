@@ -31,7 +31,7 @@ impl PartialPatternMatch {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum PatternModifier {
     OneOrMore,        // +
     ZeroOrMoreGreedy, // *
@@ -39,7 +39,7 @@ enum PatternModifier {
     ZeroOrOne,        // ?
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum PatternLiteral {
     Grapheme(usize, usize),
     Any,              // %.
@@ -53,7 +53,7 @@ enum PatternLiteral {
     HexadecimalDigit, // %x
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum PatternPart {
     TextStart,    // ^
     CaptureStart, // (
@@ -63,7 +63,7 @@ enum PatternPart {
     Modifier(PatternModifier),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Pattern {
     code: Pooled<String>,
     parts: Vec<PatternPart>,

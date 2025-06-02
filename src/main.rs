@@ -18,10 +18,10 @@ mod ui;
 #[cfg(test)]
 mod tests;
 
-use platform::app_runner::run_app;
+use platform::{app_runner::run_app, result::Result};
 
-fn main() {
+fn main() -> Result<()> {
     println!("Hello, world!");
 
-    run_app().unwrap();
+    run_app()
 }

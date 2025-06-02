@@ -1,4 +1,5 @@
 mod lsp;
+mod tests;
 
 use std::{
     fmt::Display,
