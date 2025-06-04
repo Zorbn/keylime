@@ -4,7 +4,7 @@ use std::{iter::Enumerate, ops::Range};
 use crate::{
     config::language::Language,
     ctx::Ctx,
-    geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
+    geometry::{position::Position, quad::Quad, rect::Rect, visual_position::VisualPosition},
     input::{
         editing_actions::{handle_action, handle_grapheme, handle_left_click},
         mods::{Mod, Mods},
@@ -45,12 +45,20 @@ impl VisibleLines {
     }
 }
 
+struct CursorAnimationState {
+    last_position: VisualPosition,
+    position: VisualPosition,
+    time: f32,
+}
+
 pub struct Tab {
     data_id: SlotId,
 
     pub camera: Camera,
     handled_cursor_position: Position,
     handled_doc_len: usize,
+    cursor_animation_states: Vec<CursorAnimationState>,
+    are_cursors_animating: bool,
 
     tab_bounds: Rect,
     gutter_bounds: Rect,
@@ -66,6 +74,8 @@ impl Tab {
             camera: Camera::new(),
             handled_cursor_position: Position::ZERO,
             handled_doc_len: 1,
+            cursor_animation_states: Vec::new(),
+            are_cursors_animating: false,
 
             tab_bounds: Rect::ZERO,
             gutter_bounds: Rect::ZERO,
@@ -79,7 +89,7 @@ impl Tab {
     }
 
     pub fn is_animating(&self) -> bool {
-        self.camera.is_moving()
+        self.camera.is_moving() || self.are_cursors_animating
     }
 
     pub fn layout(
@@ -284,13 +294,6 @@ impl Tab {
         doc.visual_to_position_unclamped(visual, self.camera.position(), gfx)
     }
 
-    fn visual_position_in_doc(&self, visual: VisualPosition) -> VisualPosition {
-        let mut visual = visual.unoffset_by(self.doc_bounds);
-        visual.x -= self.margin;
-        visual.y -= self.margin;
-        visual
-    }
-
     fn position_to_visual(
         &self,
         position: Position,
@@ -298,10 +301,19 @@ impl Tab {
         doc: &Doc,
         gfx: &mut Gfx,
     ) -> VisualPosition {
-        let mut visual = doc.position_to_visual(position, camera_position, gfx);
-        visual.x += self.margin;
-        visual.y += self.margin;
-        visual
+        let visual = doc.position_to_visual(position, camera_position, gfx);
+
+        self.visual_position_in_tab(visual)
+    }
+
+    fn visual_position_in_doc(&self, visual: VisualPosition) -> VisualPosition {
+        let visual = visual.unoffset_by(self.doc_bounds);
+
+        VisualPosition::new(visual.x - self.margin, visual.y - self.margin)
+    }
+
+    fn visual_position_in_tab(&self, visual: VisualPosition) -> VisualPosition {
+        VisualPosition::new(visual.x + self.margin, visual.y + self.margin)
     }
 
     pub fn tab_bounds(&self) -> Rect {
@@ -335,7 +347,7 @@ impl Tab {
     }
 
     pub fn draw(
-        &self,
+        &mut self,
         colors @ (_, background): (Option<Color>, Option<Color>),
         doc: &mut Doc,
         is_focused: bool,
@@ -624,7 +636,7 @@ impl Tab {
     }
 
     fn draw_cursors(
-        &self,
+        &mut self,
         doc: &Doc,
         is_focused: bool,
         camera_position: VisualPosition,
@@ -671,24 +683,86 @@ impl Tab {
             }
         }
 
+        self.are_cursors_animating = false;
+
         if is_focused && ctx.window.is_focused() {
-            let cursor_width = Self::cursor_width(gfx);
+            self.cursor_animation_states.truncate(doc.cursors_len());
 
-            for index in doc.cursor_indices() {
+            for (i, index) in doc.cursor_indices().enumerate() {
+                let cursor = doc.cursor(index);
                 let cursor_position =
-                    self.position_to_visual(doc.cursor(index).position, camera_position, doc, gfx);
+                    self.position_to_visual(cursor.position, camera_position, doc, gfx);
 
-                gfx.add_rect(
-                    Rect::new(
-                        cursor_position.x - cursor_width / 2.0,
-                        cursor_position.y,
-                        cursor_width,
-                        gfx.line_height(),
-                    ),
-                    theme.normal,
-                );
+                // TODO: Update cursor animation states in update and change &mut self back to &self for affected draw functions (draw_cursors & draw).
+                // TODO: There should be a method to skip the cursor animation like after the command palette doc is cleared when opening it after there was input stored from last time.
+                if i >= self.cursor_animation_states.len() {
+                    self.cursor_animation_states.push(CursorAnimationState {
+                        last_position: cursor_position,
+                        position: cursor_position,
+                        time: ctx.time,
+                    });
+                }
+
+                let cursor_animation_state = &mut self.cursor_animation_states[i];
+
+                if cursor_animation_state.position != cursor_position {
+                    cursor_animation_state.last_position = cursor_animation_state.position;
+                    cursor_animation_state.position = cursor_position;
+                    cursor_animation_state.time = ctx.time;
+                }
+
+                let last_time = cursor_animation_state.time;
+                let last_cursor_position = cursor_animation_state.last_position;
+
+                let trail_progress = (ctx.time - last_time) * 4.0;
+                let trail_scale = ((ctx.time - last_time) * 4.0).min(1.0);
+
+                // TODO: Calculate this in is_animating instead?
+                self.are_cursors_animating = self.are_cursors_animating || trail_progress < 1.0;
+
+                let trail_progress = Self::ease_cursor_trail(trail_progress);
+                let trail_position = last_cursor_position.lerp_to(cursor_position, trail_progress);
+
+                let mut cursor_rect = Self::cursor_position_to_rect(cursor_position, gfx);
+                let mut trail_rect = Self::cursor_position_to_rect(trail_position, gfx);
+
+                if cursor_position.x != last_cursor_position.x
+                    && cursor_position.y != last_cursor_position.y
+                {
+                    cursor_rect = cursor_rect
+                        .add_margin_x(Self::cursor_width(gfx) * 0.5 * (trail_scale - 1.0))
+                        .add_margin_y(gfx.line_height() * 0.5 * (trail_scale - 1.0));
+
+                    trail_rect = trail_rect
+                        .add_margin_x(Self::cursor_width(gfx) * 0.5 * -trail_scale)
+                        .add_margin_y(gfx.line_height() * 0.5 * -trail_scale);
+                }
+
+                let cursor_quad: Quad = cursor_rect.into();
+                let trail_quad = cursor_quad.expand_to_include(trail_rect.into());
+
+                let mut trail_color = theme.normal;
+                trail_color.a /= 2;
+
+                gfx.add_quad(trail_quad, trail_color);
+                gfx.add_quad(cursor_quad, theme.normal);
             }
         }
+    }
+
+    fn cursor_position_to_rect(position: VisualPosition, gfx: &Gfx) -> Rect {
+        let cursor_width = Self::cursor_width(gfx);
+
+        Rect::new(
+            position.x - cursor_width / 2.0,
+            position.y,
+            cursor_width,
+            gfx.line_height(),
+        )
+    }
+
+    fn ease_cursor_trail(time: f32) -> f32 {
+        1.0 - (1.0 - time.clamp(0.0, 1.0)).powf(4.0)
     }
 
     fn draw_scroll_bar(&self, doc: &Doc, camera_position: VisualPosition, ctx: &mut Ctx) {

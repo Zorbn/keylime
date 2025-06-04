@@ -19,6 +19,15 @@ impl Quad {
             bottom_right: (self.bottom_right + delta).floor(),
         }
     }
+
+    pub fn expand_to_include(&self, other: Self) -> Self {
+        Self {
+            top_left: self.top_left.top_left(other.top_left),
+            top_right: self.top_right.top_right(other.top_right),
+            bottom_left: self.bottom_left.bottom_left(other.bottom_left),
+            bottom_right: self.bottom_right.bottom_right(other.bottom_right),
+        }
+    }
 }
 
 impl From<Rect> for Quad {

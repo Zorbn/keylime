@@ -83,6 +83,24 @@ impl Rect {
         )
     }
 
+    pub fn add_margin_x(&self, margin: f32) -> Self {
+        Self::new(
+            self.x - margin,
+            self.y,
+            self.width + margin * 2.0,
+            self.height,
+        )
+    }
+
+    pub fn add_margin_y(&self, margin: f32) -> Self {
+        Self::new(
+            self.x,
+            self.y - margin,
+            self.width,
+            self.height + margin * 2.0,
+        )
+    }
+
     pub fn center_in(&self, other: Self) -> Self {
         self.center_x_in(other).center_y_in(other)
     }

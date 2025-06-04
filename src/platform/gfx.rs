@@ -272,6 +272,11 @@ impl Gfx {
         self.add_sprite(Rect::ZERO, rect.into(), color, SpriteKind::Rect);
     }
 
+    pub fn add_quad(&mut self, dst: Quad, color: Color) {
+        self.inner
+            .add_sprite(Rect::ZERO, dst, color, SpriteKind::Rect);
+    }
+
     fn add_sprite(&mut self, src: Rect, dst: Quad, color: Color, kind: SpriteKind) {
         self.inner.add_sprite(src, dst, color, kind);
     }

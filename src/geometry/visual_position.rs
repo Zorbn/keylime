@@ -1,8 +1,11 @@
-use std::ops::{Add, Mul, Sub};
+use std::{
+    cmp::Ordering,
+    ops::{Add, Mul, Sub},
+};
 
 use super::rect::Rect;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct VisualPosition {
     pub x: f32,
     pub y: f32,
@@ -35,6 +38,57 @@ impl VisualPosition {
 
     pub fn scale(&self, scale: f32) -> Self {
         Self::new(self.x * scale, self.y * scale)
+    }
+
+    pub fn lerp_to(&self, other: Self, delta: f32) -> Self {
+        Self::new(
+            self.x + (other.x - self.x) * delta,
+            self.y + (other.y - self.y) * delta,
+        )
+    }
+
+    pub fn top_left(&self, other: Self) -> Self {
+        match self.x.partial_cmp(&other.x) {
+            Some(Ordering::Less) => *self,
+            Some(Ordering::Greater) => other,
+            _ => match self.y.partial_cmp(&other.y) {
+                Some(Ordering::Less) => *self,
+                _ => other,
+            },
+        }
+    }
+
+    pub fn top_right(&self, other: Self) -> Self {
+        match self.x.partial_cmp(&other.x) {
+            Some(Ordering::Less) => other,
+            Some(Ordering::Greater) => *self,
+            _ => match self.y.partial_cmp(&other.y) {
+                Some(Ordering::Less) => *self,
+                _ => other,
+            },
+        }
+    }
+
+    pub fn bottom_left(&self, other: Self) -> Self {
+        match self.x.partial_cmp(&other.x) {
+            Some(Ordering::Less) => *self,
+            Some(Ordering::Greater) => other,
+            _ => match self.y.partial_cmp(&other.y) {
+                Some(Ordering::Greater) => *self,
+                _ => other,
+            },
+        }
+    }
+
+    pub fn bottom_right(&self, other: Self) -> Self {
+        match self.x.partial_cmp(&other.x) {
+            Some(Ordering::Less) => other,
+            Some(Ordering::Greater) => *self,
+            _ => match self.y.partial_cmp(&other.y) {
+                Some(Ordering::Greater) => *self,
+                _ => other,
+            },
+        }
     }
 }
 
