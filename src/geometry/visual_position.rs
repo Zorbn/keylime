@@ -12,7 +12,9 @@ pub struct VisualPosition {
 }
 
 impl VisualPosition {
-    pub fn new(x: f32, y: f32) -> Self {
+    pub const ZERO: Self = Self::new(0.0, 0.0);
+
+    pub const fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
 

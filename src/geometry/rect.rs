@@ -57,6 +57,32 @@ impl Rect {
         Self::new(self.x, self.y, self.width, height)
     }
 
+    pub fn scale(&self, scale: f32) -> Self {
+        self.scale_x(scale).scale_y(scale)
+    }
+
+    pub fn scale_x(&self, scale: f32) -> Self {
+        let margin = scale * self.width;
+
+        Self::new(
+            self.x - margin * 0.5,
+            self.y,
+            self.width + margin,
+            self.height,
+        )
+    }
+
+    pub fn scale_y(&self, scale: f32) -> Self {
+        let margin = scale * self.height;
+
+        Self::new(
+            self.x,
+            self.y - margin * 0.5,
+            self.width,
+            self.height + margin,
+        )
+    }
+
     pub fn shift_y(&self, delta: f32) -> Self {
         Self::new(self.x, self.y + delta, self.width, self.height)
     }
@@ -79,24 +105,6 @@ impl Rect {
             self.x - margin,
             self.y - margin,
             self.width + margin * 2.0,
-            self.height + margin * 2.0,
-        )
-    }
-
-    pub fn add_margin_x(&self, margin: f32) -> Self {
-        Self::new(
-            self.x - margin,
-            self.y,
-            self.width + margin * 2.0,
-            self.height,
-        )
-    }
-
-    pub fn add_margin_y(&self, margin: f32) -> Self {
-        Self::new(
-            self.x,
-            self.y - margin,
-            self.width,
             self.height + margin * 2.0,
         )
     }

@@ -691,7 +691,7 @@ impl Tab {
             for (i, index) in doc.cursor_indices().enumerate() {
                 let cursor = doc.cursor(index);
                 let cursor_position =
-                    self.position_to_visual(cursor.position, camera_position, doc, gfx);
+                    self.position_to_visual(cursor.position, VisualPosition::ZERO, doc, gfx);
 
                 // TODO: Update cursor animation states in update and change &mut self back to &self for affected draw functions (draw_cursors & draw).
                 // TODO: There should be a method to skip the cursor animation like after the command palette doc is cleared when opening it after there was input stored from last time.
@@ -703,16 +703,16 @@ impl Tab {
                     });
                 }
 
-                let cursor_animation_state = &mut self.cursor_animation_states[i];
+                let animation_state = &mut self.cursor_animation_states[i];
 
-                if cursor_animation_state.position != cursor_position {
-                    cursor_animation_state.last_position = cursor_animation_state.position;
-                    cursor_animation_state.position = cursor_position;
-                    cursor_animation_state.time = ctx.time;
+                if animation_state.position != cursor_position {
+                    animation_state.last_position = animation_state.position;
+                    animation_state.position = cursor_position;
+                    animation_state.time = ctx.time;
                 }
 
-                let last_time = cursor_animation_state.time;
-                let last_cursor_position = cursor_animation_state.last_position;
+                let last_time = animation_state.time;
+                let last_cursor_position = animation_state.last_position;
 
                 let trail_progress = (ctx.time - last_time) * 4.0;
                 let trail_scale = ((ctx.time - last_time) * 4.0).min(1.0);
@@ -723,19 +723,16 @@ impl Tab {
                 let trail_progress = Self::ease_cursor_trail(trail_progress);
                 let trail_position = last_cursor_position.lerp_to(cursor_position, trail_progress);
 
-                let mut cursor_rect = Self::cursor_position_to_rect(cursor_position, gfx);
-                let mut trail_rect = Self::cursor_position_to_rect(trail_position, gfx);
+                let mut cursor_rect =
+                    Self::cursor_position_to_rect(cursor_position - camera_position, gfx);
+                let mut trail_rect =
+                    Self::cursor_position_to_rect(trail_position - camera_position, gfx);
 
                 if cursor_position.x != last_cursor_position.x
                     && cursor_position.y != last_cursor_position.y
                 {
-                    cursor_rect = cursor_rect
-                        .add_margin_x(Self::cursor_width(gfx) * 0.5 * (trail_scale - 1.0))
-                        .add_margin_y(gfx.line_height() * 0.5 * (trail_scale - 1.0));
-
-                    trail_rect = trail_rect
-                        .add_margin_x(Self::cursor_width(gfx) * 0.5 * -trail_scale)
-                        .add_margin_y(gfx.line_height() * 0.5 * -trail_scale);
+                    cursor_rect = cursor_rect.scale(trail_scale - 1.0);
+                    trail_rect = trail_rect.scale(-trail_scale);
                 }
 
                 let cursor_quad: Quad = cursor_rect.into();
