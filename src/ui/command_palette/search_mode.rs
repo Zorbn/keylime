@@ -199,7 +199,8 @@ fn search(
     is_reverse: bool,
     gfx: &mut Gfx,
 ) {
-    let start = start.unwrap_or(doc.cursor(CursorIndex::Main).position);
+    let cursor_position = doc.cursor(CursorIndex::Main).position;
+    let start = start.unwrap_or(cursor_position);
 
     if let Some(position) = doc.search(search_term, start, is_reverse, gfx) {
         let end = doc.move_position(position, search_term.len() as isize, 0, gfx);
@@ -208,5 +209,7 @@ fn search(
         doc.jump_cursors(end, true, gfx);
 
         tab.camera.recenter();
+    } else if cursor_position != start {
+        doc.jump_cursors(start, false, gfx);
     }
 }
