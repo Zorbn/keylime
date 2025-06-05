@@ -84,8 +84,10 @@ impl Popup {
         ctx.ui.widget_mut(self.widget_id).bounds = bounds;
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.tab.is_animating()
+    pub fn is_animating(&self, ctx: &Ctx) -> bool {
+        let is_focused = ctx.ui.is_focused(self.widget_id);
+
+        self.tab.is_animating(is_focused, ctx)
     }
 
     pub fn update(&mut self, ctx: &mut Ctx) {
@@ -100,8 +102,8 @@ impl Popup {
         self.tab.update(self.widget_id, &mut self.doc, ctx);
     }
 
-    pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.tab.update_camera(self.widget_id, &self.doc, ctx, dt);
+    pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
+        self.tab.animate(self.widget_id, &self.doc, ctx, dt);
     }
 
     pub fn draw(&mut self, foreground: Option<Color>, ctx: &mut Ctx) {

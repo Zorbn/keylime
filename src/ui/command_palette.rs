@@ -107,9 +107,11 @@ impl CommandPalette {
         }
     }
 
-    pub fn is_animating(&self) -> bool {
+    pub fn is_animating(&self, ctx: &Ctx) -> bool {
+        let is_focused = ctx.ui.is_focused(self.widget_id);
+
         self.result_list.is_animating()
-            || self.tab.is_animating()
+            || self.tab.is_animating(is_focused, ctx)
             || self.mode.as_ref().is_some_and(|mode| mode.is_animating())
     }
 
@@ -232,9 +234,9 @@ impl CommandPalette {
         self.update_results(editor, ctx);
     }
 
-    pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.tab.update_camera(self.widget_id, &self.doc, ctx, dt);
-        self.result_list.update_camera(ctx.ui, dt);
+    pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
+        self.tab.animate(self.widget_id, &self.doc, ctx, dt);
+        self.result_list.animate(ctx.ui, dt);
     }
 
     fn submit(&mut self, kind: ResultListSubmitKind, editor: &mut Editor, ctx: &mut Ctx) {
@@ -349,6 +351,7 @@ impl CommandPalette {
         ctx: &mut Ctx,
     ) {
         self.doc.clear(ctx);
+        self.tab.skip_cursor_animations(&self.doc, ctx);
         self.result_list.reset();
         self.last_updated_version = None;
         self.mode = None;

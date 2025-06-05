@@ -128,9 +128,9 @@ impl App {
         self.editor.update(&mut self.file_watcher, ctx, dt);
         self.terminal.update(ctx);
 
-        self.command_palette.update_camera(ctx, dt);
-        self.editor.update_camera(ctx, dt);
-        self.terminal.update_camera(ctx, dt);
+        self.command_palette.animate(ctx, dt);
+        self.editor.animate(ctx, dt);
+        self.terminal.animate(ctx, dt);
     }
 
     pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
@@ -177,10 +177,12 @@ impl App {
         &self.config
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.editor.is_animating()
-            || self.terminal.is_animating()
-            || self.command_palette.is_animating()
+    pub fn is_animating(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) -> bool {
+        let ctx = ctx_for_app!(self, window, gfx, time);
+
+        self.editor.is_animating(ctx)
+            || self.terminal.is_animating(ctx)
+            || self.command_palette.is_animating(ctx)
     }
 
     pub fn files_and_processes(

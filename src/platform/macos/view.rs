@@ -270,7 +270,8 @@ impl View {
         let mut state = self.ivars().state.try_borrow_mut().ok()?;
         let ViewState { app, window, gfx } = state.as_mut()?;
 
-        let (time, dt) = window.inner.time(app.is_animating());
+        let is_animating = app.is_animating(window, gfx, window.inner.time);
+        let (time, dt) = window.inner.time(is_animating);
         app.update(window, gfx, time, dt);
 
         let (file_watcher, files, processes) = app.files_and_processes();
@@ -326,11 +327,10 @@ impl View {
             window.inner.was_shown = true;
         }
 
+        let is_animating = app.is_animating(window, gfx, window.inner.time);
+
         unsafe {
-            self.ivars()
-                .display_link
-                .get()?
-                .setPaused(!app.is_animating());
+            self.ivars().display_link.get()?.setPaused(!is_animating);
         }
 
         Some(())

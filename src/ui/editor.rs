@@ -90,11 +90,11 @@ impl Editor {
         editor
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.completion_list.is_animating()
-            || self.signature_help_popup.is_animating()
-            || self.examine_popup.is_animating()
-            || self.panes.is_animating()
+    pub fn is_animating(&self, ctx: &Ctx) -> bool {
+        self.completion_list.is_animating(ctx)
+            || self.signature_help_popup.is_animating(ctx)
+            || self.examine_popup.is_animating(ctx)
+            || self.panes.is_animating(ctx)
             || self.hover_timer > 0.0
     }
 
@@ -305,12 +305,12 @@ impl Editor {
         self.handled_doc_id = Some(doc_id);
     }
 
-    pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.panes.update_camera(&mut self.doc_list, ctx, dt);
+    pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
+        self.panes.animate(&mut self.doc_list, ctx, dt);
 
-        self.signature_help_popup.update_camera(ctx, dt);
-        self.completion_list.update_camera(ctx, dt);
-        self.examine_popup.update_camera(ctx, dt);
+        self.signature_help_popup.animate(ctx, dt);
+        self.completion_list.animate(ctx, dt);
+        self.examine_popup.animate(ctx, dt);
     }
 
     pub fn lsp_handle_completion_list_result(

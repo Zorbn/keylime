@@ -99,10 +99,10 @@ impl CompletionList {
         }
     }
 
-    pub fn is_animating(&self) -> bool {
+    pub fn is_animating(&self, ctx: &Ctx) -> bool {
         self.result_list.is_animating()
-            || self.detail_popup.is_animating()
-            || self.documentation_popup.is_animating()
+            || self.detail_popup.is_animating(ctx)
+            || self.documentation_popup.is_animating(ctx)
     }
 
     pub fn layout(&mut self, visual_position: VisualPosition, ctx: &mut Ctx) {
@@ -226,11 +226,11 @@ impl CompletionList {
         }
     }
 
-    pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.result_list.update_camera(ctx.ui, dt);
+    pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
+        self.result_list.animate(ctx.ui, dt);
 
-        self.detail_popup.update_camera(ctx, dt);
-        self.documentation_popup.update_camera(ctx, dt);
+        self.detail_popup.animate(ctx, dt);
+        self.documentation_popup.animate(ctx, dt);
     }
 
     fn lsp_completion_item_resolve(

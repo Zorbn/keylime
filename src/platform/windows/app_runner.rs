@@ -92,7 +92,7 @@ impl AppRunner {
         };
 
         while window.inner.is_running() {
-            let is_animating = app.is_animating();
+            let is_animating = app.is_animating(window, gfx, window.inner.time);
 
             let (file_watcher, files, processes) = app.files_and_processes();
             window

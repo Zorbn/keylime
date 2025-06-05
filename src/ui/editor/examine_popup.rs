@@ -42,8 +42,8 @@ impl ExaminePopup {
         }
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.popup.is_animating()
+    pub fn is_animating(&self, ctx: &Ctx) -> bool {
+        self.popup.is_animating(ctx)
     }
 
     pub fn layout(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
@@ -76,8 +76,8 @@ impl ExaminePopup {
         self.popup.update(ctx);
     }
 
-    pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.popup.update_camera(ctx, dt);
+    pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
+        self.popup.animate(ctx, dt);
     }
 
     pub fn draw(&mut self, ctx: &mut Ctx) {

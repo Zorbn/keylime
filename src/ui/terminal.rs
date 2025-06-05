@@ -60,8 +60,8 @@ impl Terminal {
         terminal
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.panes.is_animating()
+    pub fn is_animating(&self, ctx: &Ctx) -> bool {
+        self.panes.is_animating(ctx)
     }
 
     pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
@@ -137,8 +137,8 @@ impl Terminal {
         }
     }
 
-    pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.panes.update_camera(&mut self.term_list, ctx, dt);
+    pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
+        self.panes.animate(&mut self.term_list, ctx, dt);
     }
 
     pub fn draw(&mut self, ctx: &mut Ctx) {

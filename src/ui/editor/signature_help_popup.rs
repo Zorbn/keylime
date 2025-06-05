@@ -35,8 +35,8 @@ impl SignatureHelpPopup {
         }
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.label_popup.is_animating() || self.documentation_popup.is_animating()
+    pub fn is_animating(&self, ctx: &Ctx) -> bool {
+        self.label_popup.is_animating(ctx) || self.documentation_popup.is_animating(ctx)
     }
 
     pub fn layout(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
@@ -89,9 +89,9 @@ impl SignatureHelpPopup {
         self.documentation_popup.update(ctx);
     }
 
-    pub fn update_camera(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.label_popup.update_camera(ctx, dt);
-        self.documentation_popup.update_camera(ctx, dt);
+    pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
+        self.label_popup.animate(ctx, dt);
+        self.documentation_popup.animate(ctx, dt);
     }
 
     pub fn draw(&mut self, ctx: &mut Ctx) -> Option<()> {

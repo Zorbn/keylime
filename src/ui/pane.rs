@@ -51,8 +51,12 @@ impl<T> Pane<T> {
         }
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.tabs.get_focused().is_some_and(Tab::is_animating)
+    pub fn is_animating(&self, ctx: &Ctx) -> bool {
+        let is_focused = ctx.ui.is_focused(self.widget_id);
+
+        self.tabs
+            .get_focused()
+            .is_some_and(|tab| tab.is_animating(is_focused, ctx))
     }
 
     pub fn layout(&mut self, bounds: Rect, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
@@ -188,13 +192,13 @@ impl<T> Pane<T> {
         }
     }
 
-    pub fn update_camera(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx, dt: f32) {
+    pub fn animate(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx, dt: f32) {
         let widget_id = self.widget_id;
         let get_doc = self.get_doc;
 
         if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
         {
-            tab.update_camera(widget_id, get_doc(data), ctx, dt);
+            tab.animate(widget_id, get_doc(data), ctx, dt);
         }
     }
 

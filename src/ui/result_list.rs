@@ -201,7 +201,7 @@ impl<T> ResultList<T> {
         }
     }
 
-    pub fn update_camera(&mut self, ui: &Ui, dt: f32) {
+    pub fn animate(&mut self, ui: &Ui, dt: f32) {
         let focused_index = self.focused_index();
         let bounds = ui.widget(self.widget_id).bounds;
 

@@ -36,8 +36,8 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
         }
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.panes.iter().any(|pane| pane.is_animating())
+    pub fn is_animating(&self, ctx: &Ctx) -> bool {
+        self.panes.iter().any(|pane| pane.is_animating(ctx))
     }
 
     pub fn layout(&mut self, bounds: Rect, data_list: &mut SlotList<TData>, ctx: &mut Ctx) {
@@ -66,9 +66,9 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
         }
     }
 
-    pub fn update_camera(&mut self, data_list: &mut SlotList<TData>, ctx: &mut Ctx, dt: f32) {
+    pub fn animate(&mut self, data_list: &mut SlotList<TData>, ctx: &mut Ctx, dt: f32) {
         for pane in self.panes.iter_mut() {
-            pane.update_camera(data_list, ctx, dt);
+            pane.animate(data_list, ctx, dt);
         }
     }
 

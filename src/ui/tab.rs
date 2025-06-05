@@ -46,9 +46,9 @@ impl VisibleLines {
 }
 
 struct CursorAnimationState {
+    last_time: f32,
     last_position: VisualPosition,
     position: VisualPosition,
-    time: f32,
 }
 
 pub struct Tab {
@@ -58,7 +58,6 @@ pub struct Tab {
     handled_cursor_position: Position,
     handled_doc_len: usize,
     cursor_animation_states: Vec<CursorAnimationState>,
-    are_cursors_animating: bool,
 
     tab_bounds: Rect,
     gutter_bounds: Rect,
@@ -75,7 +74,6 @@ impl Tab {
             handled_cursor_position: Position::ZERO,
             handled_doc_len: 1,
             cursor_animation_states: Vec::new(),
-            are_cursors_animating: false,
 
             tab_bounds: Rect::ZERO,
             gutter_bounds: Rect::ZERO,
@@ -88,8 +86,12 @@ impl Tab {
         self.data_id
     }
 
-    pub fn is_animating(&self) -> bool {
-        self.camera.is_moving() || self.are_cursors_animating
+    pub fn is_animating(&self, is_focused: bool, ctx: &Ctx) -> bool {
+        self.camera.is_moving()
+            || (self.do_show_cursors(is_focused, ctx)
+                && self.cursor_animation_states.iter().any(|animation_state| {
+                    self.cursor_animation_progress(ctx.time, animation_state.last_time) < 1.0
+                }))
     }
 
     pub fn layout(
@@ -181,7 +183,62 @@ impl Tab {
         doc.update_tokens();
     }
 
-    pub fn update_camera(&mut self, widget_id: WidgetId, doc: &Doc, ctx: &mut Ctx, dt: f32) {
+    pub fn skip_cursor_animations(&mut self, doc: &Doc, ctx: &mut Ctx) {
+        self.cursor_animation_states.clear();
+
+        for index in doc.cursor_indices() {
+            let cursor = doc.cursor(index);
+            let cursor_position =
+                self.position_to_visual(cursor.position, VisualPosition::ZERO, doc, ctx.gfx);
+
+            self.cursor_animation_states.push(CursorAnimationState {
+                last_time: ctx.time,
+                last_position: cursor_position,
+                position: cursor_position,
+            });
+        }
+    }
+
+    pub fn animate(&mut self, widget_id: WidgetId, doc: &Doc, ctx: &mut Ctx, dt: f32) {
+        self.animate_cursors(ctx.ui.is_focused(widget_id), doc, ctx);
+        self.animate_camera(widget_id, doc, ctx, dt);
+    }
+
+    fn animate_cursors(&mut self, is_focused: bool, doc: &Doc, ctx: &mut Ctx) {
+        if !is_focused || !ctx.window.is_focused() {
+            return;
+        }
+
+        let gfx = &mut ctx.gfx;
+
+        self.cursor_animation_states.truncate(doc.cursors_len());
+
+        for (i, index) in doc.cursor_indices().enumerate() {
+            let cursor = doc.cursor(index);
+            let cursor_position =
+                self.position_to_visual(cursor.position, VisualPosition::ZERO, doc, gfx);
+
+            if i >= self.cursor_animation_states.len() {
+                self.cursor_animation_states.push(CursorAnimationState {
+                    last_time: ctx.time,
+                    last_position: cursor_position,
+                    position: cursor_position,
+                });
+
+                continue;
+            }
+
+            let animation_state = &mut self.cursor_animation_states[i];
+
+            if animation_state.position != cursor_position {
+                animation_state.last_position = animation_state.position;
+                animation_state.position = cursor_position;
+                animation_state.last_time = ctx.time;
+            }
+        }
+    }
+
+    fn animate_camera(&mut self, widget_id: WidgetId, doc: &Doc, ctx: &mut Ctx, dt: f32) {
         let mut mouse_scroll_handler = ctx.ui.mouse_scroll_handler(widget_id, ctx.window);
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
@@ -205,14 +262,14 @@ impl Tab {
             }
         }
 
-        self.update_camera_vertical(doc, ctx.gfx, dt);
-        self.update_camera_horizontal(doc, ctx.gfx, dt);
+        self.animate_camera_vertical(doc, ctx.gfx, dt);
+        self.animate_camera_horizontal(doc, ctx.gfx, dt);
 
         self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
         self.handled_doc_len = doc.lines().len();
     }
 
-    fn update_camera_vertical(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
+    fn animate_camera_vertical(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
         let doc_len = doc.lines().len();
         let max_y = (doc_len - 1) as f32 * gfx.line_height() + self.margin * 2.0;
 
@@ -252,7 +309,7 @@ impl Tab {
         );
     }
 
-    fn update_camera_horizontal(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
+    fn animate_camera_horizontal(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
         let new_cursor_position = doc.cursor(CursorIndex::Main).position;
         let new_cursor_visual_position =
             self.position_to_visual(new_cursor_position, self.camera.position(), doc, gfx);
@@ -347,7 +404,7 @@ impl Tab {
     }
 
     pub fn draw(
-        &mut self,
+        &self,
         colors @ (_, background): (Option<Color>, Option<Color>),
         doc: &mut Doc,
         is_focused: bool,
@@ -636,7 +693,7 @@ impl Tab {
     }
 
     fn draw_cursors(
-        &mut self,
+        &self,
         doc: &Doc,
         is_focused: bool,
         camera_position: VisualPosition,
@@ -683,67 +740,43 @@ impl Tab {
             }
         }
 
-        self.are_cursors_animating = false;
+        if !self.do_show_cursors(is_focused, ctx) {
+            return;
+        }
 
-        if is_focused && ctx.window.is_focused() {
-            self.cursor_animation_states.truncate(doc.cursors_len());
+        let gfx = &mut ctx.gfx;
 
-            for (i, index) in doc.cursor_indices().enumerate() {
-                let cursor = doc.cursor(index);
-                let cursor_position =
-                    self.position_to_visual(cursor.position, VisualPosition::ZERO, doc, gfx);
+        for (index, animation_state) in doc.cursor_indices().zip(&self.cursor_animation_states) {
+            let trail_progress =
+                self.cursor_animation_progress(ctx.time, animation_state.last_time);
+            let trail_progress = Self::ease_cursor_trail(trail_progress);
 
-                // TODO: Update cursor animation states in update and change &mut self back to &self for affected draw functions (draw_cursors & draw).
-                // TODO: There should be a method to skip the cursor animation like after the command palette doc is cleared when opening it after there was input stored from last time.
-                if i >= self.cursor_animation_states.len() {
-                    self.cursor_animation_states.push(CursorAnimationState {
-                        last_position: cursor_position,
-                        position: cursor_position,
-                        time: ctx.time,
-                    });
-                }
+            let cursor_position =
+                self.position_to_visual(doc.cursor(index).position, VisualPosition::ZERO, doc, gfx);
+            let last_cursor_position = animation_state.last_position;
 
-                let animation_state = &mut self.cursor_animation_states[i];
+            let trail_position = last_cursor_position.lerp_to(cursor_position, trail_progress);
 
-                if animation_state.position != cursor_position {
-                    animation_state.last_position = animation_state.position;
-                    animation_state.position = cursor_position;
-                    animation_state.time = ctx.time;
-                }
+            let mut cursor_rect =
+                Self::cursor_position_to_rect(cursor_position - camera_position, gfx);
+            let mut trail_rect =
+                Self::cursor_position_to_rect(trail_position - camera_position, gfx);
 
-                let last_time = animation_state.time;
-                let last_cursor_position = animation_state.last_position;
-
-                let trail_progress = (ctx.time - last_time) * 4.0;
-                let trail_scale = ((ctx.time - last_time) * 4.0).min(1.0);
-
-                // TODO: Calculate this in is_animating instead?
-                self.are_cursors_animating = self.are_cursors_animating || trail_progress < 1.0;
-
-                let trail_progress = Self::ease_cursor_trail(trail_progress);
-                let trail_position = last_cursor_position.lerp_to(cursor_position, trail_progress);
-
-                let mut cursor_rect =
-                    Self::cursor_position_to_rect(cursor_position - camera_position, gfx);
-                let mut trail_rect =
-                    Self::cursor_position_to_rect(trail_position - camera_position, gfx);
-
-                if cursor_position.x != last_cursor_position.x
-                    && cursor_position.y != last_cursor_position.y
-                {
-                    cursor_rect = cursor_rect.scale(trail_scale - 1.0);
-                    trail_rect = trail_rect.scale(-trail_scale);
-                }
-
-                let cursor_quad: Quad = cursor_rect.into();
-                let trail_quad = cursor_quad.expand_to_include(trail_rect.into());
-
-                let mut trail_color = theme.normal;
-                trail_color.a /= 2;
-
-                gfx.add_quad(trail_quad, trail_color);
-                gfx.add_quad(cursor_quad, theme.normal);
+            if cursor_position.x != last_cursor_position.x
+                && cursor_position.y != last_cursor_position.y
+            {
+                cursor_rect = cursor_rect.scale(trail_progress - 1.0);
+                trail_rect = trail_rect.scale(-trail_progress);
             }
+
+            let cursor_quad: Quad = cursor_rect.into();
+            let trail_quad = cursor_quad.expand_to_include(trail_rect.into());
+
+            let mut trail_color = theme.normal;
+            trail_color.a /= 2;
+
+            gfx.add_quad(trail_quad, trail_color);
+            gfx.add_quad(cursor_quad, theme.normal);
         }
     }
 
@@ -756,6 +789,14 @@ impl Tab {
             cursor_width,
             gfx.line_height(),
         )
+    }
+
+    fn do_show_cursors(&self, is_focused: bool, ctx: &Ctx) -> bool {
+        is_focused && ctx.window.is_focused()
+    }
+
+    fn cursor_animation_progress(&self, time: f32, last_time: f32) -> f32 {
+        (time - last_time) * 8.0
     }
 
     fn ease_cursor_trail(time: f32) -> f32 {
