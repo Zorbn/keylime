@@ -229,7 +229,7 @@ impl TerminalEmulator {
                             _ => return None,
                         };
 
-                        let response = format_pooled!("\u{1B}[>{}m", default_value);
+                        let response = format_pooled!("\x1B[>{}m", default_value);
 
                         input.extend(response.bytes());
 
@@ -251,7 +251,7 @@ impl TerminalEmulator {
                     Some(&b'c') => {
                         // Query device attributes.
                         // According to invisible-island.net/xterm 41 corresponds to a VT420 which is the default.
-                        let response = "\u{1B}[>41;0;0c";
+                        let response = "\x1B[>41;0;0c";
                         input.extend(response.bytes());
 
                         Some(&output[1..])
@@ -611,12 +611,20 @@ impl TerminalEmulator {
                     let char_x = self.grid_position_byte_to_char(self.grid_cursor, doc);
 
                     let response =
-                        format_pooled!("\u{1B}[{};{}R", self.grid_cursor.y + 1, char_x + 1);
+                        format_pooled!("\x1B[{};{}R", self.grid_cursor.y + 1, char_x + 1);
 
                     input.extend(response.bytes());
 
                     &output[1..]
                 })
+            }
+            Some(&b'c') => {
+                // Terminal ID.
+
+                // Claim to be a "VT101 with no options".
+                input.extend("\x1B[?1;0c".bytes());
+
+                Some(&output[1..])
             }
             _ => None,
         }
@@ -672,7 +680,7 @@ impl TerminalEmulator {
                 let color = theme.highlight_kind_to_color(HighlightKind::Terminal(color));
 
                 let response = format_pooled!(
-                    "\u{1B}]{};rgb:{:2X}{:2X}{:2X}\u{07}",
+                    "\x1B]{};rgb:{:2X}{:2X}{:2X}\x07",
                     kind,
                     color.r,
                     color.g,
