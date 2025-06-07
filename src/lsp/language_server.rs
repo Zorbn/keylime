@@ -76,6 +76,7 @@ enum MessageParseState {
 }
 
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub(super) enum MessageResult<'a> {
     Completion(Vec<EncodedCompletionItem>),
     CompletionItemResolve(EncodedCompletionItem),

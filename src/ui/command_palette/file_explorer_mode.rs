@@ -464,7 +464,7 @@ fn input_dir<'a>(input: &str, path: &'a mut PathBuf) -> &'a Path {
     path.push(input);
 
     let ends_with_dir = matches!(
-        path.components().last(),
+        path.components().next_back(),
         Some(Component::CurDir | Component::ParentDir)
     );
 
@@ -492,9 +492,7 @@ fn delete_last_path_component(can_delete_dirs: bool, doc: &mut Doc, ctx: &mut Ct
 }
 
 fn is_grapheme_path_separator(grapheme: &str) -> bool {
-    PATH_SEPARATORS
-        .iter()
-        .any(|separator| *separator == grapheme)
+    PATH_SEPARATORS.contains(&grapheme)
 }
 
 fn ends_with_path_separator(text: &str) -> bool {

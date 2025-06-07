@@ -800,7 +800,7 @@ impl TerminalEmulator {
 
             colored_line.splice(
                 insert_start.x..delete_end.x.min(colored_line_len),
-                iter::repeat(colors).take(c.len()),
+                iter::repeat_n(colors, c.len()),
             );
 
             position = self.move_position(position, 1, 0, doc);

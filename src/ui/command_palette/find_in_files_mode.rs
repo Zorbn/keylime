@@ -121,7 +121,7 @@ impl FindInFilesMode {
         if path.is_dir() {
             let is_ignored = path
                 .components()
-                .last()
+                .next_back()
                 .and_then(|dir| dir.as_os_str().to_str())
                 .is_some_and(|dir| ctx.config.ignored_dirs.contains(dir));
 
