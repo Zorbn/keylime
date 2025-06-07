@@ -163,7 +163,7 @@ impl Tab {
                     ..
                 } if mods.contains(Mod::Ctrl) || mods.contains(Mod::Cmd) => {
                     if mods.contains(Mod::Alt) {
-                        doc.add_cursor(position, ctx.gfx);
+                        doc.add_cursor_at(position, ctx.gfx);
                     } else {
                         doc.lsp_definition(position, ctx);
                     }

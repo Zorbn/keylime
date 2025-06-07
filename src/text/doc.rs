@@ -802,11 +802,15 @@ impl Doc {
         self.cursor_mut(index).desired_visual_x = self.cursor_visual_x(index, gfx);
     }
 
-    pub fn add_cursor(&mut self, position: Position, gfx: &mut Gfx) {
-        let position = self.clamp_position(position);
-
-        self.cursors.push(Cursor::new(position, 0));
+    pub fn add_cursor_at(&mut self, position: Position, gfx: &mut Gfx) {
+        self.add_cursor(Cursor::new(position, 0));
         self.update_cursor_desired_visual_x(CursorIndex::Main, gfx);
+    }
+
+    pub fn add_cursor(&mut self, mut cursor: Cursor) {
+        cursor.position = self.clamp_position(cursor.position);
+
+        self.cursors.push(cursor);
     }
 
     pub fn unwrap_cursor_index(&self, index: CursorIndex) -> usize {
@@ -1911,7 +1915,7 @@ impl Doc {
             return;
         };
 
-        self.add_cursor(position, gfx);
+        self.add_cursor_at(position, gfx);
 
         let end = self.move_position(
             position,

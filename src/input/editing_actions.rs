@@ -7,6 +7,7 @@ use crate::{
     pool::STRING_POOL,
     text::{
         action_history::ActionKind,
+        cursor::Cursor,
         cursor_index::CursorIndex,
         doc::{Doc, DocFlag},
         grapheme,
@@ -215,7 +216,7 @@ fn handle_add_cursor(direction_y: isize, doc: &mut Doc, gfx: &mut Gfx) {
         gfx,
     );
 
-    doc.add_cursor(position, gfx);
+    doc.add_cursor(Cursor::new(position, cursor.desired_visual_x));
 }
 
 pub fn handle_left_click(
