@@ -87,6 +87,7 @@ impl Terminal {
         self.handle_actions(ctx);
 
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
+        let pane_widget_id = pane.widget_id();
 
         let mut global_action_handler = ctx.window.action_handler();
 
@@ -96,7 +97,7 @@ impl Terminal {
                     if ctx.ui.is_in_focused_hierarchy(self.widget_id) {
                         ctx.ui.unfocus_hierarchy(self.widget_id);
                     } else {
-                        ctx.ui.focus(pane.widget_id());
+                        ctx.ui.focus(pane_widget_id);
                     }
                 }
                 _ => global_action_handler.unprocessed(ctx.window, action),
@@ -108,7 +109,7 @@ impl Terminal {
         if let Some((tab, (docs, emulator))) =
             pane.get_focused_tab_with_data_mut(&mut self.term_list)
         {
-            emulator.update_input(self.widget_id, docs, tab, ctx);
+            emulator.update_input(pane_widget_id, docs, tab, ctx);
         }
 
         for tab in pane.tabs.iter_mut() {
