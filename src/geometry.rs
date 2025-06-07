@@ -1,3 +1,4 @@
+pub mod easing;
 pub mod matrix;
 pub mod position;
 pub mod quad;

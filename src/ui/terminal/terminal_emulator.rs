@@ -356,7 +356,7 @@ impl TerminalEmulator {
             colored_grid_lines.truncate(grid_height);
         }
 
-        if grid_height > last_grid_height {
+        if grid_height >= last_grid_height {
             while colored_grid_lines.len() < grid_height {
                 colored_grid_lines.push(ColoredGridLine::new());
             }

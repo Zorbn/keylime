@@ -62,7 +62,7 @@ impl Rect {
     }
 
     pub fn scale_x(&self, scale: f32) -> Self {
-        let margin = scale * self.width;
+        let margin = (scale - 1.0) * self.width;
 
         Self::new(
             self.x - margin * 0.5,
@@ -73,7 +73,7 @@ impl Rect {
     }
 
     pub fn scale_y(&self, scale: f32) -> Self {
-        let margin = scale * self.height;
+        let margin = (scale - 1.0) * self.height;
 
         Self::new(
             self.x,

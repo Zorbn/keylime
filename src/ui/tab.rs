@@ -4,7 +4,10 @@ use std::{iter::Enumerate, ops::Range};
 use crate::{
     config::language::Language,
     ctx::Ctx,
-    geometry::{position::Position, quad::Quad, rect::Rect, visual_position::VisualPosition},
+    geometry::{
+        easing::ease_out_quart, position::Position, quad::Quad, rect::Rect,
+        visual_position::VisualPosition,
+    },
     input::{
         editing_actions::{handle_action, handle_grapheme, handle_left_click},
         mods::{Mod, Mods},
@@ -749,7 +752,7 @@ impl Tab {
         for (index, animation_state) in doc.cursor_indices().zip(&self.cursor_animation_states) {
             let trail_progress =
                 self.cursor_animation_progress(ctx.time, animation_state.last_time);
-            let trail_progress = Self::ease_cursor_trail(trail_progress);
+            let trail_progress = ease_out_quart(trail_progress);
 
             let cursor_position =
                 self.position_to_visual(doc.cursor(index).position, VisualPosition::ZERO, doc, gfx);
@@ -765,8 +768,8 @@ impl Tab {
             if cursor_position.x != last_cursor_position.x
                 && cursor_position.y != last_cursor_position.y
             {
-                cursor_rect = cursor_rect.scale(trail_progress - 1.0);
-                trail_rect = trail_rect.scale(-trail_progress);
+                cursor_rect = cursor_rect.scale(trail_progress);
+                trail_rect = trail_rect.scale(1.0 - trail_progress);
             }
 
             let cursor_quad: Quad = cursor_rect.into();
@@ -797,10 +800,6 @@ impl Tab {
 
     fn cursor_animation_progress(&self, time: f32, last_time: f32) -> f32 {
         (time - last_time) * 8.0
-    }
-
-    fn ease_cursor_trail(time: f32) -> f32 {
-        1.0 - (1.0 - time.clamp(0.0, 1.0)).powf(4.0)
     }
 
     fn draw_scroll_bar(&self, doc: &Doc, camera_position: VisualPosition, ctx: &mut Ctx) {
