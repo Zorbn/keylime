@@ -6,7 +6,12 @@
     "indent_width": 4,
     "lsp": {
         "command": "rust-analyzer",
-        "language_id": "rust"
+        "language_id": "rust",
+        "options": {
+            "check": {
+                "command": "clippy"
+            }
+        }
     },
     "syntax": {
         "keywords": [

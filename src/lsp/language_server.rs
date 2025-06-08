@@ -309,7 +309,7 @@ impl LanguageServer {
                 let result = message.result.as_ref()?;
 
                 if let Ok(result) = serde_json::from_str::<InitializeResult>(result.get()) {
-                    if result.capabilities.position_encoding == "utf-8" {
+                    if result.capabilities.position_encoding == Some("utf-8") {
                         self.position_encoding = PositionEncoding::Utf8;
                     }
 

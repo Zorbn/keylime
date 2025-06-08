@@ -216,6 +216,9 @@ pub(super) struct SignatureHelpOptions {
 }
 
 #[derive(Debug, Deserialize)]
+pub(super) struct DiagnosticOptions {}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct CompletionOptions {
     #[serde(default)]
@@ -225,9 +228,9 @@ pub(super) struct CompletionOptions {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct ServerCapabilities<'a> {
-    pub position_encoding: &'a str,
+    pub position_encoding: Option<&'a str>,
     pub signature_help_provider: Option<SignatureHelpOptions>,
-    pub diagnostic_provider: Option<()>,
+    pub diagnostic_provider: Option<DiagnosticOptions>,
     pub completion_provider: Option<CompletionOptions>,
 }
 
