@@ -18,10 +18,10 @@ impl Gfx {
 
     pub fn end(&self) {}
 
-    pub fn glyph_spans(&self, _text: &str) -> GlyphSpans {
+    pub fn glyph_spans(&self, text: &str) -> GlyphSpans {
         GlyphSpans {
             spans_start: 0,
-            spans_end: 0,
+            spans_end: text.len(),
         }
     }
 

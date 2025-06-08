@@ -1,5 +1,6 @@
 use crate::{
     geometry::position::Position,
+    input::editing_actions::handle_add_cursor,
     tests::{test_with_doc, HELLO_GOODBYE_TEXT, HELLO_WORLD_CODE_TEXT},
     text::{cursor_index::CursorIndex, doc::DocFlags},
 };
@@ -144,3 +145,16 @@ test_with_doc!(
         );
     }
 );
+
+test_with_doc!(multi_cursor_preserve_x, "hello\n\nworld", |ctx, doc| {
+    doc.jump_cursor(CursorIndex::Main, Position::new(1, 0), false, ctx.gfx);
+    assert_eq!(doc.cursor(CursorIndex::Main).desired_visual_x, 1);
+
+    handle_add_cursor(1, doc, ctx.gfx);
+    assert_eq!(doc.cursor(CursorIndex::Main).position, Position::new(0, 1));
+    assert_eq!(doc.cursor(CursorIndex::Main).desired_visual_x, 1);
+
+    handle_add_cursor(1, doc, ctx.gfx);
+    assert_eq!(doc.cursor(CursorIndex::Main).position, Position::new(1, 2));
+    assert_eq!(doc.cursor(CursorIndex::Main).desired_visual_x, 1);
+});

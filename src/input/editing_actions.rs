@@ -205,7 +205,7 @@ fn handle_move(
     }
 }
 
-fn handle_add_cursor(direction_y: isize, doc: &mut Doc, gfx: &mut Gfx) {
+pub fn handle_add_cursor(direction_y: isize, doc: &mut Doc, gfx: &mut Gfx) {
     let cursor = doc.cursor(CursorIndex::Main);
 
     let position = doc.move_position_with_desired_visual_x(
