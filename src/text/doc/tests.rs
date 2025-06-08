@@ -1,7 +1,8 @@
 use crate::{
+    ctx::ctx_with_time,
     geometry::position::Position,
     tests::{test_with_doc, HELLO_GOODBYE_TEXT},
-    text::cursor_index::CursorIndex,
+    text::{action_history::ActionKind, cursor_index::CursorIndex},
 };
 
 test_with_doc!(search_forward, HELLO_GOODBYE_TEXT, |ctx, doc| {
@@ -88,3 +89,20 @@ test_with_doc!(
         assert_eq!(doc.cursors_len(), 2);
     }
 );
+
+test_with_doc!(multi_cursor_undo, HELLO_GOODBYE_TEXT, |ctx, doc| {
+    let ctx = ctx_with_time!(ctx, 1.0);
+
+    doc.jump_cursor(CursorIndex::Main, Position::ZERO, false, ctx.gfx);
+    doc.add_cursor_at(Position::new(0, 1), ctx.gfx);
+    doc.insert_at_cursors("test", ctx);
+
+    assert_eq!(doc.to_string(), "testhello world\ntestgoodbye world");
+
+    doc.clear_extra_cursors(CursorIndex::Main);
+    doc.undo(ActionKind::Done, ctx);
+
+    assert_eq!(doc.to_string(), "hello world\ngoodbye world");
+    assert_eq!(doc.cursor(CursorIndex::Main).position, Position::new(0, 1));
+    assert_eq!(doc.cursors_len(), 2);
+});
