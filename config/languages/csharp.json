@@ -4,6 +4,7 @@
         "cs"
     ],
     "indent_width": 4,
+    "do_newline_brackets": true,
     "lsp": {
         "language_id": "csharp"
     },

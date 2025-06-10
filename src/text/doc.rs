@@ -1460,31 +1460,35 @@ impl Doc {
 
     pub fn trim_trailing_whitespace(&mut self, ctx: &mut Ctx) {
         for y in 0..self.lines.len() {
-            let line = &self.lines[y];
-            let mut whitespace_start = 0;
+            self.trim_trailing_whitespace_at(y, ctx);
+        }
+    }
 
-            let mut grapheme_cursor = GraphemeCursor::new(line.len(), line.len());
+    pub fn trim_trailing_whitespace_at(&mut self, y: usize, ctx: &mut Ctx) {
+        let line = &self.lines[y];
+        let mut whitespace_start = 0;
 
-            loop {
-                let grapheme = grapheme::at(grapheme_cursor.index(), line);
+        let mut grapheme_cursor = GraphemeCursor::new(line.len(), line.len());
 
-                if !grapheme::is_whitespace(grapheme) {
-                    break;
-                };
+        loop {
+            let grapheme = grapheme::at(grapheme_cursor.index(), line);
 
-                whitespace_start = grapheme_cursor.index();
+            if !grapheme::is_whitespace(grapheme) {
+                break;
+            };
 
-                if grapheme_cursor.previous_boundary(line).is_none() {
-                    break;
-                }
+            whitespace_start = grapheme_cursor.index();
+
+            if grapheme_cursor.previous_boundary(line).is_none() {
+                break;
             }
+        }
 
-            if whitespace_start < line.len() {
-                let start = Position::new(whitespace_start, y);
-                let end = Position::new(line.len(), y);
+        if whitespace_start < line.len() {
+            let start = Position::new(whitespace_start, y);
+            let end = Position::new(line.len(), y);
 
-                self.delete(start, end, ctx);
-            }
+            self.delete(start, end, ctx);
         }
     }
 

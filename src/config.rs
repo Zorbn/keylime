@@ -108,6 +108,8 @@ struct LanguageDesc<'a> {
     extensions: Vec<Pooled<String>>,
     #[serde(default)]
     indent_width: IndentWidth,
+    #[serde(default)]
+    do_newline_brackets: bool,
     #[serde(default = "DEFAULT_COMMENT")]
     comment: Pooled<String>,
     #[serde(default)]

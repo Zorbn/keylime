@@ -371,6 +371,17 @@ pub fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
         doc.insert_at_cursor(index, &indent_text, ctx);
 
         if do_start_block {
+            let do_newline_brackets = ctx
+                .config
+                .get_language_for_doc(doc)
+                .is_some_and(|language| language.do_newline_brackets);
+
+            if do_newline_brackets && doc.line_start(previous_position.y) != previous_position.x {
+                doc.insert(previous_position, "\n", ctx);
+                doc.insert_at_cursor(index, &indent_text, ctx);
+                doc.trim_trailing_whitespace_at(previous_position.y, ctx);
+            }
+
             doc.indent_at_cursor(index, ctx);
         }
 
