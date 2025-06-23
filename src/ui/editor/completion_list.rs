@@ -12,7 +12,7 @@ use crate::{
         LspSentRequest,
     },
     pool::Pooled,
-    text::{cursor_index::CursorIndex, doc::Doc},
+    text::{compare::score_fuzzy_match, cursor_index::CursorIndex, doc::Doc},
     ui::{
         core::{Ui, WidgetId, WidgetSettings},
         popup::{Popup, PopupAlignment},
@@ -323,8 +323,17 @@ impl CompletionList {
             self.add_token_results(doc);
         }
 
-        items.retain(|item| item.filter_text().starts_with(&self.prefix));
         items.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
+
+        items.sort_by(|a, b| {
+            let a = a.filter_text();
+            let b = b.filter_text();
+
+            let a_score = score_fuzzy_match(a, &self.prefix);
+            let b_score = score_fuzzy_match(b, &self.prefix);
+
+            b_score.total_cmp(&a_score).then(a.len().cmp(&b.len()))
+        });
 
         for item in items {
             self.result_list.push(CompletionResult::Completion {
