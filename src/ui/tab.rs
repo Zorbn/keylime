@@ -1,5 +1,5 @@
 use core::f32;
-use std::{iter::Enumerate, ops::Range};
+use std::{collections::HashSet, iter::Enumerate, ops::Range};
 
 use crate::{
     config::language::Language,
@@ -491,6 +491,37 @@ impl Tab {
         );
     }
 
+    fn update_indent_guide_x(
+        &self,
+        doc: &Doc,
+        y: usize,
+        indent_width: usize,
+        block_start_tokens: &HashSet<Pooled<String>>,
+        indent_guide_x: &mut usize,
+        gfx: &mut Gfx,
+    ) {
+        if !doc.is_line_whitespace(y) {
+            *indent_guide_x = doc.line_start(y);
+            return;
+        }
+
+        let Some(previous_line) = (y != 0).then(|| doc.get_line(y - 1)).flatten() else {
+            return;
+        };
+
+        let previous_line_end = doc.line_end(y - 1);
+        let previous_line_last_word_start =
+            doc.move_position_to_next_word(previous_line_end, -1, gfx);
+
+        let is_at_block_start = previous_line_last_word_start.y == previous_line_end.y
+            && block_start_tokens
+                .contains(&previous_line[previous_line_last_word_start.x..previous_line_end.x]);
+
+        if is_at_block_start {
+            *indent_guide_x += indent_width;
+        }
+    }
+
     fn draw_indent_guides(
         &self,
         doc: &Doc,
@@ -498,28 +529,50 @@ impl Tab {
         visible_lines: VisibleLines,
         ctx: &mut Ctx,
     ) {
-        let language = ctx.config.get_language_for_doc(doc);
-        let indent_width = language.map(|language| language.indent_width.measure(ctx.gfx));
+        let Some(language) = ctx.config.get_language_for_doc(doc) else {
+            return;
+        };
+
+        let indent_width = language.indent_width.measure(ctx.gfx);
+        let block_start_tokens = &language.blocks.start_tokens;
 
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        let Some(indent_width) = indent_width else {
-            return;
-        };
-
         let mut indent_guide_x = 0;
+        let mut indent_guide_start_y = visible_lines.min_y;
+
+        while indent_guide_start_y > 0 && doc.is_line_whitespace(indent_guide_start_y) {
+            indent_guide_start_y -= 1;
+        }
+
+        for y in indent_guide_start_y..visible_lines.min_y {
+            self.update_indent_guide_x(
+                doc,
+                y,
+                indent_width,
+                block_start_tokens,
+                &mut indent_guide_x,
+                gfx,
+            );
+        }
 
         for (i, y) in visible_lines.enumerate() {
-            let background_visual_y = self.line_background_visual_y(i, visible_lines.offset, gfx);
-
-            if !doc.is_line_whitespace(y) {
-                indent_guide_x = doc.line_start(y)
-            };
+            self.update_indent_guide_x(
+                doc,
+                y,
+                indent_width,
+                block_start_tokens,
+                &mut indent_guide_x,
+                gfx,
+            );
 
             for x in (indent_width..indent_guide_x).step_by(indent_width) {
                 let visual_x = gfx.line_padding_x() + self.margin + gfx.glyph_width() * x as f32
                     - camera_position.x;
+
+                let background_visual_y =
+                    self.line_background_visual_y(i, visible_lines.offset, gfx);
 
                 gfx.add_rect(
                     Rect::new(

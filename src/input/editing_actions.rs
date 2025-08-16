@@ -364,19 +364,46 @@ pub fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
         indent_text.push_str(&indent_line[..indent_end]);
 
         let previous_position = doc.move_position(cursor.position, -1, 0, ctx.gfx);
-        let do_start_block = doc.grapheme(previous_position) == "{";
-        let do_end_block = do_start_block && doc.grapheme(cursor.position) == "}";
+
+        let do_start_block;
+        let do_end_block;
+        let do_start_block_on_newline;
+
+        if let Some(language) = ctx.config.get_language_for_doc(doc) {
+            let previous_word_start = doc.move_position_to_next_word(cursor.position, -1, ctx.gfx);
+            let next_word_end = doc.move_position_to_next_word(cursor.position, 1, ctx.gfx);
+
+            let Some(cursor_line) = doc.get_line(cursor.position.y) else {
+                continue;
+            };
+
+            do_start_block = previous_word_start.y == cursor.position.y
+                && language
+                    .blocks
+                    .start_tokens
+                    .contains(&cursor_line[previous_word_start.x..cursor.position.x]);
+
+            do_end_block = do_start_block
+                && next_word_end.y == cursor.position.y
+                && language
+                    .blocks
+                    .end_tokens
+                    .contains(&cursor_line[cursor.position.x..next_word_end.x]);
+
+            do_start_block_on_newline = language.blocks.do_start_on_newline;
+        } else {
+            do_start_block = false;
+            do_end_block = false;
+            do_start_block_on_newline = false;
+        }
 
         doc.insert_at_cursor(index, "\n", ctx);
         doc.insert_at_cursor(index, &indent_text, ctx);
 
         if do_start_block {
-            let do_newline_brackets = ctx
-                .config
-                .get_language_for_doc(doc)
-                .is_some_and(|language| language.do_newline_brackets);
-
-            if do_newline_brackets && doc.line_start(previous_position.y) != previous_position.x {
+            if do_start_block_on_newline
+                && doc.line_start(previous_position.y) != previous_position.x
+            {
                 doc.insert(previous_position, "\n", ctx);
                 doc.insert_at_cursor(index, &indent_text, ctx);
                 doc.trim_trailing_whitespace_at(previous_position.y, ctx);

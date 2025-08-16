@@ -4,7 +4,9 @@
         "cs"
     ],
     "indent_width": 4,
-    "do_newline_brackets": true,
+    "blocks": {
+        "do_start_on_newline": true
+    },
     "lsp": {
         "language_id": "csharp"
     },
@@ -100,7 +102,7 @@
         "ranges": [
             {
                 "kind": "String",
-                "start": "\"",
+                "start": "$?\"",
                 "end": "\"",
                 "escape": "\\"
             },

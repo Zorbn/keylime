@@ -5,6 +5,9 @@
         "py"
     ],
     "indent_width": 4,
+    "blocks": {
+        "start_tokens": [":", "{", "[", "("]
+    },
     "syntax": {
         "keywords": [
             "False",
