@@ -45,7 +45,7 @@ pub mod editor_pane;
 mod examine_popup;
 mod signature_help_popup;
 
-const HOVER_TIME: f32 = 0.25;
+const HOVER_TIME: f32 = 0.5;
 
 pub struct Editor {
     doc_list: SlotList<Doc>,

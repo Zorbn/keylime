@@ -117,7 +117,7 @@ impl StatusBar {
             .path()
             .some()
             .zip(editor.current_dir())
-            .and_then(|(path, current_dir)| path.strip_prefix(current_dir).ok())
+            .map(|(path, current_dir)| path.strip_prefix(current_dir).unwrap_or(path))
         {
             write!(&mut doc_text, "{}, ", path.display()).ok()?;
         }

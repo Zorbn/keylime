@@ -67,7 +67,7 @@ impl<T> FocusList<T> {
         item
     }
 
-    pub fn drain(&mut self) -> Drain<T> {
+    pub fn drain(&mut self) -> Drain<'_, T> {
         self.focused_index = 0;
 
         self.items.drain(..)

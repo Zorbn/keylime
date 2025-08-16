@@ -284,7 +284,7 @@ impl<T> ResultList<T> {
         gfx.end();
     }
 
-    pub fn drain(&mut self) -> Drain<T> {
+    pub fn drain(&mut self) -> Drain<'_, T> {
         self.set_focused_index(0);
         self.results.drain()
     }
