@@ -367,7 +367,8 @@ pub fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
         let previous_position = doc.move_position(cursor.position, -1, 0, ctx.gfx);
 
         let do_start_block = doc.match_delimiter(cursor.position, DelimiterKind::Start, ctx);
-        let do_end_block = doc.match_delimiter(cursor.position, DelimiterKind::End, ctx);
+        let do_end_block =
+            do_start_block && doc.match_delimiter(cursor.position, DelimiterKind::End, ctx);
         let do_start_block_on_newline = ctx
             .config
             .get_language_for_doc(doc)

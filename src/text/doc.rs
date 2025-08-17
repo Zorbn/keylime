@@ -585,10 +585,10 @@ impl Doc {
         };
 
         if language.blocks.are_delimiters_words {
-            return self.match_delimiter_word(position, delimiters, line, kind, ctx);
+            self.match_delimiter_word(position, delimiters, line, kind, ctx)
+        } else {
+            self.match_delimiter_text(position, delimiters, line, kind)
         }
-
-        self.match_delimiter_text(position, delimiters, line, kind)
     }
 
     fn match_delimiter_word(
@@ -644,7 +644,7 @@ impl Doc {
                 DelimiterKind::End => {
                     let end_x = position.x + delimiter.len();
 
-                    if end_x >= line.len() {
+                    if end_x > line.len() {
                         continue;
                     }
 
