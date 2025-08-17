@@ -11,12 +11,14 @@ pub enum CameraRecenterKind {
 
 pub const RECENTER_DISTANCE: usize = 4;
 const SCROLL_SPEED: f32 = 30.0;
-const PRECISE_SCROLL_SPEED: f32 = 0.1;
+const PRECISE_SCROLL_SCALE: f32 = 0.1;
+const PRECISE_SCROLL_SPEED: f32 = 50.0;
 const SCROLL_FRICTION: f32 = 0.0001;
 
 pub struct CameraAxis {
     pub is_locked: bool,
     position: f32,
+    target_position: Option<f32>,
     max_position: f32,
     velocity: f32,
     recenter_kind: CameraRecenterKind,
@@ -27,6 +29,7 @@ impl CameraAxis {
         Self {
             is_locked: false,
             position: 0.0,
+            target_position: None,
             max_position: 0.0,
             velocity: 0.0,
             recenter_kind: CameraRecenterKind::None,
@@ -34,7 +37,7 @@ impl CameraAxis {
     }
 
     pub fn is_moving(&self) -> bool {
-        self.velocity != 0.0
+        self.velocity != 0.0 || self.target_position.is_some()
     }
 
     pub fn update(
@@ -88,6 +91,16 @@ impl CameraAxis {
             self.scroll_visual_distance(visual_distance);
         }
 
+        if let Some(target_position) = self.target_position {
+            self.position += (target_position - self.position) * dt * PRECISE_SCROLL_SPEED;
+
+            if (self.position - target_position).abs() < 0.5 {
+                self.target_position = None;
+            }
+
+            return;
+        }
+
         self.velocity *= SCROLL_FRICTION.powf(dt);
         self.position += self.velocity * dt;
 
@@ -111,13 +124,13 @@ impl CameraAxis {
 
     pub fn scroll_visual_distance(&mut self, visual_distance: f32) {
         let f = SCROLL_FRICTION;
-        let t = 1.0; // Time to scroll to destination.
 
         // Velocity of the camera is (v = starting velocity, f = friction factor): v * f^t
         // Integrate to get position: y = (v * f^t) / ln(f)
         // Add term so we start at zero: y = (v * f^t) / ln(f) - v / ln(f)
-        // Solve for v:
-        let v = (visual_distance * f.ln()) / (f.powf(t) - 1.0);
+        // Solve for v: v = (y * ln(f)) / (f^t - 1)
+        // Limit as t approaches infinity:
+        let v = visual_distance * f.ln() / -1.0;
 
         self.velocity = v;
     }
@@ -127,9 +140,14 @@ impl CameraAxis {
 
         if is_precise {
             self.velocity = 0.0;
-            self.position -= delta * PRECISE_SCROLL_SPEED;
+
+            let previous_target_position = self.target_position.unwrap_or(self.position);
+            let target_position = previous_target_position - delta * PRECISE_SCROLL_SCALE;
+
+            self.target_position = Some(target_position.clamp(0.0, self.max_position));
         } else {
             self.velocity -= delta * SCROLL_SPEED;
+            self.target_position = None;
         }
 
         self.position = self.position.clamp(0.0, self.max_position);
