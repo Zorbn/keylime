@@ -1,8 +1,8 @@
 use core::f32;
-use std::{collections::HashSet, iter::Enumerate, ops::Range};
+use std::{iter::Enumerate, ops::Range};
 
 use crate::{
-    config::language::Language,
+    config::language::{DelimiterKind, Language},
     ctx::Ctx,
     geometry::{
         easing::ease_out_quart, position::Position, quad::Quad, rect::Rect,
@@ -496,26 +496,16 @@ impl Tab {
         doc: &Doc,
         y: usize,
         indent_width: usize,
-        block_start_tokens: &HashSet<Pooled<String>>,
         indent_guide_x: &mut usize,
-        gfx: &mut Gfx,
+        ctx: &mut Ctx,
     ) {
         if !doc.is_line_whitespace(y) {
             *indent_guide_x = doc.line_start(y);
             return;
         }
 
-        let Some(previous_line) = (y != 0).then(|| doc.get_line(y - 1)).flatten() else {
-            return;
-        };
-
         let previous_line_end = doc.line_end(y - 1);
-        let previous_line_last_word_start =
-            doc.move_position_to_next_word(previous_line_end, -1, gfx);
-
-        let is_at_block_start = previous_line_last_word_start.y == previous_line_end.y
-            && block_start_tokens
-                .contains(&previous_line[previous_line_last_word_start.x..previous_line_end.x]);
+        let is_at_block_start = doc.match_delimiter(previous_line_end, DelimiterKind::Start, ctx);
 
         if is_at_block_start {
             *indent_guide_x += indent_width;
@@ -534,9 +524,7 @@ impl Tab {
         };
 
         let indent_width = language.indent_width.measure(ctx.gfx);
-        let block_start_tokens = &language.blocks.start_tokens;
 
-        let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
         let mut indent_guide_x = 0;
@@ -547,25 +535,13 @@ impl Tab {
         }
 
         for y in indent_guide_start_y..visible_lines.min_y {
-            self.update_indent_guide_x(
-                doc,
-                y,
-                indent_width,
-                block_start_tokens,
-                &mut indent_guide_x,
-                gfx,
-            );
+            self.update_indent_guide_x(doc, y, indent_width, &mut indent_guide_x, ctx);
         }
 
         for (i, y) in visible_lines.enumerate() {
-            self.update_indent_guide_x(
-                doc,
-                y,
-                indent_width,
-                block_start_tokens,
-                &mut indent_guide_x,
-                gfx,
-            );
+            self.update_indent_guide_x(doc, y, indent_width, &mut indent_guide_x, ctx);
+
+            let gfx = &mut ctx.gfx;
 
             for x in (indent_width..indent_guide_x).step_by(indent_width) {
                 let visual_x = gfx.line_padding_x() + self.margin + gfx.glyph_width() * x as f32

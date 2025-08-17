@@ -13,6 +13,7 @@ use serde::Deserialize;
 use theme::Theme;
 
 use crate::{
+    config::language::LanguageBlocks,
     input::{
         action::ActionName,
         key::Key,
@@ -65,10 +66,6 @@ const DEFAULT_KEYMAPS: fn() -> HashMap<Keybind, ActionName> = || {
     .into_iter()
     .collect()
 };
-const DEFAULT_BLOCK_START_TOKENS: fn() -> Vec<Pooled<String>> =
-    || ["{", "[", "("].iter().copied().map(Into::into).collect();
-const DEFAULT_BLOCK_END_TOKENS: fn() -> Vec<Pooled<String>> =
-    || ["}", "]", ")"].iter().copied().map(Into::into).collect();
 
 #[derive(Deserialize, Debug)]
 struct SyntaxDesc<'a> {
@@ -106,26 +103,6 @@ struct KeymapDesc {
     action: ActionName,
 }
 
-#[derive(Debug, Deserialize)]
-struct LanguageBlocksDesc {
-    #[serde(default)]
-    do_start_on_newline: bool,
-    #[serde(default = "DEFAULT_BLOCK_START_TOKENS")]
-    start_tokens: Vec<Pooled<String>>,
-    #[serde(default = "DEFAULT_BLOCK_END_TOKENS")]
-    end_tokens: Vec<Pooled<String>>,
-}
-
-impl Default for LanguageBlocksDesc {
-    fn default() -> Self {
-        Self {
-            do_start_on_newline: false,
-            start_tokens: DEFAULT_BLOCK_START_TOKENS(),
-            end_tokens: DEFAULT_BLOCK_END_TOKENS(),
-        }
-    }
-}
-
 #[derive(Deserialize, Debug)]
 struct LanguageDesc<'a> {
     name: Pooled<String>,
@@ -133,7 +110,7 @@ struct LanguageDesc<'a> {
     #[serde(default)]
     indent_width: IndentWidth,
     #[serde(default)]
-    blocks: LanguageBlocksDesc,
+    blocks: LanguageBlocks,
     #[serde(default = "DEFAULT_COMMENT")]
     comment: Pooled<String>,
     #[serde(default)]

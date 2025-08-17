@@ -1,11 +1,14 @@
-use std::collections::HashSet;
-
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{config::LanguageBlocksDesc, platform::gfx::Gfx, pool::Pooled, text::syntax::Syntax};
+use crate::{platform::gfx::Gfx, pool::Pooled, text::syntax::Syntax};
 
 use super::{LanguageDesc, SyntaxDesc};
+
+const DEFAULT_BLOCK_START_DELIMITERS: fn() -> Vec<Pooled<String>> =
+    || ["{", "[", "("].iter().copied().map(Into::into).collect();
+const DEFAULT_BLOCK_END_DELIMITERS: fn() -> Vec<Pooled<String>> =
+    || ["}", "]", ")"].iter().copied().map(Into::into).collect();
 
 #[derive(Deserialize, Debug, Default, Clone, Copy)]
 #[serde(untagged)]
@@ -42,18 +45,30 @@ pub struct LanguageLsp {
     pub options: Option<Value>,
 }
 
-pub struct LanguageBlocks {
-    pub do_start_on_newline: bool,
-    pub start_tokens: HashSet<Pooled<String>>,
-    pub end_tokens: HashSet<Pooled<String>>,
+pub enum DelimiterKind {
+    Start,
+    End,
 }
 
-impl LanguageBlocks {
-    pub(super) fn new(desc: LanguageBlocksDesc) -> Self {
+#[derive(Debug, Deserialize)]
+pub struct LanguageBlocks {
+    #[serde(default)]
+    pub do_start_on_newline: bool,
+    #[serde(default = "DEFAULT_BLOCK_START_DELIMITERS")]
+    pub start_delimiters: Vec<Pooled<String>>,
+    #[serde(default = "DEFAULT_BLOCK_END_DELIMITERS")]
+    pub end_delimiters: Vec<Pooled<String>>,
+    #[serde(default)]
+    pub are_delimiters_words: bool,
+}
+
+impl Default for LanguageBlocks {
+    fn default() -> Self {
         Self {
-            do_start_on_newline: desc.do_start_on_newline,
-            start_tokens: HashSet::from_iter(desc.start_tokens),
-            end_tokens: HashSet::from_iter(desc.end_tokens),
+            do_start_on_newline: false,
+            start_delimiters: DEFAULT_BLOCK_START_DELIMITERS(),
+            end_delimiters: DEFAULT_BLOCK_END_DELIMITERS(),
+            are_delimiters_words: false,
         }
     }
 }
@@ -74,7 +89,7 @@ impl Language {
             index,
             name: desc.name,
             indent_width: desc.indent_width,
-            blocks: LanguageBlocks::new(desc.blocks),
+            blocks: desc.blocks,
             comment: desc.comment,
             lsp: desc.lsp,
             syntax: desc.syntax.map(SyntaxDesc::syntax),

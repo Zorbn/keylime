@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::{
+    config::language::DelimiterKind,
     ctx::Ctx,
     geometry::position::Position,
     platform::gfx::Gfx,
@@ -365,37 +366,13 @@ pub fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
 
         let previous_position = doc.move_position(cursor.position, -1, 0, ctx.gfx);
 
-        let do_start_block;
-        let do_end_block;
-        let do_start_block_on_newline;
-
-        if let Some(language) = ctx.config.get_language_for_doc(doc) {
-            let previous_word_start = doc.move_position_to_next_word(cursor.position, -1, ctx.gfx);
-            let next_word_end = doc.move_position_to_next_word(cursor.position, 1, ctx.gfx);
-
-            let Some(cursor_line) = doc.get_line(cursor.position.y) else {
-                continue;
-            };
-
-            do_start_block = previous_word_start.y == cursor.position.y
-                && language
-                    .blocks
-                    .start_tokens
-                    .contains(&cursor_line[previous_word_start.x..cursor.position.x]);
-
-            do_end_block = do_start_block
-                && next_word_end.y == cursor.position.y
-                && language
-                    .blocks
-                    .end_tokens
-                    .contains(&cursor_line[cursor.position.x..next_word_end.x]);
-
-            do_start_block_on_newline = language.blocks.do_start_on_newline;
-        } else {
-            do_start_block = false;
-            do_end_block = false;
-            do_start_block_on_newline = false;
-        }
+        let do_start_block = doc.match_delimiter(cursor.position, DelimiterKind::Start, ctx);
+        let do_end_block = doc.match_delimiter(cursor.position, DelimiterKind::End, ctx);
+        let do_start_block_on_newline = ctx
+            .config
+            .get_language_for_doc(doc)
+            .map(|language| language.blocks.do_start_on_newline)
+            .unwrap_or_default();
 
         doc.insert_at_cursor(index, "\n", ctx);
         doc.insert_at_cursor(index, &indent_text, ctx);

@@ -16,6 +16,7 @@ use lsp::DocLspState;
 
 use crate::{
     bit_field::define_bit_field,
+    config::language::DelimiterKind,
     ctx::{ctx_with_time, Ctx},
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     lsp::types::DecodedDiagnostic,
@@ -567,6 +568,96 @@ impl Doc {
                 self.comment_line(comment, Position::new(min_comment_x, y), ctx);
             }
         }
+    }
+
+    pub fn match_delimiter(&self, position: Position, kind: DelimiterKind, ctx: &mut Ctx) -> bool {
+        let Some(line) = self.get_line(position.y) else {
+            return false;
+        };
+
+        let Some(language) = ctx.config.get_language_for_doc(self) else {
+            return false;
+        };
+
+        let delimiters = match kind {
+            DelimiterKind::Start => &language.blocks.start_delimiters,
+            DelimiterKind::End => &language.blocks.end_delimiters,
+        };
+
+        if language.blocks.are_delimiters_words {
+            return self.match_delimiter_word(position, delimiters, line, kind, ctx);
+        }
+
+        self.match_delimiter_text(position, delimiters, line, kind)
+    }
+
+    fn match_delimiter_word(
+        &self,
+        position: Position,
+        delimiters: &Vec<Pooled<String>>,
+        line: &str,
+        kind: DelimiterKind,
+        ctx: &mut Ctx,
+    ) -> bool {
+        let (start, end) = match kind {
+            DelimiterKind::Start => (
+                self.move_position_to_next_word(position, -1, ctx.gfx),
+                position,
+            ),
+            DelimiterKind::End => (
+                position,
+                self.move_position_to_next_word(position, 1, ctx.gfx),
+            ),
+        };
+
+        if start.y != end.y {
+            return false;
+        }
+
+        let word = &line[start.x..end.x];
+
+        for delimiter in delimiters {
+            if word == delimiter.as_str() {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn match_delimiter_text(
+        &self,
+        position: Position,
+        delimiters: &Vec<Pooled<String>>,
+        line: &str,
+        kind: DelimiterKind,
+    ) -> bool {
+        for delimiter in delimiters {
+            let (start_x, end_x) = match kind {
+                DelimiterKind::Start => {
+                    if delimiter.len() > position.x {
+                        continue;
+                    }
+
+                    (position.x - delimiter.len(), position.x)
+                }
+                DelimiterKind::End => {
+                    let end_x = position.x + delimiter.len();
+
+                    if end_x >= line.len() {
+                        continue;
+                    }
+
+                    (position.x, end_x)
+                }
+            };
+
+            if &line[start_x..end_x] == delimiter.as_str() {
+                return true;
+            }
+        }
+
+        false
     }
 
     pub fn indent_lines_at_cursor(&mut self, index: CursorIndex, do_unindent: bool, ctx: &mut Ctx) {
