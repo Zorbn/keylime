@@ -361,6 +361,9 @@ pub fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
             doc.line_start(indent_y)
         };
 
+        let indent_line_end = doc.line_end(indent_y);
+        let is_at_block_start = doc.match_delimiter(indent_line_end, DelimiterKind::Start, ctx);
+
         let mut indent_text = STRING_POOL.new_item();
         indent_text.push_str(&indent_line[..indent_end]);
 
@@ -378,15 +381,16 @@ pub fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
         doc.insert_at_cursor(index, "\n", ctx);
         doc.insert_at_cursor(index, &indent_text, ctx);
 
-        if do_start_block {
-            if do_start_block_on_newline
-                && doc.line_start(previous_position.y) != previous_position.x
-            {
-                doc.insert(previous_position, "\n", ctx);
-                doc.insert_at_cursor(index, &indent_text, ctx);
-                doc.trim_trailing_whitespace_at(previous_position.y, ctx);
-            }
+        if do_start_block
+            && do_start_block_on_newline
+            && doc.line_start(previous_position.y) != previous_position.x
+        {
+            doc.insert(previous_position, "\n", ctx);
+            doc.insert_at_cursor(index, &indent_text, ctx);
+            doc.trim_trailing_whitespace_at(previous_position.y, ctx);
+        }
 
+        if do_start_block || is_at_block_start {
             doc.indent_at_cursor(index, ctx);
         }
 
