@@ -157,7 +157,7 @@ impl<T> ResultList<T> {
         }
     }
 
-    fn try_focus_position(&mut self, position: VisualPosition, ctx: &mut Ctx) -> bool {
+    fn try_focus_position(&mut self, position: VisualPosition, ctx: &Ctx) -> bool {
         let bounds = ctx.ui.widget(self.widget_id).bounds;
 
         if !bounds.contains_position(position) {
@@ -201,9 +201,9 @@ impl<T> ResultList<T> {
         }
     }
 
-    pub fn animate(&mut self, ui: &Ui, dt: f32) {
+    pub fn animate(&mut self, ctx: &Ctx, dt: f32) {
         let focused_index = self.focused_index();
-        let bounds = ui.widget(self.widget_id).bounds;
+        let bounds = ctx.ui.widget(self.widget_id).bounds;
 
         let target_y = (focused_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
         let max_y = (self.len() as f32 * self.result_bounds.height - bounds.height).max(0.0);
@@ -222,6 +222,9 @@ impl<T> ResultList<T> {
             can_recenter,
             dt,
         );
+
+        let mouse_position = ctx.window.mouse_position();
+        self.try_focus_position(mouse_position, ctx);
     }
 
     pub fn draw<'a>(

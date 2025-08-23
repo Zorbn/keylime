@@ -227,7 +227,7 @@ impl CompletionList {
     }
 
     pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.result_list.animate(ctx.ui, dt);
+        self.result_list.animate(ctx, dt);
 
         self.detail_popup.animate(ctx, dt);
         self.documentation_popup.animate(ctx, dt);

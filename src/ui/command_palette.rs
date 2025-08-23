@@ -236,7 +236,7 @@ impl CommandPalette {
 
     pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
         self.tab.animate(self.widget_id, &self.doc, ctx, dt);
-        self.result_list.animate(ctx.ui, dt);
+        self.result_list.animate(ctx, dt);
     }
 
     fn submit(&mut self, kind: ResultListSubmitKind, editor: &mut Editor, ctx: &mut Ctx) {
