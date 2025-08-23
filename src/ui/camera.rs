@@ -92,27 +92,29 @@ impl CameraAxis {
         }
 
         if let Some(target_position) = self.target_position {
+            self.velocity = 0.0;
             self.position += (target_position - self.position) * dt * PRECISE_SCROLL_SPEED;
 
-            if (self.position - target_position).abs() < 0.5 {
+            if (self.position - target_position).abs() < 0.5
+                || (target_position < 0.0 && self.position < 0.0)
+                || (target_position > max_position && self.position > max_position)
+            {
                 self.target_position = None;
             }
+        } else {
+            self.velocity *= SCROLL_FRICTION.powf(dt);
+            self.position += self.velocity * dt;
 
-            return;
-        }
+            // We want the velocity to eventually be exactly zero so that we can stop animating.
+            if self.velocity.abs() < 0.5
+                || (self.velocity < 0.0 && self.position < 0.0)
+                || (self.velocity > 0.0 && self.position > max_position)
+            {
+                self.velocity = 0.0;
 
-        self.velocity *= SCROLL_FRICTION.powf(dt);
-        self.position += self.velocity * dt;
-
-        // We want the velocity to eventually be exactly zero so that we can stop animating.
-        if self.velocity.abs() < 0.5
-            || (self.velocity < 0.0 && self.position < 0.0)
-            || (self.velocity > 0.0 && self.position > max_position)
-        {
-            self.velocity = 0.0;
-
-            // If we're recentering the camera then we must be done at this point.
-            self.recenter_kind = CameraRecenterKind::None;
+                // If we're recentering the camera then we must be done at this point.
+                self.recenter_kind = CameraRecenterKind::None;
+            }
         }
 
         self.position = self.position.clamp(0.0, max_position);
@@ -142,9 +144,7 @@ impl CameraAxis {
             self.velocity = 0.0;
 
             let previous_target_position = self.target_position.unwrap_or(self.position);
-            let target_position = previous_target_position - delta * PRECISE_SCROLL_SCALE;
-
-            self.target_position = Some(target_position.clamp(0.0, self.max_position));
+            self.target_position = Some(previous_target_position - delta * PRECISE_SCROLL_SCALE);
         } else {
             self.velocity -= delta * SCROLL_SPEED;
             self.target_position = None;
