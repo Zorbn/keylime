@@ -153,7 +153,6 @@ impl<T> ResultList<T> {
 
             let delta = mouse_scroll.delta * self.result_bounds.height;
             self.camera.vertical.scroll(delta, mouse_scroll.is_precise);
-            self.try_focus_position(position, ctx);
         }
     }
 
@@ -222,9 +221,6 @@ impl<T> ResultList<T> {
             can_recenter,
             dt,
         );
-
-        let mouse_position = ctx.window.mouse_position();
-        self.try_focus_position(mouse_position, ctx);
     }
 
     pub fn draw<'a>(
