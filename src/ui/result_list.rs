@@ -102,7 +102,7 @@ impl<T> ResultList<T> {
         let mut input = ResultListInput::None;
 
         self.handle_mouse_inputs(&mut input, ctx);
-        self.handle_keybinds(&mut input, ctx);
+        self.handle_actions(&mut input, ctx);
 
         input
     }
@@ -177,7 +177,7 @@ impl<T> ResultList<T> {
         true
     }
 
-    fn handle_keybinds(&mut self, input: &mut ResultListInput, ctx: &mut Ctx) {
+    fn handle_actions(&mut self, input: &mut ResultListInput, ctx: &mut Ctx) {
         let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
 
         while let Some(action) = action_handler.next(ctx) {
