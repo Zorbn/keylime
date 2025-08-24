@@ -362,7 +362,8 @@ pub fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
         };
 
         let indent_line_end = doc.line_end(indent_y);
-        let is_at_block_start = doc.match_delimiter(indent_line_end, DelimiterKind::Start, ctx);
+        let is_at_block_start = indent_y < cursor.position.y
+            && doc.match_delimiter(indent_line_end, DelimiterKind::Start, ctx);
 
         let mut indent_text = STRING_POOL.new_item();
         indent_text.push_str(&indent_line[..indent_end]);
