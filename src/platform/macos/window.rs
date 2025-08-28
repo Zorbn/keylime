@@ -220,10 +220,11 @@ impl Window {
     }
 
     pub fn handle_flags_changed(&mut self, event: &NSEvent) {
-        let modifier_flags = unsafe { event.modifierFlags() };
-        let mods = Self::modifier_flags_to_mods(modifier_flags);
+        self.handle_modifier_flags(unsafe { event.modifierFlags() });
+    }
 
-        self.mods = mods;
+    pub fn handle_modifier_flags(&mut self, modifier_flags: NSEventModifierFlags) {
+        self.mods = Self::modifier_flags_to_mods(modifier_flags);
     }
 
     pub fn handle_mouse_down(&mut self, event: &NSEvent, is_drag: bool) {

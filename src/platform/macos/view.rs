@@ -342,6 +342,10 @@ impl View {
 
         window.inner.is_focused = is_focused;
 
+        window
+            .inner
+            .handle_modifier_flags(unsafe { NSEvent::modifierFlags_class() });
+
         unsafe {
             self.setNeedsDisplay(true);
         }
