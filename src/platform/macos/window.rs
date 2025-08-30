@@ -53,7 +53,6 @@ pub struct Window {
     pub actions_typed: Vec<Action>,
     pub mousebinds_pressed: Vec<Mousebind>,
     pub mouse_scrolls: Vec<MouseScroll>,
-    mods: Mods,
 
     was_last_scroll_horizontal: bool,
     current_pressed_button: Option<RecordedMouseClick>,
@@ -107,7 +106,6 @@ impl Window {
             actions_typed: Vec::new(),
             mousebinds_pressed: Vec::new(),
             mouse_scrolls: Vec::new(),
-            mods: Mods::NONE,
 
             was_last_scroll_horizontal: false,
             current_pressed_button: None,
@@ -217,14 +215,6 @@ impl Window {
             self.actions_typed
                 .push(Action::from_keybind(Keybind::new(key, mods)));
         }
-    }
-
-    pub fn handle_flags_changed(&mut self, event: &NSEvent) {
-        self.handle_modifier_flags(unsafe { event.modifierFlags() });
-    }
-
-    pub fn handle_modifier_flags(&mut self, modifier_flags: NSEventModifierFlags) {
-        self.mods = Self::modifier_flags_to_mods(modifier_flags);
     }
 
     pub fn handle_mouse_down(&mut self, event: &NSEvent, is_drag: bool) {
@@ -412,7 +402,9 @@ impl Window {
     }
 
     pub fn mods(&self) -> Mods {
-        self.mods
+        let modifier_flags = unsafe { NSEvent::modifierFlags_class() };
+
+        Self::modifier_flags_to_mods(modifier_flags)
     }
 
     pub fn set_clipboard(&mut self, text: &str, was_copy_implicit: bool) -> Result<()> {

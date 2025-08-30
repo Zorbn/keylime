@@ -148,8 +148,8 @@ define_class!(
         }
 
         #[unsafe(method(flagsChanged:))]
-        unsafe fn flags_changed(&self, event: &NSEvent) {
-            handle_event!(handle_flags_changed, self, event);
+        unsafe fn flags_changed(&self, _event: &NSEvent) {
+            self.update();
         }
 
         #[unsafe(method(mouseDown:))]
@@ -341,10 +341,6 @@ impl View {
         let ViewState { window, .. } = state.as_mut()?;
 
         window.inner.is_focused = is_focused;
-
-        window
-            .inner
-            .handle_modifier_flags(unsafe { NSEvent::modifierFlags_class() });
 
         unsafe {
             self.setNeedsDisplay(true);
