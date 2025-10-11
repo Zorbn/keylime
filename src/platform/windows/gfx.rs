@@ -6,7 +6,7 @@ use std::{
 };
 
 use windows::{
-    core::{s, Result},
+    core::{s, Interface, Result},
     Win32::{
         Foundation::{HMODULE, HWND, RECT, TRUE},
         Graphics::{
@@ -15,8 +15,10 @@ use windows::{
                 *,
             },
             Direct3D11::*,
+            DirectComposition::*,
             Dxgi::{Common::*, *},
         },
+        UI::WindowsAndMessaging::GetClientRect,
     },
 };
 
@@ -115,6 +117,9 @@ const PIXEL_FORMAT: DXGI_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
 
 pub struct Gfx {
     device: ID3D11Device,
+    _composition_device: IDCompositionDevice,
+    _target: IDCompositionTarget,
+    _visual: IDCompositionVisual,
     context: ID3D11DeviceContext,
     swap_chain: IDXGISwapChain1,
     rasterizer_state: ID3D11RasterizerState,
@@ -171,8 +176,16 @@ impl Gfx {
             (device_result.unwrap(), context_result.unwrap())
         };
 
+        let dxgi_device: IDXGIDevice4 = device.cast()?;
+        let composition_device: IDCompositionDevice = DCompositionCreateDevice(&dxgi_device)?;
+        let target = composition_device.CreateTargetForHwnd(hwnd, true)?;
+        let visual = composition_device.CreateVisual()?;
+
         let swap_chain = {
             let factory: IDXGIFactory2 = CreateDXGIFactory2(DXGI_CREATE_FACTORY_FLAGS::default())?;
+
+            let mut rect = RECT::default();
+            GetClientRect(hwnd, &mut rect).unwrap();
 
             let desc = DXGI_SWAP_CHAIN_DESC1 {
                 Format: PIXEL_FORMAT,
@@ -182,13 +195,22 @@ impl Gfx {
                 },
                 BufferUsage: DXGI_USAGE_RENDER_TARGET_OUTPUT,
                 BufferCount: 2,
-                Scaling: DXGI_SCALING_NONE,
-                SwapEffect: DXGI_SWAP_EFFECT_FLIP_DISCARD,
+                Scaling: DXGI_SCALING_STRETCH,
+                SwapEffect: DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
+                AlphaMode: DXGI_ALPHA_MODE_PREMULTIPLIED,
+                Width: (rect.right - rect.left) as u32,
+                Height: (rect.bottom - rect.top) as u32,
                 ..Default::default()
             };
 
-            factory.CreateSwapChainForHwnd(&device, hwnd, &desc, None, None)?
+            factory
+                .CreateSwapChainForComposition(&device, &desc, None)
+                .unwrap()
         };
+
+        visual.SetContent(&swap_chain)?;
+        target.SetRoot(&visual)?;
+        composition_device.Commit()?;
 
         let rasterizer_state = {
             let desc = D3D11_RASTERIZER_DESC {
@@ -365,6 +387,9 @@ impl Gfx {
 
         let gfx = Self {
             device,
+            _composition_device: composition_device,
+            _target: target,
+            _visual: visual,
             context,
             swap_chain,
             rasterizer_state,
