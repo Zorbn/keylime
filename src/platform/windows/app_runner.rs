@@ -59,7 +59,7 @@ impl AppRunner {
         let lparam: *mut Self = self;
 
         CreateWindowExW(
-            WINDOW_EX_STYLE(0),
+            WS_EX_NOREDIRECTIONBITMAP,
             window_class.lpszClassName,
             w!("Keylime"),
             WS_OVERLAPPEDWINDOW,
