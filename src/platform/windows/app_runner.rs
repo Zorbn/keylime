@@ -81,7 +81,7 @@ impl AppRunner {
     }
 
     pub fn run(&mut self) {
-        let AppRunner {
+        let Self {
             window,
             gfx: Some(gfx),
             app: Some(app),
@@ -116,7 +116,7 @@ impl AppRunner {
         wparam: WPARAM,
         lparam: LPARAM,
     ) -> LRESULT {
-        let app_runner = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut AppRunner;
+        let app_runner = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as *mut Self;
 
         match msg {
             WM_NCCREATE => {
@@ -163,7 +163,7 @@ impl AppRunner {
                 let scale = (wparam.0 & 0xFFFF) as f32 / DEFAULT_DPI;
                 let rect = *(lparam.0 as *const RECT);
 
-                if let AppRunner {
+                if let Self {
                     window,
                     gfx: Some(gfx),
                     app: Some(app),
@@ -190,7 +190,7 @@ impl AppRunner {
                 app_runner.window.inner.width = width;
                 app_runner.window.inner.height = height;
 
-                if let AppRunner {
+                if let Self {
                     window,
                     gfx: Some(gfx),
                     app: Some(app),

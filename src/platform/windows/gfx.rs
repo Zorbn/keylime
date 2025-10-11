@@ -496,6 +496,7 @@ impl Gfx {
 
         self.context.OMSetRenderTargets(None, None);
         self.render_target_view = None;
+        self.msaa_color_texture = None;
 
         let quality = self
             .device
