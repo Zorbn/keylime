@@ -24,8 +24,8 @@ use windows::{
         },
         UI::{
             Input::KeyboardAndMouse::{
-                GetDoubleClickTime, GetKeyState, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_RCONTROL,
-                VK_RMENU, VK_RSHIFT,
+                GetDoubleClickTime, GetKeyState, ReleaseCapture, SetCapture, VK_LCONTROL, VK_LMENU,
+                VK_LSHIFT, VK_RCONTROL, VK_RMENU, VK_RSHIFT,
             },
             WindowsAndMessaging::*,
         },
@@ -505,6 +505,8 @@ impl Window {
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
             WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP => {
+                let _ = ReleaseCapture();
+
                 let button = match msg {
                     WM_LBUTTONUP => Some(MouseButton::Left),
                     WM_RBUTTONUP => Some(MouseButton::Right),
@@ -564,6 +566,8 @@ impl Window {
                         (count, MousebindKind::Move)
                     }
                     _ => {
+                        SetCapture(hwnd);
+
                         let (is_chained_click, previous_kind) = self
                             .last_click
                             .map(|last_click| {
