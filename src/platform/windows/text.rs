@@ -208,7 +208,7 @@ impl Text {
         }
 
         let origin = Vector2 {
-            X: -left + ATLAS_PADDING,
+            X: -left,
             Y: -top + ATLAS_PADDING,
         };
 
@@ -363,7 +363,7 @@ impl Text {
         Ok(Atlas {
             data: raw_data,
             dimensions: AtlasDimensions {
-                origin_x: left.ceil() - ATLAS_PADDING,
+                origin_x: left.ceil(),
                 origin_y: bottom.ceil(),
                 width: width as usize,
                 height: height as usize,
