@@ -60,8 +60,13 @@
             },
             {
                 "kind": "String",
-                "start": "r#*\"",
-                "end": "\"#*"
+                "start": "r\"",
+                "end": "\""
+            },
+            {
+                "kind": "String",
+                "start": "r#+\"",
+                "end": "\"#+"
             },
             {
                 "kind": "Meta",

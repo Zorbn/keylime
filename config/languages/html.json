@@ -21,7 +21,7 @@
         "tokens": [
             {
                 "kind": "Keyword",
-                "pattern": "<(%w+)>"
+                "pattern": "<(%w+)"
             },
             {
                 "kind": "Keyword",
