@@ -143,6 +143,7 @@ impl Popup {
     }
 
     pub fn show(&mut self, text: &str, ctx: &mut Ctx) {
+        let text = text.trim();
         let mut char_cursor = CharCursor::new(0, text.len());
 
         while char_cursor.index() < text.len() {
