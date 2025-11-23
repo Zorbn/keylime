@@ -25,7 +25,7 @@
         "tokens": [
             {
                 "kind": "Keyword",
-                "pattern": "#+%.*"
+                "pattern": "^#+%.*"
             },
             {
                 "kind": "Identifier",
