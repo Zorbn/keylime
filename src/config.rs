@@ -46,7 +46,7 @@ const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
 const DEFAULT_FORMAT_ON_SAVE: fn() -> bool = || true;
 const DEFAULT_TERMINAL_HEIGHT: fn() -> f32 = || 12.0;
 const DEFAULT_IGNORED_DIRS: fn() -> Vec<Pooled<String>> = || {
-    ["target", "build", "out", ".git"]
+    ["target", "build", "out", ".git", "node_modules"]
         .iter()
         .copied()
         .map(Into::into)
