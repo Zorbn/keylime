@@ -410,8 +410,16 @@ impl TerminalEmulator {
         (grid_width, grid_height)
     }
 
-    pub fn trim_excess_lines(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
-        let max_lines = self.grid_height + MAX_SCROLLBACK_LINES;
+    pub fn trim_scrollback_lines(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+        self.trim_excess_lines(MAX_SCROLLBACK_LINES, doc, ctx);
+    }
+
+    pub fn trim_all_scrollback_lines(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+        self.trim_excess_lines(0, doc, ctx);
+    }
+
+    fn trim_excess_lines(&mut self, max_scrollback_lines: usize, doc: &mut Doc, ctx: &mut Ctx) {
+        let max_lines = self.grid_height + max_scrollback_lines;
 
         if doc.lines().len() <= max_lines {
             return;
@@ -522,7 +530,7 @@ impl TerminalEmulator {
 
         self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc);
 
-        self.trim_excess_lines(doc, ctx);
+        self.trim_scrollback_lines(doc, ctx);
         self.highlight_lines(doc);
     }
 

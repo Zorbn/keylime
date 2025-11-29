@@ -72,7 +72,8 @@ impl TerminalEmulator {
                     } else {
                         #[cfg(feature = "terminal_debug")]
                         {
-                            // Print unhandled control sequences.
+                            print!("Unhandled escape sequence: ");
+
                             for c in output.iter().take(8) {
                                 if let Some(c) = char::from_u32(*c as u32) {
                                     print!("{:?} ", c);
@@ -439,32 +440,34 @@ impl TerminalEmulator {
                 Some(&output[1..])
             }
             Some(&b'J') => {
-                let (start, end) = match Self::parameter(parameters, 0, 0) {
+                match Self::parameter(parameters, 0, 0) {
                     0 => {
                         // Clear from the cursor to the end of the screen.
                         let start = self.grid_cursor;
                         let end = self.line_end(self.grid_height - 1, doc);
 
-                        Some((start, end))
+                        self.delete(start, end, doc, ctx);
                     }
                     1 => {
                         // Clear from the cursor to the beginning of the screen.
                         let start = Position::ZERO;
                         let end = self.grid_cursor;
 
-                        Some((start, end))
+                        self.delete(start, end, doc, ctx);
                     }
                     2 => {
                         // Clear screen.
                         let start = Position::ZERO;
                         let end = self.line_end(self.grid_height - 1, doc);
 
-                        Some((start, end))
+                        self.delete(start, end, doc, ctx);
                     }
-                    _ => None,
-                }?;
-
-                self.delete(start, end, doc, ctx);
+                    3 => {
+                        // Erase "saved" (scrollback) lines.
+                        self.trim_all_scrollback_lines(doc, ctx);
+                    }
+                    _ => return None,
+                };
 
                 Some(&output[1..])
             }
