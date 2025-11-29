@@ -13,7 +13,7 @@ use crate::{
     platform::{gfx::Gfx, recycle::recycle},
     pool::{Pooled, PATH_POOL, STRING_POOL},
     text::{cursor_index::CursorIndex, doc::Doc},
-    ui::{color::Color, editor::Editor, result_list::ResultListSubmitKind},
+    ui::{color::Color, core::Ui, editor::Editor, result_list::ResultListSubmitKind},
 };
 
 use super::{
@@ -37,6 +37,8 @@ enum FileClipboardState {
 }
 
 pub struct FileExplorerMode {
+    starting_path: Option<Pooled<PathBuf>>,
+
     clipboard_path: PathBuf,
     clipboard_state: FileClipboardState,
 
@@ -45,8 +47,10 @@ pub struct FileExplorerMode {
 }
 
 impl FileExplorerMode {
-    pub fn new() -> Self {
+    pub fn new(starting_path: Option<Pooled<PathBuf>>) -> Self {
         Self {
+            starting_path,
+
             clipboard_path: PathBuf::new(),
             clipboard_state: FileClipboardState::Empty,
 
@@ -192,6 +196,22 @@ impl FileExplorerMode {
                 .set_focused_index(focused_result_index);
         }
     }
+
+    fn get_starting_path(&self, editor: &Editor, ui: &Ui) -> Option<Pooled<PathBuf>> {
+        if self.starting_path.is_some() {
+            return self.starting_path.clone();
+        }
+
+        let (pane, doc_list) = editor.last_focused_pane_and_doc_list(ui);
+        let (_, doc) = pane.get_focused_tab_with_data(doc_list)?;
+        let current_dir = editor.current_dir()?;
+
+        doc.path()
+            .some()
+            .and_then(|path| path.parent())
+            .map(|path| path.strip_prefix(current_dir).unwrap_or(path))
+            .map(Pooled::<PathBuf>::from)
+    }
 }
 
 impl CommandPaletteMode for FileExplorerMode {
@@ -204,22 +224,7 @@ impl CommandPaletteMode for FileExplorerMode {
     }
 
     fn on_open(&mut self, command_palette: &mut CommandPalette, args: CommandPaletteEventArgs) {
-        let (pane, doc_list) = args.editor.last_focused_pane_and_doc_list(args.ctx.ui);
-
-        let Some((_, doc)) = pane.get_focused_tab_with_data(doc_list) else {
-            return;
-        };
-
-        let Some(current_dir) = args.editor.current_dir() else {
-            return;
-        };
-
-        let Some(path) = doc
-            .path()
-            .some()
-            .and_then(|path| path.parent())
-            .map(|path| path.strip_prefix(current_dir).unwrap_or(path))
-        else {
+        let Some(path) = self.get_starting_path(args.editor, args.ctx.ui) else {
             return;
         };
 

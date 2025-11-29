@@ -13,6 +13,7 @@ mod search_mode;
 use std::path::PathBuf;
 
 use crate::{
+    config::Config,
     ctx::Ctx,
     geometry::{
         position::Position,
@@ -206,7 +207,16 @@ impl CommandPalette {
                     self.open(Box::new(AllActionsMode), editor, ctx);
                 }
                 action_name!(OpenFileExplorer) => {
-                    self.open(Box::new(FileExplorerMode::new()), editor, ctx);
+                    self.open(Box::new(FileExplorerMode::new(None)), editor, ctx);
+                }
+                action_name!(OpenConfig) => {
+                    let config_dir = Config::dir();
+
+                    self.open(
+                        Box::new(FileExplorerMode::new(Some(config_dir))),
+                        editor,
+                        ctx,
+                    );
                 }
                 action_name!(OpenSearch) => {
                     self.open(Box::new(SearchMode::new()), editor, ctx);

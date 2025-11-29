@@ -39,6 +39,7 @@ enum_variants!(
     OpenGoToLine,
     OpenFile,
     OpenFolder,
+    OpenConfig,
     SaveFile,
     NewTab,
     CloseTab,
