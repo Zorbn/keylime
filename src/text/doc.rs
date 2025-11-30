@@ -707,7 +707,7 @@ impl Doc {
         let indent_width = ctx.config.indent_width_for_doc(self);
         let grapheme = indent_width.grapheme();
 
-        for _ in 0..indent_width.grapheme_count() {
+        for _ in 0..indent_width.len() {
             self.insert(start, grapheme, ctx);
             start = self.move_position(start, 1, 0, ctx.gfx);
         }
@@ -726,7 +726,7 @@ impl Doc {
 
         match start_grapheme {
             " " => {
-                let indent_width = (end.x - 1) % indent_width.grapheme_count() + 1;
+                let indent_width = (end.x - 1) % indent_width.len() + 1;
 
                 for _ in 1..indent_width {
                     let next_start = self.move_position(start, -1, 0, ctx.gfx);

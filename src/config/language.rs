@@ -5,8 +5,13 @@ use crate::{platform::gfx::Gfx, pool::Pooled, text::syntax::Syntax};
 
 use super::{LanguageDesc, SyntaxDesc};
 
-const DEFAULT_BLOCK_START_DELIMITERS: fn() -> Vec<Pooled<String>> =
-    || ["{", "[", "("].iter().copied().map(Into::into).collect();
+const DEFAULT_BLOCK_START_DELIMITERS: fn() -> Vec<Pooled<String>> = || {
+    ["{", "[", "(", ":"]
+        .iter()
+        .copied()
+        .map(Into::into)
+        .collect()
+};
 const DEFAULT_BLOCK_END_DELIMITERS: fn() -> Vec<Pooled<String>> =
     || ["}", "]", ")"].iter().copied().map(Into::into).collect();
 
@@ -19,7 +24,7 @@ pub enum IndentWidth {
 }
 
 impl IndentWidth {
-    pub fn grapheme_count(&self) -> usize {
+    pub fn len(&self) -> usize {
         match self {
             Self::Tab => 1,
             Self::Spaces(indent_width) => *indent_width,
@@ -27,7 +32,7 @@ impl IndentWidth {
     }
 
     pub fn measure(&self, gfx: &mut Gfx) -> usize {
-        gfx.measure_text(self.grapheme()) * self.grapheme_count()
+        gfx.measure_text(self.grapheme()) * self.len()
     }
 
     pub fn grapheme(&self) -> &'static str {
