@@ -500,7 +500,11 @@ impl Tab {
         ctx: &mut Ctx,
     ) {
         if !doc.is_line_whitespace(y) {
-            *indent_guide_x = doc.line_start(y);
+            let line = doc.get_line(y).unwrap_or_default();
+            let line_start = doc.line_start(y);
+
+            *indent_guide_x = ctx.gfx.measure_text(&line[..line_start]);
+
             return;
         }
 
