@@ -508,12 +508,13 @@ impl Doc {
             return false;
         }
 
-        let mut grapheme_cursor = GraphemeCursor::new(start, comment.len());
+        let mut grapheme_cursor = GraphemeCursor::new(start, line.len());
 
         for comment_grapheme in GraphemeIterator::new(comment) {
             let start = grapheme_cursor.index();
+
             let Some(end) = grapheme_cursor.next_boundary(line) else {
-                break;
+                return false;
             };
 
             let line_grapheme = &line[start..end];
