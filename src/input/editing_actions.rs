@@ -294,9 +294,11 @@ pub fn handle_delete_backward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
             let start = match kind {
                 DeleteKind::Char => {
                     let indent_width = ctx.config.indent_width_for_doc(doc);
-                    let is_on_indent_boundary = end.x % indent_width.len() == 0;
+                    let line_start = doc.line_start(end.y);
+                    let is_on_indent_boundary =
+                        end.x < line_start && end.x % indent_width.len() == 0;
 
-                    if end.x > 0 && (is_on_indent_boundary || end.x == doc.line_start(end.y)) {
+                    if end.x > 0 && (is_on_indent_boundary || end.x == line_start) {
                         doc.indent_start(end, ctx)
                     } else {
                         let start = doc.move_position(end, -1, 0, ctx.gfx);
