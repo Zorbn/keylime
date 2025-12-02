@@ -52,11 +52,9 @@ impl<T> Pane<T> {
     }
 
     pub fn is_animating(&self, ctx: &Ctx) -> bool {
-        let is_focused = ctx.ui.is_focused(self.widget_id);
-
         self.tabs
             .get_focused()
-            .is_some_and(|tab| tab.is_animating(is_focused, ctx))
+            .is_some_and(|tab| tab.is_animating(ctx))
     }
 
     pub fn layout(&mut self, bounds: Rect, data_list: &mut SlotList<T>, ctx: &mut Ctx) {

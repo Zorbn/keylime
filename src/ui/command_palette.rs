@@ -109,10 +109,8 @@ impl CommandPalette {
     }
 
     pub fn is_animating(&self, ctx: &Ctx) -> bool {
-        let is_focused = ctx.ui.is_focused(self.widget_id);
-
         self.result_list.is_animating()
-            || self.tab.is_animating(is_focused, ctx)
+            || self.tab.is_animating(ctx)
             || self.mode.as_ref().is_some_and(|mode| mode.is_animating())
     }
 

@@ -85,9 +85,7 @@ impl Popup {
     }
 
     pub fn is_animating(&self, ctx: &Ctx) -> bool {
-        let is_focused = ctx.ui.is_focused(self.widget_id);
-
-        self.tab.is_animating(is_focused, ctx)
+        self.tab.is_animating(ctx)
     }
 
     pub fn update(&mut self, ctx: &mut Ctx) {

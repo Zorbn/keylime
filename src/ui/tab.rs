@@ -89,12 +89,11 @@ impl Tab {
         self.data_id
     }
 
-    pub fn is_animating(&self, is_focused: bool, ctx: &Ctx) -> bool {
+    pub fn is_animating(&self, ctx: &Ctx) -> bool {
         self.camera.is_moving()
-            || (self.do_show_cursors(is_focused, ctx)
-                && self.cursor_animation_states.iter().any(|animation_state| {
-                    self.cursor_animation_progress(ctx.time, animation_state.last_time) < 1.0
-                }))
+            || self.cursor_animation_states.iter().any(|animation_state| {
+                self.cursor_animation_progress(ctx.time, animation_state.last_time) < 1.0
+            })
     }
 
     pub fn layout(
