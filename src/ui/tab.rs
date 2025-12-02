@@ -202,15 +202,11 @@ impl Tab {
     }
 
     pub fn animate(&mut self, widget_id: WidgetId, doc: &Doc, ctx: &mut Ctx, dt: f32) {
-        self.animate_cursors(ctx.ui.is_focused(widget_id), doc, ctx);
+        self.animate_cursors(doc, ctx);
         self.animate_camera(widget_id, doc, ctx, dt);
     }
 
-    fn animate_cursors(&mut self, is_focused: bool, doc: &Doc, ctx: &mut Ctx) {
-        if !is_focused || !ctx.window.is_focused() {
-            return;
-        }
-
+    fn animate_cursors(&mut self, doc: &Doc, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;
 
         self.cursor_animation_states.truncate(doc.cursors_len());
