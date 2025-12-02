@@ -415,13 +415,7 @@ fn handle_tab(mods: Mods, doc: &mut Doc, ctx: &mut Ctx) {
     let do_unindent = mods.contains(Mod::Shift);
 
     for index in doc.cursor_indices() {
-        let cursor = doc.cursor(index);
-
-        if cursor.get_selection().is_some() || do_unindent {
-            doc.indent_lines_at_cursor(index, do_unindent, ctx);
-        } else {
-            doc.indent_at_cursors(ctx);
-        }
+        doc.indent_lines_at_cursor(index, do_unindent, ctx);
     }
 }
 

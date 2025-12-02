@@ -750,12 +750,6 @@ impl Doc {
         self.indent(start, ctx);
     }
 
-    pub fn indent_at_cursors(&mut self, ctx: &mut Ctx) {
-        for index in self.cursor_indices() {
-            self.indent_at_cursor(index, ctx);
-        }
-    }
-
     pub fn move_cursor(
         &mut self,
         index: CursorIndex,
