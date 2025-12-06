@@ -49,7 +49,7 @@ impl VisibleLines {
 }
 
 struct CursorAnimationState {
-    last_time: f32,
+    last_time: f64,
     last_position: VisualPosition,
     position: VisualPosition,
 }
@@ -826,8 +826,8 @@ impl Tab {
         is_focused && ctx.window.is_focused()
     }
 
-    fn cursor_animation_progress(&self, time: f32, last_time: f32) -> f32 {
-        (time - last_time) * 8.0
+    fn cursor_animation_progress(&self, time: f64, last_time: f64) -> f32 {
+        ((time - last_time) * 8.0) as f32
     }
 
     fn draw_scroll_bar(&self, doc: &Doc, camera_position: VisualPosition, ctx: &mut Ctx) {

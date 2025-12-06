@@ -1,7 +1,7 @@
 mod all_actions_mode;
 mod all_diagnostics_mode;
 mod all_files_mode;
-mod file_explorer_mode;
+pub mod file_explorer_mode;
 pub mod find_in_files_mode;
 mod go_to_line_mode;
 mod incremental_results;
@@ -211,7 +211,7 @@ impl CommandPalette {
                     let config_dir = Config::dir();
 
                     self.open(
-                        Box::new(FileExplorerMode::new(Some(config_dir))),
+                        Box::new(FileExplorerMode::new(Some(&config_dir))),
                         editor,
                         ctx,
                     );

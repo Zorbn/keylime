@@ -1046,7 +1046,7 @@ impl Doc {
         }
     }
 
-    pub fn add_cursors_to_action_history(&mut self, action_kind: ActionKind, time: f32) {
+    pub fn add_cursors_to_action_history(&mut self, action_kind: ActionKind, time: f64) {
         if !self.flags.contains(DocFlag::TrackHistory) {
             return;
         }

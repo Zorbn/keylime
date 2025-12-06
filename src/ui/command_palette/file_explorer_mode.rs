@@ -47,9 +47,9 @@ pub struct FileExplorerMode {
 }
 
 impl FileExplorerMode {
-    pub fn new(starting_path: Option<Pooled<PathBuf>>) -> Self {
+    pub fn new(starting_path: Option<&Path>) -> Self {
         Self {
-            starting_path,
+            starting_path: starting_path.and_then(|path| path.normalized().ok()),
 
             clipboard_path: PathBuf::new(),
             clipboard_state: FileClipboardState::Empty,

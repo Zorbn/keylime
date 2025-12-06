@@ -33,12 +33,12 @@ pub enum Action {
     },
 }
 
-const COMBINE_ACTION_TIME: f32 = 0.3;
+const COMBINE_ACTION_TIME: f64 = 0.3;
 
 #[derive(Debug)]
 pub struct TimedAction {
     pub action: Action,
-    pub time: f32,
+    pub time: f64,
 }
 
 pub struct ActionHistory {
@@ -64,7 +64,7 @@ impl ActionHistory {
         index: usize,
         position: Position,
         selection_anchor: Option<Position>,
-        time: f32,
+        time: f64,
     ) {
         self.actions.push(TimedAction {
             action: Action::SetCursor {
@@ -76,21 +76,21 @@ impl ActionHistory {
         });
     }
 
-    pub fn push_insert(&mut self, start: Position, end: Position, time: f32) {
+    pub fn push_insert(&mut self, start: Position, end: Position, time: f64) {
         self.actions.push(TimedAction {
             action: Action::Insert { start, end },
             time,
         });
     }
 
-    pub fn push_delete(&mut self, start: Position, text_start: usize, time: f32) {
+    pub fn push_delete(&mut self, start: Position, text_start: usize, time: f64) {
         self.actions.push(TimedAction {
             action: Action::Delete { start, text_start },
             time,
         });
     }
 
-    pub fn pop(&mut self, last_popped_time: Option<f32>) -> Option<TimedAction> {
+    pub fn pop(&mut self, last_popped_time: Option<f64>) -> Option<TimedAction> {
         if self.actions.is_empty() {
             return None;
         }

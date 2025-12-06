@@ -45,7 +45,7 @@ pub struct Window {
 
     pub was_shown: bool,
     pub is_focused: bool,
-    pub time: f32,
+    pub time: f64,
     last_queried_time: Option<f64>,
 
     pub graphemes_typed: String,
@@ -149,7 +149,7 @@ impl Window {
         self.height = height * scale;
     }
 
-    pub fn time(&mut self, is_animating: bool) -> (f32, f32) {
+    pub fn time(&mut self, is_animating: bool) -> (f64, f32) {
         let time = unsafe { NSDate::now().timeIntervalSinceReferenceDate() };
 
         let dt = if let Some(last_queried_time) = self.last_queried_time {
@@ -159,7 +159,7 @@ impl Window {
         };
 
         self.last_queried_time = Some(time);
-        self.time += dt;
+        self.time += dt as f64;
 
         let dt = if is_animating { dt } else { 0.0 };
 

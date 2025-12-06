@@ -26,5 +26,5 @@ pub struct Ctx<'a> {
     pub ui: &'a mut Ui,
     pub config: &'a Config,
     pub lsp: &'a mut Lsp,
-    pub time: f32,
+    pub time: f64,
 }

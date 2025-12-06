@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    env::args,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     config::{Config, ConfigError},
@@ -8,7 +11,7 @@ use crate::{
     platform::{file_watcher::FileWatcher, gfx::Gfx, process::Process, window::Window},
     pool::Pooled,
     ui::{
-        command_palette::CommandPalette,
+        command_palette::{file_explorer_mode::FileExplorerMode, CommandPalette},
         core::{Ui, WidgetId},
         editor::Editor,
         status_bar::StatusBar,
@@ -45,7 +48,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(window: &mut Window, gfx: &mut Gfx, time: f32) -> Self {
+    pub fn new(window: &mut Window, gfx: &mut Gfx, time: f64) -> Self {
         let config_dir = Config::dir();
 
         let (config, config_error) = match Config::load(&config_dir) {
@@ -68,11 +71,21 @@ impl App {
             time,
         };
 
+        let mut command_palette = CommandPalette::new(WidgetId::ROOT, ctx.ui);
+        let mut editor = Editor::new(WidgetId::ROOT, &mut ctx);
+        let terminal = Terminal::new(WidgetId::ROOT, &mut ctx);
+        let status_bar = StatusBar::new(WidgetId::ROOT, ctx.ui);
+
+        let (pane, _) = editor.last_focused_pane_and_doc_list(ctx.ui);
+        ctx.ui.focus(pane.widget_id());
+
+        handle_args(&mut editor, &mut command_palette, &mut ctx);
+
         let mut app = Self {
-            command_palette: CommandPalette::new(WidgetId::ROOT, ctx.ui),
-            editor: Editor::new(WidgetId::ROOT, &mut ctx),
-            terminal: Terminal::new(WidgetId::ROOT, &mut ctx),
-            status_bar: StatusBar::new(WidgetId::ROOT, ctx.ui),
+            editor,
+            command_palette,
+            terminal,
+            status_bar,
             ui,
 
             file_watcher: FileWatcher::new(),
@@ -83,14 +96,11 @@ impl App {
             config_error,
         };
 
-        let (pane, _) = app.editor.last_focused_pane_and_doc_list(&app.ui);
-        app.ui.focus(pane.widget_id());
-
         app.layout(window, gfx, time);
         app
     }
 
-    pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32, dt: f32) {
+    pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64, dt: f32) {
         let config_changed = self
             .file_watcher
             .changed_files()
@@ -110,7 +120,10 @@ impl App {
             self.layout(window, gfx, time);
         }
 
-        if let Some(err) = window
+        let ctx = ctx_for_app!(self, window, gfx, time);
+
+        if let Some(err) = ctx
+            .window
             .was_shown()
             .then(|| self.config_error.take())
             .flatten()
@@ -118,10 +131,7 @@ impl App {
             err.show_message();
         }
 
-        self.ui.update(window);
-
-        let ctx = ctx_for_app!(self, window, gfx, time);
-
+        ctx.ui.update(ctx.window);
         Lsp::update(&mut self.editor, &mut self.command_palette, ctx);
 
         self.command_palette.update(&mut self.editor, ctx);
@@ -133,7 +143,7 @@ impl App {
         self.terminal.animate(ctx, dt);
     }
 
-    pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
+    pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64) {
         self.layout(window, gfx, time);
 
         gfx.begin_frame(self.config.theme.background);
@@ -148,7 +158,7 @@ impl App {
         gfx.end_frame();
     }
 
-    fn layout(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
+    fn layout(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64) {
         let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
         self.ui.widget_mut(WidgetId::ROOT).bounds = bounds;
 
@@ -167,7 +177,7 @@ impl App {
         self.editor.layout(bounds, ctx);
     }
 
-    pub fn close(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) {
+    pub fn close(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64) {
         let ctx = ctx_for_app!(self, window, gfx, time);
 
         self.editor.on_close(ctx);
@@ -177,7 +187,7 @@ impl App {
         &self.config
     }
 
-    pub fn is_animating(&mut self, window: &mut Window, gfx: &mut Gfx, time: f32) -> bool {
+    pub fn is_animating(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64) -> bool {
         let ctx = ctx_for_app!(self, window, gfx, time);
 
         self.editor.is_animating(ctx)
@@ -197,5 +207,39 @@ impl App {
             self.editor.files(),
             self.terminal.ptys().chain(self.lsp.processes()),
         )
+    }
+}
+
+fn handle_args(editor: &mut Editor, command_palette: &mut CommandPalette, ctx: &mut Ctx) {
+    let args: Vec<String> = args().skip(1).collect();
+
+    for arg in &args {
+        let path = Path::new(arg);
+
+        if path.is_dir() {
+            continue;
+        }
+
+        let (pane, doc_list) = editor.last_focused_pane_and_doc_list_mut(ctx.ui);
+        let _ = pane.open_file(path, doc_list, ctx);
+    }
+
+    for arg in args.iter().rev() {
+        let path = Path::new(arg);
+
+        let dir = if path.is_dir() {
+            Some(path)
+        } else {
+            path.parent().filter(|parent| parent.is_dir())
+        };
+
+        let Some(dir) = dir else {
+            continue;
+        };
+
+        let _ = editor.open_folder(dir, ctx);
+        command_palette.open(Box::new(FileExplorerMode::new(None)), editor, ctx);
+
+        break;
     }
 }

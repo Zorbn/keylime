@@ -1,5 +1,6 @@
 use std::{
     env::{current_dir, set_current_dir},
+    io,
     path::{Path, PathBuf},
 };
 
@@ -21,6 +22,7 @@ use crate::{
         types::{DecodedCompletionItem, DecodedEditList, DecodedHover},
         uri::uri_to_path,
     },
+    normalizable::Normalizable,
     platform::{
         dialog::{find_file, message, FindFileKind, MessageKind},
         file_watcher::FileWatcher,
@@ -165,11 +167,8 @@ impl Editor {
             match action {
                 action_name!(OpenFolder) => {
                     if let Ok(path) = find_file(FindFileKind::OpenFolder) {
-                        if let Err(err) = set_current_dir(path) {
+                        if let Err(err) = self.open_folder(&path, ctx) {
                             message("Error Opening Folder", &err.to_string(), MessageKind::Ok);
-                        } else {
-                            self.current_dir = current_dir().ok();
-                            ctx.lsp.update_current_dir(self.current_dir.clone());
                         }
                     }
                 }
@@ -514,6 +513,15 @@ impl Editor {
             self.panes.get_last_focused_mut(ui).unwrap(),
             &mut self.doc_list,
         )
+    }
+
+    pub fn open_folder(&mut self, path: &Path, ctx: &mut Ctx) -> io::Result<()> {
+        path.normalized().and_then(|path| set_current_dir(&path))?;
+
+        self.current_dir = current_dir().ok();
+        ctx.lsp.update_current_dir(self.current_dir.clone());
+
+        Ok(())
     }
 
     pub fn current_dir(&self) -> Option<&Path> {
