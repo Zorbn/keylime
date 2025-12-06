@@ -238,7 +238,7 @@ fn handle_args(editor: &mut Editor, command_palette: &mut CommandPalette, ctx: &
         };
 
         let _ = editor.open_folder(dir, ctx);
-        command_palette.open(Box::new(FileExplorerMode::new(None)), editor, ctx);
+        command_palette.open(Box::new(FileExplorerMode::new(Some(dir))), editor, ctx);
 
         break;
     }

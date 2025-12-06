@@ -70,13 +70,13 @@ struct RecordedMouseClick {
     count: MouseClickCount,
     x: f32,
     y: f32,
-    time: f32,
+    time: f64,
 }
 
 pub struct Window {
     timer_frequency: i64,
     last_queried_time: Option<i64>,
-    pub(super) time: f32,
+    pub(super) time: f64,
 
     hwnd: HWND,
 
@@ -96,7 +96,7 @@ pub struct Window {
     draggable_buttons: HashSet<MouseButton>,
     current_click: Option<RecordedMouseClick>,
     last_click: Option<RecordedMouseClick>,
-    double_click_time: f32,
+    double_click_time: f64,
 
     pub graphemes_typed: String,
     pub grapheme_cursor: GraphemeCursor,
@@ -112,11 +112,11 @@ pub struct Window {
 impl Window {
     pub(super) fn new() -> Result<Self> {
         let mut timer_frequency = 0i64;
-        let triple_click_time;
+        let double_click_time;
 
         unsafe {
             QueryPerformanceFrequency(&mut timer_frequency)?;
-            triple_click_time = GetDoubleClickTime() as f32 / 1000.0;
+            double_click_time = GetDoubleClickTime() as f64 / 1000.0;
         }
 
         Ok(Self {
@@ -139,7 +139,7 @@ impl Window {
             draggable_buttons: HashSet::new(),
             current_click: None,
             last_click: None,
-            double_click_time: triple_click_time,
+            double_click_time,
 
             graphemes_typed: String::new(),
             grapheme_cursor: GraphemeCursor::new(0, 0),
@@ -174,7 +174,7 @@ impl Window {
         self.mouse_scrolls.clear();
     }
 
-    pub fn time(&mut self, is_animating: bool) -> (f32, f32) {
+    pub fn time(&mut self, is_animating: bool) -> (f64, f32) {
         unsafe {
             let mut queried_time = 0i64;
             let _ = QueryPerformanceCounter(&mut queried_time);
@@ -187,7 +187,7 @@ impl Window {
 
             self.last_queried_time = Some(queried_time);
 
-            self.time += dt;
+            self.time += dt as f64;
 
             // Don't return massive delta times from big gaps in animation, because those
             // might cause visual jumps or other problems. (eg. if you don't interact with
