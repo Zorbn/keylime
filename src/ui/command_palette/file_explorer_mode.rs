@@ -199,7 +199,7 @@ impl FileExplorerMode {
 
     fn get_starting_path(&self, editor: &Editor, ui: &Ui) -> Option<Pooled<PathBuf>> {
         let unstripped_path = if self.starting_path.is_some() {
-            self.starting_path.as_ref().map(|path| path.as_ref())
+            self.starting_path.as_ref().map(Pooled::<PathBuf>::as_ref)
         } else {
             let (pane, doc_list) = editor.last_focused_pane_and_doc_list(ui);
             let (_, doc) = pane.get_focused_tab_with_data(doc_list)?;

@@ -212,6 +212,7 @@ impl App {
 
 fn handle_args(editor: &mut Editor, command_palette: &mut CommandPalette, ctx: &mut Ctx) {
     let args: Vec<String> = args().skip(1).collect();
+    let mut has_file = false;
 
     for arg in &args {
         let path = Path::new(arg);
@@ -221,7 +222,10 @@ fn handle_args(editor: &mut Editor, command_palette: &mut CommandPalette, ctx: &
         }
 
         let (pane, doc_list) = editor.last_focused_pane_and_doc_list_mut(ctx.ui);
-        let _ = pane.open_file(path, doc_list, ctx);
+
+        if pane.open_file(path, doc_list, ctx).is_ok() {
+            has_file = true;
+        }
     }
 
     for arg in args.iter().rev() {
@@ -238,7 +242,10 @@ fn handle_args(editor: &mut Editor, command_palette: &mut CommandPalette, ctx: &
         };
 
         let _ = editor.open_folder(dir, ctx);
-        command_palette.open(Box::new(FileExplorerMode::new(Some(dir))), editor, ctx);
+
+        if !has_file {
+            command_palette.open(Box::new(FileExplorerMode::new(None)), editor, ctx);
+        }
 
         break;
     }
