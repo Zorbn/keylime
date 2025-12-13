@@ -130,9 +130,9 @@ impl FileWatcher {
                 continue;
             };
 
-            for handle in &mut self.dir_watch_handles {
-                if dir.starts_with(&handle.path) {
-                    handle.are_in_use = true;
+            for handles in &mut self.dir_watch_handles {
+                if dir.starts_with(&handles.path) {
+                    handles.are_in_use = true;
                     continue 'docs;
                 }
             }
