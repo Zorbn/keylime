@@ -832,7 +832,8 @@ impl Tab {
 
     fn draw_scroll_bar(&self, doc: &Doc, camera_position: VisualPosition, ctx: &mut Ctx) {
         if !doc.flags().contains(DocFlag::AllowScrollingPastBottom)
-            && doc.lines().len() as f32 * ctx.gfx.line_height() <= self.doc_bounds.height
+            && doc.lines().len() as f32 * ctx.gfx.line_height() + self.margin * 2.0
+                <= self.doc_bounds.height
         {
             return;
         }
@@ -882,13 +883,14 @@ impl Tab {
 
     fn doc_range_to_scrollbar_rect(&self, start_y: f32, end_y: f32, doc: &Doc, gfx: &Gfx) -> Rect {
         let doc_height_lines = self.doc_height_lines(gfx);
-        let doc_len = doc.lines().len().max(doc_height_lines);
+        let doc_len = doc.lines().len().max(doc_height_lines) as f32
+            + (self.margin * 2.0 / gfx.line_height());
 
         let width = gfx.glyph_width() / 2.0;
         let x = self.doc_bounds.width - width;
 
-        let start_y = (start_y / doc_len as f32) * self.doc_bounds.height;
-        let end_y = ((end_y + 1.0) / doc_len as f32) * self.doc_bounds.height;
+        let start_y = start_y / doc_len * self.doc_bounds.height;
+        let end_y = end_y / doc_len * self.doc_bounds.height;
 
         let start_y = start_y.floor();
         let end_y = end_y.floor();
