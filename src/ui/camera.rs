@@ -49,6 +49,8 @@ impl CameraAxis {
         can_recenter: bool,
         dt: f32,
     ) {
+        let can_recenter = can_recenter && self.recenter_kind == CameraRecenterKind::None;
+
         self.max_position = max_position;
 
         if self.is_locked {
