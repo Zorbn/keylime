@@ -1,6 +1,7 @@
 use crate::{
     ctx::Ctx,
     geometry::{position::Position, rect::Rect, sides::Sides, visual_position::VisualPosition},
+    input::action::action_name,
     platform::gfx::Gfx,
     pool::STRING_POOL,
     text::{
@@ -89,9 +90,13 @@ impl Popup {
     }
 
     pub fn update(&mut self, ctx: &mut Ctx) {
-        ctx.ui
-            .action_handler(self.widget_id, ctx.window)
-            .drain(ctx.window);
+        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
+
+        while let Some(action) = action_handler.next(ctx) {
+            if matches!(action, action_name!(Copy)) {
+                action_handler.unprocessed(ctx.window, action);
+            }
+        }
 
         ctx.ui
             .grapheme_handler(self.widget_id, ctx.window)
