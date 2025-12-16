@@ -118,7 +118,7 @@ impl Popup {
         let theme = &ctx.config.theme;
         let bounds = ctx.ui.widget(self.widget_id).bounds;
 
-        gfx.begin(Some(bounds));
+        gfx.begin(Some(bounds.add_margin(gfx.border_width())));
 
         gfx.add_bordered_rect(
             bounds.unoffset_by(bounds),
