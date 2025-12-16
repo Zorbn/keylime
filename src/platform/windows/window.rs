@@ -223,9 +223,9 @@ impl Window {
                 self.wait_handles.extend(
                     file_watcher
                         .inner
-                        .dir_watch_handles()
+                        .watched_dirs()
                         .iter()
-                        .map(|handles| handles.event()),
+                        .map(|watched_dir| watched_dir.event()),
                 );
 
                 let result = MsgWaitForMultipleObjects(

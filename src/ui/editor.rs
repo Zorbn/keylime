@@ -435,7 +435,7 @@ impl Editor {
                 }
 
                 if doc.is_change_unexpected() {
-                    doc.reload(ctx).unwrap();
+                    let _ = doc.reload(ctx);
                 }
 
                 break;

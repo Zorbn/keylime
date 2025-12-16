@@ -1,259 +1,169 @@
 use std::{
-    ffi::CString,
+    ffi::{c_void, CStr},
     path::{Path, PathBuf},
-    ptr::null_mut,
-    sync::{Arc, Mutex},
-    thread::{self, JoinHandle},
+    ptr::NonNull,
+    slice::from_raw_parts,
 };
 
-use libc::{kevent, EVFILT_VNODE, EV_ADD, EV_CLEAR, EV_DELETE, NOTE_DELETE, NOTE_WRITE, O_EVTONLY};
+use dispatch2::DispatchQueue;
 use objc2::rc::Weak;
+use objc2_core_foundation::{CFArray, CFString};
+use objc2_core_services::*;
 
-use crate::pool::{Pooled, PATH_POOL};
+use crate::{normalizable::Normalizable, pool::Pooled};
 
-use super::{
-    result::Result,
-    view::{View, ViewRef},
-};
+use super::view::{View, ViewRef};
 
-struct WatchedPath {
-    fd: i32,
+struct WatchedDir {
+    stream: FSEventStreamRef,
     path: Pooled<PathBuf>,
     is_in_use: bool,
 }
 
-impl Drop for WatchedPath {
+impl Drop for WatchedDir {
     fn drop(&mut self) {
         unsafe {
-            libc::close(self.fd);
+            FSEventStreamInvalidate(self.stream);
+            FSEventStreamRelease(self.stream);
         }
     }
 }
 
-pub struct FileWatcher {
-    kq: i32,
-
-    watched_paths: Vec<WatchedPath>,
-    watch_thread_join: Option<JoinHandle<()>>,
-    changed_fds: Arc<Mutex<Vec<i32>>>,
-    deleted_fds: Arc<Mutex<Vec<i32>>>,
-
+struct CallbackInfo {
     changed_files: Vec<Pooled<PathBuf>>,
+    view: ViewRef,
+}
+
+pub struct FileWatcher {
+    watched_dirs: Vec<WatchedDir>,
+    callback_info: Box<CallbackInfo>,
 }
 
 impl FileWatcher {
     pub fn new() -> Self {
-        let kq = unsafe { libc::kqueue() };
-
         Self {
-            kq,
-
-            watched_paths: Vec::new(),
-            watch_thread_join: None,
-            changed_fds: Arc::new(Mutex::new(Vec::new())),
-            deleted_fds: Arc::new(Mutex::new(Vec::new())),
-
-            changed_files: Vec::new(),
+            watched_dirs: Vec::new(),
+            callback_info: Box::new(CallbackInfo {
+                changed_files: Vec::new(),
+                view: ViewRef::default(),
+            }),
         }
     }
 
-    pub fn update<'a>(&mut self, files: impl Iterator<Item = &'a Path>) -> Result<()> {
-        self.changed_files.clear();
+    pub fn update<'a>(&mut self, files: impl Iterator<Item = &'a Path>, view: &Weak<View>) {
+        if self.callback_info.view.is_none() {
+            self.callback_info.view = ViewRef::new(view);
+        }
 
-        self.handle_deleted_fds();
-        self.retain_watched_paths(|watched_path| watched_path.is_in_use);
+        self.callback_info.changed_files.clear();
 
-        for watched_path in &mut self.watched_paths {
+        self.watched_dirs.sort_by(|a, b| {
+            let a = a.path.as_os_str();
+            let b = b.path.as_os_str();
+
+            a.len().cmp(&b.len())
+        });
+
+        for watched_path in &mut self.watched_dirs {
             watched_path.is_in_use = false;
         }
 
-        self.handle_files(files)?;
-        self.retain_watched_paths(|watched_path| watched_path.is_in_use);
-
-        Ok(())
-    }
-
-    fn handle_files<'a>(&mut self, files: impl Iterator<Item = &'a Path>) -> Result<()> {
-        for file in files {
-            if let Some(watched_path) = self
-                .watched_paths
-                .iter_mut()
-                .find(|watched_path| watched_path.path.as_ref() == file)
-            {
-                watched_path.is_in_use = true;
+        'docs: for file in files {
+            let Some(dir) = file.parent() else {
                 continue;
-            }
-
-            let c_path = CString::new(
-                file.as_os_str()
-                    .to_str()
-                    .ok_or("Failed to convert file path to str")?,
-            )
-            .map_err(|_| "Failed to convert file path to CString")?;
-
-            let fd = unsafe { libc::open(c_path.as_ptr(), O_EVTONLY) };
-
-            let add_event = kevent {
-                ident: fd as usize,
-                filter: EVFILT_VNODE,
-                flags: EV_ADD | EV_CLEAR,
-                fflags: NOTE_WRITE | NOTE_DELETE,
-                data: 0,
-                udata: null_mut(),
             };
 
-            unsafe {
-                if libc::kevent(self.kq, &add_event, 1, null_mut(), 0, null_mut()) == -1 {
-                    return Err("Failed to add file to kqueue");
+            for watched_dir in &mut self.watched_dirs {
+                if dir.starts_with(&watched_dir.path) {
+                    watched_dir.is_in_use = true;
+                    continue 'docs;
                 }
             }
 
-            let mut path = PATH_POOL.new_item();
+            let mut callback_ctx = FSEventStreamContext {
+                version: 0,
+                info: self.callback_info.as_mut() as *mut _ as _,
+                retain: None,
+                release: None,
+                copyDescription: None,
+            };
 
-            path.push(
-                c_path
-                    .to_str()
-                    .map_err(|_| "Failed to convert file path to str")?,
-            );
+            let paths =
+                CFArray::from_retained_objects(&[CFString::from_str(dir.to_str().unwrap())]);
 
-            self.watched_paths.push(WatchedPath {
-                fd,
-                path,
-                is_in_use: true,
-            });
-        }
-
-        Ok(())
-    }
-
-    fn handle_deleted_fds(&mut self) {
-        let mut deleted_fds = self.deleted_fds.lock().unwrap();
-
-        for fd in deleted_fds.drain(..) {
-            if let Some(watched_path) = self
-                .watched_paths
-                .iter_mut()
-                .find(|watched_path| watched_path.fd == fd)
-            {
-                watched_path.is_in_use = false;
-            }
-        }
-    }
-
-    fn retain_watched_paths(&mut self, predicate: fn(&WatchedPath) -> bool) {
-        for i in (0..self.watched_paths.len()).rev() {
-            if predicate(&self.watched_paths[i]) {
-                continue;
-            }
-
-            let watched_path = self.watched_paths.remove(i);
-
-            let delete_event = kevent {
-                ident: watched_path.fd as usize,
-                filter: 0,
-                flags: EV_DELETE,
-                fflags: 0,
-                data: 0,
-                udata: null_mut(),
+            let stream = unsafe {
+                FSEventStreamCreate(
+                    None,
+                    Some(Self::callback),
+                    &mut callback_ctx,
+                    paths.as_ref(),
+                    kFSEventStreamEventIdSinceNow,
+                    0.0,
+                    kFSEventStreamCreateFlagFileEvents,
+                )
             };
 
             unsafe {
-                libc::kevent(self.kq, &delete_event, 1, null_mut(), 0, null_mut());
+                FSEventStreamSetDispatchQueue(stream, Some(DispatchQueue::main()));
+                assert!(FSEventStreamStart(stream));
             }
+
+            self.watched_dirs.push(WatchedDir {
+                stream,
+                path: dir.into(),
+                is_in_use: true,
+            })
         }
+
+        self.watched_dirs
+            .retain(|watched_dir| watched_dir.is_in_use);
     }
 
     pub fn changed_files(&mut self) -> &[Pooled<PathBuf>] {
-        let mut changed_fds = self.changed_fds.lock().unwrap();
+        &self.callback_info.changed_files
+    }
 
-        for fd in changed_fds.drain(..) {
-            if let Some(watched_path) = self
-                .watched_paths
-                .iter_mut()
-                .find(|watched_path| watched_path.fd == fd)
-            {
-                self.changed_files.push(watched_path.path.clone());
+    unsafe extern "C-unwind" fn callback(
+        _stream_ref: ConstFSEventStreamRef,
+        callback_info: *mut c_void,
+        events_len: usize,
+        event_paths: NonNull<c_void>,
+        event_flags: NonNull<FSEventStreamEventFlags>,
+        _event_ids: NonNull<FSEventStreamEventId>,
+    ) {
+        let callback_info = callback_info as *mut CallbackInfo;
+        let callback_info = callback_info.as_mut().unwrap();
+
+        let event_paths = event_paths.as_ptr() as *const *const i8;
+
+        let event_paths = from_raw_parts(event_paths, events_len);
+        let event_flags = from_raw_parts(event_flags.as_ptr(), events_len);
+
+        let mut had_changes = false;
+
+        for (path, flags) in event_paths.iter().zip(event_flags) {
+            let is_file = flags & kFSEventStreamEventFlagItemIsFile == 0;
+            let has_new_content = flags & kFSEventStreamEventFlagItemModified == 0
+                && flags & kFSEventStreamEventFlagItemCreated == 0;
+
+            if is_file && has_new_content {
+                continue;
             }
+
+            let path = CStr::from_ptr(*path);
+            let path = path.to_str().unwrap();
+            let path = Path::new(path);
+
+            let Ok(path) = path.normalized() else {
+                continue;
+            };
+
+            callback_info.changed_files.push(path);
+            had_changes = true;
         }
 
-        &self.changed_files
-    }
-
-    pub fn try_start(&mut self, view: &Weak<View>) {
-        if self.watch_thread_join.is_some() {
-            return;
-        }
-
-        self.watch_thread_join = Some(Self::run_watch_thread(
-            self.kq,
-            self.changed_fds.clone(),
-            self.deleted_fds.clone(),
-            ViewRef::new(view),
-        ));
-    }
-
-    fn run_watch_thread(
-        kq: i32,
-        changed_fds: Arc<Mutex<Vec<i32>>>,
-        deleted_fds: Arc<Mutex<Vec<i32>>>,
-        view: ViewRef,
-    ) -> JoinHandle<()> {
-        thread::spawn(move || {
-            let mut event_list = [kevent {
-                ident: 0,
-                filter: 0,
-                flags: 0,
-                fflags: 0,
-                data: 0,
-                udata: null_mut(),
-            }; 32];
-
-            loop {
-                let event_count = unsafe {
-                    libc::kevent(
-                        kq,
-                        null_mut(),
-                        0,
-                        event_list.as_mut_ptr(),
-                        event_list.len() as i32,
-                        null_mut(),
-                    )
-                };
-
-                if event_count != 1 {
-                    break;
-                }
-
-                for i in 0..event_count {
-                    let event = event_list[i as usize];
-
-                    if event.fflags & NOTE_DELETE != 0 {
-                        let mut deleted_fds = deleted_fds.lock().unwrap();
-                        deleted_fds.push(event.ident as i32);
-
-                        continue;
-                    }
-
-                    let mut changed_fds = changed_fds.lock().unwrap();
-                    changed_fds.push(event.ident as i32);
-                }
-
-                unsafe {
-                    view.update();
-                }
-            }
-        })
-    }
-}
-
-impl Drop for FileWatcher {
-    fn drop(&mut self) {
-        unsafe {
-            libc::close(self.kq);
-        }
-
-        if let Some(watch_thread_join) = self.watch_thread_join.take() {
-            let _ = watch_thread_join.join();
+        if had_changes {
+            callback_info.view.update();
         }
     }
 }

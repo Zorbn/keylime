@@ -20,15 +20,15 @@ use crate::{
     pool::{Pooled, PATH_POOL},
 };
 
-pub struct DirWatchHandles {
+pub struct WatchedDir {
     overlapped: OVERLAPPED,
     dir_handle: HANDLE,
     buffer: [u8; 1024],
-    are_in_use: bool,
-    path: PathBuf,
+    is_in_use: bool,
+    path: Pooled<PathBuf>,
 }
 
-impl DirWatchHandles {
+impl WatchedDir {
     unsafe fn enqueue(&mut self) -> Result<()> {
         ReadDirectoryChangesW(
             self.dir_handle,
@@ -47,7 +47,7 @@ impl DirWatchHandles {
     }
 }
 
-impl Drop for DirWatchHandles {
+impl Drop for WatchedDir {
     fn drop(&mut self) {
         unsafe {
             let _ = CloseHandle(self.overlapped.hEvent);
@@ -58,28 +58,28 @@ impl Drop for DirWatchHandles {
 
 pub struct FileWatcher {
     // Boxed so that the buffer and overlapped pointers passed to ReadDirectoryChangesW
-    // remain valid when DirWatchHandles is moved into the dir_watch_handles list or reordered.
+    // remain valid when WatchedDir is moved into the watched_dirs list or reordered.
     #[allow(clippy::vec_box)]
-    dir_watch_handles: Vec<Box<DirWatchHandles>>,
+    watched_dirs: Vec<Box<WatchedDir>>,
     changed_files: Vec<Pooled<PathBuf>>,
 }
 
 impl FileWatcher {
     pub fn new() -> Self {
         Self {
-            dir_watch_handles: Vec::new(),
+            watched_dirs: Vec::new(),
             changed_files: Vec::new(),
         }
     }
 
     pub unsafe fn handle_dir_update(&mut self, index: usize) -> Result<()> {
-        let handles = &mut self.dir_watch_handles[index];
+        let watched_dir = &mut self.watched_dirs[index];
 
         let mut buffer_offset = 0;
 
         loop {
-            let info =
-                handles.buffer.as_mut_ptr().add(buffer_offset) as *const FILE_NOTIFY_INFORMATION;
+            let info = watched_dir.buffer.as_mut_ptr().add(buffer_offset)
+                as *const FILE_NOTIFY_INFORMATION;
             let info = &*info;
 
             let file_name = from_raw_parts(
@@ -88,7 +88,7 @@ impl FileWatcher {
             );
 
             let mut path = PATH_POOL.new_item();
-            path.push(&handles.path);
+            path.push(&watched_dir.path);
             path.push(String::from_utf16_lossy(file_name));
 
             if let Ok(path) = path.normalized() {
@@ -102,13 +102,12 @@ impl FileWatcher {
             }
         }
 
-        handles.enqueue()
+        watched_dir.enqueue()
     }
 
     pub unsafe fn check_dir_updates(&mut self) -> Result<()> {
-        for i in 0..self.dir_watch_handles.len() {
-            if WaitForSingleObject(self.dir_watch_handles[i].overlapped.hEvent, 0) != WAIT_OBJECT_0
-            {
+        for i in 0..self.watched_dirs.len() {
+            if WaitForSingleObject(self.watched_dirs[i].overlapped.hEvent, 0) != WAIT_OBJECT_0 {
                 continue;
             }
 
@@ -121,8 +120,15 @@ impl FileWatcher {
     pub fn update<'a>(&mut self, files: impl Iterator<Item = &'a Path>) -> Result<()> {
         self.changed_files.clear();
 
-        for handles in &mut self.dir_watch_handles {
-            handles.are_in_use = false;
+        self.watched_dirs.sort_by(|a, b| {
+            let a = a.path.as_os_str();
+            let b = b.path.as_os_str();
+
+            a.len().cmp(&b.len())
+        });
+
+        for watched_dir in &mut self.watched_dirs {
+            watched_dir.is_in_use = false;
         }
 
         'docs: for file in files {
@@ -130,14 +136,14 @@ impl FileWatcher {
                 continue;
             };
 
-            for handles in &mut self.dir_watch_handles {
-                if dir.starts_with(&handles.path) {
-                    handles.are_in_use = true;
+            for watched_dir in &mut self.watched_dirs {
+                if dir.starts_with(&watched_dir.path) {
+                    watched_dir.is_in_use = true;
                     continue 'docs;
                 }
             }
 
-            let handles = unsafe {
+            let watched_dir = unsafe {
                 let path = HSTRING::from(dir.as_os_str());
 
                 let overlapped = OVERLAPPED {
@@ -155,27 +161,24 @@ impl FileWatcher {
                     None,
                 )?;
 
-                let mut handles = Box::new(DirWatchHandles {
+                let mut watched_dir = Box::new(WatchedDir {
                     overlapped,
                     dir_handle,
                     buffer: [0; 1024],
-                    are_in_use: true,
-                    path: dir.to_path_buf(),
+                    is_in_use: true,
+                    path: dir.into(),
                 });
 
-                handles.enqueue()?;
+                watched_dir.enqueue()?;
 
-                handles
+                watched_dir
             };
 
-            self.dir_watch_handles.push(handles);
+            self.watched_dirs.push(watched_dir);
         }
 
-        for i in (0..self.dir_watch_handles.len()).rev() {
-            if !self.dir_watch_handles[i].are_in_use {
-                self.dir_watch_handles.remove(i);
-            }
-        }
+        self.watched_dirs
+            .retain(|watched_dir| watched_dir.is_in_use);
 
         Ok(())
     }
@@ -184,7 +187,7 @@ impl FileWatcher {
         &self.changed_files
     }
 
-    pub fn dir_watch_handles(&self) -> &[Box<DirWatchHandles>] {
-        &self.dir_watch_handles
+    pub fn watched_dirs(&self) -> &[Box<WatchedDir>] {
+        &self.watched_dirs
     }
 }

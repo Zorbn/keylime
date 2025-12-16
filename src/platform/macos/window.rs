@@ -178,9 +178,7 @@ impl Window {
             process.inner.try_start(&self.view);
         }
 
-        file_watcher.inner.try_start(&self.view);
-
-        file_watcher.inner.update(files).unwrap();
+        file_watcher.inner.update(files, &self.view);
     }
 
     fn clear_inputs(&mut self) {

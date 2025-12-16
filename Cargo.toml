@@ -122,3 +122,5 @@ objc2-core-graphics = { version = "0.3", features = [
     "CGBitmapContext",
 ] }
 objc2-core-foundation = "0.3"
+objc2-core-services = { version = "0.3", features = [ "dispatch2" ] }
+dispatch2 = "0.3"

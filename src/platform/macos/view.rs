@@ -388,6 +388,7 @@ impl View {
 unsafe impl Send for ViewRef {}
 unsafe impl Sync for ViewRef {}
 
+#[derive(Default)]
 pub struct ViewRef {
     inner: Weak<View>,
 }
@@ -407,5 +408,9 @@ impl ViewRef {
         unsafe {
             inner.performSelectorOnMainThread_withObject_waitUntilDone(sel!(update), None, false);
         }
+    }
+
+    pub fn is_none(&self) -> bool {
+        self.inner.load().is_none()
     }
 }
