@@ -177,7 +177,7 @@ impl LanguageServer {
                         "completion": {
                             "completionItem": {
                                 "resolveSupport": {
-                                    "properties": ["documentation", "textEdit", "additionalTextEdits"],
+                                    "properties": ["documentation", "detail", "additionalTextEdits"],
                                 },
                                 "documentationFormat": documentation_formats,
                                 "labelDetailsSupport": true,
