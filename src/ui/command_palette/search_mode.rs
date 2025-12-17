@@ -208,7 +208,9 @@ fn search(
         doc.jump_cursors(position, false, gfx);
         doc.jump_cursors(end, true, gfx);
 
-        tab.camera.recenter();
+        if !search_term.is_empty() {
+            tab.camera.recenter();
+        }
     } else if cursor_position != start {
         doc.jump_cursors(start, false, gfx);
     }

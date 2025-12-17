@@ -1329,11 +1329,11 @@ impl Doc {
         do_wrap: bool,
         gfx: &mut Gfx,
     ) -> Option<Position> {
-        let start = self.move_position(start, 1, 0, gfx);
-
         if text.is_empty() {
             return Some(start);
         }
+
+        let start = self.move_position(start, 1, 0, gfx);
 
         let mut y = start.y as isize;
         let mut x = start.x;
@@ -1394,11 +1394,11 @@ impl Doc {
         do_wrap: bool,
         gfx: &mut Gfx,
     ) -> Option<Position> {
-        let start = self.move_position(start, -1, 0, gfx);
-
         if text.is_empty() {
             return Some(start);
         }
+
+        let start = self.move_position(start, -1, 0, gfx);
 
         let mut y = start.y as isize;
         let mut x = start.x;
