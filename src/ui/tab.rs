@@ -328,11 +328,13 @@ impl Tab {
     }
 
     fn recenter_request_dragging_vertical(&mut self, ctx: &mut Ctx) -> CameraRecenterRequest {
+        let mouse_position = ctx.window.mouse_position().unoffset_by(self.doc_bounds);
+
         CameraRecenterRequest {
             can_start: true,
-            target_position: ctx.window.mouse_position().y,
-            scroll_border_min: self.doc_bounds.top(),
-            scroll_border_max: self.doc_bounds.bottom(),
+            target_position: mouse_position.y,
+            scroll_border_min: 0.0,
+            scroll_border_max: self.doc_bounds.height,
         }
     }
 
@@ -388,11 +390,13 @@ impl Tab {
     }
 
     fn recenter_request_dragging_horizontal(&mut self, ctx: &mut Ctx) -> CameraRecenterRequest {
+        let mouse_position = ctx.window.mouse_position().unoffset_by(self.doc_bounds);
+
         CameraRecenterRequest {
             can_start: true,
-            target_position: ctx.window.mouse_position().x,
-            scroll_border_min: self.doc_bounds.left(),
-            scroll_border_max: self.doc_bounds.right(),
+            target_position: mouse_position.x,
+            scroll_border_min: 0.0,
+            scroll_border_max: self.doc_bounds.width,
         }
     }
 
