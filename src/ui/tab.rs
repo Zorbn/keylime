@@ -12,7 +12,7 @@ use crate::{
         editing_actions::{handle_action, handle_grapheme, handle_left_click},
         mods::{Mod, Mods},
         mouse_button::MouseButton,
-        mousebind::{Mousebind, MousebindKind},
+        mousebind::{MouseClickCount, Mousebind, MousebindKind},
     },
     lsp::types::DecodedRange,
     platform::gfx::Gfx,
@@ -59,6 +59,7 @@ pub struct Tab {
 
     pub camera: Camera,
     handled_cursor_position: Position,
+    mouse_drag: Option<MouseClickCount>,
     handled_doc_len: usize,
     cursor_animation_states: Vec<CursorAnimationState>,
 
@@ -75,6 +76,7 @@ impl Tab {
 
             camera: Camera::new(),
             handled_cursor_position: Position::ZERO,
+            mouse_drag: None,
             handled_doc_len: 1,
             cursor_animation_states: Vec::new(),
 
@@ -129,31 +131,46 @@ impl Tab {
             handle_grapheme(&grapheme, doc, ctx);
         }
 
+        let mut global_mousebind_handler = ctx.window.mousebind_handler();
+
+        while let Some(mousebind) = global_mousebind_handler.next(ctx.window) {
+            if let Mousebind {
+                button: Some(MouseButton::Left),
+                kind: MousebindKind::Release,
+                ..
+            } = mousebind
+            {
+                self.mouse_drag = None;
+            }
+
+            global_mousebind_handler.unprocessed(ctx.window, mousebind);
+        }
+
         let mut mousebind_handler = ctx.ui.mousebind_handler(widget_id, ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
-            let visual_position =
-                VisualPosition::new(mousebind.x + 0.25 * ctx.gfx.glyph_width(), mousebind.y);
-
-            if !self.doc_bounds.contains_position(visual_position) {
+            if !self
+                .doc_bounds
+                .contains_position(VisualPosition::new(mousebind.x, mousebind.y))
+            {
                 mousebind_handler.unprocessed(ctx.window, mousebind);
                 continue;
             }
 
-            let position = self.visual_to_position(visual_position, doc, ctx.gfx);
+            let position = self.mouse_to_position(mousebind.x, mousebind.y, doc, ctx.gfx);
 
             match mousebind {
                 Mousebind {
                     button: Some(MouseButton::Left),
                     mods: Mods::NONE | Mods::SHIFT,
                     count,
-                    kind: kind @ (MousebindKind::Press | MousebindKind::Move),
+                    kind: MousebindKind::Press,
                     ..
                 } => {
-                    let is_drag = kind == MousebindKind::Move;
+                    handle_left_click(doc, position, mousebind.mods, count, false, ctx.gfx);
 
-                    handle_left_click(doc, position, mousebind.mods, count, is_drag, ctx.gfx);
                     self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
+                    self.mouse_drag = Some(count);
                 }
                 Mousebind {
                     button: Some(MouseButton::Left),
@@ -171,6 +188,22 @@ impl Tab {
             }
         }
 
+        if let Some(count) = self.mouse_drag {
+            let visual_position = ctx.window.mouse_position();
+
+            let position =
+                self.mouse_to_position(visual_position.x, visual_position.y, doc, ctx.gfx);
+
+            handle_left_click(doc, position, Mods::NONE, count, true, ctx.gfx);
+
+            if self
+                .doc_bounds
+                .contains_position(VisualPosition::new(visual_position.x, visual_position.y))
+            {
+                self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
+            }
+        }
+
         let mut action_handler = ctx.ui.action_handler(widget_id, ctx.window);
 
         while let Some(action) = action_handler.next(ctx) {
@@ -183,6 +216,13 @@ impl Tab {
 
         doc.combine_overlapping_cursors();
         doc.update_tokens();
+    }
+
+    fn mouse_to_position(&self, x: f32, y: f32, doc: &Doc, gfx: &mut Gfx) -> Position {
+        // Offset the raw mouse position to make selecting between characters more natural.
+        let visual_position = VisualPosition::new(x + 0.25 * gfx.glyph_width(), y);
+
+        self.visual_to_position(visual_position, doc, gfx)
     }
 
     pub fn skip_cursor_animations(&mut self, doc: &Doc, ctx: &mut Ctx) {
