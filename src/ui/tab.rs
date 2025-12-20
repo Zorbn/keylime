@@ -196,10 +196,7 @@ impl Tab {
 
             handle_left_click(doc, position, Mods::NONE, count, true, ctx.gfx);
 
-            if self
-                .doc_bounds
-                .contains_position(VisualPosition::new(visual_position.x, visual_position.y))
-            {
+            if self.doc_bounds.contains_position(visual_position) {
                 self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
             }
         }
