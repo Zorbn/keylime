@@ -142,8 +142,8 @@ impl CompletionList {
         let result_list_bounds = ctx.ui.widget(self.result_list.widget_id()).bounds;
 
         let mut position = VisualPosition::new(
-            result_list_bounds.right() - gfx.border_width(),
-            result_list_bounds.y,
+            result_list_bounds.right(),
+            result_list_bounds.y + gfx.border_width(),
         );
 
         self.detail_popup
