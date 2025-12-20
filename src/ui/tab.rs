@@ -23,6 +23,7 @@ use crate::{
         grapheme_category::GraphemeCategory,
         syntax_highlighter::HighlightedLine,
     },
+    ui::camera::CameraRecenterRequest,
 };
 
 use super::{
@@ -190,15 +191,12 @@ impl Tab {
 
         if let Some(count) = self.mouse_drag {
             let visual_position = ctx.window.mouse_position();
-
             let position =
                 self.mouse_to_position(visual_position.x, visual_position.y, doc, ctx.gfx);
 
             handle_left_click(doc, position, Mods::NONE, count, true, ctx.gfx);
 
-            if self.doc_bounds.contains_position(visual_position) {
-                self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
-            }
+            self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
         }
 
         let mut action_handler = ctx.ui.action_handler(widget_id, ctx.window);
@@ -297,74 +295,127 @@ impl Tab {
             }
         }
 
-        self.animate_camera_vertical(doc, ctx.gfx, dt);
-        self.animate_camera_horizontal(doc, ctx.gfx, dt);
+        self.animate_camera_vertical(doc, ctx, dt);
+        self.animate_camera_horizontal(doc, ctx, dt);
 
         self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
         self.handled_doc_len = doc.lines().len();
     }
 
-    fn animate_camera_vertical(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
+    fn animate_camera_vertical(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
+        let gfx = &mut ctx.gfx;
+
         let doc_len = doc.lines().len();
-        let max_y = (doc_len - 1) as f32 * gfx.line_height() + self.margin * 2.0;
-
-        let (target_y, can_recenter, recenter_distance) =
-            if doc.flags().contains(DocFlag::RecenterOnBottom) {
-                let can_recenter = self.handled_doc_len != doc_len;
-                let target_y = max_y - self.camera.y();
-
-                (target_y, can_recenter, 1)
-            } else {
-                let new_cursor_position = doc.cursor(CursorIndex::Main).position;
-                let new_cursor_visual_position =
-                    self.position_to_visual(new_cursor_position, self.camera.position(), doc, gfx);
-
-                let can_recenter = self.handled_cursor_position != new_cursor_position;
-                let target_y = new_cursor_visual_position.y + gfx.line_height() / 2.0;
-
-                (target_y, can_recenter, RECENTER_DISTANCE)
-            };
+        let last_line_y = (doc_len - 1) as f32 * gfx.line_height() + self.margin * 2.0;
 
         let max_y = if doc.flags().contains(DocFlag::AllowScrollingPastBottom) {
-            max_y
+            last_line_y
         } else {
-            (max_y - self.doc_bounds().height + gfx.line_height()).max(0.0)
+            (last_line_y - self.doc_bounds().height + gfx.line_height()).max(0.0)
         };
 
-        let scroll_border_top = gfx.line_height() * recenter_distance as f32;
-        let scroll_border_bottom = self.doc_bounds.height - scroll_border_top;
+        let recenter_request = if self.mouse_drag.is_some() {
+            self.recenter_request_dragging_vertical(ctx)
+        } else if doc.flags().contains(DocFlag::RecenterOnBottom) {
+            self.recenter_request_on_bottom_vertical(doc_len, last_line_y, ctx)
+        } else {
+            self.recenter_request_on_cursor_vertical(doc, ctx)
+        };
 
-        self.camera.vertical.update(
-            target_y,
-            max_y,
-            self.doc_bounds.height,
-            scroll_border_top..=scroll_border_bottom,
-            can_recenter,
-            dt,
-        );
+        self.camera
+            .vertical
+            .animate(recenter_request, max_y, self.doc_bounds.height, dt);
     }
 
-    fn animate_camera_horizontal(&mut self, doc: &Doc, gfx: &mut Gfx, dt: f32) {
+    fn recenter_request_dragging_vertical(&mut self, ctx: &mut Ctx) -> CameraRecenterRequest {
+        CameraRecenterRequest {
+            can_start: true,
+            target_position: ctx.window.mouse_position().y,
+            scroll_border_min: self.doc_bounds.top(),
+            scroll_border_max: self.doc_bounds.bottom(),
+        }
+    }
+
+    fn recenter_request_on_bottom_vertical(
+        &mut self,
+        doc_len: usize,
+        last_line_y: f32,
+        ctx: &mut Ctx,
+    ) -> CameraRecenterRequest {
+        let scroll_border_min = ctx.gfx.line_height();
+        let scroll_border_max = self.doc_bounds.height - scroll_border_min;
+
+        CameraRecenterRequest {
+            can_start: self.handled_doc_len != doc_len,
+            target_position: last_line_y - self.camera.y(),
+            scroll_border_min,
+            scroll_border_max,
+        }
+    }
+
+    fn recenter_request_on_cursor_vertical(
+        &mut self,
+        doc: &Doc,
+        ctx: &mut Ctx,
+    ) -> CameraRecenterRequest {
+        let gfx = &mut ctx.gfx;
+
         let new_cursor_position = doc.cursor(CursorIndex::Main).position;
         let new_cursor_visual_position =
             self.position_to_visual(new_cursor_position, self.camera.position(), doc, gfx);
 
-        let can_recenter = self.handled_cursor_position != new_cursor_position;
+        let scroll_border_min = gfx.line_height() * RECENTER_DISTANCE as f32;
+        let scroll_border_max = self.doc_bounds.height - scroll_border_min;
 
-        let target_x = new_cursor_visual_position.x + gfx.glyph_width() / 2.0;
-        let max_x = f32::MAX;
+        CameraRecenterRequest {
+            can_start: self.handled_cursor_position != new_cursor_position,
+            target_position: new_cursor_visual_position.y + gfx.line_height() / 2.0,
+            scroll_border_min,
+            scroll_border_max,
+        }
+    }
 
-        let scroll_border_left = gfx.glyph_width() * RECENTER_DISTANCE as f32;
-        let scroll_border_right = self.doc_bounds.width - scroll_border_left;
+    fn animate_camera_horizontal(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
+        let recenter_request = if self.mouse_drag.is_some() {
+            self.recenter_request_dragging_horizontal(ctx)
+        } else {
+            self.recenter_request_on_cursor_horizontal(doc, ctx)
+        };
 
-        self.camera.horizontal.update(
-            target_x,
-            max_x,
-            self.doc_bounds.height,
-            scroll_border_left..=scroll_border_right,
-            can_recenter,
-            dt,
-        );
+        self.camera
+            .horizontal
+            .animate(recenter_request, f32::MAX, self.doc_bounds.width, dt);
+    }
+
+    fn recenter_request_dragging_horizontal(&mut self, ctx: &mut Ctx) -> CameraRecenterRequest {
+        CameraRecenterRequest {
+            can_start: true,
+            target_position: ctx.window.mouse_position().x,
+            scroll_border_min: self.doc_bounds.left(),
+            scroll_border_max: self.doc_bounds.right(),
+        }
+    }
+
+    fn recenter_request_on_cursor_horizontal(
+        &mut self,
+        doc: &Doc,
+        ctx: &mut Ctx,
+    ) -> CameraRecenterRequest {
+        let gfx = &mut ctx.gfx;
+
+        let new_cursor_position = doc.cursor(CursorIndex::Main).position;
+        let new_cursor_visual_position =
+            self.position_to_visual(new_cursor_position, self.camera.position(), doc, gfx);
+
+        let scroll_border_min = gfx.glyph_width() * RECENTER_DISTANCE as f32;
+        let scroll_border_max = self.doc_bounds.width - scroll_border_min;
+
+        CameraRecenterRequest {
+            can_start: self.handled_cursor_position != new_cursor_position,
+            target_position: new_cursor_visual_position.x + gfx.glyph_width() / 2.0,
+            scroll_border_min,
+            scroll_border_max,
+        }
     }
 
     pub fn visual_to_position(&self, visual: VisualPosition, doc: &Doc, gfx: &mut Gfx) -> Position {

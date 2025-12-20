@@ -14,6 +14,7 @@ use crate::{
         mousebind::Mousebind,
     },
     platform::gfx::Gfx,
+    ui::camera::CameraRecenterRequest,
 };
 
 use super::{
@@ -207,20 +208,21 @@ impl<T> ResultList<T> {
         let target_y = (focused_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
         let max_y = (self.len() as f32 * self.result_bounds.height - bounds.height).max(0.0);
 
-        let scroll_border_top = self.result_bounds.height * RECENTER_DISTANCE as f32;
-        let scroll_border_bottom = bounds.height - scroll_border_top;
+        let scroll_border_min = self.result_bounds.height * RECENTER_DISTANCE as f32;
+        let scroll_border_max = bounds.height - scroll_border_min;
 
-        let can_recenter = Some(focused_index) != self.handled_focused_index;
+        let recenter_request = CameraRecenterRequest {
+            can_start: Some(focused_index) != self.handled_focused_index,
+            target_position: target_y,
+            scroll_border_min,
+            scroll_border_max,
+        };
+
         self.mark_focused_handled();
 
-        self.camera.vertical.update(
-            target_y,
-            max_y,
-            bounds.height,
-            scroll_border_top..=scroll_border_bottom,
-            can_recenter,
-            dt,
-        );
+        self.camera
+            .vertical
+            .animate(recenter_request, max_y, bounds.height, dt);
     }
 
     pub fn draw<'a>(

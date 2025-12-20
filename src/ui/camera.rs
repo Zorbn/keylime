@@ -1,5 +1,3 @@
-use std::ops::RangeInclusive;
-
 use crate::geometry::visual_position::VisualPosition;
 
 #[derive(PartialEq, Eq)]
@@ -7,6 +5,13 @@ pub enum CameraRecenterKind {
     None,
     OnScrollBorder,
     OnCursor,
+}
+
+pub struct CameraRecenterRequest {
+    pub can_start: bool,
+    pub target_position: f32,
+    pub scroll_border_min: f32,
+    pub scroll_border_max: f32,
 }
 
 pub const RECENTER_DISTANCE: usize = 4;
@@ -40,17 +45,13 @@ impl CameraAxis {
         self.velocity != 0.0 || self.target_position.is_some()
     }
 
-    pub fn update(
+    pub fn animate(
         &mut self,
-        target_position: f32,
+        recenter_request: CameraRecenterRequest,
         max_position: f32,
         view_size: f32,
-        scroll_border: RangeInclusive<f32>,
-        can_recenter: bool,
         dt: f32,
     ) {
-        let can_recenter = can_recenter && self.recenter_kind == CameraRecenterKind::None;
-
         self.max_position = max_position;
 
         if self.is_locked {
@@ -58,12 +59,16 @@ impl CameraAxis {
             return;
         }
 
-        let min_scroll_border = *scroll_border.start();
-        let max_scroll_border = *scroll_border.end();
+        let CameraRecenterRequest {
+            target_position,
+            scroll_border_min,
+            scroll_border_max,
+            ..
+        } = recenter_request;
 
-        if can_recenter || self.recenter_kind == CameraRecenterKind::OnScrollBorder {
+        if self.should_recenter(&recenter_request) {
             let is_target_outside_border =
-                target_position < min_scroll_border || target_position > max_scroll_border;
+                target_position < scroll_border_min || target_position > scroll_border_max;
 
             self.recenter_kind = if is_target_outside_border {
                 CameraRecenterKind::OnScrollBorder
@@ -74,11 +79,11 @@ impl CameraAxis {
 
         if self.recenter_kind != CameraRecenterKind::None {
             let visual_distance = match self.recenter_kind {
-                CameraRecenterKind::OnScrollBorder if min_scroll_border < max_scroll_border => {
+                CameraRecenterKind::OnScrollBorder if scroll_border_min < scroll_border_max => {
                     if target_position < view_size / 2.0 {
-                        target_position - min_scroll_border
+                        target_position - scroll_border_min
                     } else {
-                        target_position - max_scroll_border
+                        target_position - scroll_border_max
                     }
                 }
                 _ => target_position - view_size / 2.0,
@@ -120,6 +125,14 @@ impl CameraAxis {
         }
 
         self.position = self.position.clamp(0.0, max_position);
+    }
+
+    fn should_recenter(&self, recenter_request: &CameraRecenterRequest) -> bool {
+        if self.recenter_kind == CameraRecenterKind::OnScrollBorder {
+            return true;
+        }
+
+        recenter_request.can_start && self.recenter_kind == CameraRecenterKind::None
     }
 
     pub fn recenter(&mut self, recenter_kind: CameraRecenterKind) {
