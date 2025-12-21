@@ -154,16 +154,6 @@ impl Ui {
     }
 
     pub fn update(&mut self, window: &mut Window) {
-        // Update hover first so that hover will be up to date on frames that contain a mouse click.
-        // Otherwise the click would count as starting to drag and prevent hover from being updated.
-        if !self.is_dragging {
-            let hovered_widget_id = self.get_widget_id_at(window.mouse_position(), WidgetId::ROOT);
-
-            if let Some(hovered_widget_id) = hovered_widget_id {
-                self.hover(hovered_widget_id);
-            }
-        }
-
         let mut focused_widget_id = None;
 
         let mut mousebind_handler = window.mousebind_handler();
@@ -187,6 +177,18 @@ impl Ui {
                     kind: MousebindKind::Release,
                     ..
                 } => self.is_dragging = false,
+                Mousebind {
+                    button: None,
+                    kind: MousebindKind::Move,
+                    ..
+                } => {
+                    let hovered_widget_id =
+                        self.get_widget_id_at(window.mouse_position(), WidgetId::ROOT);
+
+                    if let Some(hovered_widget_id) = hovered_widget_id {
+                        self.hover(hovered_widget_id);
+                    }
+                }
                 _ => {}
             }
 

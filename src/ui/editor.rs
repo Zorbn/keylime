@@ -154,7 +154,6 @@ impl Editor {
         self.post_pane_update(signature_help_triggers, ctx);
 
         if !ctx.ui.is_in_focused_hierarchy(self.widget_id) {
-            self.examine_popup.clear(ctx.ui);
             self.signature_help_popup.clear(ctx.ui);
             self.completion_list.clear(ctx);
         }
