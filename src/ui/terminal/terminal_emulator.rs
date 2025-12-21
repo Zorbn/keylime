@@ -279,10 +279,10 @@ impl TerminalEmulator {
             self.did_doc_cursors_move = false;
         }
 
-        tab.camera.horizontal.is_locked = true;
+        tab.camera.horizontal.set_locked(true);
 
         // The alternate buffer is always the size of the camera and doesn't need to scroll.
-        tab.camera.vertical.is_locked = self.is_in_alternate_buffer;
+        tab.camera.vertical.set_locked(self.is_in_alternate_buffer);
     }
 
     fn expand_to_grid_size(

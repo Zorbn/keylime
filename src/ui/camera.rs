@@ -1,7 +1,8 @@
 use crate::geometry::visual_position::VisualPosition;
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum CameraRecenterKind {
+    #[default]
     None,
     OnScrollBorder,
     OnCursor,
@@ -10,8 +11,30 @@ pub enum CameraRecenterKind {
 pub struct CameraRecenterRequest {
     pub can_start: bool,
     pub target_position: f32,
-    pub scroll_border_min: f32,
-    pub scroll_border_max: f32,
+    pub scroll_border: f32,
+}
+
+impl CameraRecenterRequest {
+    fn needs_recenter(&self, view_size: f32) -> bool {
+        self.can_start && needs_recenter(self.target_position, self.scroll_border, view_size)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CameraState {
+    Locked,
+    MovingWithLerp {
+        target_position: f32,
+    },
+    MovingWithVelocity,
+    NeedsRecenter {
+        kind: CameraRecenterKind,
+    },
+    Recentering {
+        kind: CameraRecenterKind,
+        target_position: f32,
+        scroll_border: f32,
+    },
 }
 
 pub const RECENTER_DISTANCE: usize = 4;
@@ -21,28 +44,24 @@ const PRECISE_SCROLL_SPEED: f32 = 50.0;
 const SCROLL_FRICTION: f32 = 0.0001;
 
 pub struct CameraAxis {
-    pub is_locked: bool,
     position: f32,
-    target_position: Option<f32>,
     max_position: f32,
     velocity: f32,
-    recenter_kind: CameraRecenterKind,
+    state: CameraState,
 }
 
 impl CameraAxis {
     pub fn new() -> Self {
         Self {
-            is_locked: false,
             position: 0.0,
-            target_position: None,
             max_position: 0.0,
             velocity: 0.0,
-            recenter_kind: CameraRecenterKind::None,
+            state: CameraState::MovingWithVelocity,
         }
     }
 
     pub fn is_moving(&self) -> bool {
-        self.velocity != 0.0 || self.target_position.is_some()
+        self.velocity != 0.0 || matches!(self.state, CameraState::MovingWithLerp { .. })
     }
 
     pub fn animate(
@@ -52,53 +71,18 @@ impl CameraAxis {
         view_size: f32,
         dt: f32,
     ) {
-        self.max_position = max_position;
-
-        if self.is_locked {
+        if matches!(self.state, CameraState::Locked) {
             self.reset();
+            self.state = CameraState::Locked;
             return;
         }
 
-        let CameraRecenterRequest {
-            target_position,
-            scroll_border_min,
-            scroll_border_max,
-            ..
-        } = recenter_request;
+        self.max_position = max_position;
 
-        if self.should_recenter(&recenter_request) {
-            let is_target_outside_border =
-                target_position < scroll_border_min || target_position > scroll_border_max;
+        self.handle_recenter_request(recenter_request, view_size);
+        self.handle_recenter(max_position, view_size);
 
-            self.recenter_kind = if is_target_outside_border {
-                CameraRecenterKind::OnScrollBorder
-            } else {
-                CameraRecenterKind::None
-            };
-        }
-
-        if self.recenter_kind != CameraRecenterKind::None {
-            let visual_distance = match self.recenter_kind {
-                CameraRecenterKind::OnScrollBorder if scroll_border_min < scroll_border_max => {
-                    if target_position < view_size / 2.0 {
-                        target_position - scroll_border_min
-                    } else {
-                        target_position - scroll_border_max
-                    }
-                }
-                _ => target_position - view_size / 2.0,
-            };
-
-            // We can't move the camera past the top of the document,
-            // (eg. if the cursor is on the first line, it might be too close to the edge of the
-            // screen according to RECENTER_DISTANCE, but there's nothing we can do about it, so stop animating).
-            let visual_distance =
-                (visual_distance + self.position).clamp(0.0, max_position) - self.position;
-
-            self.scroll_visual_distance(visual_distance);
-        }
-
-        if let Some(target_position) = self.target_position {
+        if let CameraState::MovingWithLerp { target_position } = self.state {
             self.velocity = 0.0;
             self.position += (target_position - self.position) * dt * PRECISE_SCROLL_SPEED;
 
@@ -106,7 +90,7 @@ impl CameraAxis {
                 || (target_position < 0.0 && self.position < 0.0)
                 || (target_position > max_position && self.position > max_position)
             {
-                self.target_position = None;
+                self.state = CameraState::MovingWithVelocity;
             }
         } else {
             self.velocity *= SCROLL_FRICTION.powf(dt);
@@ -120,23 +104,78 @@ impl CameraAxis {
                 self.velocity = 0.0;
 
                 // If we're recentering the camera then we must be done at this point.
-                self.recenter_kind = CameraRecenterKind::None;
+                self.state = CameraState::MovingWithVelocity;
             }
         }
 
         self.position = self.position.clamp(0.0, max_position);
     }
 
-    fn should_recenter(&self, recenter_request: &CameraRecenterRequest) -> bool {
-        if self.recenter_kind == CameraRecenterKind::OnScrollBorder {
-            return true;
-        }
+    fn handle_recenter_request(&mut self, recenter_request: CameraRecenterRequest, view_size: f32) {
+        let target_position = self.position + recenter_request.target_position;
+        let scroll_border = recenter_request.scroll_border;
 
-        recenter_request.can_start && self.recenter_kind == CameraRecenterKind::None
+        self.state = match self.state {
+            CameraState::MovingWithVelocity | CameraState::Recentering { .. }
+                if recenter_request.needs_recenter(view_size) =>
+            {
+                CameraState::Recentering {
+                    kind: CameraRecenterKind::OnScrollBorder,
+                    target_position,
+                    scroll_border,
+                }
+            }
+            CameraState::NeedsRecenter { kind } => CameraState::Recentering {
+                kind,
+                target_position,
+                scroll_border,
+            },
+            state => state,
+        };
     }
 
-    pub fn recenter(&mut self, recenter_kind: CameraRecenterKind) {
-        self.recenter_kind = recenter_kind;
+    fn handle_recenter(&mut self, max_position: f32, view_size: f32) {
+        let CameraState::Recentering {
+            kind,
+            target_position,
+            scroll_border,
+        } = self.state
+        else {
+            return;
+        };
+
+        if !needs_recenter(target_position - self.position, scroll_border, view_size) {
+            self.state = CameraState::MovingWithVelocity;
+            return;
+        }
+
+        let target_position = target_position - self.position;
+
+        let scroll_border_min = scroll_border;
+        let scroll_border_max = view_size - scroll_border;
+
+        let visual_distance = match kind {
+            CameraRecenterKind::OnScrollBorder if scroll_border_min < scroll_border_max => {
+                if target_position < view_size / 2.0 {
+                    target_position - scroll_border_min
+                } else {
+                    target_position - scroll_border_max
+                }
+            }
+            _ => target_position - view_size / 2.0,
+        };
+
+        // We can't move the camera past the top of the document,
+        // (eg. if the cursor is on the first line, it might be too close to the edge of the
+        // screen according to RECENTER_DISTANCE, but there's nothing we can do about it, so stop animating).
+        let visual_distance =
+            (visual_distance + self.position).clamp(0.0, max_position) - self.position;
+
+        self.scroll_visual_distance(visual_distance);
+    }
+
+    pub fn recenter(&mut self, kind: CameraRecenterKind) {
+        self.state = CameraState::NeedsRecenter { kind };
     }
 
     pub fn scroll_visual_distance(&mut self, visual_distance: f32) {
@@ -153,19 +192,23 @@ impl CameraAxis {
     }
 
     pub fn scroll(&mut self, delta: f32, is_precise: bool) {
-        self.recenter_kind = CameraRecenterKind::None;
-
         if is_precise {
             self.velocity = 0.0;
 
-            let previous_target_position = self.target_position.unwrap_or(self.position);
-            self.target_position = Some(previous_target_position - delta * PRECISE_SCROLL_SCALE);
+            let previous_target_position =
+                if let CameraState::MovingWithLerp { target_position } = self.state {
+                    target_position
+                } else {
+                    self.position
+                };
+
+            self.state = CameraState::MovingWithLerp {
+                target_position: previous_target_position - delta * PRECISE_SCROLL_SCALE,
+            };
         } else {
             self.velocity -= delta * SCROLL_SPEED;
-            self.target_position = None;
+            self.state = CameraState::MovingWithVelocity;
         }
-
-        self.position = self.position.clamp(0.0, self.max_position);
     }
 
     pub fn jump_visual_distance(&mut self, visual_distance: f32) {
@@ -176,12 +219,23 @@ impl CameraAxis {
         self.position = 0.0;
         self.max_position = 0.0;
         self.velocity = 0.0;
-        self.recenter_kind = CameraRecenterKind::None;
+        self.state = CameraState::MovingWithVelocity;
     }
 
     pub fn reset_velocity(&mut self) {
         self.velocity = 0.0;
-        self.recenter_kind = CameraRecenterKind::None;
+        self.state = CameraState::MovingWithVelocity;
+    }
+
+    pub fn set_locked(&mut self, is_locked: bool) {
+        if is_locked {
+            self.state = CameraState::Locked;
+            return;
+        }
+
+        if matches!(self.state, CameraState::Locked) {
+            self.state = CameraState::MovingWithVelocity;
+        }
     }
 }
 
@@ -219,4 +273,11 @@ impl Camera {
     pub fn position(&self) -> VisualPosition {
         VisualPosition::new(self.horizontal.position, self.vertical.position)
     }
+}
+
+fn needs_recenter(target_position: f32, scroll_border: f32, view_size: f32) -> bool {
+    let scroll_border_min = scroll_border;
+    let scroll_border_max = view_size - scroll_border;
+
+    target_position < scroll_border_min || target_position > scroll_border_max
 }

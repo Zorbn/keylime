@@ -208,14 +208,10 @@ impl<T> ResultList<T> {
         let target_y = (focused_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
         let max_y = (self.len() as f32 * self.result_bounds.height - bounds.height).max(0.0);
 
-        let scroll_border_min = self.result_bounds.height * RECENTER_DISTANCE as f32;
-        let scroll_border_max = bounds.height - scroll_border_min;
-
         let recenter_request = CameraRecenterRequest {
             can_start: Some(focused_index) != self.handled_focused_index,
             target_position: target_y,
-            scroll_border_min,
-            scroll_border_max,
+            scroll_border: self.result_bounds.height * RECENTER_DISTANCE as f32,
         };
 
         self.mark_focused_handled();

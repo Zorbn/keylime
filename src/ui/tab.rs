@@ -333,8 +333,7 @@ impl Tab {
         CameraRecenterRequest {
             can_start: true,
             target_position: mouse_position.y,
-            scroll_border_min: 0.0,
-            scroll_border_max: self.doc_bounds.height,
+            scroll_border: 0.0,
         }
     }
 
@@ -344,14 +343,10 @@ impl Tab {
         last_line_y: f32,
         ctx: &mut Ctx,
     ) -> CameraRecenterRequest {
-        let scroll_border_min = ctx.gfx.line_height();
-        let scroll_border_max = self.doc_bounds.height - scroll_border_min;
-
         CameraRecenterRequest {
             can_start: self.handled_doc_len != doc_len,
             target_position: last_line_y - self.camera.y(),
-            scroll_border_min,
-            scroll_border_max,
+            scroll_border: ctx.gfx.line_height(),
         }
     }
 
@@ -366,14 +361,10 @@ impl Tab {
         let new_cursor_visual_position =
             self.position_to_visual(new_cursor_position, self.camera.position(), doc, gfx);
 
-        let scroll_border_min = gfx.line_height() * RECENTER_DISTANCE as f32;
-        let scroll_border_max = self.doc_bounds.height - scroll_border_min;
-
         CameraRecenterRequest {
             can_start: self.handled_cursor_position != new_cursor_position,
             target_position: new_cursor_visual_position.y + gfx.line_height() / 2.0,
-            scroll_border_min,
-            scroll_border_max,
+            scroll_border: gfx.line_height() * RECENTER_DISTANCE as f32,
         }
     }
 
@@ -395,8 +386,7 @@ impl Tab {
         CameraRecenterRequest {
             can_start: true,
             target_position: mouse_position.x,
-            scroll_border_min: 0.0,
-            scroll_border_max: self.doc_bounds.width,
+            scroll_border: 0.0,
         }
     }
 
@@ -411,14 +401,10 @@ impl Tab {
         let new_cursor_visual_position =
             self.position_to_visual(new_cursor_position, self.camera.position(), doc, gfx);
 
-        let scroll_border_min = gfx.glyph_width() * RECENTER_DISTANCE as f32;
-        let scroll_border_max = self.doc_bounds.width - scroll_border_min;
-
         CameraRecenterRequest {
             can_start: self.handled_cursor_position != new_cursor_position,
             target_position: new_cursor_visual_position.x + gfx.glyph_width() / 2.0,
-            scroll_border_min,
-            scroll_border_max,
+            scroll_border: gfx.glyph_width() * RECENTER_DISTANCE as f32,
         }
     }
 
