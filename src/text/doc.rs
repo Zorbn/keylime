@@ -1368,6 +1368,7 @@ impl Doc {
             }
 
             y += 1;
+            match_cursor.set_index(0);
 
             if y >= self.lines.len() as isize {
                 if do_wrap {
@@ -1432,6 +1433,7 @@ impl Doc {
             }
 
             y -= 1;
+            match_cursor.set_index(0);
 
             if y < 0 {
                 if do_wrap {
