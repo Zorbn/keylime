@@ -21,6 +21,7 @@ use crate::{
         cursor_index::CursorIndex,
         doc::{Doc, DocFlag},
         grapheme_category::GraphemeCategory,
+        selection::Selection,
         syntax_highlighter::HighlightedLine,
     },
     ui::camera::CameraRecenterRequest,
@@ -809,44 +810,12 @@ impl Tab {
         visible_lines: VisibleLines,
         ctx: &mut Ctx,
     ) {
-        let gfx = &mut ctx.gfx;
-        let theme = &ctx.config.theme;
-
         for index in doc.cursor_indices() {
             let Some(selection) = doc.cursor(index).get_selection() else {
                 continue;
             };
 
-            let start = selection.start.max(Position::new(0, visible_lines.min_y));
-            let end = selection.end.min(Position::new(0, visible_lines.max_y));
-            let mut position = start;
-
-            while position < end {
-                let highlight_position =
-                    self.position_to_visual(position, camera_position, doc, gfx);
-
-                let grapheme = doc.grapheme(position);
-                let grapheme_width = gfx.measure_text(grapheme);
-
-                // Make the selection flush with the side of the doc.
-                let padding_x = if position.x == 0 {
-                    gfx.line_padding_x()
-                } else {
-                    0.0
-                };
-
-                gfx.add_rect(
-                    Rect::new(
-                        highlight_position.x - padding_x,
-                        highlight_position.y,
-                        grapheme_width as f32 * gfx.glyph_width() + padding_x,
-                        gfx.line_height(),
-                    ),
-                    theme.selection,
-                );
-
-                position = doc.move_position(position, 1, 0, gfx);
-            }
+            self.draw_selection(selection, doc, camera_position, visible_lines, ctx);
         }
 
         if !self.do_show_cursors(is_focused, ctx) {
@@ -854,6 +823,7 @@ impl Tab {
         }
 
         let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
 
         for (index, animation_state) in doc.cursor_indices().zip(&self.cursor_animation_states) {
             let trail_progress =
@@ -887,6 +857,80 @@ impl Tab {
             gfx.add_quad(trail_quad, trail_color);
             gfx.add_quad(cursor_quad, theme.normal);
         }
+    }
+
+    fn draw_selection(
+        &self,
+        selection: Selection,
+        doc: &Doc,
+        camera_position: VisualPosition,
+        visible_lines: VisibleLines,
+        ctx: &mut Ctx,
+    ) {
+        let start = selection.start.max(Position::new(0, visible_lines.min_y));
+        let end = selection.end.min(Position::new(0, visible_lines.max_y));
+
+        if start >= end {
+            return;
+        }
+
+        if start.y == end.y {
+            self.draw_selection_line(
+                Some(start.x),
+                Some(end.x),
+                start.y,
+                doc,
+                camera_position,
+                ctx,
+            );
+        } else {
+            self.draw_selection_line(Some(start.x), None, start.y, doc, camera_position, ctx);
+
+            for y in start.y + 1..end.y {
+                self.draw_selection_line(None, None, y, doc, camera_position, ctx);
+            }
+
+            self.draw_selection_line(None, Some(end.x), end.y, doc, camera_position, ctx);
+        }
+    }
+
+    fn draw_selection_line(
+        &self,
+        start_x: Option<usize>,
+        end_x: Option<usize>,
+        y: usize,
+        doc: &Doc,
+        camera_position: VisualPosition,
+        ctx: &mut Ctx,
+    ) {
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
+
+        let lines = doc.lines();
+
+        let start_x = start_x.unwrap_or_default();
+        let end_x = end_x.unwrap_or(lines[y].len());
+
+        let highlight_position =
+            self.position_to_visual(Position::new(start_x, y), camera_position, doc, gfx);
+
+        let line_width = gfx.measure_text(&lines[y][start_x..end_x]) + 1;
+
+        // Make the selection flush with the side of the doc.
+        let padding_x = if start_x == 0 {
+            gfx.line_padding_x()
+        } else {
+            0.0
+        };
+
+        let rect = Rect::new(
+            highlight_position.x - padding_x,
+            highlight_position.y,
+            line_width as f32 * gfx.glyph_width() + padding_x,
+            gfx.line_height(),
+        );
+
+        gfx.add_rect(rect, theme.selection);
     }
 
     fn cursor_position_to_rect(position: VisualPosition, gfx: &Gfx) -> Rect {
