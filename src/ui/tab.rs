@@ -909,12 +909,19 @@ impl Tab {
         let lines = doc.lines();
 
         let start_x = start_x.unwrap_or_default();
-        let end_x = end_x.unwrap_or(lines[y].len());
+
+        // Include the width of the newline character if we want
+        // to highlight the entire rest of the line (end_x is None).
+        let (end_x, newline_width) = if let Some(end_x) = end_x {
+            (end_x, 0)
+        } else {
+            (lines[y].len(), 1)
+        };
 
         let highlight_position =
             self.position_to_visual(Position::new(start_x, y), camera_position, doc, gfx);
 
-        let line_width = gfx.measure_text(&lines[y][start_x..end_x]) + 1;
+        let line_width = gfx.measure_text(&lines[y][start_x..end_x]) + newline_width;
 
         // Make the selection flush with the side of the doc.
         let padding_x = if start_x == 0 {
