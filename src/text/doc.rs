@@ -504,7 +504,7 @@ impl Doc {
 
         let start = self.line_start(y);
 
-        if start + comment.len() >= line.len() {
+        if start + comment.len() > line.len() {
             return false;
         }
 
@@ -546,7 +546,7 @@ impl Doc {
                 .trim();
 
             let mut min_comment_x = usize::MAX;
-            let mut did_uncomment = false;
+            let mut should_comment = false;
 
             for y in selection.start.y..=selection.end.y {
                 if self.is_line_whitespace(y) {
@@ -554,11 +554,7 @@ impl Doc {
                 }
 
                 min_comment_x = min_comment_x.min(self.line_start(y));
-                did_uncomment = self.uncomment_line(comment, y, ctx) || did_uncomment;
-            }
-
-            if did_uncomment {
-                continue;
+                should_comment |= !self.is_line_commented(comment, y);
             }
 
             for y in selection.start.y..=selection.end.y {
@@ -566,7 +562,11 @@ impl Doc {
                     continue;
                 }
 
-                self.comment_line(comment, Position::new(min_comment_x, y), ctx);
+                if should_comment {
+                    self.comment_line(comment, Position::new(min_comment_x, y), ctx);
+                } else {
+                    self.uncomment_line(comment, y, ctx);
+                }
             }
         }
     }

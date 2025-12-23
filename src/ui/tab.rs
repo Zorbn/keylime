@@ -905,7 +905,6 @@ impl Tab {
     ) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
-
         let lines = doc.lines();
 
         let start_x = start_x.unwrap_or_default();
@@ -917,6 +916,10 @@ impl Tab {
         } else {
             (lines[y].len(), 1)
         };
+
+        if start_x == end_x {
+            return;
+        }
 
         let highlight_position =
             self.position_to_visual(Position::new(start_x, y), camera_position, doc, gfx);
