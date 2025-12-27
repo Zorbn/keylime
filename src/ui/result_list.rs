@@ -14,11 +14,11 @@ use crate::{
         mousebind::Mousebind,
     },
     platform::gfx::Gfx,
-    ui::camera::CameraRecenterRequest,
+    ui::camera::{CameraAxis, CameraRecenterRequest},
 };
 
 use super::{
-    camera::{Camera, RECENTER_DISTANCE},
+    camera::RECENTER_DISTANCE,
     color::Color,
     core::{Ui, WidgetId, WidgetSettings},
     focus_list::FocusList,
@@ -47,7 +47,7 @@ pub struct ResultList<T> {
     result_bounds: Rect,
     widget_id: WidgetId,
 
-    camera: Camera,
+    camera: CameraAxis,
 }
 
 impl<T> ResultList<T> {
@@ -73,7 +73,7 @@ impl<T> ResultList<T> {
                 },
             ),
 
-            camera: Camera::new(),
+            camera: CameraAxis::new(),
         }
     }
 
@@ -153,7 +153,7 @@ impl<T> ResultList<T> {
             }
 
             let delta = mouse_scroll.delta * self.result_bounds.height;
-            self.camera.vertical.scroll(delta, mouse_scroll.is_precise);
+            self.camera.scroll(delta, mouse_scroll.is_precise);
         }
     }
 
@@ -165,7 +165,7 @@ impl<T> ResultList<T> {
         }
 
         let clicked_result_index =
-            ((position.y + self.camera.y() - bounds.y) / self.result_bounds.height) as usize;
+            ((position.y + self.camera.position() - bounds.y) / self.result_bounds.height) as usize;
 
         if clicked_result_index >= self.len() {
             return false;
@@ -205,7 +205,8 @@ impl<T> ResultList<T> {
         let focused_index = self.focused_index();
         let bounds = ctx.ui.widget(self.widget_id).bounds;
 
-        let target_y = (focused_index as f32 + 0.5) * self.result_bounds.height - self.camera.y();
+        let target_y =
+            (focused_index as f32 + 0.5) * self.result_bounds.height - self.camera.position();
         let max_y = (self.len() as f32 * self.result_bounds.height - bounds.height).max(0.0);
 
         let recenter_request = CameraRecenterRequest {
@@ -217,7 +218,6 @@ impl<T> ResultList<T> {
         self.mark_focused_handled();
 
         self.camera
-            .vertical
             .animate(recenter_request, max_y, bounds.height, dt);
     }
 
@@ -244,7 +244,7 @@ impl<T> ResultList<T> {
             theme.border,
         );
 
-        let camera_y = self.camera.y().floor();
+        let camera_y = self.camera.position().floor();
 
         let min_y = self.min_visible_result_index();
         let sub_line_offset_y = camera_y - min_y as f32 * self.result_bounds.height;
@@ -304,13 +304,14 @@ impl<T> ResultList<T> {
     }
 
     pub fn min_visible_result_index(&self) -> usize {
-        (self.camera.y().floor() / self.result_bounds.height) as usize
+        (self.camera.position().floor() / self.result_bounds.height) as usize
     }
 
     pub fn max_visible_result_index(&self, ui: &Ui) -> usize {
         let bounds = ui.widget(self.widget_id).bounds;
-        let max_y =
-            ((self.camera.y().floor() + bounds.height) / self.result_bounds.height) as usize + 1;
+        let max_y = ((self.camera.position().floor() + bounds.height) / self.result_bounds.height)
+            as usize
+            + 1;
 
         max_y.min(self.len())
     }

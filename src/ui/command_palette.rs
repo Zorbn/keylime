@@ -363,11 +363,14 @@ impl CommandPalette {
     ) {
         ctx.ui.focus(self.widget_id);
 
-        if self
+        let has_input = !self.input().is_empty();
+
+        let has_same_title = self
             .mode
             .as_ref()
-            .is_some_and(|current_mode| current_mode.title() == mode.title())
-        {
+            .is_some_and(|previous_mode| previous_mode.title() == mode.title());
+
+        if has_input && has_same_title {
             handle_select_all(&mut self.doc, ctx.gfx);
             self.update_results(editor, ctx);
 

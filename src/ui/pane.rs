@@ -13,7 +13,7 @@ use crate::{
         mousebind::{Mousebind, MousebindKind},
     },
     text::doc::Doc,
-    ui::camera::{Camera, CameraRecenterRequest},
+    ui::camera::{CameraAxis, CameraRecenterRequest},
 };
 
 use super::{
@@ -29,7 +29,7 @@ pub struct Pane<T> {
     handled_focused_index: Option<usize>,
     dragged_tab_offset: Option<f32>,
     tab_bar_width: f32,
-    camera: Camera,
+    camera: CameraAxis,
 
     get_doc: fn(&T) -> &Doc,
     get_doc_mut: fn(&mut T) -> &mut Doc,
@@ -49,7 +49,7 @@ impl<T> Pane<T> {
             handled_focused_index: None,
             dragged_tab_offset: None,
             tab_bar_width: 0.0,
-            camera: Camera::new(),
+            camera: CameraAxis::new(),
 
             get_doc,
             get_doc_mut,
@@ -109,7 +109,8 @@ impl<T> Pane<T> {
                 break;
             }
 
-            let visual_position = VisualPosition::new(mousebind.x + self.camera.x(), mousebind.y);
+            let visual_position =
+                VisualPosition::new(mousebind.x + self.camera.position(), mousebind.y);
 
             match mousebind {
                 Mousebind {
@@ -157,7 +158,8 @@ impl<T> Pane<T> {
         let mut mousebind_handler = ctx.ui.mousebind_handler(self.widget_id, ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
-            let visual_position = VisualPosition::new(mousebind.x + self.camera.x(), mousebind.y);
+            let visual_position =
+                VisualPosition::new(mousebind.x + self.camera.position(), mousebind.y);
 
             match mousebind {
                 Mousebind {
@@ -215,9 +217,7 @@ impl<T> Pane<T> {
 
             let delta = mouse_scroll.delta * ctx.gfx.glyph_width();
 
-            self.camera
-                .horizontal
-                .scroll(-delta, mouse_scroll.is_precise);
+            self.camera.scroll(-delta, mouse_scroll.is_precise);
         }
     }
 
@@ -244,7 +244,7 @@ impl<T> Pane<T> {
 
         let recenter_request = CameraRecenterRequest {
             can_start: Some(focused_index) != self.handled_focused_index,
-            target_position: tab_bounds.center_x() - self.camera.x(),
+            target_position: tab_bounds.center_x() - self.camera.position(),
             scroll_border: tab_bounds.width,
         };
 
@@ -254,7 +254,6 @@ impl<T> Pane<T> {
         let max_position = (self.tab_bar_width - view_size).max(0.0);
 
         self.camera
-            .horizontal
             .animate(recenter_request, max_position, view_size, dt);
     }
 
@@ -357,7 +356,7 @@ impl<T> Pane<T> {
 
         let text_color = Self::tab_color(doc, theme, ctx);
 
-        let camera_x = self.camera.x().floor();
+        let camera_x = self.camera.position().floor();
 
         let bounds = ctx.ui.widget(self.widget_id).bounds;
         let mut tab_bounds = tab.tab_bounds().unoffset_by(bounds).shift_x(-camera_x);

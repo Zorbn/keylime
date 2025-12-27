@@ -237,6 +237,10 @@ impl CameraAxis {
             self.state = CameraState::MovingWithVelocity;
         }
     }
+
+    pub fn position(&self) -> f32 {
+        self.position
+    }
 }
 
 pub struct Camera {
@@ -264,10 +268,6 @@ impl Camera {
     pub fn reset(&mut self) {
         self.horizontal.reset();
         self.vertical.reset();
-    }
-
-    pub fn x(&self) -> f32 {
-        self.horizontal.position
     }
 
     pub fn y(&self) -> f32 {
