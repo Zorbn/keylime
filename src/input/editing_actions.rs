@@ -144,10 +144,7 @@ pub fn handle_action(action: Action, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) ->
                 doc.jump_cursor(index, doc.end(), mods.contains(Mod::Shift), ctx.gfx);
             }
         }
-        action_name!(SelectAll) => {
-            doc.jump_cursors(Position::ZERO, false, ctx.gfx);
-            doc.jump_cursors(doc.end(), true, ctx.gfx);
-        }
+        action_name!(SelectAll) => handle_select_all(doc, ctx.gfx),
         action_keybind!(key: Escape, mods: Mods::NONE) => {
             if doc.cursors_len() > 1 {
                 doc.clear_extra_cursors(CursorIndex::Some(0));
@@ -442,6 +439,11 @@ fn handle_end(should_select: bool, doc: &mut Doc, gfx: &mut Gfx) {
 
         doc.jump_cursor(index, position, should_select, gfx);
     }
+}
+
+pub fn handle_select_all(doc: &mut Doc, gfx: &mut Gfx) {
+    doc.jump_cursors(Position::ZERO, false, gfx);
+    doc.jump_cursors(doc.end(), true, gfx);
 }
 
 fn handle_cut(doc: &mut Doc, ctx: &mut Ctx) {

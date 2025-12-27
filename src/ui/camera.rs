@@ -266,6 +266,10 @@ impl Camera {
         self.vertical.reset();
     }
 
+    pub fn x(&self) -> f32 {
+        self.horizontal.position
+    }
+
     pub fn y(&self) -> f32 {
         self.vertical.position
     }

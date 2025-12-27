@@ -13,6 +13,7 @@ use crate::{
         mousebind::{Mousebind, MousebindKind},
     },
     text::doc::Doc,
+    ui::camera::{Camera, CameraRecenterRequest},
 };
 
 use super::{
@@ -25,7 +26,10 @@ use super::{
 
 pub struct Pane<T> {
     pub tabs: FocusList<Tab>,
+    handled_focused_index: Option<usize>,
     dragged_tab_offset: Option<f32>,
+    tab_bar_width: f32,
+    camera: Camera,
 
     get_doc: fn(&T) -> &Doc,
     get_doc_mut: fn(&mut T) -> &mut Doc,
@@ -42,7 +46,10 @@ impl<T> Pane<T> {
     ) -> Self {
         Self {
             tabs: FocusList::new(),
+            handled_focused_index: None,
             dragged_tab_offset: None,
+            tab_bar_width: 0.0,
+            camera: Camera::new(),
 
             get_doc,
             get_doc_mut,
@@ -52,9 +59,11 @@ impl<T> Pane<T> {
     }
 
     pub fn is_animating(&self, ctx: &Ctx) -> bool {
-        self.tabs
-            .get_focused()
-            .is_some_and(|tab| tab.is_animating(ctx))
+        self.camera.is_moving()
+            || self
+                .tabs
+                .get_focused()
+                .is_some_and(|tab| tab.is_animating(ctx))
     }
 
     pub fn layout(&mut self, bounds: Rect, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
@@ -87,6 +96,8 @@ impl<T> Pane<T> {
 
             tab.layout(tab_bounds, doc_bounds, 0.0, doc, gfx);
         }
+
+        self.tab_bar_width = tab_x - bounds.x;
     }
 
     pub fn update(&mut self, ctx: &mut Ctx) {
@@ -98,7 +109,7 @@ impl<T> Pane<T> {
                 break;
             }
 
-            let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
+            let visual_position = VisualPosition::new(mousebind.x + self.camera.x(), mousebind.y);
 
             match mousebind {
                 Mousebind {
@@ -122,15 +133,13 @@ impl<T> Pane<T> {
 
                     let index = self.tabs.iter().enumerate().position(|(index, tab)| {
                         let tab_bounds = tab.tab_bounds();
-                        let half_tab_width = tab_bounds.width / 2.0;
+                        let tab_center_x = tab_bounds.center_x();
 
                         if self.tabs.focused_index() < index {
-                            visual_position.x + half_focused_tab_width
-                                > tab_bounds.x + half_tab_width
+                            visual_position.x + half_focused_tab_width > tab_center_x
                                 && visual_position.x < tab_bounds.right()
                         } else {
-                            visual_position.x - half_focused_tab_width
-                                < tab_bounds.x + half_tab_width
+                            visual_position.x - half_focused_tab_width < tab_center_x
                                 && visual_position.x > tab_bounds.x
                         }
                     });
@@ -148,7 +157,7 @@ impl<T> Pane<T> {
         let mut mousebind_handler = ctx.ui.mousebind_handler(self.widget_id, ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
-            let visual_position = VisualPosition::new(mousebind.x, mousebind.y);
+            let visual_position = VisualPosition::new(mousebind.x + self.camera.x(), mousebind.y);
 
             match mousebind {
                 Mousebind {
@@ -188,9 +197,33 @@ impl<T> Pane<T> {
                 _ => action_handler.unprocessed(ctx.window, action),
             }
         }
+
+        let mut mouse_scroll_handler = ctx.ui.mouse_scroll_handler(self.widget_id, ctx.window);
+
+        while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
+            let visual_position = ctx.window.mouse_position();
+
+            if !mouse_scroll.is_horizontal
+                || !self
+                    .tabs
+                    .iter()
+                    .any(|tab| tab.tab_bounds().contains_position(visual_position))
+            {
+                mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
+                continue;
+            }
+
+            let delta = mouse_scroll.delta * ctx.gfx.glyph_width();
+
+            self.camera
+                .horizontal
+                .scroll(-delta, mouse_scroll.is_precise);
+        }
     }
 
     pub fn animate(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx, dt: f32) {
+        self.animate_tab_bar(ctx, dt);
+
         let widget_id = self.widget_id;
         let get_doc = self.get_doc;
 
@@ -200,7 +233,49 @@ impl<T> Pane<T> {
         }
     }
 
+    pub fn animate_tab_bar(&mut self, ctx: &mut Ctx, dt: f32) {
+        let tab_bounds = self
+            .tabs
+            .get_focused()
+            .map(Tab::tab_bounds)
+            .unwrap_or_default();
+
+        let focused_index = self.tabs.focused_index();
+
+        let recenter_request = CameraRecenterRequest {
+            can_start: Some(focused_index) != self.handled_focused_index,
+            target_position: tab_bounds.center_x() - self.camera.x(),
+            scroll_border: tab_bounds.width,
+        };
+
+        self.handled_focused_index = Some(focused_index);
+
+        let view_size = ctx.ui.widget_mut(self.widget_id).bounds.width;
+        let max_position = (self.tab_bar_width - view_size).max(0.0);
+
+        self.camera
+            .horizontal
+            .animate(recenter_request, max_position, view_size, dt);
+    }
+
     pub fn draw(&mut self, background: Option<Color>, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
+        self.draw_tab_bar(background, data_list, ctx);
+
+        let get_doc_mut = self.get_doc_mut;
+        let is_focused = ctx.ui.is_focused(self.widget_id);
+
+        if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
+        {
+            tab.draw((None, background), get_doc_mut(data), is_focused, ctx);
+        }
+    }
+
+    fn draw_tab_bar(
+        &mut self,
+        background: Option<Color>,
+        data_list: &mut SlotList<T>,
+        ctx: &mut Ctx,
+    ) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
         let bounds = ctx.ui.widget(self.widget_id).bounds;
@@ -250,14 +325,6 @@ impl<T> Pane<T> {
         );
 
         gfx.end();
-
-        let get_doc_mut = self.get_doc_mut;
-        let is_focused = ctx.ui.is_focused(self.widget_id);
-
-        if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
-        {
-            tab.draw((None, background), get_doc_mut(data), is_focused, ctx);
-        }
     }
 
     fn draw_tab_from_index(
@@ -290,8 +357,10 @@ impl<T> Pane<T> {
 
         let text_color = Self::tab_color(doc, theme, ctx);
 
+        let camera_x = self.camera.x().floor();
+
         let bounds = ctx.ui.widget(self.widget_id).bounds;
-        let mut tab_bounds = tab.tab_bounds().unoffset_by(bounds);
+        let mut tab_bounds = tab.tab_bounds().unoffset_by(bounds).shift_x(-camera_x);
         let mut tab_background = theme.background;
 
         if is_focused {

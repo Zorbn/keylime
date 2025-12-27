@@ -20,7 +20,10 @@ use crate::{
         rect::Rect,
         sides::{Side, Sides},
     },
-    input::action::{action_name, ActionName},
+    input::{
+        action::{action_name, ActionName},
+        editing_actions::handle_select_all,
+    },
     lsp::{position_encoding::PositionEncoding, types::EncodedPosition},
     pool::Pooled,
     text::doc::{Doc, DocFlags},
@@ -358,13 +361,24 @@ impl CommandPalette {
         editor: &mut Editor,
         ctx: &mut Ctx,
     ) {
+        ctx.ui.focus(self.widget_id);
+
+        if self
+            .mode
+            .as_ref()
+            .is_some_and(|current_mode| current_mode.title() == mode.title())
+        {
+            handle_select_all(&mut self.doc, ctx.gfx);
+            self.update_results(editor, ctx);
+
+            return;
+        }
+
         self.doc.clear(ctx);
         self.tab.skip_cursor_animations(&self.doc, ctx);
         self.result_list.reset();
         self.last_updated_version = None;
         self.mode = None;
-
-        ctx.ui.focus(self.widget_id);
 
         mode.on_open(self, CommandPaletteEventArgs::new(editor, ctx));
         self.mode = Some(mode);

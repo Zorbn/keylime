@@ -291,7 +291,7 @@ impl<T> ResultList<T> {
         self.camera.reset();
     }
 
-    pub fn mark_focused_handled(&mut self) {
+    fn mark_focused_handled(&mut self) {
         self.handled_focused_index = Some(self.focused_index());
     }
 

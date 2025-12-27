@@ -68,6 +68,7 @@ pub trait CommandPaletteMode {
                 .then(a.text.len().cmp(&b.text.len()))
         });
     }
+
     fn on_update(&mut self, _: &mut CommandPalette, _: CommandPaletteEventArgs) {}
 
     fn on_display_result<'a>(

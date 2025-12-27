@@ -83,6 +83,10 @@ impl Rect {
         )
     }
 
+    pub fn shift_x(&self, delta: f32) -> Self {
+        Self::new(self.x + delta, self.y, self.width, self.height)
+    }
+
     pub fn shift_y(&self, delta: f32) -> Self {
         Self::new(self.x, self.y + delta, self.width, self.height)
     }
@@ -198,6 +202,10 @@ impl Rect {
 
     pub fn right(&self) -> f32 {
         self.x + self.width
+    }
+
+    pub fn center_x(&self) -> f32 {
+        self.x + self.width / 2.0
     }
 
     pub fn top(&self) -> f32 {
