@@ -82,4 +82,8 @@ pub trait CommandPaletteMode {
     fn is_animating(&self) -> bool {
         false
     }
+
+    fn is_reusable(&self) -> bool {
+        false
+    }
 }

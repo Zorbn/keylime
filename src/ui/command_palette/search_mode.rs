@@ -65,6 +65,10 @@ impl CommandPaletteMode for SearchMode {
 
         CommandPaletteAction::Stay
     }
+
+    fn is_reusable(&self) -> bool {
+        true
+    }
 }
 
 pub struct SearchAndReplaceMode {
