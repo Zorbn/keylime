@@ -295,11 +295,22 @@ impl Window {
     pub fn handle_scroll_wheel(&mut self, event: &NSEvent) {
         let (x, y) = self.event_location_to_xy(event);
 
-        let (is_precise, phase) =
-            unsafe { (event.hasPreciseScrollingDeltas(), event.momentumPhase()) };
+        let (is_precise, momentum_phase, phase) = unsafe {
+            (
+                event.hasPreciseScrollingDeltas(),
+                event.momentumPhase(),
+                event.phase(),
+            )
+        };
 
         let kind = if is_precise {
-            match phase {
+            let relevant_phase = if momentum_phase == NSEventPhase::None {
+                phase
+            } else {
+                momentum_phase
+            };
+
+            match relevant_phase {
                 NSEventPhase::Began => MouseScrollKind::Start,
                 NSEventPhase::Ended | NSEventPhase::Cancelled => MouseScrollKind::Stop,
                 _ => MouseScrollKind::Continue,
