@@ -17,13 +17,21 @@ use crate::{
         gfx::Gfx,
         process::{Process, ProcessKind},
     },
-    pool::STRING_POOL,
+    pool::{format_pooled, STRING_POOL},
     text::{
         doc::Doc,
         grapheme::{CharCursor, CharIterator},
-        syntax_highlighter::TerminalHighlightKind,
+        syntax_highlighter::{HighlightKind, TerminalHighlightKind},
     },
-    ui::{camera::CameraRecenterKind, core::WidgetId, tab::Tab},
+    ui::{
+        camera::CameraRecenterKind,
+        core::WidgetId,
+        tab::Tab,
+        terminal::{
+            escape_sequences::{parse_escape_sequences, EscapeSequence},
+            TERMINAL_DISPLAY_NAME,
+        },
+    },
 };
 
 use super::TerminalDocs;
@@ -83,13 +91,14 @@ impl ColoredGridLine {
 
 pub struct TerminalEmulator {
     pty: Option<Process>,
+    pending_escape_sequences: Option<Vec<EscapeSequence<'static>>>,
 
     // The position of the terminal's cursor, which follows different rules
     // compared to the document's cursor for compatibility reasons, and may be
     // different from the document's cursor position is the user is selecting text.
-    pub grid_cursor: Position,
-    pub grid_width: usize,
-    pub grid_height: usize,
+    grid_cursor: Position,
+    grid_width: usize,
+    grid_height: usize,
     colored_grid_lines: Vec<ColoredGridLine>,
     empty_line_text: String,
     did_doc_cursors_move: bool,
@@ -99,13 +108,13 @@ pub struct TerminalEmulator {
     saved_grid_cursor: Position,
     saved_colored_grid_lines: Vec<ColoredGridLine>,
 
-    pub is_cursor_visible: bool,
-    pub foreground_color: TerminalHighlightKind,
-    pub background_color: TerminalHighlightKind,
-    pub are_colors_swapped: bool,
-    pub are_colors_bright: bool,
-    pub scroll_top: usize,
-    pub scroll_bottom: usize,
+    is_cursor_visible: bool,
+    foreground_color: TerminalHighlightKind,
+    background_color: TerminalHighlightKind,
+    are_colors_swapped: bool,
+    are_colors_bright: bool,
+    scroll_top: usize,
+    scroll_bottom: usize,
     is_in_alternate_buffer: bool,
     excess_lines_trimmed: usize,
 }
@@ -114,6 +123,7 @@ impl TerminalEmulator {
     pub fn new() -> Self {
         Self {
             pty: None,
+            pending_escape_sequences: Some(Vec::new()),
 
             grid_cursor: Position::ZERO,
             grid_width: MIN_GRID_WIDTH,
@@ -285,6 +295,252 @@ impl TerminalEmulator {
         tab.camera.vertical.set_locked(self.is_in_alternate_buffer);
     }
 
+    fn handle_escape_sequences(
+        &mut self,
+        docs: &mut TerminalDocs,
+        input: &mut Vec<u8>,
+        output: &[u8],
+        ctx: &mut Ctx,
+    ) {
+        let Some(mut result) = self.pending_escape_sequences.take() else {
+            return;
+        };
+
+        parse_escape_sequences(output, &mut result);
+
+        for sequence in result.drain(..) {
+            self.handle_escape_sequence(docs, input, sequence, ctx);
+        }
+
+        let doc = self.doc_mut(docs);
+
+        self.highlight_lines(doc);
+
+        // In-place collect:
+        self.pending_escape_sequences = Some(result.into_iter().map(|_| unreachable!()).collect());
+    }
+
+    fn handle_escape_sequence(
+        &mut self,
+        docs: &mut TerminalDocs,
+        input: &mut Vec<u8>,
+        sequence: EscapeSequence,
+        ctx: &mut Ctx,
+    ) {
+        let doc = self.doc_mut(docs);
+
+        match sequence {
+            EscapeSequence::Plain(text) => self.insert_at_cursor(text, doc, ctx),
+            EscapeSequence::Backspace => self.move_cursor(-1, 0, doc, ctx.gfx),
+            EscapeSequence::Tab => {
+                let next_tab_stop = (self.grid_cursor.x / 8 + 1) * 8;
+
+                while self.grid_cursor.x < next_tab_stop {
+                    self.insert_at_cursor(" ", doc, ctx);
+                }
+            }
+            EscapeSequence::CarriageReturn => {
+                self.jump_cursor(Position::new(0, self.grid_cursor.y), doc, ctx.gfx);
+            }
+            EscapeSequence::Newline => self.newline_cursor(doc, ctx),
+            EscapeSequence::ReverseNewline => self.reverse_newline_cursor(doc, ctx),
+            EscapeSequence::HideCursor => self.is_cursor_visible = false,
+            EscapeSequence::ShowCursor => {
+                self.is_cursor_visible = true;
+                self.jump_doc_cursors_to_grid_cursor(doc, ctx.gfx);
+            }
+            EscapeSequence::SwitchToNormalBuffer => self.switch_to_normal_buffer(doc),
+            EscapeSequence::SwitchToAlternateBuffer => self.switch_to_alternate_buffer(doc),
+            EscapeSequence::QueryModifyKeyboard
+            | EscapeSequence::QueryModifyCursorKeys
+            | EscapeSequence::QueryModifyFunctionKeys
+            | EscapeSequence::QueryModifyOtherKeys => {
+                let default_value = match sequence {
+                    EscapeSequence::QueryModifyKeyboard => 0,
+                    EscapeSequence::QueryModifyFunctionKeys => 2,
+                    EscapeSequence::QueryModifyOtherKeys => 2,
+                    EscapeSequence::QueryDeviceAttributes => 0,
+                    _ => unreachable!(),
+                };
+
+                let response = format_pooled!("\x1B[>{}m", default_value);
+
+                input.extend(response.bytes());
+            }
+            EscapeSequence::QueryDeviceAttributes => {
+                // According to invisible-island.net/xterm 41 corresponds to a VT420 which is the default.
+                let response = "\x1B[>41;0;0c";
+                input.extend(response.bytes());
+            }
+            EscapeSequence::ResetFormatting => {
+                self.foreground_color = TerminalHighlightKind::Foreground;
+                self.background_color = TerminalHighlightKind::Background;
+                self.are_colors_swapped = false;
+                self.are_colors_bright = false;
+            }
+            EscapeSequence::SetColorsBright(flag) => self.are_colors_bright = flag,
+            EscapeSequence::SetColorsSwapped(flag) => self.are_colors_swapped = flag,
+            EscapeSequence::SetForegroundColor(color) => self.foreground_color = color,
+            EscapeSequence::SetBackgroundColor(color) => self.background_color = color,
+            EscapeSequence::SetCursorX(x) => {
+                let position =
+                    self.grid_position_char_to_byte(Position::new(x, self.grid_cursor.y), doc);
+
+                self.jump_cursor(position, doc, ctx.gfx);
+            }
+            EscapeSequence::SetCursorY(y) => {
+                let char_x = self.grid_position_byte_to_char(self.grid_cursor, doc);
+                let position = self.grid_position_char_to_byte(Position::new(char_x, y), doc);
+
+                self.jump_cursor(position, doc, ctx.gfx);
+            }
+            EscapeSequence::SetCursorPosition(x, y) => {
+                let position = self.grid_position_char_to_byte(Position::new(x, y), doc);
+
+                self.jump_cursor(position, doc, ctx.gfx);
+            }
+            EscapeSequence::MoveCursorX(distance) => self.move_cursor(distance, 0, doc, ctx.gfx),
+            EscapeSequence::MoveCursorY(distance) => self.move_cursor(0, distance, doc, ctx.gfx),
+            EscapeSequence::MoveCursorYAndResetX(distance) => {
+                let y = self.grid_cursor.y.saturating_add_signed(distance);
+
+                self.jump_cursor(Position::new(0, y), doc, ctx.gfx);
+            }
+            EscapeSequence::ClearToScreenEnd => {
+                let start = self.grid_cursor;
+                let end = self.line_end(self.grid_height - 1, doc);
+
+                self.delete(start, end, doc, ctx);
+            }
+            EscapeSequence::ClearToScreenStart => {
+                let start = Position::ZERO;
+                let end = self.grid_cursor;
+
+                self.delete(start, end, doc, ctx);
+            }
+            EscapeSequence::ClearScreen => {
+                let start = Position::ZERO;
+                let end = self.line_end(self.grid_height - 1, doc);
+
+                self.delete(start, end, doc, ctx);
+            }
+            EscapeSequence::TrimAllScrollbackLines => {
+                self.trim_all_scrollback_lines(doc, ctx);
+            }
+            EscapeSequence::ClearToLineEnd => {
+                let start = self.grid_cursor;
+                let end = self.line_end(start.y, doc);
+
+                self.delete(start, end, doc, ctx);
+            }
+            EscapeSequence::ClearToLineStart => {
+                let start = Position::new(0, self.grid_cursor.y);
+                let end = Position::new(self.grid_cursor.x, self.grid_cursor.y);
+
+                self.delete(start, end, doc, ctx);
+            }
+            EscapeSequence::ClearLine => {
+                let start = Position::new(0, self.grid_cursor.y);
+                let end = self.line_end(start.y, doc);
+
+                self.delete(start, end, doc, ctx);
+            }
+            EscapeSequence::InsertLines(count) => {
+                let scroll_top = self.scroll_top.max(self.grid_cursor.y);
+                let scroll_bottom = self.scroll_bottom;
+
+                if scroll_top > scroll_bottom {
+                    return;
+                }
+
+                for _ in 0..count {
+                    self.scroll_grid_region_down(scroll_top..=scroll_bottom, doc, ctx);
+                }
+            }
+            EscapeSequence::DeleteLines(count) => {
+                let scroll_top = self.scroll_top.max(self.grid_cursor.y);
+                let scroll_bottom = self.scroll_bottom;
+
+                if scroll_top > scroll_bottom {
+                    return;
+                }
+
+                for _ in 0..count {
+                    self.scroll_grid_region_up(scroll_top..=scroll_bottom, doc, ctx);
+                }
+            }
+            EscapeSequence::ScrollUp(distance) => {
+                for _ in 0..distance {
+                    self.scroll_grid_region_up(self.scroll_top..=self.scroll_bottom, doc, ctx);
+                }
+            }
+            EscapeSequence::ScrollDown(distance) => {
+                for _ in 0..distance {
+                    self.scroll_grid_region_down(self.scroll_top..=self.scroll_bottom, doc, ctx);
+                }
+            }
+            EscapeSequence::ClearCharsAfterCursor(distance) => {
+                let start = self.grid_cursor;
+                let end = self.move_position(start, distance as isize, 0, doc);
+
+                self.delete(start, end, doc, ctx);
+            }
+            EscapeSequence::DeleteCharsAfterCursor(distance) => {
+                let start = self.grid_cursor;
+                let end = self.move_position(start, 1, 0, doc);
+
+                let start = self.grid_position_to_doc_position(start, doc);
+                let end = self.grid_position_to_doc_position(end, doc);
+
+                if start.y != end.y {
+                    return;
+                }
+
+                for _ in 0..distance {
+                    doc.delete(start, end, ctx);
+                    doc.insert(doc.line_end(start.y), " ", ctx);
+                }
+            }
+            EscapeSequence::SetScrollRegion { top, bottom } => {
+                self.scroll_bottom = bottom.clamp(0, self.grid_height - 1);
+                self.scroll_top = top.clamp(0, self.scroll_bottom);
+            }
+            EscapeSequence::QueryDeviceStatus => {
+                let char_x = self.grid_position_byte_to_char(self.grid_cursor, doc);
+
+                let response = format_pooled!("\x1B[{};{}R", self.grid_cursor.y + 1, char_x + 1);
+
+                input.extend(response.bytes());
+            }
+            EscapeSequence::QueryTerminalId => {
+                // Claim to be a "VT101 with no options".
+                input.extend("\x1B[?1;0c".bytes());
+            }
+            EscapeSequence::SetTitle(title) => doc.set_display_name(Some(title.into())),
+            EscapeSequence::ResetTitle => doc.set_display_name(Some(TERMINAL_DISPLAY_NAME.into())),
+            EscapeSequence::QueryForegroundColor | EscapeSequence::QueryBackgroundColor => {
+                let (color, kind) = if matches!(sequence, EscapeSequence::QueryForegroundColor) {
+                    (self.foreground_color, 10)
+                } else {
+                    (self.background_color, 11)
+                };
+
+                let theme = &ctx.config.theme;
+                let color = theme.highlight_kind_to_color(HighlightKind::Terminal(color));
+
+                let response = format_pooled!(
+                    "\x1B]{};rgb:{:2X}{:2X}{:2X}\x07",
+                    kind,
+                    color.r,
+                    color.g,
+                    color.b
+                );
+
+                input.extend(response.bytes());
+            }
+        }
+    }
+
     fn expand_to_grid_size(
         &mut self,
         docs: &mut TerminalDocs,
@@ -410,11 +666,11 @@ impl TerminalEmulator {
         (grid_width, grid_height)
     }
 
-    pub fn trim_scrollback_lines(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+    fn trim_scrollback_lines(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
         self.trim_excess_lines(MAX_SCROLLBACK_LINES, doc, ctx);
     }
 
-    pub fn trim_all_scrollback_lines(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+    fn trim_all_scrollback_lines(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
         self.trim_excess_lines(0, doc, ctx);
     }
 
@@ -448,7 +704,7 @@ impl TerminalEmulator {
     }
 
     // Scrolls the text in the region down, giving the impression that the camera is panning up.
-    pub fn scroll_grid_region_down(
+    fn scroll_grid_region_down(
         &mut self,
         region: RangeInclusive<usize>,
         doc: &mut Doc,
@@ -486,7 +742,7 @@ impl TerminalEmulator {
     }
 
     // Scrolls the text in the region up, giving the impression that the camera is panning down.
-    pub fn scroll_grid_region_up(
+    fn scroll_grid_region_up(
         &mut self,
         region: RangeInclusive<usize>,
         doc: &mut Doc,
@@ -534,7 +790,7 @@ impl TerminalEmulator {
         self.highlight_lines(doc);
     }
 
-    pub fn switch_to_alternate_buffer(&mut self, doc: &mut Doc) {
+    fn switch_to_alternate_buffer(&mut self, doc: &mut Doc) {
         if self.is_in_alternate_buffer {
             return;
         }
@@ -542,7 +798,7 @@ impl TerminalEmulator {
         self.switch_buffer(doc);
     }
 
-    pub fn switch_to_normal_buffer(&mut self, doc: &mut Doc) {
+    fn switch_to_normal_buffer(&mut self, doc: &mut Doc) {
         if !self.is_in_alternate_buffer {
             return;
         }
@@ -550,7 +806,7 @@ impl TerminalEmulator {
         self.switch_buffer(doc);
     }
 
-    pub fn switch_buffer(&mut self, doc: &mut Doc) {
+    fn switch_buffer(&mut self, doc: &mut Doc) {
         self.highlight_lines(doc);
 
         swap(&mut self.grid_cursor, &mut self.saved_grid_cursor);
@@ -575,7 +831,7 @@ impl TerminalEmulator {
         doc.line_len(y)
     }
 
-    pub fn line_end(&self, y: usize, doc: &Doc) -> Position {
+    fn line_end(&self, y: usize, doc: &Doc) -> Position {
         let doc_y = self.grid_y_to_doc_y(y, doc);
         let doc_position = doc.line_end(doc_y);
 
@@ -624,7 +880,7 @@ impl TerminalEmulator {
         self.doc_position_to_grid_position(doc_position, doc)
     }
 
-    pub fn move_position(
+    fn move_position(
         &self,
         mut position: Position,
         delta_x: isize,
@@ -644,17 +900,17 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn grid_position_char_to_byte(&self, position: Position, doc: &Doc) -> Position {
+    fn grid_position_char_to_byte(&self, position: Position, doc: &Doc) -> Position {
         self.move_position_right(Position::new(0, position.y), position.x, doc)
     }
 
-    pub fn grid_position_byte_to_char(&self, position: Position, doc: &Doc) -> usize {
+    fn grid_position_byte_to_char(&self, position: Position, doc: &Doc) -> usize {
         let position = self.grid_position_to_doc_position(position, doc);
 
         CharIterator::new(&doc.lines()[position.y][..position.x]).count()
     }
 
-    pub fn grid_position_to_doc_position(&self, position: Position, doc: &Doc) -> Position {
+    fn grid_position_to_doc_position(&self, position: Position, doc: &Doc) -> Position {
         Position::new(position.x, self.grid_y_to_doc_y(position.y, doc))
     }
 
@@ -662,7 +918,7 @@ impl TerminalEmulator {
         Position::new(position.x, self.doc_y_to_grid_y(position.y, doc))
     }
 
-    pub fn grid_y_to_doc_y(&self, y: usize, doc: &Doc) -> usize {
+    fn grid_y_to_doc_y(&self, y: usize, doc: &Doc) -> usize {
         doc.lines().len().saturating_sub(self.grid_height) + y
     }
 
@@ -670,7 +926,7 @@ impl TerminalEmulator {
         y.saturating_sub(doc.lines().len().saturating_sub(self.grid_height))
     }
 
-    pub fn jump_doc_cursors_to_grid_cursor(&mut self, doc: &mut Doc, gfx: &mut Gfx) {
+    fn jump_doc_cursors_to_grid_cursor(&mut self, doc: &mut Doc, gfx: &mut Gfx) {
         if !self.is_cursor_visible {
             return;
         }
@@ -682,17 +938,17 @@ impl TerminalEmulator {
         doc.jump_cursors(doc_position, false, gfx);
     }
 
-    pub fn move_cursor(&mut self, delta_x: isize, delta_y: isize, doc: &mut Doc, gfx: &mut Gfx) {
+    fn move_cursor(&mut self, delta_x: isize, delta_y: isize, doc: &mut Doc, gfx: &mut Gfx) {
         self.grid_cursor = self.move_position(self.grid_cursor, delta_x, delta_y, doc);
         self.jump_doc_cursors_to_grid_cursor(doc, gfx);
     }
 
-    pub fn jump_cursor(&mut self, position: Position, doc: &mut Doc, gfx: &mut Gfx) {
+    fn jump_cursor(&mut self, position: Position, doc: &mut Doc, gfx: &mut Gfx) {
         self.grid_cursor = self.clamp_position(position, doc);
         self.jump_doc_cursors_to_grid_cursor(doc, gfx);
     }
 
-    pub fn newline_cursor(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+    fn newline_cursor(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
         if self.grid_cursor.y == self.scroll_bottom {
             self.scroll_grid_region_up(self.scroll_top..=self.scroll_bottom, doc, ctx);
         } else {
@@ -700,7 +956,7 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn reverse_newline_cursor(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+    fn reverse_newline_cursor(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
         if self.grid_cursor.y == self.scroll_top {
             self.scroll_grid_region_down(self.scroll_top..=self.scroll_bottom, doc, ctx);
         } else {
@@ -708,7 +964,7 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn insert_at_cursor(&mut self, text: &str, doc: &mut Doc, ctx: &mut Ctx) {
+    fn insert_at_cursor(&mut self, text: &str, doc: &mut Doc, ctx: &mut Ctx) {
         for c in CharIterator::new(text) {
             if self.grid_position_byte_to_char(self.grid_cursor, doc) >= self.grid_width {
                 self.jump_cursor(Position::new(0, self.grid_cursor.y), doc, ctx.gfx);
@@ -735,7 +991,7 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn highlight_lines(&mut self, doc: &mut Doc) {
+    fn highlight_lines(&mut self, doc: &mut Doc) {
         for y in 0..self.colored_grid_lines.len() {
             let doc_y = self.grid_y_to_doc_y(y, doc);
             let colored_line = &mut self.colored_grid_lines[y];
@@ -753,7 +1009,7 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn delete(&mut self, start: Position, end: Position, doc: &mut Doc, ctx: &mut Ctx) {
+    fn delete(&mut self, start: Position, end: Position, doc: &mut Doc, ctx: &mut Ctx) {
         for y in start.y..=end.y {
             let start_x = if y == start.y { start.x } else { 0 };
 
