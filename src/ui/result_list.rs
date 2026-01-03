@@ -11,7 +11,7 @@ use crate::{
         action::action_keybind,
         mods::{Mod, Mods},
         mouse_button::MouseButton,
-        mousebind::Mousebind,
+        mousebind::{Mousebind, MousebindKind},
     },
     platform::gfx::Gfx,
     ui::camera::{CameraAxis, CameraRecenterRequest},
@@ -119,6 +119,7 @@ impl<T> ResultList<T> {
             let Mousebind {
                 button: None | Some(MouseButton::Left),
                 mods,
+                kind: MousebindKind::Press | MousebindKind::Move,
                 ..
             } = mousebind
             else {
