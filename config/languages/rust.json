@@ -10,6 +10,9 @@
         "options": {
             "check": {
                 "command": "clippy"
+            },
+            "cfg": {
+                "setTest": false
             }
         }
     },

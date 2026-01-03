@@ -269,7 +269,7 @@ impl TerminalEmulator {
         let (input, output) = pty.input_output();
 
         if let Ok(mut output) = output.lock() {
-            self.handle_escape_sequences(docs, input, &output, ctx);
+            self.handle_escape_sequences(docs, tab, input, &output, ctx);
 
             output.clear();
         }
@@ -290,14 +290,12 @@ impl TerminalEmulator {
         }
 
         tab.camera.horizontal.set_locked(true);
-
-        // The alternate buffer is always the size of the camera and doesn't need to scroll.
-        tab.camera.vertical.set_locked(self.is_in_alternate_buffer);
     }
 
     fn handle_escape_sequences(
         &mut self,
         docs: &mut TerminalDocs,
+        tab: &mut Tab,
         input: &mut Vec<u8>,
         output: &[u8],
         ctx: &mut Ctx,
@@ -309,7 +307,7 @@ impl TerminalEmulator {
         parse_escape_sequences(output, &mut result);
 
         for sequence in result.drain(..) {
-            self.handle_escape_sequence(docs, input, sequence, ctx);
+            self.handle_escape_sequence(docs, tab, input, sequence, ctx);
         }
 
         let doc = self.doc_mut(docs);
@@ -323,6 +321,7 @@ impl TerminalEmulator {
     fn handle_escape_sequence(
         &mut self,
         docs: &mut TerminalDocs,
+        tab: &mut Tab,
         input: &mut Vec<u8>,
         sequence: EscapeSequence,
         ctx: &mut Ctx,
@@ -349,8 +348,8 @@ impl TerminalEmulator {
                 self.is_cursor_visible = true;
                 self.jump_doc_cursors_to_grid_cursor(doc, ctx.gfx);
             }
-            EscapeSequence::SwitchToNormalBuffer => self.switch_to_normal_buffer(doc),
-            EscapeSequence::SwitchToAlternateBuffer => self.switch_to_alternate_buffer(doc),
+            EscapeSequence::SwitchToNormalBuffer => self.switch_to_normal_buffer(docs, tab, ctx),
+            EscapeSequence::SwitchToAlternateBuffer => self.switch_to_alternate_buffer(doc, tab),
             EscapeSequence::QueryModifyKeyboard
             | EscapeSequence::QueryModifyCursorKeys
             | EscapeSequence::QueryModifyFunctionKeys
@@ -424,8 +423,8 @@ impl TerminalEmulator {
 
                 self.delete(start, end, doc, ctx);
             }
-            EscapeSequence::TrimAllScrollbackLines => {
-                self.trim_all_scrollback_lines(doc, ctx);
+            EscapeSequence::ClearScrollbackLines => {
+                self.clear_scrollback_lines(doc, ctx);
             }
             EscapeSequence::ClearToLineEnd => {
                 let start = self.grid_cursor;
@@ -670,7 +669,7 @@ impl TerminalEmulator {
         self.trim_excess_lines(MAX_SCROLLBACK_LINES, doc, ctx);
     }
 
-    fn trim_all_scrollback_lines(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+    fn clear_scrollback_lines(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
         self.trim_excess_lines(0, doc, ctx);
     }
 
@@ -790,23 +789,24 @@ impl TerminalEmulator {
         self.highlight_lines(doc);
     }
 
-    fn switch_to_alternate_buffer(&mut self, doc: &mut Doc) {
+    fn switch_to_alternate_buffer(&mut self, doc: &mut Doc, tab: &mut Tab) {
         if self.is_in_alternate_buffer {
             return;
         }
 
-        self.switch_buffer(doc);
+        self.switch_buffer(doc, tab);
     }
 
-    fn switch_to_normal_buffer(&mut self, doc: &mut Doc) {
+    fn switch_to_normal_buffer(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
         if !self.is_in_alternate_buffer {
             return;
         }
 
-        self.switch_buffer(doc);
+        self.switch_buffer(&mut docs.alternate, tab);
+        tab.skip_camera_animations(&docs.normal, ctx);
     }
 
-    fn switch_buffer(&mut self, doc: &mut Doc) {
+    fn switch_buffer(&mut self, doc: &mut Doc, tab: &mut Tab) {
         self.highlight_lines(doc);
 
         swap(&mut self.grid_cursor, &mut self.saved_grid_cursor);
@@ -816,6 +816,9 @@ impl TerminalEmulator {
         );
 
         self.is_in_alternate_buffer = !self.is_in_alternate_buffer;
+
+        // The alternate buffer is always the size of the camera and doesn't need to scroll.
+        tab.camera.vertical.set_locked(self.is_in_alternate_buffer);
     }
 
     fn clamp_position(&self, position: Position, doc: &Doc) -> Position {

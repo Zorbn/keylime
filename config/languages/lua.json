@@ -1,0 +1,84 @@
+{
+    "name": "Lua",
+    "comment": "--",
+    "extensions": [
+        "lua"
+    ],
+    "indent_width": 4,
+    "syntax": {
+        "keywords": [
+            "and",
+            "break",
+            "do",
+            "else",
+            "elseif",
+            "end",
+            "false",
+            "for",
+            "function",
+            "if",
+            "in",
+            "local",
+            "nil",
+            "not",
+            "or",
+            "repeat",
+            "return",
+            "then",
+            "true",
+            "until",
+            "while"
+        ],
+        "ranges": [
+            {
+                "kind": "String",
+                "start": "\"",
+                "end": "\"",
+                "escape": "\\"
+            },
+            {
+                "kind": "String",
+                "start": "'",
+                "end": "'",
+                "escape": "\\"
+            },
+            {
+                "kind": "String",
+                "start": "%[%[",
+                "end": "%]%]"
+            },
+            {
+                "kind": "String",
+                "start": "%[=+%[",
+                "end": "%]=+%]"
+            },
+            {
+                "kind": "Comment",
+                "start": "%-%-%[%[",
+                "end": "%]%]"
+            }
+        ],
+        "tokens": [
+            {
+                "kind": "Comment",
+                "pattern": "%-%-%.*"
+            },
+            {
+                "kind": "Function",
+                "pattern": "([%a_][%w_]*)%s*%("
+            },
+            {
+                "kind": "Number",
+                "pattern": "(%d[%d_]*.?[%d_]*)[^.]"
+            },
+            {
+                "kind": "Number",
+                "pattern": "%d[%d_]*"
+            },
+            {
+                "kind": "Symbol",
+                "pattern": "[!=&,><./:@|;{}()%%%^%*%+%-%?%[%]]"
+            }
+        ]
+    }
+}

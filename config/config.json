@@ -1,5 +1,6 @@
 {
     "font": "Menlo",
     "font_size": 12.0,
-    "theme": "default_dark"
+    "theme": "default_dark",
+    "ignored_dirs": ["build", "deps", ".git", "node_modules", "target", "dist", "love.app", "env", "venv"]
 }

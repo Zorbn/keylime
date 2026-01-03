@@ -8,6 +8,7 @@ pub enum CameraRecenterKind {
     OnCursor,
 }
 
+#[derive(Debug)]
 pub struct CameraRecenterRequest {
     pub can_start: bool,
     pub target_position: f32,
@@ -104,6 +105,28 @@ impl CameraAxis {
         self.position = self.position.clamp(0.0, max_position);
     }
 
+    pub fn skip_animation(
+        &mut self,
+        recenter_request: CameraRecenterRequest,
+        max_position: f32,
+        view_size: f32,
+    ) {
+        self.handle_recenter_request(recenter_request, view_size);
+
+        match self.state {
+            CameraState::MovingWithLerp { target_position } => self.position = target_position,
+            CameraState::Recentering { .. } => {
+                if let Some(visual_distance) =
+                    self.recenter_visual_distance(max_position, view_size)
+                {
+                    self.velocity = 0.0;
+                    self.position += visual_distance;
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn handle_recenter_request(&mut self, recenter_request: CameraRecenterRequest, view_size: f32) {
         let target_position = self.position + recenter_request.target_position;
         let scroll_border = recenter_request.scroll_border;
@@ -128,18 +151,24 @@ impl CameraAxis {
     }
 
     fn handle_recenter(&mut self, max_position: f32, view_size: f32) {
+        if let Some(visual_distance) = self.recenter_visual_distance(max_position, view_size) {
+            self.scroll_visual_distance(visual_distance);
+        }
+    }
+
+    fn recenter_visual_distance(&mut self, max_position: f32, view_size: f32) -> Option<f32> {
         let CameraState::Recentering {
             kind,
             target_position,
             scroll_border,
         } = self.state
         else {
-            return;
+            return None;
         };
 
         if !needs_recenter(target_position - self.position, scroll_border, view_size) {
             self.state = CameraState::MovingWithVelocity;
-            return;
+            return None;
         }
 
         let target_position = target_position - self.position;
@@ -161,10 +190,7 @@ impl CameraAxis {
         // We can't move the camera past the top of the document,
         // (eg. if the cursor is on the first line, it might be too close to the edge of the
         // screen according to RECENTER_DISTANCE, but there's nothing we can do about it, so stop animating).
-        let visual_distance =
-            (visual_distance + self.position).clamp(0.0, max_position) - self.position;
-
-        self.scroll_visual_distance(visual_distance);
+        Some((visual_distance + self.position).clamp(0.0, max_position) - self.position)
     }
 
     pub fn recenter(&mut self, kind: CameraRecenterKind) {

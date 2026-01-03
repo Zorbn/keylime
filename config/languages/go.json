@@ -1,71 +1,39 @@
 {
-    "name": "JavaScript",
+    "name": "Go",
     "extensions": [
-        "js",
-        "ts"
+        "go"
     ],
-    "indent_width": 4,
+    "lsp": {
+        "command": "gopls",
+        "language_id": "go"
+    },
     "syntax": {
         "keywords": [
-            "arguments",
-            "await",
             "break",
-            "case",
-            "catch",
-            "class",
-            "const",
-            "continue",
-            "debugger",
             "default",
-            "delete",
-            "do",
+            "func",
+            "interface",
+            "select",
+            "case",
+            "defer",
+            "go",
+            "map",
+            "struct",
+            "chan",
             "else",
-            "enum",
-            "eval",
-            "export",
-            "extends",
-            "false",
-            "finally",
-            "for",
-            "function",
-            "if",
-            "implements",
-            "import",
-            "in",
-            "instanceof",
-            "interface",
-            "let",
-            "new",
-            "null",
-            "of",
+            "goto",
             "package",
-            "private",
-            "protected",
-            "public",
-            "return",
-            "static",
-            "super",
             "switch",
-            "this",
-            "throw",
-            "true",
-            "try",
-            "typeof",
-            "var",
-            "void",
-            "while",
-            "with",
-            "yield",
+            "const",
+            "fallthrough",
+            "if",
+            "range",
             "type",
-            "interface",
-            "enum",
-            "as",
-            "is",
-            "public",
-            "private",
-            "protected",
-            "abstract",
-            "readonly"
+            "continue",
+            "for",
+            "import",
+            "return",
+            "var"
         ],
         "ranges": [
             {
@@ -76,15 +44,8 @@
             },
             {
                 "kind": "String",
-                "start": "'",
-                "end": "'",
-                "escape": "\\"
-            },
-            {
-                "kind": "String",
                 "start": "`",
-                "end": "`",
-                "escape": "\\"
+                "end": "`"
             },
             {
                 "kind": "Comment",
@@ -102,6 +63,10 @@
                 "pattern": "([%a_][%w_]*)%s*%("
             },
             {
+                "kind": "Function",
+                "pattern": "([%a_][%w_]*)%s*%[%.-%]%s*%("
+            },
+            {
                 "kind": "Number",
                 "pattern": "0x%x+"
             },
@@ -116,6 +81,14 @@
             {
                 "kind": "Number",
                 "pattern": "%d[%d_]*"
+            },
+            {
+                "kind": "String",
+                "pattern": "'\\u{%x-}'"
+            },
+            {
+                "kind": "String",
+                "pattern": "'\\?%.'"
             },
             {
                 "kind": "Symbol",

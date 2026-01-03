@@ -301,32 +301,57 @@ impl Tab {
         self.handled_doc_len = doc.lines().len();
     }
 
+    pub fn skip_camera_animations(&mut self, doc: &Doc, ctx: &mut Ctx) {
+        let recenter_request = self.recenter_request_vertical(doc, ctx);
+        let max_y = self.camera_max_y(doc, ctx.gfx);
+
+        self.camera
+            .vertical
+            .skip_animation(recenter_request, max_y, self.doc_bounds.height);
+
+        let recenter_request = self.recenter_request_horizontal(doc, ctx);
+
+        self.camera
+            .horizontal
+            .skip_animation(recenter_request, f32::MAX, self.doc_bounds.width);
+    }
+
     fn animate_camera_vertical(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
-        let gfx = &mut ctx.gfx;
-
-        let doc_len = doc.lines().len();
-        let last_line_y = (doc_len - 1) as f32 * gfx.line_height() + self.margin * 2.0;
-
-        let max_y = if doc.flags().contains(DocFlag::AllowScrollingPastBottom) {
-            last_line_y
-        } else {
-            (last_line_y - self.doc_bounds().height + gfx.line_height()).max(0.0)
-        };
-
-        let recenter_request = if self.mouse_drag.is_some() {
-            self.recenter_request_dragging_vertical(ctx)
-        } else if doc.flags().contains(DocFlag::RecenterOnBottom) {
-            self.recenter_request_on_bottom_vertical(doc_len, last_line_y, ctx)
-        } else {
-            self.recenter_request_on_cursor_vertical(doc, ctx)
-        };
+        let recenter_request = self.recenter_request_vertical(doc, ctx);
+        let max_y = self.camera_max_y(doc, ctx.gfx);
 
         self.camera
             .vertical
             .animate(recenter_request, max_y, self.doc_bounds.height, dt);
     }
 
-    fn recenter_request_dragging_vertical(&mut self, ctx: &mut Ctx) -> CameraRecenterRequest {
+    fn camera_max_y(&self, doc: &Doc, gfx: &Gfx) -> f32 {
+        let last_line_y = self.last_line_y(doc, gfx);
+
+        if doc.flags().contains(DocFlag::AllowScrollingPastBottom) {
+            last_line_y
+        } else {
+            (last_line_y - self.doc_bounds().height + gfx.line_height()).max(0.0)
+        }
+    }
+
+    fn last_line_y(&self, doc: &Doc, gfx: &Gfx) -> f32 {
+        let doc_len = doc.lines().len();
+
+        (doc_len - 1) as f32 * gfx.line_height() + self.margin * 2.0
+    }
+
+    fn recenter_request_vertical(&self, doc: &Doc, ctx: &mut Ctx) -> CameraRecenterRequest {
+        if self.mouse_drag.is_some() {
+            self.recenter_request_dragging_vertical(ctx)
+        } else if doc.flags().contains(DocFlag::RecenterOnBottom) {
+            self.recenter_request_on_bottom_vertical(doc, ctx)
+        } else {
+            self.recenter_request_on_cursor_vertical(doc, ctx)
+        }
+    }
+
+    fn recenter_request_dragging_vertical(&self, ctx: &mut Ctx) -> CameraRecenterRequest {
         let mouse_position = ctx.window.mouse_position().unoffset_by(self.doc_bounds);
 
         CameraRecenterRequest {
@@ -337,20 +362,24 @@ impl Tab {
     }
 
     fn recenter_request_on_bottom_vertical(
-        &mut self,
-        doc_len: usize,
-        last_line_y: f32,
+        &self,
+        doc: &Doc,
         ctx: &mut Ctx,
     ) -> CameraRecenterRequest {
+        let gfx = &ctx.gfx;
+
+        let doc_len = doc.lines().len();
+        let last_line_y = self.last_line_y(doc, gfx);
+
         CameraRecenterRequest {
             can_start: self.handled_doc_len != doc_len,
             target_position: last_line_y - self.camera.y(),
-            scroll_border: ctx.gfx.line_height(),
+            scroll_border: gfx.line_height(),
         }
     }
 
     fn recenter_request_on_cursor_vertical(
-        &mut self,
+        &self,
         doc: &Doc,
         ctx: &mut Ctx,
     ) -> CameraRecenterRequest {
@@ -368,18 +397,22 @@ impl Tab {
     }
 
     fn animate_camera_horizontal(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
-        let recenter_request = if self.mouse_drag.is_some() {
-            self.recenter_request_dragging_horizontal(ctx)
-        } else {
-            self.recenter_request_on_cursor_horizontal(doc, ctx)
-        };
+        let recenter_request = self.recenter_request_horizontal(doc, ctx);
 
         self.camera
             .horizontal
             .animate(recenter_request, f32::MAX, self.doc_bounds.width, dt);
     }
 
-    fn recenter_request_dragging_horizontal(&mut self, ctx: &mut Ctx) -> CameraRecenterRequest {
+    fn recenter_request_horizontal(&self, doc: &Doc, ctx: &mut Ctx) -> CameraRecenterRequest {
+        if self.mouse_drag.is_some() {
+            self.recenter_request_dragging_horizontal(ctx)
+        } else {
+            self.recenter_request_on_cursor_horizontal(doc, ctx)
+        }
+    }
+
+    fn recenter_request_dragging_horizontal(&self, ctx: &mut Ctx) -> CameraRecenterRequest {
         let mouse_position = ctx.window.mouse_position().unoffset_by(self.doc_bounds);
 
         CameraRecenterRequest {
@@ -390,7 +423,7 @@ impl Tab {
     }
 
     fn recenter_request_on_cursor_horizontal(
-        &mut self,
+        &self,
         doc: &Doc,
         ctx: &mut Ctx,
     ) -> CameraRecenterRequest {

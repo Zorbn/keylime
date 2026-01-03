@@ -1,0 +1,62 @@
+{
+    "name": "CSS",
+    "extensions": [
+        "css"
+    ],
+    "indent_width": 4,
+    "syntax": {
+        "ranges": [
+            {
+                "kind": "String",
+                "start": "\"",
+                "end": "\"",
+                "escape": "\\"
+            },
+            {
+                "kind": "String",
+                "start": "'",
+                "end": "'",
+                "escape": "\\"
+            },
+            {
+                "kind": "Comment",
+                "start": "/%*",
+                "end": "%*/"
+            }
+        ],
+        "tokens": [
+            {
+                "kind": "Identifier",
+                "pattern": "(%.+){"
+            },
+            {
+                "kind": "Function",
+                "pattern": "(%a[%w-]*)%s*%("
+            },
+            {
+                "kind": "Number",
+                "pattern": "#%x+"
+            },
+            {
+                "kind": "Number",
+                "pattern": "%d[%d_]*.?[%d_]*[%%%a]*"
+            },
+            {
+                "kind": "Number",
+                "pattern": "%d[%d_]*[%%%a]*"
+            },
+            {
+                "kind": "Keyword",
+                "pattern": "(%a[%w-]*):"
+            },
+            {
+                "kind": "Identifier",
+                "pattern": "%a[%w-]*"
+            },
+            {
+                "kind": "Symbol",
+                "pattern": "[!=&,><./:@|;{}()%%%^%*%+%-%?%[%]]"
+            }
+        ]
+    }
+}

@@ -35,7 +35,7 @@ pub enum EscapeSequence<'a> {
     ClearToScreenEnd,
     ClearToScreenStart,
     ClearScreen,
-    TrimAllScrollbackLines,
+    ClearScrollbackLines,
     ClearToLineEnd,
     ClearToLineStart,
     ClearLine,
@@ -522,7 +522,7 @@ fn parse_unprefixed_escape_sequences_csi<'a>(
                 0 => Some(EscapeSequence::ClearToScreenEnd),
                 1 => Some(EscapeSequence::ClearToScreenStart),
                 2 => Some(EscapeSequence::ClearScreen),
-                3 => Some(EscapeSequence::TrimAllScrollbackLines),
+                3 => Some(EscapeSequence::ClearScrollbackLines),
                 _ => None,
             }?;
 
