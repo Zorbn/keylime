@@ -181,6 +181,7 @@ impl<T> Pane<T> {
 
                     if let Some(index) = index {
                         self.tabs.set_focused_index(index);
+                        self.handled_focused_index = Some(index);
                         self.dragged_tab_offset = Some(offset);
                     } else {
                         mousebind_handler.unprocessed(ctx.window, mousebind);
@@ -217,7 +218,7 @@ impl<T> Pane<T> {
 
             let delta = mouse_scroll.delta * ctx.gfx.glyph_width();
 
-            self.camera.scroll(-delta, mouse_scroll.is_precise);
+            self.camera.scroll(-delta, mouse_scroll.kind);
         }
     }
 

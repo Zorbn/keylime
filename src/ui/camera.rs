@@ -1,4 +1,4 @@
-use crate::geometry::visual_position::VisualPosition;
+use crate::{geometry::visual_position::VisualPosition, input::mouse_scroll::MouseScrollKind};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum CameraRecenterKind {
@@ -85,13 +85,6 @@ impl CameraAxis {
         if let CameraState::MovingWithLerp { target_position } = self.state {
             self.velocity = 0.0;
             self.position += (target_position - self.position) * dt * PRECISE_SCROLL_SPEED;
-
-            if (self.position - target_position).abs() < 0.5
-                || (target_position < 0.0 && self.position < 0.0)
-                || (target_position > max_position && self.position > max_position)
-            {
-                self.state = CameraState::MovingWithVelocity;
-            }
         } else {
             self.velocity *= SCROLL_FRICTION.powf(dt);
             self.position += self.velocity * dt;
@@ -191,24 +184,29 @@ impl CameraAxis {
         self.velocity = v;
     }
 
-    pub fn scroll(&mut self, delta: f32, is_precise: bool) {
-        if is_precise {
-            self.velocity = 0.0;
+    pub fn scroll(&mut self, delta: f32, kind: MouseScrollKind) {
+        self.state = match kind {
+            MouseScrollKind::Start | MouseScrollKind::Continue => {
+                self.velocity = 0.0;
 
-            let previous_target_position =
-                if let CameraState::MovingWithLerp { target_position } = self.state {
-                    target_position
-                } else {
-                    self.position
-                };
+                let previous_target_position =
+                    if let CameraState::MovingWithLerp { target_position } = self.state {
+                        target_position
+                    } else {
+                        self.position
+                    };
 
-            self.state = CameraState::MovingWithLerp {
-                target_position: previous_target_position - delta * PRECISE_SCROLL_SCALE,
-            };
-        } else {
-            self.velocity -= delta * SCROLL_SPEED;
-            self.state = CameraState::MovingWithVelocity;
-        }
+                CameraState::MovingWithLerp {
+                    target_position: previous_target_position - delta * PRECISE_SCROLL_SCALE,
+                }
+            }
+            MouseScrollKind::Stop => CameraState::MovingWithVelocity,
+            MouseScrollKind::Instant => {
+                self.velocity -= delta * SCROLL_SPEED;
+
+                CameraState::MovingWithVelocity
+            }
+        };
     }
 
     pub fn jump_visual_distance(&mut self, visual_distance: f32) {

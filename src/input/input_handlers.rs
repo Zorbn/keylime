@@ -5,22 +5,19 @@ use super::{action::Action, mouse_scroll::MouseScroll, mousebind::Mousebind};
 macro_rules! define_handler {
     ($name:ident, $buffer:ident, $t:ident) => {
         pub struct $name {
-            i: isize,
-            len: isize,
+            i: usize,
+            len: usize,
         }
 
         #[allow(dead_code)]
         impl $name {
             pub fn new(len: usize) -> Self {
-                Self {
-                    i: 0,
-                    len: len as isize,
-                }
+                Self { i: 0, len }
             }
 
             pub fn next(&mut self, window: &mut Window) -> Option<$t> {
                 (self.i < self.len).then(|| {
-                    let result = window.$buffer().remove(self.i as usize);
+                    let result = window.$buffer().remove(self.i);
                     self.len -= 1;
 
                     result
@@ -28,7 +25,7 @@ macro_rules! define_handler {
             }
 
             pub fn unprocessed(&mut self, window: &mut Window, t: $t) {
-                window.$buffer().insert(0, t);
+                window.$buffer().insert(self.i, t);
                 self.i += 1;
                 self.len += 1;
             }

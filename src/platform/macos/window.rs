@@ -17,7 +17,7 @@ use crate::{
         keybind::Keybind,
         mods::{Mod, Mods},
         mouse_button::MouseButton,
-        mouse_scroll::MouseScroll,
+        mouse_scroll::{MouseScroll, MouseScrollKind},
         mousebind::{MouseClickCount, Mousebind, MousebindKind},
     },
     platform::aliases::{AnyFileWatcher, AnyProcess, AnyWindow},
@@ -295,7 +295,18 @@ impl Window {
     pub fn handle_scroll_wheel(&mut self, event: &NSEvent) {
         let (x, y) = self.event_location_to_xy(event);
 
-        let is_precise = unsafe { event.hasPreciseScrollingDeltas() };
+        let (is_precise, phase) =
+            unsafe { (event.hasPreciseScrollingDeltas(), event.momentumPhase()) };
+
+        let kind = if is_precise {
+            match phase {
+                NSEventPhase::Began => MouseScrollKind::Start,
+                NSEventPhase::Ended | NSEventPhase::Cancelled => MouseScrollKind::Stop,
+                _ => MouseScrollKind::Continue,
+            }
+        } else {
+            MouseScrollKind::Instant
+        };
 
         let delta_x = unsafe { -event.scrollingDeltaX() } as f32;
         let delta_y = unsafe { event.scrollingDeltaY() } as f32;
@@ -315,7 +326,7 @@ impl Window {
         self.mouse_scrolls.push(MouseScroll {
             delta,
             is_horizontal,
-            is_precise,
+            kind,
             x,
             y,
         });
