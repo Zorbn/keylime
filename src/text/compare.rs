@@ -15,7 +15,7 @@ pub fn compare_ignore_ascii_case(a: &str, b: &str) -> Ordering {
     a.len().cmp(&b.len())
 }
 
-pub fn score_fuzzy_match(path: &str, input: &str) -> f32 {
+pub fn score_fuzzy_match(haystack: &str, needle: &str) -> f32 {
     const AWARD_DISTANCE_FALLOFF: f32 = 0.8;
     const AWARD_MATCH_BONUS: f32 = 1.0;
     const AWARD_MAX_AFTER_MISMATCH: f32 = 1.0;
@@ -23,18 +23,18 @@ pub fn score_fuzzy_match(path: &str, input: &str) -> f32 {
     let mut score = 0.0;
     let mut next_match_award = AWARD_MATCH_BONUS;
 
-    let mut path_chars = path.chars();
-    let mut input_chars = input.chars().peekable();
+    let mut haystack_chars = haystack.chars();
+    let mut needle_chars = needle.chars().peekable();
 
-    while let Some((path_char, input_char)) = path_chars.next().zip(input_chars.peek()) {
-        let path_char = path_char.to_ascii_lowercase();
-        let input_char = input_char.to_ascii_lowercase();
+    while let Some((haystack_char, needle_char)) = haystack_chars.next().zip(needle_chars.peek()) {
+        let haystack_char = haystack_char.to_ascii_lowercase();
+        let needle_char = needle_char.to_ascii_lowercase();
 
-        if path_char == input_char {
+        if haystack_char == needle_char {
             score += next_match_award;
             next_match_award += AWARD_MATCH_BONUS;
 
-            input_chars.next();
+            needle_chars.next();
         } else {
             next_match_award =
                 AWARD_MAX_AFTER_MISMATCH.min(next_match_award * AWARD_DISTANCE_FALLOFF);
