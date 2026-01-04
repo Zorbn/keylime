@@ -43,7 +43,7 @@ use crate::{
         keybind::Keybind,
         mods::{Mod, Mods},
         mouse_button::MouseButton,
-        mouse_scroll::MouseScroll,
+        mouse_scroll::{MouseScroll, MouseScrollKind},
         mousebind::{MouseClickCount, Mousebind, MousebindKind},
     },
     platform::aliases::{AnyFileWatcher, AnyProcess, AnyWindow},
@@ -632,7 +632,7 @@ impl Window {
                 self.mouse_scrolls.push(MouseScroll {
                     delta,
                     is_horizontal,
-                    is_precise: false,
+                    kind: MouseScrollKind::Instant,
                     x: x - self.x as f32,
                     y: y - self.y as f32,
                 });
