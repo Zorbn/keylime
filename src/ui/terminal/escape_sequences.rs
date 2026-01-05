@@ -5,6 +5,7 @@ use crate::{
     ui::{color::Color, terminal::color_table::COLOR_TABLE},
 };
 
+#[derive(Debug)]
 pub enum EscapeSequence<'a> {
     Plain(&'a str),
     Backspace,
@@ -202,48 +203,50 @@ fn parse_escape_sequences_csi<'a>(
 
             match output.first() {
                 Some(&b'l') => {
-                    match parameters.first() {
-                        Some(&25) => result.push(EscapeSequence::HideCursor),
-                        Some(&1047) | Some(&1049) => {
-                            result.push(EscapeSequence::SwitchToNormalBuffer)
+                    for parameter in parameters {
+                        match parameter {
+                            25 => result.push(EscapeSequence::HideCursor),
+                            1047 | 1049 => result.push(EscapeSequence::SwitchToNormalBuffer),
+                            // Otherwise, ignored.
+                            #[cfg(feature = "terminal_debug")]
+                            parameter => {
+                                println!("Unhandled private mode disabled: {}", parameter)
+                            }
+                            _ => {}
                         }
-                        // Otherwise, ignored.
-                        #[cfg(feature = "terminal_debug")]
-                        Some(parameter) => {
-                            println!("Unhandled private mode disabled: {}", parameter)
-                        }
-                        _ => {}
                     }
 
                     Some(&output[1..])
                 }
                 Some(&b'h') => {
-                    match parameters.first() {
-                        Some(&25) => result.push(EscapeSequence::ShowCursor),
-                        Some(&1047) | Some(&1049) => {
-                            result.push(EscapeSequence::SwitchToAlternateBuffer)
+                    for parameter in parameters {
+                        match parameter {
+                            25 => result.push(EscapeSequence::ShowCursor),
+                            1047 | 1049 => result.push(EscapeSequence::SwitchToAlternateBuffer),
+                            // Otherwise, ignored.
+                            #[cfg(feature = "terminal_debug")]
+                            parameter => {
+                                println!("Unhandled private mode enabled: {}", parameter)
+                            }
+                            _ => {}
                         }
-                        // Otherwise, ignored.
-                        #[cfg(feature = "terminal_debug")]
-                        Some(parameter) => {
-                            println!("Unhandled private mode enabled: {}", parameter)
-                        }
-                        _ => {}
                     }
 
                     Some(&output[1..])
                 }
                 Some(&b'm') => {
-                    let sequence = match parameters.first() {
-                        Some(0) => Some(EscapeSequence::QueryModifyKeyboard),
-                        Some(1) => Some(EscapeSequence::QueryModifyCursorKeys),
-                        Some(2) => Some(EscapeSequence::QueryModifyFunctionKeys),
-                        Some(4) => Some(EscapeSequence::QueryModifyOtherKeys),
-                        _ => return None,
-                    };
+                    for parameter in parameters {
+                        let sequence = match parameter {
+                            0 => Some(EscapeSequence::QueryModifyKeyboard),
+                            1 => Some(EscapeSequence::QueryModifyCursorKeys),
+                            2 => Some(EscapeSequence::QueryModifyFunctionKeys),
+                            4 => Some(EscapeSequence::QueryModifyOtherKeys),
+                            _ => return None,
+                        };
 
-                    if let Some(sequence) = sequence {
-                        result.push(sequence);
+                        if let Some(sequence) = sequence {
+                            result.push(sequence);
+                        }
                     }
 
                     Some(&output[1..])
@@ -430,25 +433,29 @@ fn parse_unprefixed_escape_sequences_csi<'a>(
             Some(&output[1..])
         }
         Some(&b'l') => {
-            match parameters.first() {
-                // Otherwise, ignored.
-                #[cfg(feature = "terminal_debug")]
-                Some(parameter) => {
-                    println!("Unhandled mode disabled: {}", parameter)
+            for parameter in parameters {
+                match parameter {
+                    // Otherwise, ignored.
+                    #[cfg(feature = "terminal_debug")]
+                    parameter => {
+                        println!("Unhandled mode disabled: {}", parameter)
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
 
             Some(&output[1..])
         }
         Some(&b'h') => {
-            match parameters.first() {
-                // Otherwise, ignored.
-                #[cfg(feature = "terminal_debug")]
-                Some(parameter) => {
-                    println!("Unhandled mode enabled: {}", parameter)
+            for parameter in parameters {
+                match parameter {
+                    // Otherwise, ignored.
+                    #[cfg(feature = "terminal_debug")]
+                    parameter => {
+                        println!("Unhandled mode enabled: {}", parameter)
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
 
             Some(&output[1..])
@@ -606,11 +613,18 @@ fn parse_unprefixed_escape_sequences_csi<'a>(
         Some(&b'n') => {
             // Device status report.
 
-            (parameters.first() == Some(&6)).then(|| {
-                result.push(EscapeSequence::QueryDeviceStatus);
+            for parameter in parameters {
+                let sequence = match *parameter {
+                    6 => Some(EscapeSequence::QueryDeviceStatus),
+                    _ => None,
+                };
 
-                &output[1..]
-            })
+                if let Some(sequence) = sequence {
+                    result.push(sequence);
+                }
+            }
+
+            Some(&output[1..])
         }
         Some(&b'c') => {
             result.push(EscapeSequence::QueryTerminalId);

@@ -200,9 +200,11 @@ impl TextCache {
                 .height
                 .max(sub_atlas.dimensions.height);
 
-            let mut new_atlas_dimensions = self.atlas.dimensions;
-            new_atlas_dimensions.width = new_width;
-            new_atlas_dimensions.height = new_height;
+            let new_atlas_dimensions = AtlasDimensions {
+                width: new_width,
+                height: new_height,
+                ..self.atlas.dimensions
+            };
 
             let mut new_atlas = Atlas {
                 data: vec![0u8; new_width * new_height * 4],

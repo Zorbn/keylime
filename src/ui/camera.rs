@@ -194,6 +194,10 @@ impl CameraAxis {
     }
 
     pub fn recenter(&mut self, kind: CameraRecenterKind) {
+        if matches!(self.state, CameraState::Locked) {
+            return;
+        }
+
         self.state = CameraState::NeedsRecenter { kind };
     }
 
@@ -211,6 +215,10 @@ impl CameraAxis {
     }
 
     pub fn scroll(&mut self, delta: f32, kind: MouseScrollKind) {
+        if matches!(self.state, CameraState::Locked) {
+            return;
+        }
+
         self.state = match kind {
             MouseScrollKind::Start | MouseScrollKind::Continue => {
                 self.velocity = 0.0;
