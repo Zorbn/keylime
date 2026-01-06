@@ -70,11 +70,11 @@ impl FileExplorerMode {
         self.renaming_result_index = Some(focused_result_index);
         self.input_backup.clear();
 
-        let command_doc = &mut command_palette.doc;
-        command_doc.collect_string(Position::ZERO, command_doc.end(), &mut self.input_backup);
-        command_doc.clear(ctx);
+        let doc = &mut command_palette.doc;
+        doc.collect_string(Position::ZERO, doc.end(), &mut self.input_backup);
+        doc.clear(ctx);
 
-        command_doc.insert(
+        doc.insert(
             Position::ZERO,
             command_palette
                 .result_list
@@ -85,10 +85,8 @@ impl FileExplorerMode {
             ctx,
         );
 
-        if let Some(extension_start) =
-            command_doc.search_backward(".", command_doc.end(), false, ctx.gfx)
-        {
-            command_doc.jump_cursor(CursorIndex::Main, extension_start, false, ctx.gfx);
+        if let Some(extension_start) = doc.search_backward(".", doc.end(), false, ctx.gfx) {
+            doc.jump_cursor(CursorIndex::Main, extension_start, false, ctx.gfx);
         }
     }
 
@@ -229,17 +227,17 @@ impl CommandPaletteMode for FileExplorerMode {
             return;
         };
 
-        let command_doc = &mut command_palette.doc;
+        let doc = &mut command_palette.doc;
 
         for component in path.components() {
             let Some(string) = component.as_os_str().to_str() else {
                 continue;
             };
 
-            command_doc.insert(command_doc.end(), string, args.ctx);
+            doc.insert(doc.end(), string, args.ctx);
 
             if !ends_with_path_separator(string) {
-                command_doc.insert(command_doc.end(), PREFERRED_PATH_SEPARATOR, args.ctx);
+                doc.insert(doc.end(), PREFERRED_PATH_SEPARATOR, args.ctx);
             }
         }
     }
@@ -254,28 +252,28 @@ impl CommandPaletteMode for FileExplorerMode {
             return false;
         }
 
-        let command_doc = &mut command_palette.doc;
-        let cursor = command_doc.cursor(CursorIndex::Main);
+        let doc = &mut command_palette.doc;
+        let cursor = doc.cursor(CursorIndex::Main);
 
-        if command_doc.cursors_len() != 1 {
+        if doc.cursors_len() != 1 {
             return false;
         }
 
         match action {
             action_name!(DeleteBackward) => {
                 let end = cursor.position;
-                let mut start = command_doc.move_position(end, -1, 0, args.ctx.gfx);
+                let mut start = doc.move_position(end, -1, 0, args.ctx.gfx);
 
-                if !is_grapheme_path_separator(command_doc.grapheme(start)) {
+                if !is_grapheme_path_separator(doc.grapheme(start)) {
                     return false;
                 }
 
-                start = find_path_component_start(command_doc, start, args.ctx.gfx);
-                command_doc.delete(start, end, args.ctx);
+                start = find_path_component_start(doc, start, args.ctx.gfx);
+                doc.delete(start, end, args.ctx);
 
                 true
             }
-            action_name!(DeleteForward) if cursor.position == command_doc.end() => {
+            action_name!(DeleteForward) if cursor.position == doc.end() => {
                 let focused_result_index = command_palette.result_list.focused_index();
                 let mut deleted_path = None;
 

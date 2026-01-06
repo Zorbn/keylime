@@ -1,4 +1,6 @@
-use crate::{pool::Pooled, ui::result_list::ResultListSubmitKind};
+use crate::{
+    input::editing_actions::handle_select_all, pool::Pooled, ui::result_list::ResultListSubmitKind,
+};
 
 use super::{
     mode::{CommandPaletteEventArgs, CommandPaletteMode},
@@ -21,9 +23,11 @@ impl CommandPaletteMode for RenameMode {
     }
 
     fn on_open(&mut self, command_palette: &mut CommandPalette, args: CommandPaletteEventArgs) {
-        let command_doc = &mut command_palette.doc;
+        let CommandPalette { doc, tab, .. } = command_palette;
 
-        command_doc.insert(command_doc.end(), &self.placeholder, args.ctx);
+        doc.insert(doc.end(), &self.placeholder, args.ctx);
+        handle_select_all(doc, args.ctx.gfx);
+        tab.skip_cursor_animations(doc, args.ctx);
     }
 
     fn on_submit(
