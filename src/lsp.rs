@@ -122,10 +122,9 @@ impl Lsp {
                     .lsp_resolve_completion_item(message.id, item, ctx);
             }
             MessageResult::CodeAction(results) => {
-                let doc = doc?;
                 let results = results
                     .into_iter()
-                    .map(|result| result.decode(encoding, doc))
+                    .map(|result| result.decode(encoding))
                     .collect();
 
                 editor
@@ -143,8 +142,7 @@ impl Lsp {
                 command_palette.open(Box::new(RenameMode::new(placeholder)), editor, ctx);
             }
             MessageResult::Rename(workspace_edit) => {
-                let doc = doc?;
-                let edit_lists = workspace_edit.decode(encoding, doc);
+                let edit_lists = workspace_edit.decode(encoding);
 
                 editor.lsp_apply_edit_lists(edit_lists, ctx);
             }

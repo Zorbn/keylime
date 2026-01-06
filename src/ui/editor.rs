@@ -335,11 +335,11 @@ impl Editor {
         edit_lists: Vec<DecodedEditList>,
         ctx: &mut Ctx,
     ) -> Option<()> {
-        for mut edit_list in edit_lists {
+        for edit_list in edit_lists {
             let path = uri_to_path(&edit_list.uri)?;
 
             self.with_doc(path, ctx, |doc, ctx| {
-                let edits = &mut edit_list.edits;
+                let edits = &mut edit_list.edits(doc);
 
                 doc.lsp_apply_edit_list(edits, ctx);
             });
@@ -380,7 +380,7 @@ impl Editor {
         &mut self,
         path: Pooled<PathBuf>,
         ctx: &mut Ctx,
-        mut on_doc: impl FnMut(&mut Doc, &mut Ctx),
+        on_doc: impl FnOnce(&mut Doc, &mut Ctx),
     ) {
         let doc = self.find_doc_mut(&path);
 

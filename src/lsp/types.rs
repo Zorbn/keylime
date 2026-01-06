@@ -279,30 +279,24 @@ pub(super) struct EncodedWorkspaceEdit {
 }
 
 impl EncodedWorkspaceEdit {
-    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> Vec<DecodedEditList> {
+    pub fn decode(self, encoding: PositionEncoding) -> Vec<DecodedEditList> {
         let mut edit = Vec::new();
 
         if let Some(changes) = self.document_changes {
             for change in changes {
-                let edits = change
-                    .edits
-                    .into_iter()
-                    .map(|text_edit| text_edit.decode(encoding, doc))
-                    .collect();
-
                 edit.push(DecodedEditList {
                     uri: change.text_document.uri,
-                    edits,
+                    encoding,
+                    encoded: change.edits,
                 });
             }
         } else if let Some(changes) = self.changes {
             for (uri, edits) in changes {
-                let edits = edits
-                    .into_iter()
-                    .map(|text_edit| text_edit.decode(encoding, doc))
-                    .collect();
-
-                edit.push(DecodedEditList { uri, edits });
+                edit.push(DecodedEditList {
+                    uri,
+                    encoding,
+                    encoded: edits,
+                });
             }
         }
 
@@ -341,10 +335,10 @@ pub(super) struct EncodedCodeAction {
 }
 
 impl EncodedCodeAction {
-    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> DecodedCodeAction {
+    pub fn decode(self, encoding: PositionEncoding) -> DecodedCodeAction {
         let edit_lists = self
             .edit
-            .map(|edit| edit.decode(encoding, doc))
+            .map(|edit| edit.decode(encoding))
             .unwrap_or_default();
 
         DecodedCodeAction {
@@ -365,11 +359,11 @@ pub(super) enum LspCodeActionResult {
 }
 
 impl LspCodeActionResult {
-    pub fn decode(self, encoding: PositionEncoding, doc: &Doc) -> DecodedCodeActionResult {
+    pub fn decode(self, encoding: PositionEncoding) -> DecodedCodeActionResult {
         match self {
             Self::Command(command) => DecodedCodeActionResult::Command(command),
             Self::CodeAction(code_action) => {
-                DecodedCodeActionResult::CodeAction(code_action.decode(encoding, doc))
+                DecodedCodeActionResult::CodeAction(code_action.decode(encoding))
             }
             Self::None => panic!(),
         }
@@ -595,7 +589,18 @@ impl DecodedCompletionItem {
 #[derive(Debug)]
 pub struct DecodedEditList {
     pub uri: Pooled<String>,
-    pub edits: Vec<DecodedTextEdit>,
+
+    encoding: PositionEncoding,
+    encoded: Vec<EncodedTextEdit>,
+}
+
+impl DecodedEditList {
+    pub fn edits(self, doc: &Doc) -> Vec<DecodedTextEdit> {
+        self.encoded
+            .into_iter()
+            .map(|diagnostic| diagnostic.decode(self.encoding, doc))
+            .collect()
+    }
 }
 
 #[derive(Debug)]
