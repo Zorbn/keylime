@@ -948,7 +948,7 @@ impl Tab {
             (lines[y].len(), 1)
         };
 
-        if start_x == end_x {
+        if start_x == end_x + newline_width {
             return;
         }
 

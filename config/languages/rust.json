@@ -130,6 +130,10 @@
             },
             {
                 "kind": "String",
+                "pattern": "'\\x%x%x'"
+            },
+            {
+                "kind": "String",
                 "pattern": "'\\?%.'"
             },
             {
