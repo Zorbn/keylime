@@ -736,6 +736,7 @@ impl TerminalEmulator {
         self.colored_grid_lines.insert(scroll_top, bottom_grid_line);
 
         self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc);
+        self.jump_doc_cursors_to_grid_cursor(doc, ctx.gfx);
 
         self.highlight_lines(doc);
     }
@@ -784,6 +785,7 @@ impl TerminalEmulator {
         self.colored_grid_lines.insert(scroll_bottom, top_grid_line);
 
         self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc);
+        self.jump_doc_cursors_to_grid_cursor(doc, ctx.gfx);
 
         self.trim_scrollback_lines(doc, ctx);
         self.highlight_lines(doc);
