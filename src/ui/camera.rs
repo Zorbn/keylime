@@ -125,6 +125,8 @@ impl CameraAxis {
             }
             _ => {}
         }
+
+        self.position = self.position.clamp(0.0, max_position);
     }
 
     fn handle_recenter_request(&mut self, recenter_request: CameraRecenterRequest, view_size: f32) {
@@ -223,12 +225,12 @@ impl CameraAxis {
             MouseScrollKind::Start | MouseScrollKind::Continue => {
                 self.velocity = 0.0;
 
-                let previous_target_position =
-                    if let CameraState::MovingWithLerp { target_position } = self.state {
+                let previous_target_position = match (self.state, kind) {
+                    (CameraState::MovingWithLerp { target_position }, MouseScrollKind::Start) => {
                         target_position
-                    } else {
-                        self.position
-                    };
+                    }
+                    _ => self.position,
+                };
 
                 CameraState::MovingWithLerp {
                     target_position: previous_target_position - delta * PRECISE_SCROLL_SCALE,
