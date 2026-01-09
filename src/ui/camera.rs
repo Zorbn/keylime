@@ -26,6 +26,8 @@ enum CameraState {
     Locked,
     MovingWithLerp {
         target_position: f32,
+        // Some devices may not send start/end events.
+        is_end_expected: bool,
     },
     MovingWithVelocity,
     NeedsRecenter {
@@ -83,9 +85,21 @@ impl CameraAxis {
         self.handle_recenter_request(recenter_request, view_size);
         self.handle_recenter(max_position, view_size);
 
-        if let CameraState::MovingWithLerp { target_position } = self.state {
+        if let CameraState::MovingWithLerp {
+            target_position,
+            is_end_expected,
+        } = self.state
+        {
             self.velocity = 0.0;
             self.position += (target_position - self.position) * dt * PRECISE_SCROLL_SPEED;
+
+            let is_at_target = (self.position - target_position).abs() < 0.5
+                || (target_position < 0.0 && self.position < 0.0)
+                || (target_position > max_position && self.position > max_position);
+
+            if !is_end_expected && is_at_target {
+                self.state = CameraState::MovingWithVelocity;
+            }
         } else {
             self.velocity *= SCROLL_FRICTION.powf(dt);
             self.position += self.velocity * dt;
@@ -114,7 +128,9 @@ impl CameraAxis {
         self.handle_recenter_request(recenter_request, view_size);
 
         match self.state {
-            CameraState::MovingWithLerp { target_position } => self.position = target_position,
+            CameraState::MovingWithLerp {
+                target_position, ..
+            } => self.position = target_position,
             CameraState::Recentering { .. } => {
                 if let Some(visual_distance) =
                     self.recenter_visual_distance(max_position, view_size)
@@ -222,18 +238,31 @@ impl CameraAxis {
         }
 
         self.state = match kind {
-            MouseScrollKind::Start | MouseScrollKind::Continue => {
+            MouseScrollKind::Start => {
                 self.velocity = 0.0;
 
-                let previous_target_position = match (self.state, kind) {
-                    (CameraState::MovingWithLerp { target_position }, MouseScrollKind::Start) => {
-                        target_position
-                    }
-                    _ => self.position,
-                };
+                CameraState::MovingWithLerp {
+                    target_position: self.position - delta * PRECISE_SCROLL_SCALE,
+                    is_end_expected: true,
+                }
+            }
+            MouseScrollKind::Continue => {
+                self.velocity = 0.0;
+
+                let (previous_target_position, is_end_expected) =
+                    if let CameraState::MovingWithLerp {
+                        target_position,
+                        is_end_expected,
+                    } = self.state
+                    {
+                        (target_position, is_end_expected)
+                    } else {
+                        (self.position, false)
+                    };
 
                 CameraState::MovingWithLerp {
                     target_position: previous_target_position - delta * PRECISE_SCROLL_SCALE,
+                    is_end_expected,
                 }
             }
             MouseScrollKind::Stop => CameraState::MovingWithVelocity,
