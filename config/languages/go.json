@@ -33,7 +33,8 @@
             "for",
             "import",
             "return",
-            "var"
+            "var",
+            "nil"
         ],
         "ranges": [
             {
