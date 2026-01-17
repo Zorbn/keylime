@@ -102,7 +102,7 @@ define_class!(
                 let _: () = msg_send![super(self), setFrameSize: new_size];
             }
 
-            self.on_set_frame_size(new_size);
+            self.on_frame_changed(Some(new_size));
         }
 
         #[unsafe(method(viewWillStartLiveResize))]
@@ -125,15 +125,9 @@ define_class!(
 
         #[unsafe(method(viewDidChangeBackingProperties))]
         unsafe fn view_did_change_backing_properties(&self) {
-            let metal_layer = self.ivars().metal_layer.get().unwrap();
-
-            let scale = metal_layer.contentsScale();
-            let size = unsafe { metal_layer.drawableSize() };
-            let size = CGSize::new(size.width / scale, size.height / scale);
-
             unsafe {
-                self.setFrameSize(size);
-                self.setNeedsDisplay(true);
+                self.on_frame_changed(None);
+                self.display()
             }
         }
 
@@ -284,11 +278,17 @@ impl View {
         Some(())
     }
 
-    fn on_set_frame_size(&self, new_size: NSSize) -> Option<()> {
+    fn on_frame_changed(&self, new_size: Option<NSSize>) -> Option<()> {
         let mut state = self.ivars().state.try_borrow_mut().ok()?;
         let ViewState { app, window, gfx } = state.as_mut()?;
 
         let last_scale = window.inner.scale;
+
+        let new_size = new_size.unwrap_or(NSSize::new(
+            window.inner.width / last_scale,
+            window.inner.height / last_scale,
+        ));
+
         window.inner.resize(new_size.width, new_size.height);
 
         let scale = window.inner.scale;
