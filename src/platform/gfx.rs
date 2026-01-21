@@ -191,35 +191,35 @@ impl Gfx {
 
         self.add_rect(rect, border_color);
 
-        let left = rect.x
+        let left = rect.left()
             + if sides.contains(Side::Left) {
                 border_width
             } else {
                 0.0
             };
 
-        let right = rect.x + rect.width
+        let right = rect.right()
             - if sides.contains(Side::Right) {
                 border_width
             } else {
                 0.0
             };
 
-        let top = rect.y
+        let top = rect.top()
             + if sides.contains(Side::Top) {
                 border_width
             } else {
                 0.0
             };
 
-        let bottom = rect.y + rect.height
+        let bottom = rect.bottom()
             - if sides.contains(Side::Bottom) {
                 border_width
             } else {
                 0.0
             };
 
-        self.add_rect(Rect::new(left, top, right - left, bottom - top), color);
+        self.add_rect(Rect::from_sides(left, top, right, bottom), color);
     }
 
     pub fn add_zig_zag_underline(&mut self, x: f32, y: f32, width: f32, color: Color) {
