@@ -53,10 +53,9 @@ unsafe fn find_file_open(
         true,
     );
 
-    match kind {
-        FindFileKind::OpenFile => open_panel.setCanChooseFiles(true),
-        FindFileKind::OpenFolder => open_panel.setCanChooseDirectories(true),
-        _ => {}
+    if kind == FindFileKind::OpenFolder {
+        open_panel.setCanChooseFiles(false);
+        open_panel.setCanChooseDirectories(true);
     }
 
     if open_panel.runModal() != NSModalResponseOK {
