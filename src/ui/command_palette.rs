@@ -211,10 +211,10 @@ impl CommandPalette {
                     self.open(Box::new(FileExplorerMode::new(None)), editor, ctx);
                 }
                 action_name!(OpenConfig) => {
-                    let config_dir = Config::dir();
+                    let config_dir = Config::dir(ctx.current_dir);
 
                     self.open(
-                        Box::new(FileExplorerMode::new(Some(&config_dir))),
+                        Box::new(FileExplorerMode::new(Some(config_dir))),
                         editor,
                         ctx,
                     );

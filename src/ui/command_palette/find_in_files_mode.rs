@@ -231,12 +231,8 @@ impl CommandPaletteMode for FindInFilesMode {
             return;
         };
 
-        let Some(current_dir) = args.editor.current_dir() else {
-            return;
-        };
-
         self.root.clear();
-        self.root.push(current_dir);
+        self.root.push(&args.ctx.current_dir);
 
         if let Ok(entries) = read_dir(&self.root) {
             self.pending_dir_entries.push_back(entries);

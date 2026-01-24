@@ -10,7 +10,7 @@ use objc2::rc::Weak;
 use objc2_core_foundation::{CFArray, CFString};
 use objc2_core_services::*;
 
-use crate::{normalizable::Normalizable, pool::Pooled};
+use crate::pool::Pooled;
 
 use super::view::{View, ViewRef};
 
@@ -154,11 +154,7 @@ impl FileWatcher {
             let path = path.to_str().unwrap();
             let path = Path::new(path);
 
-            let Ok(path) = path.normalized() else {
-                continue;
-            };
-
-            callback_info.changed_files.push(path);
+            callback_info.changed_files.push(path.into());
             had_changes = true;
         }
 

@@ -1625,7 +1625,7 @@ impl Doc {
         let string = self.to_string();
 
         if let Some(path) = path {
-            self.set_path_on_drive(path)?;
+            self.set_path_on_drive(path, ctx.current_dir)?;
         }
 
         let Some(path) = self.path.some() else {
@@ -1740,11 +1740,11 @@ impl Doc {
         (LineEnding::default(), string.len())
     }
 
-    fn set_path_on_drive(&mut self, path: Pooled<PathBuf>) -> io::Result<()> {
+    fn set_path_on_drive(&mut self, path: Pooled<PathBuf>, current_dir: &Path) -> io::Result<()> {
         self.path = DocPath::OnDrive(if path.is_normal() {
             path
         } else {
-            path.normalized()?
+            path.normalized(current_dir)?
         });
 
         Ok(())

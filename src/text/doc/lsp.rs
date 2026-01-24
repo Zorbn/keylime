@@ -27,7 +27,8 @@ impl Doc {
             return None;
         }
 
-        ctx.lsp.get_language_server_mut(self, ctx.config)
+        ctx.lsp
+            .get_language_server_mut(self, ctx.config, ctx.current_dir)
     }
 
     fn lsp_add_expected_response(

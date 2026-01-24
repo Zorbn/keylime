@@ -11,6 +11,8 @@ macro_rules! test_with_doc {
             let mut ui = crate::ui::core::Ui::new();
             let config = crate::config::Config::default();
             let mut lsp = crate::lsp::Lsp::new();
+            let mut current_dir: crate::pool::Pooled<std::path::PathBuf> =
+                std::env::current_dir().unwrap().as_path().into();
             let time = 0.0;
 
             let ctx = &mut crate::ctx::Ctx {
@@ -19,6 +21,7 @@ macro_rules! test_with_doc {
                 ui: &mut ui,
                 config: &config,
                 lsp: &mut lsp,
+                current_dir: &mut current_dir,
                 time,
             };
 

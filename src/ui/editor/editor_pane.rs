@@ -84,7 +84,7 @@ impl EditorPane {
         doc_list: &mut SlotList<Doc>,
         ctx: &mut Ctx,
     ) -> io::Result<()> {
-        let path = path.and_then(|path| path.normalized().ok());
+        let path = path.and_then(|path| path.normalized(ctx.current_dir).ok());
 
         let mut doc = Doc::new(path, None, DocFlags::MULTI_LINE);
         doc.lsp_did_open("", ctx);

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::{normalizable::Normalizable, pool::Pooled};
 
@@ -15,11 +15,13 @@ impl FileWatcher {
         }
     }
 
-    pub fn changed_files(&mut self) -> &[Pooled<PathBuf>] {
-        let changed_files = self.inner.changed_files();
-
-        assert!(changed_files.iter().all(Normalizable::is_normal));
-
-        changed_files
+    pub fn changed_files<'a>(
+        &'a mut self,
+        current_dir: &'a Path,
+    ) -> impl Iterator<Item = Pooled<PathBuf>> + 'a {
+        self.inner
+            .changed_files()
+            .iter()
+            .flat_map(|path| path.normalized(current_dir))
     }
 }

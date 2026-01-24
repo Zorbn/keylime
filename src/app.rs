@@ -1,5 +1,5 @@
 use std::{
-    env::args,
+    env::{args, current_dir},
     path::{Path, PathBuf},
 };
 
@@ -27,6 +27,7 @@ macro_rules! ctx_for_app {
             ui: &mut $self.ui,
             config: &$self.config,
             lsp: &mut $self.lsp,
+            current_dir: &mut $self.current_dir,
             time: $time,
         }
     };
@@ -39,6 +40,7 @@ pub struct App {
     terminal: Terminal,
     status_bar: StatusBar,
 
+    current_dir: Pooled<PathBuf>,
     file_watcher: FileWatcher,
     lsp: Lsp,
 
@@ -49,7 +51,9 @@ pub struct App {
 
 impl App {
     pub fn new(window: &mut Window, gfx: &mut Gfx, time: f64) -> Self {
-        let config_dir = Config::dir();
+        let mut current_dir: Pooled<PathBuf> = current_dir().unwrap().as_path().into();
+
+        let config_dir = Config::dir(&current_dir);
 
         let (config, config_error) = match Config::load(&config_dir) {
             Ok(config) => (config, None),
@@ -68,6 +72,7 @@ impl App {
             ui: &mut ui,
             config: &config,
             lsp: &mut lsp,
+            current_dir: &mut current_dir,
             time,
         };
 
@@ -88,6 +93,7 @@ impl App {
             status_bar,
             ui,
 
+            current_dir,
             file_watcher: FileWatcher::new(),
             lsp,
 
@@ -103,8 +109,7 @@ impl App {
     pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64, dt: f32) {
         let config_changed = self
             .file_watcher
-            .changed_files()
-            .iter()
+            .changed_files(&self.current_dir)
             .any(|changed_file| changed_file.starts_with(&self.config_dir));
 
         if config_changed {
@@ -241,7 +246,7 @@ fn handle_args(editor: &mut Editor, command_palette: &mut CommandPalette, ctx: &
             continue;
         };
 
-        let _ = editor.open_folder(dir, ctx);
+        let _ = Editor::open_folder(dir, ctx);
 
         if !has_file {
             command_palette.open(Box::new(FileExplorerMode::new(None)), editor, ctx);

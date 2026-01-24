@@ -47,9 +47,11 @@ pub struct FileExplorerMode {
 }
 
 impl FileExplorerMode {
-    pub fn new(starting_path: Option<&Path>) -> Self {
+    pub fn new(starting_path: Option<Pooled<PathBuf>>) -> Self {
+        assert!(starting_path.as_ref().is_none_or(Normalizable::is_normal));
+
         Self {
-            starting_path: starting_path.and_then(|path| path.normalized().ok()),
+            starting_path,
 
             clipboard_path: PathBuf::new(),
             clipboard_state: FileClipboardState::Empty,
@@ -195,7 +197,12 @@ impl FileExplorerMode {
         }
     }
 
-    fn get_starting_path(&self, editor: &Editor, ui: &Ui) -> Option<Pooled<PathBuf>> {
+    fn get_starting_path(
+        &self,
+        editor: &Editor,
+        ui: &Ui,
+        current_dir: &Path,
+    ) -> Option<Pooled<PathBuf>> {
         let unstripped_path = if self.starting_path.is_some() {
             self.starting_path.as_ref().map(Pooled::<PathBuf>::as_ref)
         } else {
@@ -204,8 +211,6 @@ impl FileExplorerMode {
 
             doc.path().some().and_then(|path| path.parent())
         };
-
-        let current_dir = editor.current_dir()?;
 
         unstripped_path
             .map(|path| path.strip_prefix(current_dir).unwrap_or(path))
@@ -223,7 +228,8 @@ impl CommandPaletteMode for FileExplorerMode {
     }
 
     fn on_open(&mut self, command_palette: &mut CommandPalette, args: CommandPaletteEventArgs) {
-        let Some(path) = self.get_starting_path(args.editor, args.ctx.ui) else {
+        let Some(path) = self.get_starting_path(args.editor, args.ctx.ui, args.ctx.current_dir)
+        else {
             return;
         };
 
@@ -566,7 +572,7 @@ fn update_path_for_copy(path: &mut PathBuf) {
 }
 
 fn rename(from: &Path, to: Pooled<PathBuf>, editor: &mut Editor, ctx: &mut Ctx) -> io::Result<()> {
-    let from = from.normalized()?;
+    let from = from.normalized(ctx.current_dir)?;
 
     if let Some(doc) = editor.find_doc_mut(&from) {
         remove_file(from)?;

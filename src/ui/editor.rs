@@ -1,5 +1,5 @@
 use std::{
-    env::{current_dir, set_current_dir},
+    env::set_current_dir,
     io,
     path::{Path, PathBuf},
 };
@@ -52,7 +52,6 @@ const HOVER_TIME: f32 = 0.5;
 pub struct Editor {
     doc_list: SlotList<Doc>,
     panes: PaneList<EditorPane, Doc>,
-    current_dir: Option<PathBuf>,
 
     handled_position: Option<Position>,
     handled_doc_id: Option<SlotId>,
@@ -73,7 +72,6 @@ impl Editor {
         let mut editor = Self {
             doc_list: SlotList::new(),
             panes: PaneList::new(),
-            current_dir: current_dir().ok(),
 
             handled_position: None,
             handled_doc_id: None,
@@ -166,7 +164,7 @@ impl Editor {
             match action {
                 action_name!(OpenFolder) => {
                     if let Ok(path) = find_file(FindFileKind::OpenFolder) {
-                        if let Err(err) = self.open_folder(&path, ctx) {
+                        if let Err(err) = Self::open_folder(&path, ctx) {
                             message("Error Opening Folder", &err.to_string(), MessageKind::Ok);
                         }
                     }
@@ -425,11 +423,12 @@ impl Editor {
     }
 
     fn reload_changed_files(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx) {
-        let changed_files = file_watcher.changed_files();
+        let current_dir = ctx.current_dir.clone();
+        let changed_files = file_watcher.changed_files(&current_dir);
 
         for path in changed_files {
             for doc in self.doc_list.iter_mut() {
-                if doc.path().some() != Some(path) {
+                if doc.path().some() != Some(&path) {
                     continue;
                 }
 
@@ -514,17 +513,17 @@ impl Editor {
         )
     }
 
-    pub fn open_folder(&mut self, path: &Path, ctx: &mut Ctx) -> io::Result<()> {
-        path.normalized().and_then(|path| set_current_dir(&path))?;
+    pub fn open_folder(path: &Path, ctx: &mut Ctx) -> io::Result<()> {
+        let new_current_dir = path.normalized(ctx.current_dir)?;
 
-        self.current_dir = current_dir().ok();
-        ctx.lsp.update_current_dir(self.current_dir.clone());
+        ctx.current_dir.clear();
+        ctx.current_dir.push(new_current_dir);
+
+        set_current_dir(&ctx.current_dir)?;
+
+        ctx.lsp.clear();
 
         Ok(())
-    }
-
-    pub fn current_dir(&self) -> Option<&Path> {
-        self.current_dir.as_deref()
     }
 
     pub fn files(&self) -> impl Iterator<Item = &Path> {

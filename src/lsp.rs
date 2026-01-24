@@ -5,8 +5,7 @@ pub mod uri;
 
 use std::{
     collections::{hash_map::Entry, HashMap},
-    env::current_dir,
-    path::PathBuf,
+    path::Path,
 };
 
 use language_server::{LanguageServer, MessageResult};
@@ -43,24 +42,17 @@ pub struct LspExpectedResponse {
 
 pub struct Lsp {
     servers: HashMap<usize, Option<LanguageServer>>,
-    current_dir: Option<PathBuf>,
 }
 
 impl Lsp {
     pub fn new() -> Self {
         Self {
             servers: HashMap::new(),
-            current_dir: current_dir().ok(),
         }
     }
 
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.servers.clear();
-    }
-
-    pub fn update_current_dir(&mut self, current_dir: Option<PathBuf>) {
-        self.current_dir = current_dir;
-        self.clear();
     }
 
     pub fn update(editor: &mut Editor, command_palette: &mut CommandPalette, ctx: &mut Ctx) {
@@ -161,9 +153,7 @@ impl Lsp {
 
                     editor.with_doc(path, ctx, |doc, ctx| {
                         while let Some(result) = results.peek() {
-                            let Some(root) = ctx.lsp.current_dir.as_ref() else {
-                                break;
-                            };
+                            let root = ctx.current_dir.as_ref();
 
                             if result.uri != current_uri {
                                 break;
@@ -257,9 +247,8 @@ impl Lsp {
         &mut self,
         doc: &Doc,
         config: &Config,
+        current_dir: &Path,
     ) -> Option<&mut LanguageServer> {
-        let current_dir = self.current_dir.as_ref()?;
-
         if doc
             .path()
             .some()

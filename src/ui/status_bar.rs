@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, fmt::Write};
+use std::{cmp::Ordering, fmt::Write, path::Path};
 
 use crate::{
     config::Config,
@@ -52,7 +52,7 @@ impl StatusBar {
         let mut text_x = widget.bounds.width;
         let text_y = gfx.tab_padding_y();
 
-        if let Some(text) = Self::get_doc_text(editor, ctx.config, ctx.ui) {
+        if let Some(text) = Self::get_doc_text(editor, ctx.config, ctx.ui, ctx.current_dir) {
             text_x -= gfx.measure_text(&text) as f32 * gfx.glyph_width();
             gfx.add_text(&text, text_x, text_y, theme.subtle);
         }
@@ -106,7 +106,12 @@ impl StatusBar {
         Some((text, severity))
     }
 
-    fn get_doc_text(editor: &Editor, config: &Config, ui: &Ui) -> Option<Pooled<String>> {
+    fn get_doc_text(
+        editor: &Editor,
+        config: &Config,
+        ui: &Ui,
+        current_dir: &Path,
+    ) -> Option<Pooled<String>> {
         let (pane, doc_list) = editor.last_focused_pane_and_doc_list(ui);
         let (_, doc) = pane.get_focused_tab_with_data(doc_list)?;
         let position = doc.cursor(CursorIndex::Main).position;
@@ -116,8 +121,7 @@ impl StatusBar {
         if let Some(path) = doc
             .path()
             .some()
-            .zip(editor.current_dir())
-            .map(|(path, current_dir)| path.strip_prefix(current_dir).unwrap_or(path))
+            .map(|path| path.strip_prefix(current_dir).unwrap_or(path))
         {
             write!(&mut doc_text, "{}, ", path.display()).ok()?;
         }

@@ -1,21 +1,25 @@
 use std::{
     io,
-    path::{absolute, Component, Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 use crate::pool::{Pooled, PATH_POOL};
 
 pub trait Normalizable {
-    fn normalized(&self) -> io::Result<Pooled<PathBuf>>;
+    fn normalized(&self, current_dir: &Path) -> io::Result<Pooled<PathBuf>>;
     fn is_normal(&self) -> bool;
 }
 
 impl<P: AsRef<Path>> Normalizable for P {
-    fn normalized(&self) -> io::Result<Pooled<PathBuf>> {
-        let absolute_path = absolute(self)?;
+    fn normalized(&self, current_dir: &Path) -> io::Result<Pooled<PathBuf>> {
+        let path = self.as_ref();
         let mut normal_path = PATH_POOL.new_item();
 
-        for component in absolute_path.components() {
+        if !path.is_absolute() {
+            normal_path.push(current_dir);
+        }
+
+        for component in path.components() {
             match component {
                 Component::CurDir => {}
                 Component::ParentDir => {

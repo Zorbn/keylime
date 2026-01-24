@@ -65,7 +65,7 @@ pub fn open_or_reuse(
     path: &Path,
     ctx: &mut Ctx,
 ) -> io::Result<SlotId> {
-    let path = path.normalized()?;
+    let path = path.normalized(ctx.current_dir)?;
 
     for (id, doc) in doc_list.enumerate() {
         if doc.path().some() == Some(&path) {

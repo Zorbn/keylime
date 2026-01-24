@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::{
     pool::{format_pooled, Pooled},
-    ui::{editor::Editor, result_list::ResultListSubmitKind},
+    ui::result_list::ResultListSubmitKind,
 };
 
 use super::{
@@ -18,11 +18,9 @@ impl AllDiagnosticsMode {
         path: &Path,
         message: &str,
         y: usize,
-        editor: &Editor,
+        current_dir: &Path,
     ) -> Option<Pooled<String>> {
-        let relative_path = editor
-            .current_dir()
-            .and_then(|current_dir| path.strip_prefix(current_dir).ok())?;
+        let relative_path = path.strip_prefix(current_dir).ok()?;
 
         let message = message.lines().nth(0).unwrap_or_default();
 
@@ -50,7 +48,7 @@ impl CommandPaletteMode for AllDiagnosticsMode {
                         path,
                         &diagnostic.message,
                         diagnostic.range.start.line,
-                        args.editor,
+                        args.ctx.current_dir,
                     ) else {
                         continue;
                     };
@@ -70,7 +68,7 @@ impl CommandPaletteMode for AllDiagnosticsMode {
                         path,
                         &diagnostic.message,
                         diagnostic.range.start.y,
-                        args.editor,
+                        args.ctx.current_dir,
                     ) else {
                         continue;
                     };

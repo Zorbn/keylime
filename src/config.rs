@@ -293,7 +293,7 @@ impl Config {
             .unwrap_or_default()
     }
 
-    pub fn dir() -> Pooled<PathBuf> {
+    pub fn dir(current_dir: &Path) -> Pooled<PathBuf> {
         if let Some(exe_dir) = current_exe().as_ref().ok().and_then(|exe| exe.parent()) {
             let mut config_path: Pooled<PathBuf> = exe_dir.into();
 
@@ -314,7 +314,7 @@ impl Config {
             }
         }
 
-        CONFIG_DIR.normalized().unwrap()
+        CONFIG_DIR.normalized(current_dir).unwrap()
     }
 }
 
