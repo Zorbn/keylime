@@ -634,26 +634,15 @@ impl Doc {
         kind: DelimiterKind,
     ) -> bool {
         for delimiter in delimiters {
-            let (start_x, end_x) = match kind {
-                DelimiterKind::Start => {
-                    if delimiter.len() > position.x {
-                        continue;
-                    }
+            let mut start = position;
+            let mut end = position;
 
-                    (position.x - delimiter.len(), position.x)
-                }
-                DelimiterKind::End => {
-                    let end_x = position.x + delimiter.len();
-
-                    if end_x > line.len() {
-                        continue;
-                    }
-
-                    (position.x, end_x)
-                }
+            let did_move = match kind {
+                DelimiterKind::Start => self.move_position_to_previous_grapheme(&mut start),
+                DelimiterKind::End => self.move_position_to_next_grapheme(&mut end),
             };
 
-            if &line[start_x..end_x] == delimiter.as_str() {
+            if did_move && &line[start.x..end.x] == delimiter.as_str() {
                 return true;
             }
         }
