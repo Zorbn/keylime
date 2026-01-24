@@ -39,19 +39,61 @@ pub struct Atlas {
 }
 
 impl Atlas {
-    fn copy_to(&self, other: &mut Self, offset_x: usize) {
+    fn copy_to(&self, other: &mut Self, offset_x: usize, offset_y: usize) {
         for y in 0..self.dimensions.height {
             for x in 0..self.dimensions.width {
                 let i = (x + y * self.dimensions.width) * 4;
 
                 let other_x = x + offset_x;
-                let other_i = (other_x + y * other.dimensions.width) * 4;
+                let other_y = y + offset_y;
+                let other_i = (other_x + other_y * other.dimensions.width) * 4;
 
                 other.data[other_i] = self.data[i];
                 other.data[other_i + 1] = self.data[i + 1];
                 other.data[other_i + 2] = self.data[i + 2];
                 other.data[other_i + 3] = self.data[i + 3];
             }
+        }
+    }
+
+    fn ensure_size(&mut self, required_width: usize, required_height: usize) -> bool {
+        if required_width <= self.dimensions.width && required_height <= self.dimensions.height {
+            return false;
+        }
+
+        let new_width = Self::next_size(self.dimensions.width, required_width);
+        let new_height = Self::next_size(self.dimensions.height, required_height);
+
+        let new_atlas_dimensions = AtlasDimensions {
+            width: new_width,
+            height: new_height,
+            ..self.dimensions
+        };
+
+        let mut new_atlas = Self {
+            data: vec![0u8; new_width * new_height * 4],
+            dimensions: new_atlas_dimensions,
+            has_color_glyphs: false,
+        };
+
+        self.copy_to(&mut new_atlas, 0, 0);
+
+        *self = new_atlas;
+
+        true
+    }
+
+    fn next_size(current_size: usize, required_size: usize) -> usize {
+        if current_size == 0 {
+            required_size
+        } else {
+            let mut new_size = current_size;
+
+            while required_size > new_size {
+                new_size *= 2;
+            }
+
+            new_size
         }
     }
 }
@@ -96,6 +138,7 @@ pub enum GlyphSpan {
         origin_x: f32,
         origin_y: f32,
         x: usize,
+        y: usize,
         width: usize,
         height: usize,
         advance: usize,
@@ -126,6 +169,8 @@ impl GlyphCacheResult {
     }
 }
 
+const MAX_ATLAS_WIDTH: usize = 4096;
+
 pub struct TextCache {
     glyph_cache: HashMap<u16, GlyphSpan>,
 
@@ -139,6 +184,8 @@ pub struct TextCache {
 
     needs_first_resize: bool,
     atlas_used_width: usize,
+    atlas_used_height: usize,
+    atlas_current_row_height: usize,
 
     pub atlas: Atlas,
 }
@@ -158,6 +205,8 @@ impl TextCache {
 
             needs_first_resize: true,
             atlas_used_width: 0,
+            atlas_used_height: 0,
+            atlas_current_row_height: 0,
             atlas: Atlas::default(),
         }
     }
@@ -179,53 +228,35 @@ impl TextCache {
             return (*span, result);
         }
 
-        let x = self.atlas_used_width;
         let sub_atlas = unsafe { text.generate_atlas(glyph) }.unwrap();
+
         let width = sub_atlas.dimensions.width;
+        let height = sub_atlas.dimensions.height;
+
+        if self.atlas_used_width + width > MAX_ATLAS_WIDTH {
+            self.atlas_used_height += self.atlas_current_row_height;
+            self.atlas_used_width = 0;
+            self.atlas_current_row_height = 0;
+        }
+
+        let x = self.atlas_used_width;
+        let y = self.atlas_used_height;
         let glyph_right = x + width;
+        let glyph_bottom = y + height;
 
-        if glyph_right == 0
-            || glyph_right > self.atlas.dimensions.width
-            || sub_atlas.dimensions.height > self.atlas.dimensions.height
-        {
-            let mut new_width = self.atlas.dimensions.width.max(width);
-
-            while glyph_right > new_width {
-                new_width *= 2;
-            }
-
-            let new_height = self
-                .atlas
-                .dimensions
-                .height
-                .max(sub_atlas.dimensions.height);
-
-            let new_atlas_dimensions = AtlasDimensions {
-                width: new_width,
-                height: new_height,
-                ..self.atlas.dimensions
-            };
-
-            let mut new_atlas = Atlas {
-                data: vec![0u8; new_width * new_height * 4],
-                dimensions: new_atlas_dimensions,
-                has_color_glyphs: false,
-            };
-
-            self.atlas.copy_to(&mut new_atlas, 0);
-            self.atlas = new_atlas;
-
-            result = result.worse(GlyphCacheResult::Resize)
+        result = result.worse(if self.atlas.ensure_size(glyph_right, glyph_bottom) {
+            GlyphCacheResult::Resize
         } else {
-            result = result.worse(GlyphCacheResult::Miss)
-        };
+            GlyphCacheResult::Miss
+        });
 
-        sub_atlas.copy_to(&mut self.atlas, x);
+        sub_atlas.copy_to(&mut self.atlas, x, y);
 
         let span = GlyphSpan::Glyph {
             origin_x: sub_atlas.dimensions.origin_x,
             origin_y: sub_atlas.dimensions.origin_y,
             x,
+            y,
             width,
             height: sub_atlas.dimensions.height,
             advance: glyph.advance,
@@ -233,7 +264,9 @@ impl TextCache {
         };
 
         self.glyph_cache.insert(glyph.index, span);
+
         self.atlas_used_width += width;
+        self.atlas_current_row_height = self.atlas_current_row_height.max(height);
 
         (span, result)
     }

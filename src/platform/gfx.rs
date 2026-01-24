@@ -109,6 +109,7 @@ impl Gfx {
                     origin_x,
                     origin_y,
                     x: span_x,
+                    y: span_y,
                     width,
                     height,
                     advance,
@@ -121,7 +122,7 @@ impl Gfx {
                     };
 
                     let source_x = span_x as f32;
-                    let source_y = 0.0;
+                    let source_y = span_y as f32;
                     let source_width = width as f32;
                     let source_height = height as f32;
 

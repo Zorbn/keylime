@@ -334,7 +334,7 @@ impl TerminalEmulator {
             EscapeSequence::Tab => {
                 let next_tab_stop = (self.grid_cursor.x / 8 + 1) * 8;
 
-                while self.grid_cursor.x < next_tab_stop {
+                for _ in 0..(next_tab_stop - self.grid_cursor.x) {
                     self.insert_at_cursor(" ", doc, ctx);
                 }
             }
