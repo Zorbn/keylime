@@ -1683,9 +1683,7 @@ impl Doc {
 
         let string = read_to_string(path)?;
 
-        self.add_cursors_to_action_history(ActionKind::Done, ctx.time);
-
-        self.do_skip_shifting = true;
+        self.start_skipping_shifting(ctx.time);
 
         self.delete(Position::ZERO, self.end(), ctx);
 
@@ -1694,6 +1692,20 @@ impl Doc {
         self.line_ending = line_ending;
         self.insert(Position::ZERO, &string[..len], ctx);
 
+        self.stop_skipping_shifting(ctx);
+
+        self.is_saved = true;
+
+        Ok(())
+    }
+
+    fn start_skipping_shifting(&mut self, time: f64) {
+        self.add_cursors_to_action_history(ActionKind::Done, time);
+
+        self.do_skip_shifting = true;
+    }
+
+    fn stop_skipping_shifting(&mut self, ctx: &mut Ctx) {
         self.do_skip_shifting = false;
 
         self.shift_positions(
@@ -1702,10 +1714,6 @@ impl Doc {
             |doc, _, _, position| doc.clamp_position(position),
             ctx,
         );
-
-        self.is_saved = true;
-
-        Ok(())
     }
 
     fn line_ending_and_len(&self, string: &str) -> (LineEnding, usize) {

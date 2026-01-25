@@ -321,6 +321,14 @@ impl Doc {
     }
 
     pub fn lsp_apply_edit_list(&mut self, edits: &mut [DecodedTextEdit], ctx: &mut Ctx) {
+        let needs_skip_shifting = edits
+            .iter()
+            .any(|edit| edit.range.start == Position::ZERO && edit.range.end == self.end());
+
+        if needs_skip_shifting {
+            self.start_skipping_shifting(ctx.time);
+        }
+
         for i in 0..edits.len() {
             let current_edit = &edits[i];
 
@@ -336,6 +344,10 @@ impl Doc {
                 range.start = self.shift_position_by_insert(start, insert_end, range.start);
                 range.end = self.shift_position_by_insert(start, insert_end, range.end);
             }
+        }
+
+        if needs_skip_shifting {
+            self.stop_skipping_shifting(ctx);
         }
     }
 
