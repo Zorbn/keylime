@@ -19,10 +19,13 @@
     "syntax": {
         "keywords": [
             "as",
+            "async",
+            "await",
             "break",
             "const",
             "continue",
             "crate",
+            "dyn",
             "else",
             "enum",
             "extern",

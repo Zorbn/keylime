@@ -181,6 +181,7 @@ impl LanguageServer {
                                 },
                                 "documentationFormat": documentation_formats,
                                 "labelDetailsSupport": true,
+                                "insertReplaceSupport": true,
                             },
                         },
                         "signatureHelp": {
@@ -273,9 +274,6 @@ impl LanguageServer {
                     self.parse_state = MessageParseState::Idle;
 
                     let message = serde_json::from_slice::<Message>(&output[..content_len]);
-
-                    #[cfg(feature = "lsp_debug")]
-                    println!("{:?}", message);
 
                     output.drain(..content_len);
 

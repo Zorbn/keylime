@@ -120,6 +120,7 @@ pub(super) struct EncodedFullDocumentDiagnosticParams {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct EncodedTextEdit {
+    #[serde(alias = "insert")]
     range: EncodedRange,
     new_text: Pooled<String>,
 }

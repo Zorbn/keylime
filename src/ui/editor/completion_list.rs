@@ -443,7 +443,7 @@ impl CompletionList {
 
         match result {
             CompletionResult::SimpleCompletion(text) => {
-                doc.insert_at_cursors(&text[self.prefix.len()..], ctx);
+                self.complete_at_cursors(&text, doc, ctx);
 
                 None
             }
@@ -468,7 +468,7 @@ impl CompletionList {
         let insert_text = item.insert_text();
 
         let Some(DecodedRange { start, end }) = item.range() else {
-            doc.insert_at_cursors(&insert_text[self.prefix.len()..], ctx);
+            self.complete_at_cursors(insert_text, doc, ctx);
             return;
         };
 
@@ -494,6 +494,31 @@ impl CompletionList {
             doc.delete(start, end, ctx);
             doc.insert(start, insert_text, ctx);
         }
+    }
+
+    fn complete_at_cursors(&self, text: &str, doc: &mut Doc, ctx: &mut Ctx) {
+        for index in doc.cursor_indices() {
+            let cursor = doc.cursor(index);
+
+            if cursor.position.x < self.prefix.len() {
+                continue;
+            }
+
+            let Some(line) = doc.get_line(cursor.position.y) else {
+                continue;
+            };
+
+            if !line[..cursor.position.x].ends_with(&self.prefix) {
+                continue;
+            }
+
+            let end = cursor.position;
+            let start = Position::new(end.x - self.prefix.len(), end.y);
+
+            doc.delete(start, end, ctx);
+        }
+
+        doc.insert_at_cursors(text, ctx);
     }
 
     pub fn widget_id(&self) -> WidgetId {
