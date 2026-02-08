@@ -144,8 +144,7 @@ impl CommandPaletteMode for SearchAndReplaceMode {
 
                     doc.insert_at_cursor(CursorIndex::Main, replace_term, args.ctx);
 
-                    let end =
-                        doc.move_position(start, replace_term.len() as isize, 0, args.ctx.gfx);
+                    let end = doc.cursor(CursorIndex::Main).position;
 
                     doc.jump_cursor(CursorIndex::Main, start, false, args.ctx.gfx);
                     doc.jump_cursor(CursorIndex::Main, end, true, args.ctx.gfx);
@@ -207,7 +206,7 @@ fn search(
     let start = start.unwrap_or(cursor_position);
 
     if let Some(position) = doc.search(search_term, start, is_reverse, gfx) {
-        let end = doc.move_position(position, search_term.len() as isize, 0, gfx);
+        let end = Position::new(position.x + search_term.len(), position.y);
 
         doc.jump_cursors(position, false, gfx);
         doc.jump_cursors(end, true, gfx);
