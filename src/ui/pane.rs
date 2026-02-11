@@ -206,17 +206,22 @@ impl<T> Pane<T> {
         while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
             let visual_position = ctx.window.mouse_position();
 
-            if !mouse_scroll.is_horizontal
-                || !self
-                    .tabs
-                    .iter()
-                    .any(|tab| tab.tab_bounds().contains_position(visual_position))
+            if !self
+                .tabs
+                .iter()
+                .any(|tab| tab.tab_bounds().contains_position(visual_position))
             {
                 mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
                 continue;
             }
 
-            let delta = mouse_scroll.delta * ctx.gfx.glyph_width();
+            let delta = mouse_scroll.delta
+                * ctx.gfx.glyph_width()
+                * if mouse_scroll.is_horizontal {
+                    1.0
+                } else {
+                    -1.0
+                };
 
             self.camera.scroll(-delta, mouse_scroll.kind);
         }
