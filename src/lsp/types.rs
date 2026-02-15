@@ -493,6 +493,22 @@ impl HoverContents {
 
         text
     }
+
+    pub fn extension(&self) -> &str {
+        match self {
+            Self::MarkedString(marked_string) => &marked_string.language,
+            Self::MarkedStrings(marked_strings) => marked_strings
+                .first()
+                .map(|marked_string| marked_string.language.as_str())
+                .filter(|language| {
+                    marked_strings
+                        .iter()
+                        .all(|marked_string| marked_string.language.as_str() == *language)
+                })
+                .unwrap_or_default(),
+            Self::MarkupContent(..) => "md",
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -528,6 +544,13 @@ impl Documentation {
         match self {
             Self::PlainText(text) => text,
             Self::MarkupContent(content) => &content.value,
+        }
+    }
+
+    pub fn extension(&self) -> &str {
+        match self {
+            Self::PlainText(..) => "",
+            Self::MarkupContent(..) => "md",
         }
     }
 }

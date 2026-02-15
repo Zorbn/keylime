@@ -30,6 +30,7 @@ pub struct Popup {
     tab: Tab,
     doc: Doc,
     widget_id: WidgetId,
+    extension: String,
 }
 
 impl Popup {
@@ -44,6 +45,7 @@ impl Popup {
                     ..Default::default()
                 },
             ),
+            extension: String::new(),
         }
     }
 
@@ -131,8 +133,10 @@ impl Popup {
 
         gfx.end();
 
-        if let Some(language) = ctx.config.get_language("md") {
-            self.tab.update_highlights(language, &mut self.doc, ctx.gfx);
+        if !self.extension.is_empty() {
+            if let Some(language) = ctx.config.get_language(&self.extension) {
+                self.tab.update_highlights(language, &mut self.doc, ctx.gfx);
+            }
         }
 
         self.tab.draw(
@@ -147,7 +151,7 @@ impl Popup {
         ui.hide(self.widget_id());
     }
 
-    pub fn show(&mut self, text: &str, ctx: &mut Ctx) {
+    pub fn show(&mut self, text: &str, extension: &str, ctx: &mut Ctx) {
         let text = text.trim();
         let mut char_cursor = CharCursor::new(0, text.len());
 
@@ -182,6 +186,9 @@ impl Popup {
         self.doc.insert(Position::ZERO, text, ctx);
 
         self.tab.camera.reset();
+
+        self.extension.clear();
+        self.extension.push_str(extension);
 
         ctx.ui.show(self.widget_id);
     }

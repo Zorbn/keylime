@@ -1,8 +1,7 @@
 use crate::{
     ctx::Ctx,
     geometry::position::Position,
-    lsp::types::{DecodedDiagnostic, DecodedHover, DecodedRange},
-    pool::Pooled,
+    lsp::types::{DecodedDiagnostic, DecodedHover, DecodedRange, HoverContents},
     text::doc::Doc,
     ui::{
         core::{Ui, WidgetId},
@@ -15,7 +14,7 @@ use crate::{
 enum ExaminePopupData<'a> {
     None,
     Diagnostic(&'a DecodedDiagnostic),
-    Hover(Pooled<String>, Option<DecodedRange>),
+    Hover(HoverContents, Option<DecodedRange>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -103,7 +102,7 @@ impl ExaminePopup {
 
     pub fn lsp_set_hover(&mut self, hover: Option<DecodedHover>, doc: &Doc, ctx: &mut Ctx) {
         let data = match hover {
-            Some(hover) => ExaminePopupData::Hover(hover.contents.text(), hover.range),
+            Some(hover) => ExaminePopupData::Hover(hover.contents, hover.range),
             None => ExaminePopupData::None,
         };
 
@@ -125,12 +124,12 @@ impl ExaminePopup {
         match kind {
             ExaminePopupData::None => {}
             ExaminePopupData::Diagnostic(diagnostic) => {
-                self.popup.show(&diagnostic.message, ctx);
+                self.popup.show(&diagnostic.message, "", ctx);
                 self.position = diagnostic.visible_range(doc).start;
                 self.kind = ExaminePopupKind::Diagnostic;
             }
-            ExaminePopupData::Hover(text, range) => {
-                self.popup.show(&text, ctx);
+            ExaminePopupData::Hover(contents, range) => {
+                self.popup.show(&contents.text(), contents.extension(), ctx);
                 self.position = range.map(|range| range.start).unwrap_or(self.open_position);
                 self.kind = ExaminePopupKind::Hover;
             }

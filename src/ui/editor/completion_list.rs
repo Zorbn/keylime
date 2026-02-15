@@ -214,13 +214,14 @@ impl CompletionList {
         }
 
         if let Some(detail) = &item.detail {
-            self.detail_popup.show(detail, ctx);
+            self.detail_popup.show(detail, "", ctx);
         } else {
             self.detail_popup.hide(ctx.ui);
         }
 
         if let Some(documentation) = &item.documentation {
-            self.documentation_popup.show(documentation.text(), ctx);
+            self.documentation_popup
+                .show(documentation.text(), documentation.extension(), ctx);
         } else {
             self.documentation_popup.hide(ctx.ui);
         }
