@@ -37,17 +37,11 @@ impl AllFilesMode {
     fn handle_entry(&mut self, entry: DirEntry, ctx: &mut Ctx) {
         let path = Pooled::new(entry.path(), &PATH_POOL);
 
+        if ctx.config.is_path_ignored(&path) {
+            return;
+        }
+
         if path.is_dir() {
-            let is_ignored = path
-                .components()
-                .next_back()
-                .and_then(|dir| dir.as_os_str().to_str())
-                .is_some_and(|dir| ctx.config.ignored_dirs.contains(dir));
-
-            if is_ignored {
-                return;
-            }
-
             if let Ok(entries) = read_dir(path) {
                 self.pending_dir_entries.push_back(entries);
             }

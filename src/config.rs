@@ -45,13 +45,15 @@ const DEFAULT_HAS_IDENTIFIERS: fn() -> bool = || true;
 const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
 const DEFAULT_FORMAT_ON_SAVE: fn() -> bool = || true;
 const DEFAULT_TERMINAL_HEIGHT: fn() -> f32 = || 12.0;
-const DEFAULT_IGNORED_DIRS: fn() -> Vec<Pooled<String>> = || {
+const DEFAULT_IGNORED_FILES: fn() -> Vec<Pooled<String>> = || {
     ["target", "build", "out", ".git", "node_modules"]
         .iter()
         .copied()
         .map(Into::into)
         .collect()
 };
+const DEFAULT_IGNORED_EXTENSIONS: fn() -> Vec<Pooled<String>> =
+    || ["exe", "app"].iter().copied().map(Into::into).collect();
 const DEFAULT_KEYMAPS: fn() -> HashMap<Keybind, ActionName> = || {
     [
         (
@@ -130,8 +132,10 @@ struct ConfigDesc<'a> {
     #[serde(default = "DEFAULT_TERMINAL_HEIGHT")]
     terminal_height: f32,
     theme: &'a str,
-    #[serde(default = "DEFAULT_IGNORED_DIRS")]
-    ignored_dirs: Vec<Pooled<String>>,
+    #[serde(default = "DEFAULT_IGNORED_FILES")]
+    ignored_files: Vec<Pooled<String>>,
+    #[serde(default = "DEFAULT_IGNORED_EXTENSIONS")]
+    ignored_extensions: Vec<Pooled<String>>,
 }
 
 pub struct ConfigError {
@@ -159,7 +163,8 @@ pub struct Config {
     pub keymaps: HashMap<Keybind, ActionName>,
     pub languages: Vec<Language>,
     pub extension_languages: HashMap<Pooled<String>, usize>,
-    pub ignored_dirs: HashSet<Pooled<String>>,
+    pub ignored_files: HashSet<Pooled<String>>,
+    pub ignored_extensions: HashSet<Pooled<String>>,
 }
 
 impl Config {
@@ -224,7 +229,8 @@ impl Config {
         let theme_string = Self::load_file_string(&path)?;
         let theme = Self::load_file_data(&path, &theme_string)?;
 
-        let ignored_dirs = HashSet::from_iter(config_desc.ignored_dirs);
+        let ignored_files = HashSet::from_iter(config_desc.ignored_files);
+        let ignored_extensions = HashSet::from_iter(config_desc.ignored_extensions);
 
         Ok(Self {
             font: config_desc.font,
@@ -232,7 +238,8 @@ impl Config {
             trim_trailing_whitespace: config_desc.trim_trailing_whitespace,
             format_on_save: config_desc.format_on_save,
             terminal_height: config_desc.terminal_height.max(0.0),
-            ignored_dirs,
+            ignored_files,
+            ignored_extensions,
             theme,
             keymaps,
             languages,
@@ -293,6 +300,28 @@ impl Config {
             .unwrap_or_default()
     }
 
+    pub fn is_path_ignored(&self, path: &Path) -> bool {
+        let is_file_ignored = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| self.ignored_files.contains(name));
+
+        if is_file_ignored {
+            return true;
+        }
+
+        let is_extension_ignored = path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| self.ignored_extensions.contains(extension));
+
+        if is_extension_ignored {
+            return true;
+        }
+
+        false
+    }
+
     pub fn dir(current_dir: &Path) -> Pooled<PathBuf> {
         if let Some(exe_dir) = current_exe().as_ref().ok().and_then(|exe| exe.parent()) {
             let mut config_path: Pooled<PathBuf> = exe_dir.into();
@@ -330,7 +359,8 @@ impl Default for Config {
             keymaps: DEFAULT_KEYMAPS(),
             languages: Vec::new(),
             extension_languages: HashMap::new(),
-            ignored_dirs: HashSet::from_iter(DEFAULT_IGNORED_DIRS()),
+            ignored_files: HashSet::from_iter(DEFAULT_IGNORED_FILES()),
+            ignored_extensions: HashSet::from_iter(DEFAULT_IGNORED_EXTENSIONS()),
         }
     }
 }

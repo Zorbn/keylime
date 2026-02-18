@@ -1,0 +1,130 @@
+{
+    "name": "Odin",
+    "extensions": [
+        "odin"
+    ],
+    "error_format": {
+        "pattern": "%.*%.odin%((%d+):%d+%)",
+        "path_pattern": "%.*%.odin",
+        "line_pattern": "%((%d+):"
+    },
+    "lsp": {
+        "command": "/Users/nic/Downloads/ols-arm64-darwin/ols-arm64-darwin",
+        "language_id": "odin"
+    },
+    "syntax": {
+        "keywords": [
+            "asm",
+            "auto_cast",
+            "bit_set",
+            "break",
+            "case",
+            "cast",
+            "context",
+            "continue",
+            "defer",
+            "distinct",
+            "do",
+            "dynamic",
+            "else",
+            "enum",
+            "fallthrough",
+            "false",
+            "for",
+            "foreign",
+            "if",
+            "import",
+            "in",
+            "map",
+            "not_in",
+            "or_else",
+            "or_return",
+            "or_continue",
+            "package",
+            "proc",
+            "return",
+            "struct",
+            "switch",
+            "transmute",
+            "true",
+            "typeid",
+            "union",
+            "using",
+            "when",
+            "where",
+            "nil"
+        ],
+        "ranges": [
+            {
+                "kind": "String",
+                "start": "\"",
+                "end": "\"",
+                "escape": "\\"
+            },
+            {
+                "kind": "String",
+                "start": "`",
+                "end": "`"
+            },
+            {
+                "kind": "Comment",
+                "start": "/%*",
+                "end": "%*/"
+            }
+        ],
+        "tokens": [
+            {
+                "kind": "Meta",
+                "pattern": "#%+%.*"
+            },
+            {
+                "kind": "Comment",
+                "pattern": "//%.*"
+            },
+            {
+                "kind": "Meta",
+                "pattern": "#%w*"
+            },
+            {
+                "kind": "Function",
+                "pattern": "([%a_][%w_]*)%s*%("
+            },
+            {
+                "kind": "Function",
+                "pattern": "([%a_][%w_]*)%s-::%s-proc%s-%("
+            },
+            {
+                "kind": "Number",
+                "pattern": "0x%x+"
+            },
+            {
+                "kind": "Number",
+                "pattern": "0b[01]+"
+            },
+            {
+                "kind": "Number",
+                "pattern": "(%d[%d_]*.?[%d_]*)[^.]"
+            },
+            {
+                "kind": "Number",
+                "pattern": "%d[%d_]*"
+            },
+            {
+                "kind": "String",
+                "pattern": "'\\u{%x-}'"
+            },
+            {
+                "kind": "String",
+                "pattern": "'\\x%x%x'"
+            },
+            {
+                "kind": "String",
+                "pattern": "'\\?%.'"
+            },
+            {
+                "kind": "Symbol",
+                "pattern": "[!=&,><./:@|;{}()%%%^%*%+%-%?%[%]]"
+            }
+        ]
+    }
+}
