@@ -1,6 +1,6 @@
 {
     "font": "Menlo",
     "font_size": 12.0,
-    "theme": "default_dark",
-    "ignored_files": ["build", "deps", ".git", "node_modules", "target", "dist", "env", "venv"]
+    "theme": "one_light",
+    "ignored_files": ["build", "deps", ".git", "node_modules", "target", "dist", "love.app", "env", "venv", ".zig-cache", "clangd", "_b", "_deps", "obj", "bin", ".idea"]
 }

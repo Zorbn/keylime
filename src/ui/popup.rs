@@ -108,7 +108,7 @@ impl Popup {
     }
 
     pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.tab.animate(self.widget_id, &self.doc, ctx, dt);
+        self.tab.animate(Some(self.widget_id), &self.doc, ctx, dt);
     }
 
     pub fn draw(&mut self, foreground: Option<Color>, ctx: &mut Ctx) {

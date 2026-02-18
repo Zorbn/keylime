@@ -251,7 +251,7 @@ impl Tab {
         }
     }
 
-    pub fn animate(&mut self, widget_id: WidgetId, doc: &Doc, ctx: &mut Ctx, dt: f32) {
+    pub fn animate(&mut self, widget_id: Option<WidgetId>, doc: &Doc, ctx: &mut Ctx, dt: f32) {
         self.animate_tab(dt);
         self.animate_cursors(doc, ctx);
         self.animate_camera(widget_id, doc, ctx, dt);
@@ -292,7 +292,19 @@ impl Tab {
         }
     }
 
-    fn animate_camera(&mut self, widget_id: WidgetId, doc: &Doc, ctx: &mut Ctx, dt: f32) {
+    fn animate_camera(&mut self, widget_id: Option<WidgetId>, doc: &Doc, ctx: &mut Ctx, dt: f32) {
+        if let Some(widget_id) = widget_id {
+            self.handle_mouse_scrolls(widget_id, ctx);
+        }
+
+        self.animate_camera_vertical(doc, ctx, dt);
+        self.animate_camera_horizontal(doc, ctx, dt);
+
+        self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
+        self.handled_doc_len = doc.lines().len();
+    }
+
+    fn handle_mouse_scrolls(&mut self, widget_id: WidgetId, ctx: &mut Ctx) {
         let mut mouse_scroll_handler = ctx.ui.mouse_scroll_handler(widget_id, ctx.window);
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
@@ -313,12 +325,6 @@ impl Tab {
                 self.camera.vertical.scroll(delta, mouse_scroll.kind);
             }
         }
-
-        self.animate_camera_vertical(doc, ctx, dt);
-        self.animate_camera_horizontal(doc, ctx, dt);
-
-        self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
-        self.handled_doc_len = doc.lines().len();
     }
 
     pub fn skip_camera_animations(&mut self, doc: &Doc, ctx: &mut Ctx) {

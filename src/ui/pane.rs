@@ -226,13 +226,16 @@ impl<T> Pane<T> {
     pub fn animate(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx, dt: f32) {
         self.animate_tab_bar(ctx, dt);
 
+        let focused_index = self.focused_tab_index();
         let widget_id = self.widget_id;
         let get_doc = self.get_doc;
 
-        for tab in self.tabs.iter_mut() {
+        for (index, tab) in self.tabs.iter_mut().enumerate() {
             let Some(data) = data_list.get_mut(tab.data_id()) else {
                 continue;
             };
+
+            let widget_id = (index == focused_index).then_some(widget_id);
 
             tab.animate(widget_id, get_doc(data), ctx, dt);
         }
