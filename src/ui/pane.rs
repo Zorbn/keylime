@@ -59,11 +59,7 @@ impl<T> Pane<T> {
     }
 
     pub fn is_animating(&self, ctx: &Ctx) -> bool {
-        self.camera.is_moving()
-            || self
-                .tabs
-                .get_focused()
-                .is_some_and(|tab| tab.is_animating(ctx))
+        self.camera.is_moving() || self.tabs.iter().any(|tab| tab.is_animating(ctx))
     }
 
     pub fn layout(&mut self, bounds: Rect, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
@@ -128,7 +124,7 @@ impl<T> Pane<T> {
                     let half_focused_tab_width = self
                         .tabs
                         .get_focused()
-                        .map(|tab| tab.tab_bounds().width)
+                        .map(|tab| tab.visual_tab_bounds().width)
                         .unwrap_or_default()
                         / 2.0;
 
@@ -172,7 +168,7 @@ impl<T> Pane<T> {
 
                     let index = self.tabs.iter().position(|tab| {
                         let bounds = ctx.ui.widget(self.widget_id).bounds;
-                        let tab_bounds = tab.tab_bounds();
+                        let tab_bounds = tab.visual_tab_bounds();
 
                         offset = tab_bounds.x - visual_position.x - bounds.x;
 
@@ -233,19 +229,23 @@ impl<T> Pane<T> {
         let widget_id = self.widget_id;
         let get_doc = self.get_doc;
 
-        if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
-        {
+        for tab in self.tabs.iter_mut() {
+            let Some(data) = data_list.get_mut(tab.data_id()) else {
+                continue;
+            };
+
             tab.animate(widget_id, get_doc(data), ctx, dt);
         }
     }
 
     pub fn animate_tab_bar(&mut self, ctx: &mut Ctx, dt: f32) {
-        let tab_bounds = self
-            .tabs
-            .get_focused()
-            .map(Tab::tab_bounds)
-            .unwrap_or_default();
+        let mut tab = self.tabs.get_focused_mut();
 
+        if let Some((tab, offset)) = tab.as_mut().zip(self.dragged_tab_offset) {
+            tab.set_tab_animation_x(ctx.window.mouse_position().x + offset);
+        }
+
+        let tab_bounds = tab.map(|tab| tab.tab_bounds()).unwrap_or_default();
         let focused_index = self.tabs.focused_index();
 
         let recenter_request = CameraRecenterRequest {
@@ -365,7 +365,10 @@ impl<T> Pane<T> {
         let camera_x = self.camera.position().floor();
 
         let bounds = ctx.ui.widget(self.widget_id).bounds;
-        let mut tab_bounds = tab.tab_bounds().unoffset_by(bounds).shift_x(-camera_x);
+        let mut tab_bounds = tab
+            .visual_tab_bounds()
+            .unoffset_by(bounds)
+            .shift_x(-camera_x);
         let mut tab_background = theme.background;
 
         if is_focused {

@@ -1,6 +1,6 @@
 use super::visual_position::VisualPosition;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct Rect {
     pub x: f32,
     pub y: f32,

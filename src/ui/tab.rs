@@ -37,6 +37,9 @@ use super::{
 const GUTTER_PADDING_WIDTH: f32 = 1.0;
 const GUTTER_BORDER_WIDTH: f32 = 0.5;
 
+const CURSOR_ANIMATION_SPEED: f64 = 8.0;
+const TAB_ANIMATION_SPEED: f32 = 10.0;
+
 #[derive(Debug, Clone, Copy)]
 struct VisibleLines {
     offset: f32,
@@ -56,6 +59,10 @@ struct CursorAnimationState {
     position: VisualPosition,
 }
 
+struct TabAnimationState {
+    x: f32,
+}
+
 pub struct Tab {
     data_id: SlotId,
 
@@ -65,6 +72,7 @@ pub struct Tab {
     handled_doc_len: usize,
     cursor_animation_states: Vec<CursorAnimationState>,
 
+    tab_animation_state: TabAnimationState,
     tab_bounds: Rect,
     gutter_bounds: Rect,
     doc_bounds: Rect,
@@ -82,6 +90,7 @@ impl Tab {
             handled_doc_len: 1,
             cursor_animation_states: Vec::new(),
 
+            tab_animation_state: TabAnimationState { x: 0.0 },
             tab_bounds: Rect::ZERO,
             gutter_bounds: Rect::ZERO,
             doc_bounds: Rect::ZERO,
@@ -95,6 +104,7 @@ impl Tab {
 
     pub fn is_animating(&self, ctx: &Ctx) -> bool {
         self.camera.is_moving()
+            || (self.tab_bounds.x - self.tab_animation_state.x).abs() > 0.5
             || self.cursor_animation_states.iter().any(|animation_state| {
                 self.cursor_animation_progress(ctx.time, animation_state.last_time) < 1.0
             })
@@ -108,6 +118,10 @@ impl Tab {
         doc: &Doc,
         gfx: &Gfx,
     ) {
+        if self.tab_bounds == Rect::ZERO {
+            self.tab_animation_state.x = tab_bounds.x;
+        }
+
         self.tab_bounds = tab_bounds;
 
         let gutter_width = if doc.flags().contains(DocFlag::ShowGutter) {
@@ -238,8 +252,14 @@ impl Tab {
     }
 
     pub fn animate(&mut self, widget_id: WidgetId, doc: &Doc, ctx: &mut Ctx, dt: f32) {
+        self.animate_tab(dt);
         self.animate_cursors(doc, ctx);
         self.animate_camera(widget_id, doc, ctx, dt);
+    }
+
+    fn animate_tab(&mut self, dt: f32) {
+        self.tab_animation_state.x +=
+            (self.tab_bounds.x - self.tab_animation_state.x) * TAB_ANIMATION_SPEED * dt;
     }
 
     fn animate_cursors(&mut self, doc: &Doc, ctx: &mut Ctx) {
@@ -479,6 +499,17 @@ impl Tab {
 
     fn visual_position_in_tab(&self, visual: VisualPosition) -> VisualPosition {
         VisualPosition::new(visual.x + self.margin, visual.y + self.margin)
+    }
+
+    pub fn set_tab_animation_x(&mut self, x: f32) {
+        self.tab_animation_state.x = x;
+    }
+
+    pub fn visual_tab_bounds(&self) -> Rect {
+        Rect {
+            x: self.tab_animation_state.x,
+            ..self.tab_bounds
+        }
     }
 
     pub fn tab_bounds(&self) -> Rect {
@@ -990,7 +1021,7 @@ impl Tab {
     }
 
     fn cursor_animation_progress(&self, time: f64, last_time: f64) -> f32 {
-        ((time - last_time) * 8.0) as f32
+        ((time - last_time) * CURSOR_ANIMATION_SPEED) as f32
     }
 
     fn draw_scroll_bar(&self, doc: &Doc, camera_position: VisualPosition, ctx: &mut Ctx) {
