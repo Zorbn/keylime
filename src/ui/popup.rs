@@ -133,10 +133,10 @@ impl Popup {
 
         gfx.end();
 
-        if !self.extension.is_empty() {
-            if let Some(language) = ctx.config.get_language(&self.extension) {
-                self.tab.update_highlights(language, &mut self.doc, ctx.gfx);
-            }
+        if let Some(language) = ctx.config.get_language(&self.extension) {
+            self.tab.update_highlights(language, &mut self.doc, ctx.gfx);
+        } else {
+            self.doc.clear_highlights();
         }
 
         self.tab.draw(
