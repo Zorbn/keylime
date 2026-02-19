@@ -122,7 +122,7 @@ impl<T> Pane<T> {
             }
         }
 
-        self.handle_dragged_tab(ctx);
+        self.handle_dragged_tab();
 
         let mut mousebind_handler = ctx.ui.mousebind_handler(self.widget_id, ctx.window);
 
@@ -196,36 +196,33 @@ impl<T> Pane<T> {
         }
     }
 
-    fn handle_dragged_tab(&mut self, ctx: &Ctx) {
+    fn handle_dragged_tab(&mut self) {
         if self.dragged_tab_offset.is_none() {
             return;
         }
 
-        let half_focused_tab_width = self
-            .tabs
-            .get_focused()
-            .map(|tab| tab.visual_tab_bounds().width)
-            .unwrap_or_default()
-            / 2.0;
+        let Some(focused_tab) = self.tabs.get_focused() else {
+            return;
+        };
 
-        let mouse_position = ctx.window.mouse_position();
-        let visual_position =
-            VisualPosition::new(mouse_position.x + self.camera.position(), mouse_position.y);
+        let focused_tab_bounds = focused_tab.visual_tab_bounds();
+        let focused_tab_right = focused_tab_bounds.right();
+        let focused_tab_left = focused_tab_bounds.left();
+
+        let focused_index = self.tabs.focused_index();
 
         let index = self.tabs.iter().enumerate().position(|(index, tab)| {
             let tab_bounds = tab.tab_bounds();
             let tab_center_x = tab_bounds.center_x();
 
-            if self.tabs.focused_index() < index {
-                visual_position.x + half_focused_tab_width > tab_center_x
-                    && visual_position.x < tab_bounds.right()
+            if focused_index < index {
+                focused_tab_right > tab_center_x && focused_tab_right < tab_bounds.right()
+            } else if focused_index > index {
+                focused_tab_left < tab_center_x && focused_tab_left > tab_bounds.left()
             } else {
-                visual_position.x - half_focused_tab_width < tab_center_x
-                    && visual_position.x > tab_bounds.x
+                false
             }
         });
-
-        let index = index.filter(|index| *index != self.tabs.focused_index());
 
         if let Some(index) = index {
             self.tabs.swap(self.tabs.focused_index(), index);
