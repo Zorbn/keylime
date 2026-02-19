@@ -377,7 +377,7 @@ impl Tab {
         }
     }
 
-    fn recenter_request_dragging_vertical(&self, ctx: &mut Ctx) -> CameraRecenterRequest {
+    fn recenter_request_dragging_vertical(&self, ctx: &Ctx) -> CameraRecenterRequest {
         let mouse_position = ctx.window.mouse_position().unoffset_by(self.doc_bounds);
 
         CameraRecenterRequest {
@@ -387,11 +387,7 @@ impl Tab {
         }
     }
 
-    fn recenter_request_on_bottom_vertical(
-        &self,
-        doc: &Doc,
-        ctx: &mut Ctx,
-    ) -> CameraRecenterRequest {
+    fn recenter_request_on_bottom_vertical(&self, doc: &Doc, ctx: &Ctx) -> CameraRecenterRequest {
         let gfx = &ctx.gfx;
 
         let doc_len = doc.lines().len();
@@ -438,7 +434,7 @@ impl Tab {
         }
     }
 
-    fn recenter_request_dragging_horizontal(&self, ctx: &mut Ctx) -> CameraRecenterRequest {
+    fn recenter_request_dragging_horizontal(&self, ctx: &Ctx) -> CameraRecenterRequest {
         let mouse_position = ctx.window.mouse_position().unoffset_by(self.doc_bounds);
 
         CameraRecenterRequest {

@@ -105,9 +105,6 @@ impl<T> Pane<T> {
                 break;
             }
 
-            let visual_position =
-                VisualPosition::new(mousebind.x + self.camera.position(), mousebind.y);
-
             match mousebind {
                 Mousebind {
                     button: Some(MouseButton::Left),
@@ -120,36 +117,12 @@ impl<T> Pane<T> {
                     mods: Mods::NONE,
                     kind: MousebindKind::Move,
                     ..
-                } => {
-                    let half_focused_tab_width = self
-                        .tabs
-                        .get_focused()
-                        .map(|tab| tab.visual_tab_bounds().width)
-                        .unwrap_or_default()
-                        / 2.0;
-
-                    let index = self.tabs.iter().enumerate().position(|(index, tab)| {
-                        let tab_bounds = tab.tab_bounds();
-                        let tab_center_x = tab_bounds.center_x();
-
-                        if self.tabs.focused_index() < index {
-                            visual_position.x + half_focused_tab_width > tab_center_x
-                                && visual_position.x < tab_bounds.right()
-                        } else {
-                            visual_position.x - half_focused_tab_width < tab_center_x
-                                && visual_position.x > tab_bounds.x
-                        }
-                    });
-
-                    let index = index.filter(|index| *index != self.tabs.focused_index());
-
-                    if let Some(index) = index {
-                        self.tabs.swap(self.tabs.focused_index(), index);
-                    }
-                }
+                } => {}
                 _ => global_mousebind_handler.unprocessed(ctx.window, mousebind),
             }
         }
+
+        self.handle_dragged_tab(ctx);
 
         let mut mousebind_handler = ctx.ui.mousebind_handler(self.widget_id, ctx.window);
 
@@ -223,6 +196,42 @@ impl<T> Pane<T> {
         }
     }
 
+    fn handle_dragged_tab(&mut self, ctx: &Ctx) {
+        if self.dragged_tab_offset.is_none() {
+            return;
+        }
+
+        let half_focused_tab_width = self
+            .tabs
+            .get_focused()
+            .map(|tab| tab.visual_tab_bounds().width)
+            .unwrap_or_default()
+            / 2.0;
+
+        let mouse_position = ctx.window.mouse_position();
+        let visual_position =
+            VisualPosition::new(mouse_position.x + self.camera.position(), mouse_position.y);
+
+        let index = self.tabs.iter().enumerate().position(|(index, tab)| {
+            let tab_bounds = tab.tab_bounds();
+            let tab_center_x = tab_bounds.center_x();
+
+            if self.tabs.focused_index() < index {
+                visual_position.x + half_focused_tab_width > tab_center_x
+                    && visual_position.x < tab_bounds.right()
+            } else {
+                visual_position.x - half_focused_tab_width < tab_center_x
+                    && visual_position.x > tab_bounds.x
+            }
+        });
+
+        let index = index.filter(|index| *index != self.tabs.focused_index());
+
+        if let Some(index) = index {
+            self.tabs.swap(self.tabs.focused_index(), index);
+        }
+    }
+
     pub fn animate(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx, dt: f32) {
         self.animate_tab_bar(ctx, dt);
 
@@ -245,25 +254,51 @@ impl<T> Pane<T> {
         let mut tab = self.tabs.get_focused_mut();
 
         if let Some((tab, offset)) = tab.as_mut().zip(self.dragged_tab_offset) {
-            tab.set_tab_animation_x(ctx.window.mouse_position().x + offset);
+            tab.set_tab_animation_x(
+                self.camera.position() + ctx.window.mouse_position().x + offset,
+            );
         }
 
-        let tab_bounds = tab.map(|tab| tab.tab_bounds()).unwrap_or_default();
-        let focused_index = self.tabs.focused_index();
+        let recenter_request = self.recenter_request(ctx);
 
-        let recenter_request = CameraRecenterRequest {
-            can_start: Some(focused_index) != self.handled_focused_index,
-            target_position: tab_bounds.center_x() - self.camera.position(),
-            scroll_border: tab_bounds.width,
-        };
-
-        self.handled_focused_index = Some(focused_index);
+        self.handled_focused_index = Some(self.tabs.focused_index());
 
         let view_size = ctx.ui.widget_mut(self.widget_id).bounds.width;
         let max_position = (self.tab_bar_width - view_size).max(0.0);
 
         self.camera
             .animate(recenter_request, max_position, view_size, dt);
+    }
+
+    fn recenter_request(&self, ctx: &Ctx) -> CameraRecenterRequest {
+        if self.dragged_tab_offset.is_some() {
+            self.recenter_request_dragging(ctx)
+        } else {
+            self.recenter_request_on_tab()
+        }
+    }
+
+    fn recenter_request_dragging(&self, ctx: &Ctx) -> CameraRecenterRequest {
+        let bounds = ctx.ui.widget(self.widget_id).bounds;
+        let mouse_position = ctx.window.mouse_position().unoffset_by(bounds);
+
+        CameraRecenterRequest {
+            can_start: true,
+            target_position: mouse_position.x,
+            scroll_border: 0.0,
+        }
+    }
+
+    fn recenter_request_on_tab(&self) -> CameraRecenterRequest {
+        let tab = self.tabs.get_focused();
+        let focused_index = self.tabs.focused_index();
+        let tab_bounds = tab.map(Tab::tab_bounds).unwrap_or_default();
+
+        CameraRecenterRequest {
+            can_start: Some(focused_index) != self.handled_focused_index,
+            target_position: tab_bounds.center_x() - self.camera.position(),
+            scroll_border: tab_bounds.width,
+        }
     }
 
     pub fn draw(&mut self, background: Option<Color>, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
