@@ -117,59 +117,59 @@ impl CommandPalette {
             || self.mode.as_ref().is_some_and(|mode| mode.is_animating())
     }
 
-    pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
-        let Some(mode) = &self.mode else {
-            return;
-        };
+    // pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
+    //     let Some(mode) = &self.mode else {
+    //         return;
+    //     };
 
-        let gfx = &mut ctx.gfx;
+    //     let gfx = &mut ctx.gfx;
 
-        let title = mode.title();
-        let title_padding_x = gfx.glyph_width();
-        let title_width =
-            gfx.measure_text(title) as f32 * gfx.glyph_width() + title_padding_x * 2.0;
+    //     let title = mode.title();
+    //     let title_padding_x = gfx.glyph_width();
+    //     let title_width =
+    //         gfx.measure_text(title) as f32 * gfx.glyph_width() + title_padding_x * 2.0;
 
-        self.title_bounds = Rect::new(0.0, 0.0, title_width, gfx.tab_height()).floor();
+    //     self.title_bounds = Rect::new(0.0, 0.0, title_width, gfx.tab_height()).floor();
 
-        self.input_bounds = Rect::new(0.0, 0.0, gfx.glyph_width() * 64.0, gfx.line_height() * 2.0)
-            .below(self.title_bounds)
-            .shift_y(-gfx.border_width())
-            .floor();
+    //     self.input_bounds = Rect::new(0.0, 0.0, gfx.glyph_width() * 64.0, gfx.line_height() * 2.0)
+    //         .below(self.title_bounds)
+    //         .shift_y(-gfx.border_width())
+    //         .floor();
 
-        self.result_list.layout(
-            Rect::new(0.0, 0.0, self.input_bounds.width, 0.0)
-                .below(self.input_bounds)
-                .shift_y(-gfx.border_width()),
-            ctx.ui,
-            gfx,
-        );
+    //     self.result_list.layout(
+    //         Rect::new(0.0, 0.0, self.input_bounds.width, 0.0)
+    //             .below(self.input_bounds)
+    //             .shift_y(-gfx.border_width()),
+    //         ctx.ui,
+    //         gfx,
+    //     );
 
-        let result_list_bounds = ctx.ui.widget(self.result_list.widget_id()).bounds;
+    //     let result_list_bounds = ctx.ui.bounds(self.result_list.widget_id()).bounds;
 
-        ctx.ui.widget_mut(self.widget_id).bounds = self
-            .title_bounds
-            .expand_to_include(self.input_bounds)
-            .expand_to_include(result_list_bounds)
-            .center_x_in(bounds)
-            .offset_by(Rect::new(0.0, gfx.tab_height() * 2.0, 0.0, 0.0))
-            .floor();
+    //     ctx.ui.widget_mut(self.widget_id).bounds = self
+    //         .title_bounds
+    //         .expand_to_include(self.input_bounds)
+    //         .expand_to_include(result_list_bounds)
+    //         .center_x_in(bounds)
+    //         .offset_by(Rect::new(0.0, gfx.tab_height() * 2.0, 0.0, 0.0))
+    //         .floor();
 
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
+    //     let bounds = ctx.ui.widget(self.widget_id).bounds;
 
-        self.result_list.offset_by(bounds, ctx.ui);
+    //     self.result_list.offset_by(bounds, ctx.ui);
 
-        self.tab.layout(
-            Rect::ZERO,
-            Rect::new(0.0, 0.0, gfx.glyph_width() * 10.0, gfx.line_height())
-                .center_in(self.input_bounds)
-                .expand_width_in(self.input_bounds)
-                .offset_by(bounds)
-                .floor(),
-            0.0,
-            &self.doc,
-            gfx,
-        );
-    }
+    //     self.tab.layout(
+    //         Rect::ZERO,
+    //         Rect::new(0.0, 0.0, gfx.glyph_width() * 10.0, gfx.line_height())
+    //             .center_in(self.input_bounds)
+    //             .expand_width_in(self.input_bounds)
+    //             .offset_by(bounds)
+    //             .floor(),
+    //         0.0,
+    //         &self.doc,
+    //         gfx,
+    //     );
+    // }
 
     pub fn update(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
         if ctx.ui.is_visible(self.widget_id) && !ctx.ui.is_in_focused_hierarchy(self.widget_id) {
@@ -302,12 +302,12 @@ impl CommandPalette {
         };
 
         let is_focused = ctx.ui.is_focused(self.widget_id);
-        let widget = ctx.ui.widget(self.widget_id);
+        let bounds = ctx.ui.bounds(self.widget_id);
 
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        gfx.begin(Some(widget.bounds));
+        gfx.begin(Some(bounds));
 
         gfx.add_bordered_rect(
             self.input_bounds,
@@ -340,7 +340,7 @@ impl CommandPalette {
         gfx.add_bordered_rect(
             doc_bounds
                 .add_margin(gfx.border_width())
-                .unoffset_by(widget.bounds),
+                .unoffset_by(bounds),
             Sides::ALL,
             theme.background,
             theme.border,

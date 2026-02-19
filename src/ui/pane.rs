@@ -62,39 +62,39 @@ impl<T> Pane<T> {
         self.camera.is_moving() || self.tabs.iter().any(|tab| tab.is_animating(ctx))
     }
 
-    pub fn layout(&mut self, bounds: Rect, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
-        ctx.ui.widget_mut(self.widget_id).bounds = bounds;
+    // pub fn layout(&mut self, bounds: Rect, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
+    //     ctx.ui.widget_mut(self.widget_id).bounds = bounds;
 
-        let gfx = &mut ctx.gfx;
+    //     let gfx = &mut ctx.gfx;
 
-        let mut tab_x = 0.0;
-        let tab_height = gfx.tab_height();
+    //     let mut tab_x = 0.0;
+    //     let tab_height = gfx.tab_height();
 
-        for i in 0..self.tabs.len() {
-            let get_doc = self.get_doc;
+    //     for i in 0..self.tabs.len() {
+    //         let get_doc = self.get_doc;
 
-            let Some((tab, data)) = self.get_tab_with_data_mut(i, data_list) else {
-                return;
-            };
+    //         let Some((tab, data)) = self.get_tab_with_data_mut(i, data_list) else {
+    //             return;
+    //         };
 
-            let doc = (get_doc)(data);
+    //         let doc = (get_doc)(data);
 
-            let tab_width = gfx.glyph_width() * 4.0
-                + gfx.measure_text(doc.file_name()) as f32 * gfx.glyph_width();
+    //         let tab_width = gfx.glyph_width() * 4.0
+    //             + gfx.measure_text(doc.file_name()) as f32 * gfx.glyph_width();
 
-            let tab_bounds = Rect::new(tab_x, bounds.y, tab_width, tab_height);
+    //         let tab_bounds = Rect::new(tab_x, bounds.y, tab_width, tab_height);
 
-            let doc_bounds = bounds
-                .shrink_left_by(bounds.left_border(gfx.border_width()))
-                .shrink_top_by(tab_bounds);
+    //         let doc_bounds = bounds
+    //             .shrink_left_by(bounds.left_border(gfx.border_width()))
+    //             .shrink_top_by(tab_bounds);
 
-            tab_x += tab_width - gfx.border_width();
+    //         tab_x += tab_width - gfx.border_width();
 
-            tab.layout(tab_bounds, doc_bounds, 0.0, doc, gfx);
-        }
+    //         tab.layout(tab_bounds, doc_bounds, 0.0, doc, gfx);
+    //     }
 
-        self.tab_bar_width = tab_x;
-    }
+    //     self.tab_bar_width = tab_x;
+    // }
 
     pub fn update(&mut self, ctx: &mut Ctx) {
         let bounds = ctx.ui.widget(self.widget_id).bounds;
@@ -143,7 +143,7 @@ impl<T> Pane<T> {
                     let mut offset = 0.0;
 
                     let index = self.tabs.iter().position(|tab| {
-                        let bounds = ctx.ui.widget(self.widget_id).bounds;
+                        let bounds = ctx.ui.bounds(self.widget_id);
                         let tab_bounds = tab.visual_tab_bounds();
 
                         offset = tab_bounds.x - visual_position.x - bounds.x;
@@ -263,7 +263,7 @@ impl<T> Pane<T> {
 
         self.handled_focused_index = Some(self.tabs.focused_index());
 
-        let view_size = ctx.ui.widget_mut(self.widget_id).bounds.width;
+        let view_size = ctx.ui.bounds(self.widget_id).width;
         let max_position = (self.tab_bar_width - view_size).max(0.0);
 
         self.camera
@@ -321,7 +321,7 @@ impl<T> Pane<T> {
     ) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
+        let bounds = ctx.ui.bounds(self.widget_id);
 
         gfx.begin(Some(bounds));
 
@@ -512,8 +512,9 @@ impl<T> Pane<T> {
 
         self.tabs.add(tab);
 
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
-        self.layout(bounds, data_list, ctx);
+        let bounds = ctx.ui.bounds(self.widget_id);
+        // TODO:
+        // self.layout(bounds, data_list, ctx);
     }
 
     pub fn remove_tab(&mut self, data_list: &mut SlotList<T>) {

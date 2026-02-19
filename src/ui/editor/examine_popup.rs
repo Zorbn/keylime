@@ -45,19 +45,19 @@ impl ExaminePopup {
         self.popup.is_animating(ctx)
     }
 
-    pub fn layout(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
-        let mut position = doc.position_to_visual(self.position, tab.camera.position(), ctx.gfx);
-        position = position.offset_by(tab.doc_bounds());
+    // pub fn layout(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
+    //     let mut position = doc.position_to_visual(self.position, tab.camera.position(), ctx.gfx);
+    //     position = position.offset_by(tab.doc_bounds());
 
-        let is_position_visible = tab.doc_bounds().contains_position(position);
+    //     let is_position_visible = tab.doc_bounds().contains_position(position);
 
-        ctx.ui.set_shown(
-            self.popup.widget_id(),
-            self.kind != ExaminePopupKind::None && is_position_visible,
-        );
+    //     ctx.ui.set_shown(
+    //         self.popup.widget_id(),
+    //         self.kind != ExaminePopupKind::None && is_position_visible,
+    //     );
 
-        self.popup.layout(position, PopupAlignment::Above, ctx);
-    }
+    //     self.popup.layout(position, PopupAlignment::Above, ctx);
+    // }
 
     pub fn update(&mut self, did_cursor_move: bool, doc: &Doc, ctx: &mut Ctx) {
         let needs_clear = match self.kind {

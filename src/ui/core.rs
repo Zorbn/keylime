@@ -22,10 +22,25 @@ impl WidgetId {
     };
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum WidgetLayout {
+    Horizontal,
+    Vertical,
+    Tab { index: usize },
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Popup {
+    bounds: Rect,
+}
+
 #[derive(Debug)]
 pub struct WidgetSettings {
     pub is_shown: bool,
     pub is_component: bool,
+    pub scale: f32,
+    pub layout: WidgetLayout,
+    pub popup: Option<Popup>,
 }
 
 impl Default for WidgetSettings {
@@ -33,13 +48,16 @@ impl Default for WidgetSettings {
         Self {
             is_shown: true,
             is_component: false,
+            scale: 1.0,
+            layout: WidgetLayout::Horizontal,
+            popup: None,
         }
     }
 }
 
 #[derive(Debug, Default)]
 pub struct Widget {
-    pub bounds: Rect,
+    bounds: Rect,
 
     settings: WidgetSettings,
     parent_id: Option<WidgetId>,
@@ -200,6 +218,82 @@ impl Ui {
         }
     }
 
+    pub fn update_layout(&mut self, widget_id: WidgetId, bounds: Rect) {
+        let widget = self.widget_mut(widget_id);
+        widget.bounds = bounds;
+
+        let child_count = widget.child_ids.len();
+        let total_scale = self.widget_total_scale(widget_id);
+
+        let mut next_child_x = bounds.x;
+        let mut next_child_y = bounds.y;
+
+        for i in 0..child_count {
+            let widget = self.widget(widget_id);
+            let child_id = widget.child_ids[i];
+            let child = self.widget(child_id);
+
+            if child.settings.popup.is_some() {
+                continue;
+            }
+
+            let child_x = next_child_x;
+            let child_y = next_child_y;
+
+            let mut child_width = bounds.width;
+            let mut child_height = bounds.height;
+
+            let scale = child.settings.scale;
+
+            match widget.settings.layout {
+                WidgetLayout::Horizontal => {
+                    child_width = (bounds.width * scale / total_scale).ceil();
+
+                    next_child_x += child_width;
+                }
+                WidgetLayout::Vertical => {
+                    child_height = (bounds.height * scale / total_scale).ceil();
+
+                    next_child_y += child_height;
+                }
+                WidgetLayout::Tab { index } => {
+                    let widget = self.widget_mut(widget_id);
+                    let index = index.min(widget.child_ids.len().saturating_sub(1));
+                    widget.settings.layout = WidgetLayout::Tab { index };
+
+                    if i != index {
+                        child_width = 0.0;
+                        child_height = 0.0;
+                    }
+                }
+            }
+
+            self.update_layout(
+                child_id,
+                Rect::new(child_x, child_y, child_width, child_height),
+            );
+
+            // TODO:
+            // self.send(
+            //     child_id,
+            //     Msg::Resize {
+            //         width: child_width,
+            //         height: child_height,
+            //     },
+            // );
+        }
+    }
+
+    fn widget_total_scale(&self, widget_id: WidgetId) -> f32 {
+        let mut total_scale = 0.0;
+
+        for child_id in &self.widget(widget_id).child_ids {
+            total_scale += self.widget(*child_id).settings.scale;
+        }
+
+        total_scale
+    }
+
     fn get_widget_id_at(&self, position: VisualPosition, widget_id: WidgetId) -> Option<WidgetId> {
         if !self.is_visible(widget_id) {
             return None;
@@ -300,18 +394,22 @@ impl Ui {
         }
     }
 
-    pub fn widget(&self, widget_id: WidgetId) -> &Widget {
+    fn widget(&self, widget_id: WidgetId) -> &Widget {
         let slot = &self.widget_slots[widget_id.index];
         assert!(slot.generation == widget_id.generation);
 
         &slot.widget
     }
 
-    pub fn widget_mut(&mut self, widget_id: WidgetId) -> &mut Widget {
+    fn widget_mut(&mut self, widget_id: WidgetId) -> &mut Widget {
         let slot = &mut self.widget_slots[widget_id.index];
         assert!(slot.generation == widget_id.generation);
 
         &mut slot.widget
+    }
+
+    pub fn bounds(&self, widget_id: WidgetId) -> Rect {
+        self.widget(widget_id).bounds
     }
 
     pub fn is_hovered(&self, widget_id: WidgetId) -> bool {

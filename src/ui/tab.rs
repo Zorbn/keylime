@@ -110,33 +110,33 @@ impl Tab {
             })
     }
 
-    pub fn layout(
-        &mut self,
-        tab_bounds: Rect,
-        doc_bounds: Rect,
-        margin: f32,
-        doc: &Doc,
-        gfx: &Gfx,
-    ) {
-        if self.tab_bounds == Rect::ZERO {
-            self.tab_animation_state.x = tab_bounds.x;
-        }
+    // pub fn layout(
+    //     &mut self,
+    //     tab_bounds: Rect,
+    //     doc_bounds: Rect,
+    //     margin: f32,
+    //     doc: &Doc,
+    //     gfx: &Gfx,
+    // ) {
+    //     if self.tab_bounds == Rect::ZERO {
+    //         self.tab_animation_state.x = tab_bounds.x;
+    //     }
 
-        self.tab_bounds = tab_bounds;
+    //     self.tab_bounds = tab_bounds;
 
-        let gutter_width = if doc.flags().contains(DocFlag::ShowGutter) {
-            let max_gutter_digits = (doc.lines().len() as f32).log10().floor() + 1.0;
+    //     let gutter_width = if doc.flags().contains(DocFlag::ShowGutter) {
+    //         let max_gutter_digits = (doc.lines().len() as f32).log10().floor() + 1.0;
 
-            (max_gutter_digits + GUTTER_PADDING_WIDTH * 2.0 + GUTTER_BORDER_WIDTH)
-                * gfx.glyph_width()
-        } else {
-            0.0
-        };
+    //         (max_gutter_digits + GUTTER_PADDING_WIDTH * 2.0 + GUTTER_BORDER_WIDTH)
+    //             * gfx.glyph_width()
+    //     } else {
+    //         0.0
+    //     };
 
-        self.gutter_bounds = Rect::new(doc_bounds.x, doc_bounds.y, gutter_width, doc_bounds.height);
-        self.doc_bounds = doc_bounds.shrink_left_by(self.gutter_bounds);
-        self.margin = margin;
-    }
+    //     self.gutter_bounds = Rect::new(doc_bounds.x, doc_bounds.y, gutter_width, doc_bounds.height);
+    //     self.doc_bounds = doc_bounds.shrink_left_by(self.gutter_bounds);
+    //     self.margin = margin;
+    // }
 
     pub fn update(&mut self, widget_id: WidgetId, doc: &mut Doc, ctx: &mut Ctx) {
         let mut grapheme_handler = ctx.ui.grapheme_handler(widget_id, ctx.window);

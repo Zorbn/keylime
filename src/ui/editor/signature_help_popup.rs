@@ -39,27 +39,27 @@ impl SignatureHelpPopup {
         self.label_popup.is_animating(ctx) || self.documentation_popup.is_animating(ctx)
     }
 
-    pub fn layout(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
-        let position = doc.cursor(CursorIndex::Main).position;
+    // pub fn layout(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
+    //     let position = doc.cursor(CursorIndex::Main).position;
 
-        let mut position = doc.position_to_visual(position, tab.camera.position(), ctx.gfx);
-        position = position.offset_by(tab.doc_bounds());
+    //     let mut position = doc.position_to_visual(position, tab.camera.position(), ctx.gfx);
+    //     position = position.offset_by(tab.doc_bounds());
 
-        if ctx.ui.is_visible(self.documentation_popup.widget_id()) {
-            self.documentation_popup
-                .layout(position, PopupAlignment::Above, ctx);
+    //     if ctx.ui.is_visible(self.documentation_popup.widget_id()) {
+    //         self.documentation_popup
+    //             .layout(position, PopupAlignment::Above, ctx);
 
-            let documentation_bounds = ctx.ui.widget(self.documentation_popup.widget_id()).bounds;
+    //         let documentation_bounds = ctx.ui.widget(self.documentation_popup.widget_id()).bounds;
 
-            position.x = documentation_bounds.x + ctx.gfx.glyph_width();
-            position.y -= documentation_bounds.height - ctx.gfx.border_width();
-        }
+    //         position.x = documentation_bounds.x + ctx.gfx.glyph_width();
+    //         position.y -= documentation_bounds.height - ctx.gfx.border_width();
+    //     }
 
-        self.label_popup
-            .layout(position, PopupAlignment::Above, ctx);
+    //     self.label_popup
+    //         .layout(position, PopupAlignment::Above, ctx);
 
-        Some(())
-    }
+    //     Some(())
+    // }
 
     pub fn update(
         &mut self,

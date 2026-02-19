@@ -164,22 +164,25 @@ impl App {
     }
 
     fn layout(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64) {
-        let mut bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
-        self.ui.widget_mut(WidgetId::ROOT).bounds = bounds;
+        // TODO: Do this on an actual resize event/callback probably.
+        let bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
+        self.ui.update_layout(WidgetId::ROOT, bounds);
 
-        let ctx = ctx_for_app!(self, window, gfx, time);
+        // self.ui.widget_mut(WidgetId::ROOT).bounds = bounds;
 
-        self.command_palette.layout(bounds, ctx);
+        // let ctx = ctx_for_app!(self, window, gfx, time);
 
-        self.status_bar.layout(bounds, ctx);
-        let status_bar_bounds = ctx.ui.widget(self.status_bar.widget_id()).bounds;
-        bounds = bounds.shrink_bottom_by(status_bar_bounds);
+        // self.command_palette.layout(bounds, ctx);
 
-        self.terminal.layout(bounds, ctx);
-        let terminal_bounds = ctx.ui.widget(self.terminal.widget_id()).bounds;
-        bounds = bounds.shrink_bottom_by(terminal_bounds);
+        // self.status_bar.layout(bounds, ctx);
+        // let status_bar_bounds = ctx.ui.widget(self.status_bar.widget_id()).bounds;
+        // bounds = bounds.shrink_bottom_by(status_bar_bounds);
 
-        self.editor.layout(bounds, ctx);
+        // self.terminal.layout(bounds, ctx);
+        // let terminal_bounds = ctx.ui.widget(self.terminal.widget_id()).bounds;
+        // bounds = bounds.shrink_bottom_by(terminal_bounds);
+
+        // self.editor.layout(bounds, ctx);
     }
 
     pub fn close(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64) {

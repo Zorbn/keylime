@@ -105,58 +105,58 @@ impl CompletionList {
             || self.documentation_popup.is_animating(ctx)
     }
 
-    pub fn layout(&mut self, visual_position: VisualPosition, ctx: &mut Ctx) {
-        let min_y = self.result_list.min_visible_result_index();
-        let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
-        let mut longest_visible_result = 0;
+    // pub fn layout(&mut self, visual_position: VisualPosition, ctx: &mut Ctx) {
+    //     let min_y = self.result_list.min_visible_result_index();
+    //     let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
+    //     let mut longest_visible_result = 0;
 
-        for y in min_y..max_y {
-            let Some(result) = self.result_list.get(y) else {
-                continue;
-            };
+    //     for y in min_y..max_y {
+    //         let Some(result) = self.result_list.get(y) else {
+    //             continue;
+    //         };
 
-            let label = result.label();
+    //         let label = result.label();
 
-            longest_visible_result = longest_visible_result.max(label.len());
-        }
+    //         longest_visible_result = longest_visible_result.max(label.len());
+    //     }
 
-        let gfx = &ctx.gfx;
+    //     let gfx = &ctx.gfx;
 
-        let width = (longest_visible_result as f32 + 2.0) * gfx.glyph_width();
-        let width = width.max(self.min_width);
+    //     let width = (longest_visible_result as f32 + 2.0) * gfx.glyph_width();
+    //     let width = width.max(self.min_width);
 
-        self.min_width = width;
+    //     self.min_width = width;
 
-        self.result_list.layout(
-            Rect::new(
-                visual_position.x - (self.prefix.len() as f32 + 1.0) * gfx.glyph_width()
-                    + gfx.border_width(),
-                visual_position.y + gfx.line_height(),
-                width,
-                0.0,
-            ),
-            ctx.ui,
-            gfx,
-        );
+    //     self.result_list.layout(
+    //         Rect::new(
+    //             visual_position.x - (self.prefix.len() as f32 + 1.0) * gfx.glyph_width()
+    //                 + gfx.border_width(),
+    //             visual_position.y + gfx.line_height(),
+    //             width,
+    //             0.0,
+    //         ),
+    //         ctx.ui,
+    //         gfx,
+    //     );
 
-        let result_list_bounds = ctx.ui.widget(self.result_list.widget_id()).bounds;
+    //     let result_list_bounds = ctx.ui.widget(self.result_list.widget_id()).bounds;
 
-        let mut position = VisualPosition::new(
-            result_list_bounds.right(),
-            result_list_bounds.y + gfx.border_width(),
-        );
+    //     let mut position = VisualPosition::new(
+    //         result_list_bounds.right(),
+    //         result_list_bounds.y + gfx.border_width(),
+    //     );
 
-        self.detail_popup
-            .layout(position, PopupAlignment::TopLeft, ctx);
+    //     self.detail_popup
+    //         .layout(position, PopupAlignment::TopLeft, ctx);
 
-        if ctx.ui.is_visible(self.detail_popup.widget_id()) {
-            let detail_popup_bounds = ctx.ui.widget(self.detail_popup.widget_id()).bounds;
-            position.y += detail_popup_bounds.height - ctx.gfx.border_width();
-        }
+    //     if ctx.ui.is_visible(self.detail_popup.widget_id()) {
+    //         let detail_popup_bounds = ctx.ui.widget(self.detail_popup.widget_id()).bounds;
+    //         position.y += detail_popup_bounds.height - ctx.gfx.border_width();
+    //     }
 
-        self.documentation_popup
-            .layout(position, PopupAlignment::TopLeft, ctx);
-    }
+    //     self.documentation_popup
+    //         .layout(position, PopupAlignment::TopLeft, ctx);
+    // }
 
     pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) -> Option<CompletionListResult> {
         let result_input = self.result_list.update(ctx);

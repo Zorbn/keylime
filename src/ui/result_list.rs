@@ -77,27 +77,27 @@ impl<T> ResultList<T> {
         }
     }
 
-    pub fn layout(&mut self, bounds: Rect, ui: &mut Ui, gfx: &Gfx) {
-        ui.set_shown(
-            self.widget_id,
-            self.do_show_when_empty || !self.results.is_empty(),
-        );
+    // pub fn layout(&mut self, bounds: Rect, ui: &mut Ui, gfx: &Gfx) {
+    //     ui.set_shown(
+    //         self.widget_id,
+    //         self.do_show_when_empty || !self.results.is_empty(),
+    //     );
 
-        self.result_bounds = Rect::new(0.0, 0.0, bounds.width, gfx.line_height() * 1.25);
+    //     self.result_bounds = Rect::new(0.0, 0.0, bounds.width, gfx.line_height() * 1.25);
 
-        ui.widget_mut(self.widget_id).bounds = Rect::new(
-            bounds.x,
-            bounds.y,
-            bounds.width,
-            self.result_bounds.height * self.len().min(self.max_visible_results) as f32,
-        )
-        .floor();
-    }
+    //     ui.widget_mut(self.widget_id).bounds = Rect::new(
+    //         bounds.x,
+    //         bounds.y,
+    //         bounds.width,
+    //         self.result_bounds.height * self.len().min(self.max_visible_results) as f32,
+    //     )
+    //     .floor();
+    // }
 
-    pub fn offset_by(&self, bounds: Rect, ui: &mut Ui) {
-        let widget = ui.widget_mut(self.widget_id);
-        widget.bounds = widget.bounds.offset_by(bounds);
-    }
+    // pub fn offset_by(&self, bounds: Rect, ui: &mut Ui) {
+    //     let widget = ui.widget_mut(self.widget_id);
+    //     widget.bounds = widget.bounds.offset_by(bounds);
+    // }
 
     pub fn update(&mut self, ctx: &mut Ctx) -> ResultListInput {
         let mut input = ResultListInput::None;
@@ -109,7 +109,7 @@ impl<T> ResultList<T> {
     }
 
     fn handle_mouse_inputs(&mut self, input: &mut ResultListInput, ctx: &mut Ctx) {
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
+        let bounds = ctx.ui.bounds(self.widget_id);
 
         let mut mouse_handler = ctx.ui.mousebind_handler(self.widget_id, ctx.window);
 
@@ -159,7 +159,7 @@ impl<T> ResultList<T> {
     }
 
     fn try_focus_position(&mut self, position: VisualPosition, ctx: &Ctx) -> bool {
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
+        let bounds = ctx.ui.bounds(self.widget_id);
 
         if !bounds.contains_position(position) {
             return false;
@@ -204,7 +204,7 @@ impl<T> ResultList<T> {
 
     pub fn animate(&mut self, ctx: &Ctx, dt: f32) {
         let focused_index = self.focused_index();
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
+        let bounds = ctx.ui.bounds(self.widget_id);
 
         let target_y =
             (focused_index as f32 + 0.5) * self.result_bounds.height - self.camera.position();
@@ -234,7 +234,7 @@ impl<T> ResultList<T> {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
+        let bounds = ctx.ui.bounds(self.widget_id);
 
         gfx.begin(Some(bounds));
 
@@ -309,7 +309,7 @@ impl<T> ResultList<T> {
     }
 
     pub fn max_visible_result_index(&self, ui: &Ui) -> usize {
-        let bounds = ui.widget(self.widget_id).bounds;
+        let bounds = ui.bounds(self.widget_id);
         let max_y = ((self.camera.position().floor() + bounds.height) / self.result_bounds.height)
             as usize
             + 1;

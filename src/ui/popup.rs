@@ -49,43 +49,43 @@ impl Popup {
         }
     }
 
-    pub fn layout(&mut self, position: VisualPosition, alignment: PopupAlignment, ctx: &mut Ctx) {
-        let gfx = &mut ctx.gfx;
+    // pub fn layout(&mut self, position: VisualPosition, alignment: PopupAlignment, ctx: &mut Ctx) {
+    //     let gfx = &mut ctx.gfx;
 
-        let mut bounds = Rect::ZERO;
-        bounds.height = self.doc.lines().len().min(MAX_LINES) as f32 * gfx.line_height();
+    //     let mut bounds = Rect::ZERO;
+    //     bounds.height = self.doc.lines().len().min(MAX_LINES) as f32 * gfx.line_height();
 
-        for line in self.doc.lines() {
-            let line_width = gfx.measure_text(line) as f32 * gfx.glyph_width()
-                + gfx.line_padding_x()
-                + Tab::cursor_width(gfx);
+    //     for line in self.doc.lines() {
+    //         let line_width = gfx.measure_text(line) as f32 * gfx.glyph_width()
+    //             + gfx.line_padding_x()
+    //             + Tab::cursor_width(gfx);
 
-            bounds.width = bounds.width.max(line_width);
-        }
+    //         bounds.width = bounds.width.max(line_width);
+    //     }
 
-        let margin = Self::margin(gfx);
-        bounds = bounds.add_margin(margin);
+    //     let margin = Self::margin(gfx);
+    //     bounds = bounds.add_margin(margin);
 
-        bounds.x = position.x;
-        bounds.y = position.y;
+    //     bounds.x = position.x;
+    //     bounds.y = position.y;
 
-        if alignment == PopupAlignment::Above {
-            bounds.x = (bounds.x - margin).max(margin);
-            bounds.y = (bounds.y - bounds.height).max(margin);
-        }
+    //     if alignment == PopupAlignment::Above {
+    //         bounds.x = (bounds.x - margin).max(margin);
+    //         bounds.y = (bounds.y - bounds.height).max(margin);
+    //     }
 
-        if bounds.right() > gfx.width() - margin {
-            bounds.width -= bounds.right() - (gfx.width() - margin);
-        }
+    //     if bounds.right() > gfx.width() - margin {
+    //         bounds.width -= bounds.right() - (gfx.width() - margin);
+    //     }
 
-        if bounds.bottom() > gfx.height() - margin {
-            bounds.height -= bounds.bottom() - (gfx.height() - margin);
-        }
+    //     if bounds.bottom() > gfx.height() - margin {
+    //         bounds.height -= bounds.bottom() - (gfx.height() - margin);
+    //     }
 
-        self.tab.layout(Rect::ZERO, bounds, margin, &self.doc, gfx);
+    //     self.tab.layout(Rect::ZERO, bounds, margin, &self.doc, gfx);
 
-        ctx.ui.widget_mut(self.widget_id).bounds = bounds;
-    }
+    //     ctx.ui.widget_mut(self.widget_id).bounds = bounds;
+    // }
 
     pub fn is_animating(&self, ctx: &Ctx) -> bool {
         self.tab.is_animating(ctx)
@@ -118,7 +118,7 @@ impl Popup {
 
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
+        let bounds = ctx.ui.bounds(self.widget_id);
 
         let border_bounds = bounds.add_margin(gfx.border_width());
 

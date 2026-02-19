@@ -40,15 +40,15 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
         self.panes.iter().any(|pane| pane.is_animating(ctx))
     }
 
-    pub fn layout(&mut self, bounds: Rect, data_list: &mut SlotList<TData>, ctx: &mut Ctx) {
-        let mut pane_bounds = bounds;
-        pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
+    // pub fn layout(&mut self, bounds: Rect, data_list: &mut SlotList<TData>, ctx: &mut Ctx) {
+    //     let mut pane_bounds = bounds;
+    //     pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
 
-        for pane in self.panes.iter_mut() {
-            pane.layout(pane_bounds, data_list, ctx);
-            pane_bounds.x += pane_bounds.width;
-        }
-    }
+    //     for pane in self.panes.iter_mut() {
+    //         pane.layout(pane_bounds, data_list, ctx);
+    //         pane_bounds.x += pane_bounds.width;
+    //     }
+    // }
 
     pub fn update(&mut self, widget_id: WidgetId, ctx: &mut Ctx) {
         self.panes.update(ctx.ui);

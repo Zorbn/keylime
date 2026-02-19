@@ -64,22 +64,22 @@ impl Terminal {
         self.panes.is_animating(ctx)
     }
 
-    pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
-        let gfx = &mut ctx.gfx;
+    // pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
+    //     let gfx = &mut ctx.gfx;
 
-        let bounds = Rect::new(
-            0.0,
-            0.0,
-            bounds.width,
-            gfx.tab_height() + gfx.line_height() * ctx.config.terminal_height,
-        )
-        .at_bottom_of(bounds)
-        .floor();
+    //     let bounds = Rect::new(
+    //         0.0,
+    //         0.0,
+    //         bounds.width,
+    //         gfx.tab_height() + gfx.line_height() * ctx.config.terminal_height,
+    //     )
+    //     .at_bottom_of(bounds)
+    //     .floor();
 
-        ctx.ui.widget_mut(self.widget_id).bounds = bounds;
+    //     ctx.ui.widget_mut(self.widget_id).bounds = bounds;
 
-        self.panes.layout(bounds, &mut self.term_list, ctx);
-    }
+    //     self.panes.layout(bounds, &mut self.term_list, ctx);
+    // }
 
     pub fn update(&mut self, ctx: &mut Ctx) {
         self.panes.update(self.widget_id, ctx);
@@ -155,8 +155,9 @@ impl Terminal {
 
         self.panes.add(pane, ctx.ui);
 
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
-        self.layout(bounds, ctx);
+        let bounds = ctx.ui.bounds(self.widget_id);
+        // TODO:
+        // self.layout(bounds, ctx);
     }
 
     fn close_pane(&mut self, ctx: &mut Ctx) {

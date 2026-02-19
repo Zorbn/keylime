@@ -28,28 +28,28 @@ impl StatusBar {
         }
     }
 
-    pub fn layout(&self, bounds: Rect, ctx: &mut Ctx) {
-        ctx.ui.widget_mut(self.widget_id).bounds =
-            Rect::new(0.0, 0.0, bounds.width, ctx.gfx.tab_height())
-                .at_bottom_of(bounds)
-                .floor();
-    }
+    // pub fn layout(&self, bounds: Rect, ctx: &mut Ctx) {
+    //     ctx.ui.widget_mut(self.widget_id).bounds =
+    //         Rect::new(0.0, 0.0, bounds.width, ctx.gfx.tab_height())
+    //             .at_bottom_of(bounds)
+    //             .floor();
+    // }
 
     pub fn draw(&self, editor: &Editor, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
-        let widget = ctx.ui.widget(self.widget_id);
+        let bounds = ctx.ui.bounds(self.widget_id);
 
-        gfx.begin(Some(widget.bounds));
+        gfx.begin(Some(bounds));
 
         gfx.add_bordered_rect(
-            widget.bounds.unoffset_by(widget.bounds),
+            bounds.unoffset_by(bounds),
             Sides::from(Side::Top),
             theme.background,
             theme.border,
         );
 
-        let mut text_x = widget.bounds.width;
+        let mut text_x = bounds.width;
         let text_y = gfx.tab_padding_y();
 
         if let Some(text) = Self::get_doc_text(editor, ctx.config, ctx.ui, ctx.current_dir) {

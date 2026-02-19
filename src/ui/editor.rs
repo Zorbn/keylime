@@ -98,33 +98,33 @@ impl Editor {
             || self.hover_timer > 0.0
     }
 
-    pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
-        ctx.ui.widget_mut(self.widget_id).bounds = bounds;
+    // pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
+    //     ctx.ui.widget_mut(self.widget_id).bounds = bounds;
 
-        self.panes.layout(bounds, &mut self.doc_list, ctx);
+    //     self.panes.layout(bounds, &mut self.doc_list, ctx);
 
-        let focused_pane = self.panes.get_last_focused(ctx.ui).unwrap();
+    //     let focused_pane = self.panes.get_last_focused(ctx.ui).unwrap();
 
-        let Some((tab, doc)) = focused_pane.get_focused_tab_with_data(&self.doc_list) else {
-            return;
-        };
+    //     let Some((tab, doc)) = focused_pane.get_focused_tab_with_data(&self.doc_list) else {
+    //         return;
+    //     };
 
-        let cursor_position = doc.cursor(CursorIndex::Main).position;
-        let cursor_visual_position = doc
-            .position_to_visual(cursor_position, tab.camera.position().floor(), ctx.gfx)
-            .offset_by(tab.doc_bounds());
+    //     let cursor_position = doc.cursor(CursorIndex::Main).position;
+    //     let cursor_visual_position = doc
+    //         .position_to_visual(cursor_position, tab.camera.position().floor(), ctx.gfx)
+    //         .offset_by(tab.doc_bounds());
 
-        self.completion_list.layout(cursor_visual_position, ctx);
-        self.examine_popup.layout(tab, doc, ctx);
-        self.signature_help_popup.layout(tab, doc, ctx);
+    //     self.completion_list.layout(cursor_visual_position, ctx);
+    //     self.examine_popup.layout(tab, doc, ctx);
+    //     self.signature_help_popup.layout(tab, doc, ctx);
 
-        let is_cursor_visible = self.is_cursor_visible(ctx);
+    //     let is_cursor_visible = self.is_cursor_visible(ctx);
 
-        ctx.ui
-            .set_shown(self.completion_list.widget_id(), is_cursor_visible);
-        ctx.ui
-            .set_shown(self.signature_help_popup.widget_id(), is_cursor_visible);
-    }
+    //     ctx.ui
+    //         .set_shown(self.completion_list.widget_id(), is_cursor_visible);
+    //     ctx.ui
+    //         .set_shown(self.signature_help_popup.widget_id(), is_cursor_visible);
+    // }
 
     pub fn update(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx, dt: f32) {
         self.panes.update(self.widget_id, ctx);
@@ -474,8 +474,9 @@ impl Editor {
 
         self.panes.add(pane, ctx.ui);
 
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
-        self.layout(bounds, ctx);
+        let bounds = ctx.ui.bounds(self.widget_id);
+        // TODO:
+        // self.layout(bounds, ctx);
     }
 
     fn close_pane(&mut self, ctx: &mut Ctx) {
