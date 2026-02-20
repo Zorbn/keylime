@@ -253,12 +253,12 @@ impl TerminalEmulator {
 
         self.pty = Some(pty);
 
-        tab.update(widget_id, doc, ctx);
+        tab.update(doc, ctx);
     }
 
     pub fn update_output(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
         let last_grid_height = self.grid_height;
-        self.resize_grid(tab, ctx.gfx);
+        self.resize_grid(tab, ctx);
 
         let Some(mut pty) = self.pty.take() else {
             return;
@@ -622,8 +622,8 @@ impl TerminalEmulator {
         }
     }
 
-    fn resize_grid(&mut self, tab: &Tab, gfx: &Gfx) {
-        let (grid_width, grid_height) = Self::grid_size(gfx, tab);
+    fn resize_grid(&mut self, tab: &Tab, ctx: &Ctx) {
+        let (grid_width, grid_height) = Self::grid_size(ctx, tab);
 
         if grid_width == self.grid_width && grid_height == self.grid_height {
             return;
@@ -649,17 +649,17 @@ impl TerminalEmulator {
         self.scroll_bottom = grid_height - 1;
     }
 
-    fn grid_size(gfx: &Gfx, tab: &Tab) -> (usize, usize) {
+    fn grid_size(ctx: &Ctx, tab: &Tab) -> (usize, usize) {
         let Rect {
             width: doc_width,
             height: doc_height,
             ..
-        } = tab.doc_bounds();
+        } = tab.doc_bounds(ctx.ui);
 
-        let grid_width = (doc_width / gfx.glyph_width()).floor() as usize;
+        let grid_width = (doc_width / ctx.gfx.glyph_width()).floor() as usize;
         let grid_width = grid_width.max(MIN_GRID_WIDTH);
 
-        let grid_height = (doc_height / gfx.line_height()).floor() as usize;
+        let grid_height = (doc_height / ctx.gfx.line_height()).floor() as usize;
         let grid_height = grid_height.max(MIN_GRID_HEIGHT);
 
         (grid_width, grid_height)

@@ -40,7 +40,7 @@ pub struct WidgetSettings {
     pub is_component: bool,
     pub scale: f32,
     pub layout: WidgetLayout,
-    pub popup: Option<Popup>,
+    pub popup: Option<Rect>,
 }
 
 impl Default for WidgetSettings {
@@ -49,7 +49,7 @@ impl Default for WidgetSettings {
             is_shown: true,
             is_component: false,
             scale: 1.0,
-            layout: WidgetLayout::Horizontal,
+            layout: WidgetLayout::Vertical,
             popup: None,
         }
     }
@@ -288,7 +288,13 @@ impl Ui {
         let mut total_scale = 0.0;
 
         for child_id in &self.widget(widget_id).child_ids {
-            total_scale += self.widget(*child_id).settings.scale;
+            let child = self.widget(*child_id);
+
+            if child.settings.popup.is_some() {
+                continue;
+            }
+
+            total_scale += child.settings.scale;
         }
 
         total_scale
@@ -373,11 +379,12 @@ impl Ui {
     pub fn is_in_focused_hierarchy(&self, widget_id: WidgetId) -> bool {
         let widget = self.widget(widget_id);
 
-        if widget.settings.is_component && widget.settings.is_shown {
-            if let Some(parent_id) = widget.parent_id {
-                return self.is_in_focused_hierarchy(parent_id);
-            }
-        }
+        // TODO:
+        // if widget.settings.is_component && widget.settings.is_shown {
+        //     if let Some(parent_id) = widget.parent_id {
+        //         return self.is_in_focused_hierarchy(parent_id);
+        //     }
+        // }
 
         let mut focused_hierarchy_id = self.focused_widget_id();
 
@@ -410,6 +417,22 @@ impl Ui {
 
     pub fn bounds(&self, widget_id: WidgetId) -> Rect {
         self.widget(widget_id).bounds
+    }
+
+    pub fn child_ids(&self, widget_id: WidgetId) -> &[WidgetId] {
+        &self.widget(widget_id).child_ids
+    }
+
+    pub fn set_layout(&mut self, widget_id: WidgetId, layout: WidgetLayout) {
+        let widget = self.widget_mut(widget_id);
+
+        widget.settings.layout = layout;
+
+        let parent_id = widget.parent_id.unwrap_or(WidgetId::ROOT);
+        let parent = self.widget(parent_id);
+        let parent_bounds = parent.bounds;
+
+        self.update_layout(parent_id, parent_bounds);
     }
 
     pub fn is_hovered(&self, widget_id: WidgetId) -> bool {

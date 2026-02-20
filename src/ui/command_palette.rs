@@ -98,7 +98,7 @@ impl CommandPalette {
 
         Self {
             mode: None,
-            tab: Tab::new(SlotId::ZERO),
+            tab: Tab::new(widget_id, SlotId::ZERO, ui),
             doc: Doc::new(None, None, DocFlags::SINGLE_LINE),
             last_updated_version: None,
 
@@ -241,7 +241,7 @@ impl CommandPalette {
             }
         }
 
-        self.tab.update(self.widget_id, &mut self.doc, ctx);
+        self.tab.update(&mut self.doc, ctx);
         self.update_results(editor, ctx);
     }
 
@@ -301,9 +301,9 @@ impl CommandPalette {
             return;
         };
 
-        let is_focused = ctx.ui.is_focused(self.widget_id);
         let bounds = ctx.ui.bounds(self.widget_id);
 
+        let ui = &ctx.ui;
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
@@ -335,7 +335,7 @@ impl CommandPalette {
             theme.normal,
         );
 
-        let doc_bounds = self.tab.doc_bounds();
+        let doc_bounds = self.tab.doc_bounds(ui);
 
         gfx.add_bordered_rect(
             doc_bounds
@@ -348,8 +348,7 @@ impl CommandPalette {
 
         gfx.end();
 
-        self.tab
-            .draw(Default::default(), &mut self.doc, is_focused, ctx);
+        self.tab.draw(Default::default(), &mut self.doc, ctx);
 
         self.result_list
             .draw(ctx, |result, theme| mode.on_display_result(result, theme));

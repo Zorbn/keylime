@@ -35,16 +35,19 @@ pub struct Popup {
 
 impl Popup {
     pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
+        let widget_id = ui.new_widget(
+            parent_id,
+            WidgetSettings {
+                is_shown: false,
+                popup: Some(Rect::ZERO),
+                ..Default::default()
+            },
+        );
+
         Self {
-            tab: Tab::new(SlotId::ZERO),
+            tab: Tab::new(widget_id, SlotId::ZERO, ui),
             doc: Doc::new(None, None, DocFlags::RAW),
-            widget_id: ui.new_widget(
-                parent_id,
-                WidgetSettings {
-                    is_shown: false,
-                    ..Default::default()
-                },
-            ),
+            widget_id,
             extension: String::new(),
         }
     }
@@ -104,7 +107,7 @@ impl Popup {
             .grapheme_handler(self.widget_id, ctx.window)
             .drain(ctx.window);
 
-        self.tab.update(self.widget_id, &mut self.doc, ctx);
+        self.tab.update(&mut self.doc, ctx);
     }
 
     pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
@@ -134,17 +137,12 @@ impl Popup {
         gfx.end();
 
         if let Some(language) = ctx.config.get_language(&self.extension) {
-            self.tab.update_highlights(language, &mut self.doc, ctx.gfx);
+            self.tab.update_highlights(language, &mut self.doc, ctx);
         } else {
             self.doc.clear_highlights();
         }
 
-        self.tab.draw(
-            (foreground, None),
-            &mut self.doc,
-            ctx.ui.is_focused(self.widget_id),
-            ctx,
-        );
+        self.tab.draw((foreground, None), &mut self.doc, ctx);
     }
 
     pub fn hide(&self, ui: &mut Ui) {

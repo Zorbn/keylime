@@ -35,7 +35,7 @@ macro_rules! ctx_for_app {
 
 pub struct App {
     ui: Ui,
-    command_palette: CommandPalette,
+    // command_palette: CommandPalette,
     editor: Editor,
     terminal: Terminal,
     status_bar: StatusBar,
@@ -76,7 +76,7 @@ impl App {
             time,
         };
 
-        let mut command_palette = CommandPalette::new(WidgetId::ROOT, ctx.ui);
+        // let mut command_palette = CommandPalette::new(WidgetId::ROOT, ctx.ui);
         let mut editor = Editor::new(WidgetId::ROOT, &mut ctx);
         let terminal = Terminal::new(WidgetId::ROOT, &mut ctx);
         let status_bar = StatusBar::new(WidgetId::ROOT, ctx.ui);
@@ -84,11 +84,11 @@ impl App {
         let (pane, _) = editor.last_focused_pane_and_doc_list(ctx.ui);
         ctx.ui.focus(pane.widget_id());
 
-        handle_args(&mut editor, &mut command_palette, &mut ctx);
+        // handle_args(&mut editor, &mut command_palette, &mut ctx);
 
         let mut app = Self {
             editor,
-            command_palette,
+            // command_palette,
             terminal,
             status_bar,
             ui,
@@ -137,13 +137,13 @@ impl App {
         }
 
         ctx.ui.update(ctx.window);
-        Lsp::update(&mut self.editor, &mut self.command_palette, ctx);
+        // Lsp::update(&mut self.editor, &mut self.command_palette, ctx);
 
-        self.command_palette.update(&mut self.editor, ctx);
+        // self.command_palette.update(&mut self.editor, ctx);
         self.editor.update(&mut self.file_watcher, ctx, dt);
         self.terminal.update(ctx);
 
-        self.command_palette.animate(ctx, dt);
+        // self.command_palette.animate(ctx, dt);
         self.editor.animate(ctx, dt);
         self.terminal.animate(ctx, dt);
     }
@@ -158,7 +158,7 @@ impl App {
         self.status_bar.draw(&self.editor, ctx);
         self.terminal.draw(ctx);
         self.editor.draw(ctx);
-        self.command_palette.draw(ctx);
+        // self.command_palette.draw(ctx);
 
         gfx.end_frame();
     }
@@ -198,9 +198,8 @@ impl App {
     pub fn is_animating(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64) -> bool {
         let ctx = ctx_for_app!(self, window, gfx, time);
 
-        self.editor.is_animating(ctx)
-            || self.terminal.is_animating(ctx)
-            || self.command_palette.is_animating(ctx)
+        self.editor.is_animating(ctx) || self.terminal.is_animating(ctx)
+        // || self.command_palette.is_animating(ctx)
     }
 
     pub fn files_and_processes(

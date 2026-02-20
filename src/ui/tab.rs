@@ -24,7 +24,10 @@ use crate::{
         selection::Selection,
         syntax_highlighter::HighlightedLine,
     },
-    ui::camera::CameraRecenterRequest,
+    ui::{
+        camera::CameraRecenterRequest,
+        core::{Ui, WidgetSettings},
+    },
 };
 
 use super::{
@@ -64,6 +67,7 @@ struct TabAnimationState {
 }
 
 pub struct Tab {
+    widget_id: WidgetId,
     data_id: SlotId,
 
     pub camera: Camera,
@@ -75,13 +79,13 @@ pub struct Tab {
     tab_animation_state: TabAnimationState,
     tab_bounds: Rect,
     gutter_bounds: Rect,
-    doc_bounds: Rect,
     margin: f32,
 }
 
 impl Tab {
-    pub fn new(data_id: SlotId) -> Self {
+    pub fn new(parent_id: WidgetId, data_id: SlotId, ui: &mut Ui) -> Self {
         Self {
+            widget_id: ui.new_widget(parent_id, WidgetSettings::default()),
             data_id,
 
             camera: Camera::new(),
@@ -93,7 +97,6 @@ impl Tab {
             tab_animation_state: TabAnimationState { x: 0.0 },
             tab_bounds: Rect::ZERO,
             gutter_bounds: Rect::ZERO,
-            doc_bounds: Rect::ZERO,
             margin: 0.0,
         }
     }
@@ -138,8 +141,8 @@ impl Tab {
     //     self.margin = margin;
     // }
 
-    pub fn update(&mut self, widget_id: WidgetId, doc: &mut Doc, ctx: &mut Ctx) {
-        let mut grapheme_handler = ctx.ui.grapheme_handler(widget_id, ctx.window);
+    pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+        let mut grapheme_handler = ctx.ui.grapheme_handler(self.widget_id, ctx.window);
 
         while let Some(grapheme) = grapheme_handler.next(ctx.window) {
             let grapheme: Pooled<String> = grapheme.into();
@@ -162,18 +165,19 @@ impl Tab {
             global_mousebind_handler.unprocessed(ctx.window, mousebind);
         }
 
-        let mut mousebind_handler = ctx.ui.mousebind_handler(widget_id, ctx.window);
+        let mut mousebind_handler = ctx.ui.mousebind_handler(self.widget_id, ctx.window);
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
-            if !self
-                .doc_bounds
+            if !ctx
+                .ui
+                .bounds(self.widget_id)
                 .contains_position(VisualPosition::new(mousebind.x, mousebind.y))
             {
                 mousebind_handler.unprocessed(ctx.window, mousebind);
                 continue;
             }
 
-            let position = self.mouse_to_position(mousebind.x, mousebind.y, doc, ctx.gfx);
+            let position = self.mouse_to_position(mousebind.x, mousebind.y, doc, ctx.ui, ctx.gfx);
 
             match mousebind {
                 Mousebind {
@@ -207,14 +211,14 @@ impl Tab {
         if let Some(count) = self.mouse_drag {
             let visual_position = ctx.window.mouse_position();
             let position =
-                self.mouse_to_position(visual_position.x, visual_position.y, doc, ctx.gfx);
+                self.mouse_to_position(visual_position.x, visual_position.y, doc, ctx.ui, ctx.gfx);
 
             handle_left_click(doc, position, Mods::NONE, count, true, ctx.gfx);
 
             self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
         }
 
-        let mut action_handler = ctx.ui.action_handler(widget_id, ctx.window);
+        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
 
         while let Some(action) = action_handler.next(ctx) {
             let was_handled = handle_action(action, self, doc, ctx);
@@ -228,11 +232,11 @@ impl Tab {
         doc.update_tokens();
     }
 
-    fn mouse_to_position(&self, x: f32, y: f32, doc: &Doc, gfx: &mut Gfx) -> Position {
+    fn mouse_to_position(&self, x: f32, y: f32, doc: &Doc, ui: &Ui, gfx: &mut Gfx) -> Position {
         // Offset the raw mouse position to make selecting between characters more natural.
         let visual_position = VisualPosition::new(x + 0.25 * gfx.glyph_width(), y);
 
-        self.visual_to_position(visual_position, doc, gfx)
+        self.visual_to_position(visual_position, doc, ui, gfx)
     }
 
     pub fn skip_cursor_animations(&mut self, doc: &Doc, ctx: &mut Ctx) {
@@ -310,7 +314,7 @@ impl Tab {
         while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
             let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
 
-            if !self.doc_bounds.contains_position(position) {
+            if !ctx.ui.bounds(self.widget_id).contains_position(position) {
                 mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
                 continue;
             }
@@ -329,35 +333,37 @@ impl Tab {
 
     pub fn skip_camera_animations(&mut self, doc: &Doc, ctx: &mut Ctx) {
         let recenter_request = self.recenter_request_vertical(doc, ctx);
-        let max_y = self.camera_max_y(doc, ctx.gfx);
+        let max_y = self.camera_max_y(doc, ctx.ui, ctx.gfx);
+        let bounds = ctx.ui.bounds(self.widget_id);
 
         self.camera
             .vertical
-            .skip_animation(recenter_request, max_y, self.doc_bounds.height);
+            .skip_animation(recenter_request, max_y, bounds.height);
 
         let recenter_request = self.recenter_request_horizontal(doc, ctx);
 
         self.camera
             .horizontal
-            .skip_animation(recenter_request, f32::MAX, self.doc_bounds.width);
+            .skip_animation(recenter_request, f32::MAX, bounds.width);
     }
 
     fn animate_camera_vertical(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
         let recenter_request = self.recenter_request_vertical(doc, ctx);
-        let max_y = self.camera_max_y(doc, ctx.gfx);
+        let max_y = self.camera_max_y(doc, ctx.ui, ctx.gfx);
+        let bounds = ctx.ui.bounds(self.widget_id);
 
         self.camera
             .vertical
-            .animate(recenter_request, max_y, self.doc_bounds.height, dt);
+            .animate(recenter_request, max_y, bounds.height, dt);
     }
 
-    fn camera_max_y(&self, doc: &Doc, gfx: &Gfx) -> f32 {
+    fn camera_max_y(&self, doc: &Doc, ui: &Ui, gfx: &Gfx) -> f32 {
         let last_line_y = self.last_line_y(doc, gfx);
 
         if doc.flags().contains(DocFlag::AllowScrollingPastBottom) {
             last_line_y
         } else {
-            (last_line_y - self.doc_bounds().height + gfx.line_height()).max(0.0)
+            (last_line_y - self.doc_bounds(ui).height + gfx.line_height()).max(0.0)
         }
     }
 
@@ -378,7 +384,8 @@ impl Tab {
     }
 
     fn recenter_request_dragging_vertical(&self, ctx: &Ctx) -> CameraRecenterRequest {
-        let mouse_position = ctx.window.mouse_position().unoffset_by(self.doc_bounds);
+        let bounds = ctx.ui.bounds(self.widget_id);
+        let mouse_position = ctx.window.mouse_position().unoffset_by(bounds);
 
         CameraRecenterRequest {
             can_start: true,
@@ -420,10 +427,11 @@ impl Tab {
 
     fn animate_camera_horizontal(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
         let recenter_request = self.recenter_request_horizontal(doc, ctx);
+        let bounds = ctx.ui.bounds(self.widget_id);
 
         self.camera
             .horizontal
-            .animate(recenter_request, f32::MAX, self.doc_bounds.width, dt);
+            .animate(recenter_request, f32::MAX, bounds.width, dt);
     }
 
     fn recenter_request_horizontal(&self, doc: &Doc, ctx: &mut Ctx) -> CameraRecenterRequest {
@@ -435,7 +443,8 @@ impl Tab {
     }
 
     fn recenter_request_dragging_horizontal(&self, ctx: &Ctx) -> CameraRecenterRequest {
-        let mouse_position = ctx.window.mouse_position().unoffset_by(self.doc_bounds);
+        let bounds = ctx.ui.bounds(self.widget_id);
+        let mouse_position = ctx.window.mouse_position().unoffset_by(bounds);
 
         CameraRecenterRequest {
             can_start: true,
@@ -462,8 +471,14 @@ impl Tab {
         }
     }
 
-    pub fn visual_to_position(&self, visual: VisualPosition, doc: &Doc, gfx: &mut Gfx) -> Position {
-        let visual = self.visual_position_in_doc(visual);
+    pub fn visual_to_position(
+        &self,
+        visual: VisualPosition,
+        doc: &Doc,
+        ui: &Ui,
+        gfx: &mut Gfx,
+    ) -> Position {
+        let visual = self.visual_position_in_doc(visual, ui);
         doc.visual_to_position(visual, self.camera.position(), gfx)
     }
 
@@ -471,13 +486,14 @@ impl Tab {
         &self,
         visual: VisualPosition,
         doc: &Doc,
+        ui: &Ui,
         gfx: &mut Gfx,
     ) -> Option<Position> {
-        if !self.doc_bounds.contains_position(visual) {
+        if !ui.bounds(self.widget_id).contains_position(visual) {
             return None;
         }
 
-        let visual = self.visual_position_in_doc(visual);
+        let visual = self.visual_position_in_doc(visual, ui);
         doc.visual_to_position_unclamped(visual, self.camera.position(), gfx)
     }
 
@@ -493,8 +509,9 @@ impl Tab {
         self.visual_position_in_tab(visual)
     }
 
-    fn visual_position_in_doc(&self, visual: VisualPosition) -> VisualPosition {
-        let visual = visual.unoffset_by(self.doc_bounds);
+    fn visual_position_in_doc(&self, visual: VisualPosition, ui: &Ui) -> VisualPosition {
+        let bounds = ui.bounds(self.widget_id);
+        let visual = visual.unoffset_by(bounds);
 
         VisualPosition::new(visual.x - self.margin, visual.y - self.margin)
     }
@@ -518,12 +535,13 @@ impl Tab {
         self.tab_bounds
     }
 
-    pub fn doc_bounds(&self) -> Rect {
-        self.doc_bounds
+    // TODO:
+    pub fn doc_bounds(&self, ui: &Ui) -> Rect {
+        ui.bounds(self.widget_id)
     }
 
-    pub fn doc_height_lines(&self, gfx: &Gfx) -> usize {
-        (self.doc_bounds.height / gfx.line_height()) as usize
+    pub fn doc_height_lines(&self, ui: &Ui, gfx: &Gfx) -> usize {
+        (ui.bounds(self.widget_id).height / gfx.line_height()) as usize
     }
 
     pub fn cursor_width(gfx: &Gfx) -> f32 {
@@ -538,9 +556,10 @@ impl Tab {
         index as f32 * gfx.line_height() - sub_line_offset_y + self.margin
     }
 
-    pub fn update_highlights(&self, language: &Language, doc: &mut Doc, gfx: &mut Gfx) {
+    pub fn update_highlights(&self, language: &Language, doc: &mut Doc, ctx: &mut Ctx) {
         if let Some(syntax) = language.syntax.as_ref() {
-            doc.update_highlights(self.camera.position(), self.doc_bounds, syntax, gfx);
+            let bounds = ctx.ui.bounds(self.widget_id);
+            doc.update_highlights(self.camera.position(), bounds, syntax, ctx.gfx);
         }
     }
 
@@ -548,22 +567,21 @@ impl Tab {
         &self,
         colors @ (_, background): (Option<Color>, Option<Color>),
         doc: &mut Doc,
-        is_focused: bool,
         ctx: &mut Ctx,
     ) {
         let language = ctx.config.get_language_for_doc(doc);
 
         if let Some(language) = language {
-            self.update_highlights(language, doc, ctx.gfx);
+            self.update_highlights(language, doc, ctx);
         }
 
+        let bounds = ctx.ui.bounds(self.widget_id);
         let camera_position = self.camera.position().floor();
 
         let min_y = (camera_position.y / ctx.gfx.line_height()) as usize;
         let sub_line_offset_y = camera_position.y - min_y as f32 * ctx.gfx.line_height();
 
-        let max_y =
-            ((camera_position.y + self.doc_bounds.height) / ctx.gfx.line_height()) as usize + 1;
+        let max_y = ((camera_position.y + bounds.height) / ctx.gfx.line_height()) as usize + 1;
         let max_y = max_y.min(doc.lines().len());
 
         let visible_lines = VisibleLines {
@@ -580,18 +598,17 @@ impl Tab {
             ctx.gfx.end();
         }
 
-        ctx.gfx.begin(Some(self.doc_bounds));
+        ctx.gfx.begin(Some(bounds));
 
         if let Some(background) = background {
-            ctx.gfx
-                .add_rect(self.doc_bounds.unoffset_by(self.doc_bounds), background);
+            ctx.gfx.add_rect(bounds.unoffset_by(bounds), background);
         }
 
         self.draw_indent_guides(doc, camera_position, visible_lines, ctx);
         self.draw_lines(colors, doc, camera_position, visible_lines, ctx);
         self.draw_diagnostics(doc, camera_position, visible_lines, ctx);
         self.draw_go_to_definition_hint(doc, camera_position, ctx);
-        self.draw_cursors(doc, is_focused, camera_position, visible_lines, ctx);
+        self.draw_cursors(doc, camera_position, visible_lines, ctx);
         self.draw_scroll_bar(doc, camera_position, ctx);
 
         ctx.gfx.end();
@@ -837,6 +854,7 @@ impl Tab {
     ) -> Option<()> {
         doc.get_language_server_mut(ctx)?;
 
+        let ui = &ctx.ui;
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
@@ -845,7 +863,7 @@ impl Tab {
         }
 
         let visual_position = ctx.window.mouse_position();
-        let position = self.visual_to_position_unclamped(visual_position, doc, gfx)?;
+        let position = self.visual_to_position_unclamped(visual_position, doc, ui, gfx)?;
 
         if GraphemeCategory::new(doc.grapheme(position)) != GraphemeCategory::Identifier {
             return None;
@@ -869,7 +887,6 @@ impl Tab {
     fn draw_cursors(
         &self,
         doc: &Doc,
-        is_focused: bool,
         camera_position: VisualPosition,
         visible_lines: VisibleLines,
         ctx: &mut Ctx,
@@ -881,6 +898,8 @@ impl Tab {
 
             self.draw_selection(selection, doc, camera_position, visible_lines, ctx);
         }
+
+        let is_focused = ctx.ui.is_focused(self.widget_id);
 
         if !self.do_show_cursors(is_focused, ctx) {
             return;
@@ -1027,13 +1046,15 @@ impl Tab {
     }
 
     fn draw_scroll_bar(&self, doc: &Doc, camera_position: VisualPosition, ctx: &mut Ctx) {
+        let bounds = ctx.ui.bounds(self.widget_id);
+
         if !doc.flags().contains(DocFlag::AllowScrollingPastBottom)
-            && doc.lines().len() as f32 * ctx.gfx.line_height() + self.margin * 2.0
-                <= self.doc_bounds.height
+            && doc.lines().len() as f32 * ctx.gfx.line_height() + self.margin * 2.0 <= bounds.height
         {
             return;
         }
 
+        let ui = &ctx.ui;
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
@@ -1048,7 +1069,7 @@ impl Tab {
                 let DecodedRange { start, end } = diagnostic.range;
 
                 gfx.add_rect(
-                    self.doc_range_to_scrollbar_rect(start.y as f32, end.y as f32, doc, gfx),
+                    self.doc_range_to_scrollbar_rect(start.y as f32, end.y as f32, doc, ui, gfx),
                     color,
                 );
             }
@@ -1058,35 +1079,44 @@ impl Tab {
             let cursor_y = doc.cursor(index).position.y as f32;
 
             gfx.add_rect(
-                self.doc_range_to_scrollbar_rect(cursor_y, cursor_y, doc, gfx),
+                self.doc_range_to_scrollbar_rect(cursor_y, cursor_y, doc, ui, gfx),
                 theme.normal,
             );
         }
 
         let camera_line_y = camera_position.y / gfx.line_height();
-        let doc_height_lines = self.doc_height_lines(gfx);
+        let doc_height_lines = self.doc_height_lines(ui, gfx);
 
         gfx.add_rect(
             self.doc_range_to_scrollbar_rect(
                 camera_line_y,
                 camera_line_y + doc_height_lines as f32,
                 doc,
+                ui,
                 gfx,
             ),
             theme.emphasized,
         );
     }
 
-    fn doc_range_to_scrollbar_rect(&self, start_y: f32, end_y: f32, doc: &Doc, gfx: &Gfx) -> Rect {
-        let doc_height_lines = self.doc_height_lines(gfx);
+    fn doc_range_to_scrollbar_rect(
+        &self,
+        start_y: f32,
+        end_y: f32,
+        doc: &Doc,
+        ui: &Ui,
+        gfx: &Gfx,
+    ) -> Rect {
+        let doc_height_lines = self.doc_height_lines(ui, gfx);
         let doc_len = doc.lines().len().max(doc_height_lines) as f32
             + (self.margin * 2.0 / gfx.line_height());
 
+        let bounds = ui.bounds(self.widget_id);
         let width = gfx.glyph_width() / 2.0;
-        let x = self.doc_bounds.width - width;
+        let x = bounds.width - width;
 
-        let start_y = start_y / doc_len * self.doc_bounds.height;
-        let end_y = end_y / doc_len * self.doc_bounds.height;
+        let start_y = start_y / doc_len * bounds.height;
+        let end_y = end_y / doc_len * bounds.height;
 
         let start_y = start_y.floor();
         let end_y = end_y.floor();

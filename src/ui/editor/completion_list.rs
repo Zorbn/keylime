@@ -79,6 +79,7 @@ impl CompletionList {
             parent_id,
             WidgetSettings {
                 is_component: true,
+                popup: Some(Rect::ZERO),
                 ..Default::default()
             },
         );

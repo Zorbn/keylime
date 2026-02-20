@@ -1,6 +1,6 @@
 use crate::{
     ctx::Ctx,
-    geometry::position::Position,
+    geometry::{position::Position, rect::Rect},
     lsp::types::SignatureHelp,
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
@@ -22,7 +22,14 @@ pub struct SignatureHelpPopup {
 
 impl SignatureHelpPopup {
     pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
-        let widget_id = ui.new_widget(parent_id, WidgetSettings::default());
+        // TODO: Is it even useful to make there be a parent widget here?
+        let widget_id = ui.new_widget(
+            parent_id,
+            WidgetSettings {
+                popup: Some(Rect::ZERO),
+                ..Default::default()
+            },
+        );
 
         Self {
             widget_id,

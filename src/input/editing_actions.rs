@@ -123,12 +123,12 @@ pub fn handle_action(action: Action, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) ->
         action_keybind!(key: Enter, mods: Mods::NONE) => handle_enter(doc, ctx),
         action_keybind!(key: Tab, mods) => handle_tab(mods, doc, ctx),
         action_name!(PageUp, mods) => {
-            let height_lines = tab.doc_height_lines(ctx.gfx) as isize;
+            let height_lines = tab.doc_height_lines(ctx.ui, ctx.gfx) as isize;
 
             doc.move_cursors(0, -height_lines, mods.contains(Mod::Shift), ctx.gfx);
         }
         action_name!(PageDown, mods) => {
-            let height_lines = tab.doc_height_lines(ctx.gfx) as isize;
+            let height_lines = tab.doc_height_lines(ctx.ui, ctx.gfx) as isize;
 
             doc.move_cursors(0, height_lines, mods.contains(Mod::Shift), ctx.gfx);
         }

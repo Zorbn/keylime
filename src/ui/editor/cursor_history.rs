@@ -129,7 +129,7 @@ impl CursorHistory {
         ui: &Ui,
     ) -> Option<CursorHistoryItem> {
         let pane = panes.get_last_focused(ui)?;
-        let doc_id = pane.tabs.get_focused()?.data_id();
+        let doc_id = pane.get_focused_tab()?.data_id();
 
         let doc = doc_list.get(doc_id)?;
         let cursor = doc.cursor(CursorIndex::Main);
@@ -149,9 +149,9 @@ impl CursorHistory {
 
         let focused_pane = panes.get_last_focused_mut(ctx.ui).unwrap();
 
-        if !Self::focus_tab_for_doc_id(focused_pane, item.doc_id) {
+        if !Self::focus_tab_for_doc_id(focused_pane, item.doc_id, ctx.ui) {
             for pane in panes.iter_mut() {
-                if !Self::focus_tab_for_doc_id(pane, item.doc_id) {
+                if !Self::focus_tab_for_doc_id(pane, item.doc_id, ctx.ui) {
                     continue;
                 }
 
@@ -164,12 +164,12 @@ impl CursorHistory {
         true
     }
 
-    fn focus_tab_for_doc_id(pane: &mut EditorPane, doc_id: SlotId) -> bool {
-        let Some(index) = pane.tabs.iter().position(|tab| tab.data_id() == doc_id) else {
+    fn focus_tab_for_doc_id(pane: &mut EditorPane, doc_id: SlotId, ui: &mut Ui) -> bool {
+        let Some(index) = pane.iter_tabs().position(|tab| tab.data_id() == doc_id) else {
             return false;
         };
 
-        pane.set_focused_tab_index(index);
+        pane.set_focused_tab_index(index, ui);
         true
     }
 }

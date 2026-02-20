@@ -71,10 +71,8 @@ impl EditorPane {
 
         self.inner.update(ctx);
 
-        let widget_id = self.widget_id();
-
         if let Some((tab, doc)) = self.get_focused_tab_with_data_mut(doc_list) {
-            tab.update(widget_id, doc, ctx);
+            tab.update(doc, ctx);
         }
     }
 
@@ -111,7 +109,7 @@ impl EditorPane {
 
     pub fn add_tab(&mut self, doc_id: SlotId, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) {
         if let Some(tab_index) = self.get_existing_tab_for_data(doc_id) {
-            self.set_focused_tab_index(tab_index);
+            self.set_focused_tab_index(tab_index, ctx.ui);
 
             return;
         }
@@ -140,7 +138,7 @@ impl EditorPane {
             return false;
         }
 
-        self.inner.remove_tab(doc_list);
+        self.inner.remove_tab(doc_list, ctx.ui);
 
         if doc_list.get(doc_id).is_some_and(|doc| doc.usages() == 0) {
             if let Some(mut doc) = doc_list.remove(doc_id) {
@@ -152,7 +150,7 @@ impl EditorPane {
     }
 
     pub fn close_all_tabs(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) -> bool {
-        while !self.tabs.is_empty() {
+        while self.has_tabs() {
             if !self.remove_tab(doc_list, ctx) {
                 return false;
             }

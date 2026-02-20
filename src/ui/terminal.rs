@@ -48,11 +48,13 @@ pub struct Terminal {
 
 impl Terminal {
     pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
+        let widget_id = ctx.ui.new_widget(parent_id, Default::default());
+
         let mut terminal = Self {
-            panes: PaneList::new(),
+            panes: PaneList::new(widget_id, ctx.ui),
             term_list: SlotList::new(),
 
-            widget_id: ctx.ui.new_widget(parent_id, Default::default()),
+            widget_id,
         };
 
         terminal.add_pane(ctx);
@@ -112,7 +114,7 @@ impl Terminal {
             emulator.update_input(pane_widget_id, docs, tab, ctx);
         }
 
-        for tab in pane.tabs.iter_mut() {
+        for tab in pane.iter_tabs_mut() {
             let term_id = tab.data_id();
 
             let Some((docs, emulator)) = self.term_list.get_mut(term_id) else {
@@ -122,8 +124,7 @@ impl Terminal {
             emulator.update_output(docs, tab, ctx);
         }
 
-        self.panes
-            .remove_excess(ctx.ui, |pane| pane.tabs.is_empty());
+        self.panes.remove_excess(ctx.ui, |pane| !pane.has_tabs());
     }
 
     fn handle_actions(&mut self, ctx: &mut Ctx) {
@@ -151,7 +152,7 @@ impl Terminal {
     }
 
     fn add_pane(&mut self, ctx: &mut Ctx) {
-        let pane = TerminalPane::new(&mut self.term_list, self.widget_id, ctx);
+        let pane = TerminalPane::new(&mut self.term_list, self.panes.widget_id(), ctx);
 
         self.panes.add(pane, ctx.ui);
 

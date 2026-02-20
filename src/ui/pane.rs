@@ -13,7 +13,10 @@ use crate::{
         mousebind::{Mousebind, MousebindKind},
     },
     text::doc::Doc,
-    ui::camera::{CameraAxis, CameraRecenterRequest},
+    ui::{
+        camera::{CameraAxis, CameraRecenterRequest},
+        core::WidgetLayout,
+    },
 };
 
 use super::{
@@ -25,7 +28,8 @@ use super::{
 };
 
 pub struct Pane<T> {
-    pub tabs: FocusList<Tab>,
+    // TODO: Maybe this could be a widget list.
+    tabs: FocusList<Tab>,
     handled_focused_index: Option<usize>,
     dragged_tab_offset: Option<f32>,
     tab_bar_width: f32,
@@ -54,7 +58,13 @@ impl<T> Pane<T> {
             get_doc,
             get_doc_mut,
 
-            widget_id: ui.new_widget(parent_id, WidgetSettings::default()),
+            widget_id: ui.new_widget(
+                parent_id,
+                WidgetSettings {
+                    layout: WidgetLayout::Tab { index: 0 },
+                    ..Default::default()
+                },
+            ),
         }
     }
 
@@ -97,7 +107,7 @@ impl<T> Pane<T> {
     // }
 
     pub fn update(&mut self, ctx: &mut Ctx) {
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
+        let bounds = ctx.ui.bounds(self.widget_id);
 
         let mut global_mousebind_handler = ctx.window.mousebind_handler();
 
@@ -124,7 +134,7 @@ impl<T> Pane<T> {
             }
         }
 
-        self.handle_dragged_tab();
+        self.handle_dragged_tab(ctx.ui);
 
         let mut mousebind_handler = ctx.ui.mousebind_handler(self.widget_id, ctx.window);
 
@@ -199,7 +209,7 @@ impl<T> Pane<T> {
         }
     }
 
-    fn handle_dragged_tab(&mut self) {
+    fn handle_dragged_tab(&mut self, ui: &mut Ui) {
         if self.dragged_tab_offset.is_none() {
             return;
         }
@@ -228,7 +238,7 @@ impl<T> Pane<T> {
         });
 
         if let Some(index) = index {
-            self.tabs.swap(self.tabs.focused_index(), index);
+            self.swap_tabs(self.tabs.focused_index(), index, ui);
         }
     }
 
@@ -279,7 +289,7 @@ impl<T> Pane<T> {
     }
 
     fn recenter_request_dragging(&self, ctx: &Ctx) -> CameraRecenterRequest {
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
+        let bounds = ctx.ui.bounds(self.widget_id);
         let mouse_position = ctx.window.mouse_position().unoffset_by(bounds);
 
         CameraRecenterRequest {
@@ -309,7 +319,7 @@ impl<T> Pane<T> {
 
         if let Some((tab, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
         {
-            tab.draw((None, background), get_doc_mut(data), is_focused, ctx);
+            tab.draw((None, background), get_doc_mut(data), ctx);
         }
     }
 
@@ -502,7 +512,7 @@ impl<T> Pane<T> {
     }
 
     pub fn add_tab(&mut self, data_id: SlotId, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
-        let tab = Tab::new(data_id);
+        let tab = Tab::new(self.widget_id, data_id, ctx.ui);
 
         data_list
             .get_mut(data_id)
@@ -511,34 +521,80 @@ impl<T> Pane<T> {
             .add_usage();
 
         self.tabs.add(tab);
+        self.set_layout(ctx.ui);
 
         let bounds = ctx.ui.bounds(self.widget_id);
         // TODO:
         // self.layout(bounds, data_list, ctx);
     }
 
-    pub fn remove_tab(&mut self, data_list: &mut SlotList<T>) {
+    pub fn remove_tab(&mut self, data_list: &mut SlotList<T>, ui: &mut Ui) {
         let get_doc_mut = self.get_doc_mut;
+        let index = self.tabs.focused_index();
 
-        let Some((_, data)) = self.get_tab_with_data_mut(self.tabs.focused_index(), data_list)
-        else {
+        let Some((_, data)) = self.get_tab_with_data_mut(index, data_list) else {
             return;
         };
 
         (get_doc_mut)(data).remove_usage();
 
         self.tabs.remove();
+
+        if let Some(child_id) = ui.child_ids(self.widget_id).get(index) {
+            ui.remove_widget(*child_id);
+        }
+
+        self.set_layout(ui);
     }
 
-    pub fn widget_id(&self) -> WidgetId {
-        self.widget_id
+    fn swap_tabs(&mut self, a: usize, b: usize, ui: &mut Ui) {
+        self.tabs.swap(a, b);
+        self.set_layout(ui);
     }
 
-    pub fn set_focused_tab_index(&mut self, index: usize) {
+    pub fn tab_count(&self) -> usize {
+        self.tabs.len()
+    }
+
+    pub fn has_tabs(&self) -> bool {
+        !self.tabs.is_empty()
+    }
+
+    pub fn iter_tabs(&self) -> impl Iterator<Item = &Tab> {
+        self.tabs.iter()
+    }
+
+    pub fn iter_tabs_mut(&mut self) -> impl Iterator<Item = &mut Tab> {
+        self.tabs.iter_mut()
+    }
+
+    pub fn get_focused_tab(&self) -> Option<&Tab> {
+        self.tabs.get_focused()
+    }
+
+    pub fn set_focused_tab_index(&mut self, index: usize, ui: &mut Ui) {
         self.tabs.set_focused_index(index);
+        self.set_layout(ui);
     }
 
     pub fn focused_tab_index(&self) -> usize {
         self.tabs.focused_index()
+    }
+
+    fn set_layout(&mut self, ui: &mut Ui) {
+        ui.set_layout(
+            self.widget_id,
+            WidgetLayout::Tab {
+                index: self.focused_tab_index(),
+            },
+        );
+
+        if let Some(child_id) = ui.child_ids(self.widget_id).get(self.focused_tab_index()) {
+            ui.focus(*child_id);
+        }
+    }
+
+    pub fn widget_id(&self) -> WidgetId {
+        self.widget_id
     }
 }

@@ -5,15 +5,19 @@ use std::{
 
 use crate::{
     ctx::Ctx,
-    geometry::rect::Rect,
     input::{
         action::{action_name, Action},
         input_handlers::ActionHandler,
     },
+    ui::core::{Ui, WidgetSettings},
 };
 
 use super::{
-    color::Color, core::WidgetId, pane::Pane, slot_list::SlotList, widget_list::WidgetList,
+    color::Color,
+    core::{WidgetId, WidgetLayout},
+    pane::Pane,
+    slot_list::SlotList,
+    widget_list::WidgetList,
 };
 
 pub trait PaneWrapper<T>: Deref<Target = Pane<T>> + DerefMut<Target = Pane<T>> {}
@@ -24,13 +28,21 @@ impl<TPane: Deref<Target = Pane<TData>> + DerefMut<Target = Pane<TData>>, TData>
 }
 
 pub struct PaneList<TPane: PaneWrapper<TData>, TData> {
+    widget_id: WidgetId,
     panes: WidgetList<TPane>,
     _phantom: PhantomData<TData>,
 }
 
 impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
-    pub fn new() -> Self {
+    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
         Self {
+            widget_id: ui.new_widget(
+                parent_id,
+                WidgetSettings {
+                    layout: WidgetLayout::Horizontal,
+                    ..Default::default()
+                },
+            ),
             panes: WidgetList::new(|pane| pane.widget_id()),
             _phantom: PhantomData,
         }
@@ -100,11 +112,15 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
             return;
         };
 
-        if pane.focused_tab_index() == pane.tabs.len() - 1 {
+        if pane.focused_tab_index() == pane.tab_count() - 1 {
             self.panes.focus_next(ctx.ui);
         } else {
             action_handler.unprocessed(ctx.window, action);
         }
+    }
+
+    pub fn widget_id(&self) -> WidgetId {
+        self.widget_id
     }
 }
 

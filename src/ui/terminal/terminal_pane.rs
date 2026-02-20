@@ -39,10 +39,10 @@ impl TerminalPane {
                     self.add_tab(term_index, term_list, ctx);
                 }
                 action_name!(CloseTab) => {
-                    if let Some(tab) = self.tabs.get_focused() {
+                    if let Some(tab) = self.get_focused_tab() {
                         let term_id = tab.data_id();
 
-                        self.remove_tab(term_list);
+                        self.remove_tab(term_list, ctx.ui);
 
                         if let Some((mut docs, _)) = term_list.remove(term_id) {
                             docs.clear(ctx);

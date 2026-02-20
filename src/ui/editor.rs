@@ -71,7 +71,7 @@ impl Editor {
 
         let mut editor = Self {
             doc_list: SlotList::new(),
-            panes: PaneList::new(),
+            panes: PaneList::new(widget_id, ctx.ui),
 
             handled_position: None,
             handled_doc_id: None,
@@ -146,8 +146,7 @@ impl Editor {
 
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
         pane.update(&mut self.doc_list, ctx);
-        self.panes
-            .remove_excess(ctx.ui, |pane| pane.tabs.is_empty());
+        self.panes.remove_excess(ctx.ui, |pane| !pane.has_tabs());
 
         self.post_pane_update(signature_help_triggers, ctx);
 
@@ -244,7 +243,7 @@ impl Editor {
         };
 
         if let Some(position) =
-            tab.visual_to_position_unclamped(ctx.window.mouse_position(), doc, ctx.gfx)
+            tab.visual_to_position_unclamped(ctx.window.mouse_position(), doc, ctx.ui, ctx.gfx)
         {
             self.examine_popup.open(position, false, doc, ctx);
         } else {
@@ -460,17 +459,19 @@ impl Editor {
             return false;
         };
 
+        let doc_bounds = tab.doc_bounds(ctx.ui);
+
         let cursor_position = doc.cursor(CursorIndex::Main).position;
         let cursor_visual_position = doc
             .position_to_visual(cursor_position, tab.camera.position(), ctx.gfx)
             .shift_y(ctx.gfx.line_height())
-            .offset_by(tab.doc_bounds());
+            .offset_by(doc_bounds);
 
-        tab.doc_bounds().contains_position(cursor_visual_position)
+        doc_bounds.contains_position(cursor_visual_position)
     }
 
     fn add_pane(&mut self, ctx: &mut Ctx) {
-        let pane = EditorPane::new(&mut self.doc_list, self.widget_id, ctx);
+        let pane = EditorPane::new(&mut self.doc_list, self.panes.widget_id(), ctx);
 
         self.panes.add(pane, ctx.ui);
 
