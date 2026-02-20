@@ -98,7 +98,7 @@ impl Terminal {
         if let Some((tab, (docs, emulator))) =
             pane.get_focused_tab_with_data_mut(&mut self.term_list)
         {
-            emulator.receive_msgs(tab.widget_id(), docs, ctx);
+            emulator.receive_msgs(tab, docs, ctx);
         }
 
         self.panes.receive_msgs(&mut self.term_list, ctx);

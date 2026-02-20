@@ -95,17 +95,16 @@ impl Popup {
     }
 
     pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
-        // TODO:
-        // while let Some(msg) = ctx.ui.msg(self.tab.widget_id()) {
-        //     match msg {
-        //         Msg::Action(action_name!(Copy)) => {}
-        //         Msg::Action(..) => ctx.ui.skip(self.tab.widget_id(), msg),
-        //         Msg::Grapheme(..) => ctx.ui.skip(self.tab.widget_id(), msg),
-        //         _ => {}
-        //     }
-        // }
+        let widget_id = self.tab.widget_id();
 
-        self.tab.receive_msgs(&mut self.doc, ctx);
+        while let Some(msg) = ctx.ui.msg(widget_id) {
+            match msg {
+                Msg::Action(action_name!(Copy)) => self.tab.receive_msg(msg, &mut self.doc, ctx),
+                Msg::Action(..) => ctx.ui.skip(widget_id, msg),
+                Msg::Grapheme(..) => ctx.ui.skip(widget_id, msg),
+                _ => self.tab.receive_msg(msg, &mut self.doc, ctx),
+            }
+        }
     }
 
     pub fn update(&mut self, ctx: &mut Ctx) {

@@ -148,73 +148,77 @@ impl Tab {
 
     pub fn receive_msgs(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
-            match msg {
-                Msg::Grapheme(grapheme) => handle_grapheme(&grapheme, doc, ctx),
-                Msg::Mousebind(Mousebind {
-                    button: Some(MouseButton::Left),
-                    kind: MousebindKind::Release,
-                    ..
-                })
-                | Msg::LostFocus => self.mouse_drag = None,
-                Msg::Mousebind(Mousebind {
-                    button: Some(MouseButton::Left),
-                    x,
-                    y,
-                    mods: mods @ (Mods::NONE | Mods::SHIFT),
-                    count,
-                    kind: MousebindKind::Press,
-                    ..
-                }) => {
-                    let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.gfx);
+            self.receive_msg(msg, doc, ctx);
+        }
+    }
 
-                    handle_left_click(doc, position, mods, count, false, ctx.gfx);
+    pub fn receive_msg(&mut self, msg: Msg, doc: &mut Doc, ctx: &mut Ctx) {
+        match msg {
+            Msg::Grapheme(grapheme) => handle_grapheme(&grapheme, doc, ctx),
+            Msg::Mousebind(Mousebind {
+                button: Some(MouseButton::Left),
+                kind: MousebindKind::Release,
+                ..
+            })
+            | Msg::LostFocus => self.mouse_drag = None,
+            Msg::Mousebind(Mousebind {
+                button: Some(MouseButton::Left),
+                x,
+                y,
+                mods: mods @ (Mods::NONE | Mods::SHIFT),
+                count,
+                kind: MousebindKind::Press,
+                ..
+            }) => {
+                let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.gfx);
 
-                    self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
-                    self.mouse_drag = Some(count);
-                }
-                Msg::Mousebind(Mousebind {
-                    button: Some(MouseButton::Left),
-                    x,
-                    y,
-                    mods,
-                    kind: MousebindKind::Press,
-                    ..
-                }) if mods.contains(Mod::Ctrl) || mods.contains(Mod::Cmd) => {
-                    let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.gfx);
+                handle_left_click(doc, position, mods, count, false, ctx.gfx);
 
-                    if mods.contains(Mod::Alt) {
-                        doc.add_cursor_at(position, ctx.gfx);
-                    } else {
-                        doc.lsp_definition(position, ctx);
-                    }
-                }
-                Msg::MouseScroll(mouse_scroll) => {
-                    let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
-
-                    if !ctx.ui.bounds(self.widget_id).contains_position(position) {
-                        ctx.ui.skip(self.widget_id, msg);
-                        continue;
-                    }
-
-                    let delta = mouse_scroll.delta * ctx.gfx.line_height();
-
-                    if mouse_scroll.is_horizontal {
-                        self.camera.vertical.reset_velocity();
-                        self.camera.horizontal.scroll(-delta, mouse_scroll.kind);
-                    } else {
-                        self.camera.horizontal.reset_velocity();
-                        self.camera.vertical.scroll(delta, mouse_scroll.kind);
-                    }
-                }
-                Msg::Action(action) => {
-                    let was_handled = handle_action(action, self, doc, ctx);
-
-                    if !was_handled {
-                        ctx.ui.skip(self.widget_id, msg);
-                    }
-                }
-                _ => ctx.ui.skip(self.widget_id, msg),
+                self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
+                self.mouse_drag = Some(count);
             }
+            Msg::Mousebind(Mousebind {
+                button: Some(MouseButton::Left),
+                x,
+                y,
+                mods,
+                kind: MousebindKind::Press,
+                ..
+            }) if mods.contains(Mod::Ctrl) || mods.contains(Mod::Cmd) => {
+                let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.gfx);
+
+                if mods.contains(Mod::Alt) {
+                    doc.add_cursor_at(position, ctx.gfx);
+                } else {
+                    doc.lsp_definition(position, ctx);
+                }
+            }
+            Msg::MouseScroll(mouse_scroll) => {
+                let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
+
+                if !ctx.ui.bounds(self.widget_id).contains_position(position) {
+                    ctx.ui.skip(self.widget_id, msg);
+                    return;
+                }
+
+                let delta = mouse_scroll.delta * ctx.gfx.line_height();
+
+                if mouse_scroll.is_horizontal {
+                    self.camera.vertical.reset_velocity();
+                    self.camera.horizontal.scroll(-delta, mouse_scroll.kind);
+                } else {
+                    self.camera.horizontal.reset_velocity();
+                    self.camera.vertical.scroll(delta, mouse_scroll.kind);
+                }
+            }
+            Msg::Action(action) => {
+                let was_handled = handle_action(action, self, doc, ctx);
+
+                if !was_handled {
+                    ctx.ui.skip(self.widget_id, msg);
+                }
+            }
+            _ => ctx.ui.skip(self.widget_id, msg),
         }
     }
 

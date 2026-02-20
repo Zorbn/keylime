@@ -78,7 +78,6 @@ impl CompletionList {
         let widget_id = ui.new_widget(
             parent_id,
             WidgetSettings {
-                is_component: true,
                 popup: Some(Rect::ZERO),
                 ..Default::default()
             },
@@ -160,7 +159,7 @@ impl CompletionList {
     // }
 
     // TODO:
-    pub fn receive_msg(&mut self, ctx: &mut Ctx) {
+    pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             ctx.ui.skip(self.widget_id, msg);
         }

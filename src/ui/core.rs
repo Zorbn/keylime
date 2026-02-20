@@ -36,7 +36,6 @@ pub enum WidgetLayout {
 #[derive(Debug)]
 pub struct WidgetSettings {
     pub is_shown: bool,
-    pub is_component: bool,
     pub is_resizable: bool,
     pub scale: f32,
     pub layout: WidgetLayout,
@@ -47,7 +46,6 @@ impl Default for WidgetSettings {
     fn default() -> Self {
         Self {
             is_shown: true,
-            is_component: false,
             is_resizable: true,
             scale: 1.0,
             layout: WidgetLayout::Vertical,

@@ -171,6 +171,9 @@ impl Editor {
         }
 
         self.panes.receive_msgs(&mut self.doc_list, ctx);
+        self.completion_list.receive_msgs(ctx);
+        self.signature_help_popup.receive_msgs(ctx);
+        self.examine_popup.receive_msgs(ctx);
     }
 
     pub fn update(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx, dt: f32) {

@@ -59,6 +59,10 @@ impl ExaminePopup {
     //     self.popup.layout(position, PopupAlignment::Above, ctx);
     // }
 
+    pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
+        self.popup.receive_msgs(ctx);
+    }
+
     pub fn update(&mut self, did_cursor_move: bool, doc: &Doc, ctx: &mut Ctx) {
         let needs_clear = match self.kind {
             ExaminePopupKind::None => false,

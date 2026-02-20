@@ -149,7 +149,9 @@ impl TerminalEmulator {
     }
 
     // TODO: This is a hack.
-    pub fn receive_msgs(&mut self, widget_id: WidgetId, docs: &mut TerminalDocs, ctx: &mut Ctx) {
+    pub fn receive_msgs(&mut self, tab: &mut Tab, docs: &mut TerminalDocs, ctx: &mut Ctx) {
+        let widget_id = tab.widget_id();
+
         let Some(mut pty) = self.pty.take() else {
             while let Some(msg) = ctx.ui.msg(widget_id) {
                 ctx.ui.skip(widget_id, msg);
@@ -233,7 +235,7 @@ impl TerminalEmulator {
                         pty.input().push(key & 0x1F);
                     }
                 }
-                _ => ctx.ui.skip(widget_id, msg),
+                _ => tab.receive_msg(msg, doc, ctx),
             }
         }
 

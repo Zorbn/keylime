@@ -69,13 +69,7 @@ impl<T> ResultList<T> {
             do_show_when_empty,
 
             result_bounds: Rect::ZERO,
-            widget_id: ui.new_widget(
-                parent_id,
-                WidgetSettings {
-                    is_component: true,
-                    ..Default::default()
-                },
-            ),
+            widget_id: ui.new_widget(parent_id, Default::default()),
 
             camera: CameraAxis::new(),
         }
