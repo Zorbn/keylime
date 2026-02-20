@@ -11,10 +11,14 @@ use crate::{
         action::action_keybind,
         mods::{Mod, Mods},
         mouse_button::MouseButton,
+        mouse_scroll::MouseScroll,
         mousebind::{Mousebind, MousebindKind},
     },
     platform::gfx::Gfx,
-    ui::camera::{CameraAxis, CameraRecenterRequest},
+    ui::{
+        camera::{CameraAxis, CameraRecenterRequest},
+        msg::Msg,
+    },
 };
 
 use super::{
@@ -99,63 +103,77 @@ impl<T> ResultList<T> {
     //     widget.bounds = widget.bounds.offset_by(bounds);
     // }
 
-    pub fn update(&mut self, ctx: &mut Ctx) -> ResultListInput {
+    pub fn receive_msgs(&mut self, ctx: &mut Ctx) -> ResultListInput {
         let mut input = ResultListInput::None;
 
-        self.handle_mouse_inputs(&mut input, ctx);
-        self.handle_actions(&mut input, ctx);
+        while let Some(msg) = ctx.ui.msg(self.widget_id) {
+            match msg {
+                Msg::Mousebind(Mousebind {
+                    button: button @ (None | Some(MouseButton::Left)),
+                    x,
+                    y,
+                    mods,
+                    kind: MousebindKind::Press | MousebindKind::Move,
+                    ..
+                }) => {
+                    let position = VisualPosition::new(x, y);
+
+                    if !self.try_focus_position(position, ctx) {
+                        ctx.ui.skip(self.widget_id, msg);
+                        continue;
+                    }
+
+                    if button.is_some() {
+                        let kind = if mods.contains(Mod::Shift) {
+                            ResultListSubmitKind::Alternate
+                        } else {
+                            ResultListSubmitKind::Normal
+                        };
+
+                        input = ResultListInput::Submit { kind };
+                    }
+                }
+                Msg::MouseScroll(MouseScroll {
+                    delta,
+                    is_horizontal,
+                    kind,
+                    x,
+                    y,
+                }) => {
+                    let bounds = ctx.ui.bounds(self.widget_id);
+                    let position = VisualPosition::new(x, y);
+
+                    if is_horizontal || !bounds.contains_position(position) {
+                        ctx.ui.skip(self.widget_id, msg);
+                        continue;
+                    }
+
+                    let delta = delta * self.result_bounds.height;
+                    self.camera.scroll(delta, kind);
+                }
+                Msg::Action(action_keybind!(key: Escape, mods: Mods::NONE)) => {
+                    input = ResultListInput::Close
+                }
+                Msg::Action(action_keybind!(key: Enter, mods: Mods::NONE)) => {
+                    input = ResultListInput::Submit {
+                        kind: ResultListSubmitKind::Normal,
+                    }
+                }
+                Msg::Action(action_keybind!(key: Enter, mods: Mods::SHIFT)) => {
+                    input = ResultListInput::Submit {
+                        kind: ResultListSubmitKind::Alternate,
+                    }
+                }
+                Msg::Action(action_keybind!(key: Tab, mods: Mods::NONE)) => {
+                    input = ResultListInput::Complete
+                }
+                Msg::Action(action_keybind!(key: Up, mods: Mods::NONE)) => self.focus_previous(),
+                Msg::Action(action_keybind!(key: Down, mods: Mods::NONE)) => self.focus_next(),
+                _ => ctx.ui.skip(self.widget_id, msg),
+            }
+        }
 
         input
-    }
-
-    fn handle_mouse_inputs(&mut self, input: &mut ResultListInput, ctx: &mut Ctx) {
-        let bounds = ctx.ui.bounds(self.widget_id);
-
-        let mut mouse_handler = ctx.ui.mousebind_handler(self.widget_id, ctx.window);
-
-        while let Some(mousebind) = mouse_handler.next(ctx.window) {
-            let position = VisualPosition::new(mousebind.x, mousebind.y);
-
-            let Mousebind {
-                button: None | Some(MouseButton::Left),
-                mods,
-                kind: MousebindKind::Press | MousebindKind::Move,
-                ..
-            } = mousebind
-            else {
-                mouse_handler.unprocessed(ctx.window, mousebind);
-                continue;
-            };
-
-            if !self.try_focus_position(position, ctx) {
-                mouse_handler.unprocessed(ctx.window, mousebind);
-                continue;
-            }
-
-            if mousebind.button.is_some() {
-                let kind = if mods.contains(Mod::Shift) {
-                    ResultListSubmitKind::Alternate
-                } else {
-                    ResultListSubmitKind::Normal
-                };
-
-                *input = ResultListInput::Submit { kind };
-            }
-        }
-
-        let mut mouse_scroll_handler = ctx.ui.mouse_scroll_handler(self.widget_id, ctx.window);
-
-        while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
-            let position = ctx.window.mouse_position();
-
-            if mouse_scroll.is_horizontal || !bounds.contains_position(position) {
-                mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
-                continue;
-            }
-
-            let delta = mouse_scroll.delta * self.result_bounds.height;
-            self.camera.scroll(delta, mouse_scroll.kind);
-        }
     }
 
     fn try_focus_position(&mut self, position: VisualPosition, ctx: &Ctx) -> bool {
@@ -176,30 +194,6 @@ impl<T> ResultList<T> {
         self.mark_focused_handled();
 
         true
-    }
-
-    fn handle_actions(&mut self, input: &mut ResultListInput, ctx: &mut Ctx) {
-        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
-
-        while let Some(action) = action_handler.next(ctx) {
-            match action {
-                action_keybind!(key: Escape, mods: Mods::NONE) => *input = ResultListInput::Close,
-                action_keybind!(key: Enter, mods: Mods::NONE) => {
-                    *input = ResultListInput::Submit {
-                        kind: ResultListSubmitKind::Normal,
-                    }
-                }
-                action_keybind!(key: Enter, mods: Mods::SHIFT) => {
-                    *input = ResultListInput::Submit {
-                        kind: ResultListSubmitKind::Alternate,
-                    }
-                }
-                action_keybind!(key: Tab, mods: Mods::NONE) => *input = ResultListInput::Complete,
-                action_keybind!(key: Up, mods: Mods::NONE) => self.focus_previous(),
-                action_keybind!(key: Down, mods: Mods::NONE) => self.focus_next(),
-                _ => action_handler.unprocessed(ctx.window, action),
-            }
-        }
     }
 
     pub fn animate(&mut self, ctx: &Ctx, dt: f32) {

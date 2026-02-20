@@ -171,74 +171,79 @@ impl CommandPalette {
     //     );
     // }
 
+    // TODO:
+    pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
+        // if let Some(mut mode) = self.mode.take() {
+        //     let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
+
+        //     while let Some(action) = action_handler.next(ctx) {
+        //         if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
+        //             action_handler.unprocessed(ctx.window, action);
+        //         }
+        //     }
+
+        //     mode.on_update(self, CommandPaletteEventArgs::new(editor, ctx));
+        //     self.mode = Some(mode);
+        // }
+
+        // let result_input = self.result_list.update(ctx);
+
+        // match result_input {
+        //     ResultListInput::None => {}
+        //     ResultListInput::Complete => self.complete_result(editor, ctx),
+        //     ResultListInput::Submit { kind } => {
+        //         self.submit(kind, editor, ctx);
+        //     }
+        //     ResultListInput::Close => self.close(ctx.ui),
+        // }
+
+        // let mut global_action_handler = ctx.window.action_handler();
+
+        // while let Some(action) = global_action_handler.next(ctx) {
+        //     match action {
+        //         action_name!(OpenAllActions) => {
+        //             self.open(Box::new(AllActionsMode), editor, ctx);
+        //         }
+        //         action_name!(OpenFileExplorer) => {
+        //             self.open(Box::new(FileExplorerMode::new(None)), editor, ctx);
+        //         }
+        //         action_name!(OpenConfig) => {
+        //             let config_dir = Config::dir(ctx.current_dir);
+
+        //             self.open(
+        //                 Box::new(FileExplorerMode::new(Some(config_dir))),
+        //                 editor,
+        //                 ctx,
+        //             );
+        //         }
+        //         action_name!(OpenSearch) => {
+        //             self.open(Box::new(SearchMode::new()), editor, ctx);
+        //         }
+        //         action_name!(OpenSearchAndReplace) => {
+        //             self.open(Box::new(SearchAndReplaceMode::new()), editor, ctx);
+        //         }
+        //         action_name!(OpenFindInFiles) => {
+        //             self.open(Box::new(FindInFilesMode::new()), editor, ctx);
+        //         }
+        //         action_name!(OpenAllFiles) => {
+        //             self.open(Box::new(AllFilesMode::new()), editor, ctx);
+        //         }
+        //         action_name!(OpenAllDiagnostics) => {
+        //             self.open(Box::new(AllDiagnosticsMode), editor, ctx);
+        //         }
+        //         action_name!(OpenGoToLine) => {
+        //             self.open(Box::new(GoToLineMode), editor, ctx);
+        //         }
+        //         _ => global_action_handler.unprocessed(ctx.window, action),
+        //     }
+        // }
+
+        self.tab.receive_msgs(&mut self.doc, ctx);
+    }
+
     pub fn update(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
         if ctx.ui.is_visible(self.widget_id) && !ctx.ui.is_in_focused_hierarchy(self.widget_id) {
             self.close(ctx.ui);
-        }
-
-        if let Some(mut mode) = self.mode.take() {
-            let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
-
-            while let Some(action) = action_handler.next(ctx) {
-                if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
-                    action_handler.unprocessed(ctx.window, action);
-                }
-            }
-
-            mode.on_update(self, CommandPaletteEventArgs::new(editor, ctx));
-            self.mode = Some(mode);
-        }
-
-        let result_input = self.result_list.update(ctx);
-
-        match result_input {
-            ResultListInput::None => {}
-            ResultListInput::Complete => self.complete_result(editor, ctx),
-            ResultListInput::Submit { kind } => {
-                self.submit(kind, editor, ctx);
-            }
-            ResultListInput::Close => self.close(ctx.ui),
-        }
-
-        let mut global_action_handler = ctx.window.action_handler();
-
-        while let Some(action) = global_action_handler.next(ctx) {
-            match action {
-                action_name!(OpenAllActions) => {
-                    self.open(Box::new(AllActionsMode), editor, ctx);
-                }
-                action_name!(OpenFileExplorer) => {
-                    self.open(Box::new(FileExplorerMode::new(None)), editor, ctx);
-                }
-                action_name!(OpenConfig) => {
-                    let config_dir = Config::dir(ctx.current_dir);
-
-                    self.open(
-                        Box::new(FileExplorerMode::new(Some(config_dir))),
-                        editor,
-                        ctx,
-                    );
-                }
-                action_name!(OpenSearch) => {
-                    self.open(Box::new(SearchMode::new()), editor, ctx);
-                }
-                action_name!(OpenSearchAndReplace) => {
-                    self.open(Box::new(SearchAndReplaceMode::new()), editor, ctx);
-                }
-                action_name!(OpenFindInFiles) => {
-                    self.open(Box::new(FindInFilesMode::new()), editor, ctx);
-                }
-                action_name!(OpenAllFiles) => {
-                    self.open(Box::new(AllFilesMode::new()), editor, ctx);
-                }
-                action_name!(OpenAllDiagnostics) => {
-                    self.open(Box::new(AllDiagnosticsMode), editor, ctx);
-                }
-                action_name!(OpenGoToLine) => {
-                    self.open(Box::new(GoToLineMode), editor, ctx);
-                }
-                _ => global_action_handler.unprocessed(ctx.window, action),
-            }
         }
 
         self.tab.update(&mut self.doc, ctx);

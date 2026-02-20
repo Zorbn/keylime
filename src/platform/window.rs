@@ -41,19 +41,19 @@ impl Window {
         self.inner.was_shown
     }
 
-    pub fn grapheme_handler(&self) -> GraphemeHandler {
+    pub fn todo_grapheme_handler(&self) -> GraphemeHandler {
         self.inner.grapheme_handler()
     }
 
-    pub fn action_handler(&self) -> ActionHandler {
+    pub fn todo_action_handler(&self) -> ActionHandler {
         self.inner.action_handler()
     }
 
-    pub fn mousebind_handler(&self) -> MousebindHandler {
+    pub fn todo_mousebind_handler(&self) -> MousebindHandler {
         self.inner.mousebind_handler()
     }
 
-    pub fn mouse_scroll_handler(&self) -> MouseScrollHandler {
+    pub fn todo_mouse_scroll_handler(&self) -> MouseScrollHandler {
         self.inner.mouse_scroll_handler()
     }
 

@@ -1,4 +1,4 @@
-use crate::{ctx::Ctx, platform::window::Window, text::grapheme::GraphemeCursor};
+use crate::{config::Config, ctx::Ctx, platform::window::Window, text::grapheme::GraphemeCursor};
 
 use super::{action::Action, mouse_scroll::MouseScroll, mousebind::Mousebind};
 
@@ -52,10 +52,10 @@ impl ActionHandler {
         }
     }
 
-    pub fn next(&mut self, ctx: &mut Ctx) -> Option<Action> {
+    pub fn next(&mut self, config: &Config, window: &mut Window) -> Option<Action> {
         self.raw
-            .next(ctx.window)
-            .map(|action| action.translate(&ctx.config.keymaps))
+            .next(window)
+            .map(|action| action.translate(&config.keymaps))
     }
 
     pub fn unprocessed(&mut self, window: &mut Window, action: Action) {

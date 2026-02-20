@@ -7,6 +7,7 @@ use crate::{
     input::action::action_name,
     platform::process::Process,
     text::doc::{Doc, DocFlags},
+    ui::msg::Msg,
 };
 
 use super::{core::WidgetId, pane_list::PaneList, slot_list::SlotList};
@@ -83,35 +84,51 @@ impl Terminal {
     //     self.panes.layout(bounds, &mut self.term_list, ctx);
     // }
 
-    pub fn update(&mut self, ctx: &mut Ctx) {
-        self.panes.update(self.widget_id, ctx);
-
-        self.handle_actions(ctx);
-
-        let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
-        let pane_widget_id = pane.widget_id();
-
-        let mut global_action_handler = ctx.window.action_handler();
-
-        while let Some(action) = global_action_handler.next(ctx) {
-            match action {
-                action_name!(FocusTerminal) => {
-                    if ctx.ui.is_in_focused_hierarchy(self.widget_id) {
-                        ctx.ui.unfocus_hierarchy(self.widget_id);
-                    } else {
-                        ctx.ui.focus(pane_widget_id);
-                    }
-                }
-                _ => global_action_handler.unprocessed(ctx.window, action),
+    pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
+        while let Some(msg) = ctx.ui.msg(self.widget_id) {
+            match msg {
+                Msg::Action(action_name!(NewPane)) => self.add_pane(ctx),
+                Msg::Action(action_name!(ClosePane)) => self.close_pane(ctx),
+                _ => ctx.ui.skip(self.widget_id, msg),
             }
         }
 
-        pane.update(&mut self.term_list, ctx);
+        let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
 
         if let Some((tab, (docs, emulator))) =
             pane.get_focused_tab_with_data_mut(&mut self.term_list)
         {
-            emulator.update_input(pane_widget_id, docs, tab, ctx);
+            emulator.receive_msgs(tab.widget_id(), docs, ctx);
+        }
+
+        self.panes.receive_msgs(&mut self.term_list, ctx);
+    }
+
+    pub fn update(&mut self, ctx: &mut Ctx) {
+        self.panes.update(self.widget_id, ctx);
+
+        let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
+
+        // TODO:
+        // let mut global_action_handler = ctx.window.action_handler();
+
+        // while let Some(action) = global_action_handler.next(ctx) {
+        //     match action {
+        //         action_name!(FocusTerminal) => {
+        //             if ctx.ui.is_in_focused_hierarchy(self.widget_id) {
+        //                 ctx.ui.unfocus_hierarchy(self.widget_id);
+        //             } else {
+        //                 ctx.ui.focus(pane_widget_id);
+        //             }
+        //         }
+        //         _ => global_action_handler.unprocessed(ctx.window, action),
+        //     }
+        // }
+
+        if let Some((tab, (docs, emulator))) =
+            pane.get_focused_tab_with_data_mut(&mut self.term_list)
+        {
+            emulator.update_input(docs, tab, ctx);
         }
 
         for tab in pane.iter_tabs_mut() {
@@ -125,18 +142,6 @@ impl Terminal {
         }
 
         self.panes.remove_excess(ctx.ui, |pane| !pane.has_tabs());
-    }
-
-    fn handle_actions(&mut self, ctx: &mut Ctx) {
-        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
-
-        while let Some(action) = action_handler.next(ctx) {
-            match action {
-                action_name!(NewPane) => self.add_pane(ctx),
-                action_name!(ClosePane) => self.close_pane(ctx),
-                _ => action_handler.unprocessed(ctx.window, action),
-            }
-        }
     }
 
     pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {

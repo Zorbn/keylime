@@ -7,7 +7,7 @@ pub enum MouseScrollKind {
     Instant,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct MouseScroll {
     pub delta: f32,
     pub is_horizontal: bool,

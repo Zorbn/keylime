@@ -159,44 +159,53 @@ impl CompletionList {
     //         .layout(position, PopupAlignment::TopLeft, ctx);
     // }
 
+    // TODO:
+    pub fn receive_msg(&mut self, ctx: &mut Ctx) {
+        while let Some(msg) = ctx.ui.msg(self.widget_id) {
+            ctx.ui.skip(self.widget_id, msg);
+        }
+    }
+
+    // TODO:
     pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) -> Option<CompletionListResult> {
-        let result_input = self.result_list.update(ctx);
+        None
+        // let result_input = self.result_list.update(ctx);
 
-        let mut completion_result = None;
+        // let mut completion_result = None;
 
-        match result_input {
-            ResultListInput::Complete
-            | ResultListInput::Submit {
-                kind: ResultListSubmitKind::Normal,
-            } => {
-                completion_result = self.perform_result_action(doc, ctx);
-                self.clear(ctx);
-            }
-            ResultListInput::Close => self.clear(ctx),
-            _ => {}
-        }
+        // match result_input {
+        //     ResultListInput::Complete
+        //     | ResultListInput::Submit {
+        //         kind: ResultListSubmitKind::Normal,
+        //     } => {
+        //         completion_result = self.perform_result_action(doc, ctx);
+        //         self.clear(ctx);
+        //     }
+        //     ResultListInput::Close => self.clear(ctx),
+        //     _ => {}
+        // }
 
-        if let Some(CompletionResult::Completion {
-            item,
-            resolve_state: resolve_state @ CompletionResolveState::NeedsRequest,
-        }) = self.result_list.get_focused_mut()
-        {
-            *resolve_state = CompletionResolveState::NeedsResponse;
+        // if let Some(CompletionResult::Completion {
+        //     item,
+        //     resolve_state: resolve_state @ CompletionResolveState::NeedsRequest,
+        // }) = self.result_list.get_focused_mut()
+        // {
+        //     *resolve_state = CompletionResolveState::NeedsResponse;
 
-            if let Some(sent_request) = Self::lsp_completion_item_resolve(item, doc, ctx) {
-                let index = self.result_list.focused_index();
+        //     if let Some(sent_request) = Self::lsp_completion_item_resolve(item, doc, ctx) {
+        //         let index = self.result_list.focused_index();
 
-                self.lsp_expected_responses.insert(sent_request.id, index);
-            }
-        }
+        //         self.lsp_expected_responses.insert(sent_request.id, index);
+        //     }
+        // }
 
-        self.set_popups_shown(ctx);
-        self.detail_popup.update(ctx);
-        self.documentation_popup.update(ctx);
+        // self.set_popups_shown(ctx);
+        // self.detail_popup.update(ctx);
+        // self.documentation_popup.update(ctx);
 
-        self.should_open = self.should_open(ctx);
+        // self.should_open = self.should_open(ctx);
 
-        completion_result
+        // completion_result
     }
 
     fn set_popups_shown(&mut self, ctx: &mut Ctx) {
@@ -245,26 +254,27 @@ impl CompletionList {
         Some(language_server.completion_item_resolve(item.clone(), doc))
     }
 
-    fn should_open(&self, ctx: &mut Ctx) -> bool {
-        let mut grapheme_handler = ctx.ui.grapheme_handler(self.widget_id(), ctx.window);
+    // TODO:
+    // fn should_open(&self, ctx: &mut Ctx) -> bool {
+    //     let mut grapheme_handler = ctx.ui.grapheme_handler(self.widget_id(), ctx.window);
 
-        if grapheme_handler.next(ctx.window).is_some() {
-            grapheme_handler.unprocessed(ctx.window);
-            return true;
-        }
+    //     if grapheme_handler.next(ctx.window).is_some() {
+    //         grapheme_handler.unprocessed(ctx.window);
+    //         return true;
+    //     }
 
-        let mut action_handler = ctx.ui.action_handler(self.widget_id(), ctx.window);
+    //     let mut action_handler = ctx.ui.action_handler(self.widget_id(), ctx.window);
 
-        while let Some(action) = action_handler.next(ctx) {
-            action_handler.unprocessed(ctx.window, action);
+    //     while let Some(action) = action_handler.next(ctx) {
+    //         action_handler.unprocessed(ctx.window, action);
 
-            if matches!(action, action_keybind!(key: Backspace)) {
-                return true;
-            }
-        }
+    //         if matches!(action, action_keybind!(key: Backspace)) {
+    //             return true;
+    //         }
+    //     }
 
-        false
-    }
+    //     false
+    // }
 
     pub fn draw(&mut self, ctx: &mut Ctx) {
         self.result_list

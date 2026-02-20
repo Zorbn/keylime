@@ -4,18 +4,20 @@ use crate::{
     geometry::{
         rect::Rect,
         sides::{Side, Sides},
-        visual_position::VisualPosition,
+        visual_position::{self, VisualPosition},
     },
     input::{
         action::action_name,
         mods::Mods,
         mouse_button::MouseButton,
+        mouse_scroll::MouseScroll,
         mousebind::{Mousebind, MousebindKind},
     },
     text::doc::Doc,
     ui::{
         camera::{CameraAxis, CameraRecenterRequest},
         core::WidgetLayout,
+        msg::Msg,
     },
 };
 
@@ -106,50 +108,34 @@ impl<T> Pane<T> {
     //     self.tab_bar_width = tab_x;
     // }
 
-    pub fn update(&mut self, ctx: &mut Ctx) {
-        let bounds = ctx.ui.bounds(self.widget_id);
-
-        let mut global_mousebind_handler = ctx.window.mousebind_handler();
-
-        while let Some(mousebind) = global_mousebind_handler.next(ctx.window) {
-            if self.dragged_tab_offset.is_none() {
-                global_mousebind_handler.unprocessed(ctx.window, mousebind);
-                break;
-            }
-
-            match mousebind {
-                Mousebind {
+    pub fn receive_msgs(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
+        while let Some(msg) = ctx.ui.msg(self.widget_id) {
+            match msg {
+                Msg::Mousebind(Mousebind {
                     button: Some(MouseButton::Left),
-                    mods: Mods::NONE,
                     kind: MousebindKind::Release,
                     ..
-                } => self.dragged_tab_offset = None,
-                Mousebind {
+                })
+                | Msg::LostFocus => self.dragged_tab_offset = None,
+                Msg::Mousebind(Mousebind {
                     button: Some(MouseButton::Left),
                     mods: Mods::NONE,
                     kind: MousebindKind::Move,
                     ..
-                } => {}
-                _ => global_mousebind_handler.unprocessed(ctx.window, mousebind),
-            }
-        }
-
-        self.handle_dragged_tab(ctx.ui);
-
-        let mut mousebind_handler = ctx.ui.mousebind_handler(self.widget_id, ctx.window);
-
-        while let Some(mousebind) = mousebind_handler.next(ctx.window) {
-            let visual_position =
-                VisualPosition::new(mousebind.x + self.camera.position(), mousebind.y)
-                    .unoffset_by(bounds);
-
-            match mousebind {
-                Mousebind {
+                }) => {}
+                Msg::Mousebind(Mousebind {
                     button: Some(MouseButton::Left),
+                    x,
+                    y,
                     mods: Mods::NONE,
                     kind: MousebindKind::Press,
                     ..
-                } => {
+                }) => {
+                    let bounds = ctx.ui.bounds(self.widget_id);
+
+                    let visual_position =
+                        VisualPosition::new(x + self.camera.position(), y).unoffset_by(bounds);
+
                     let mut offset = 0.0;
 
                     let index = self.tabs.iter().position(|tab| {
@@ -166,47 +152,49 @@ impl<T> Pane<T> {
                         self.handled_focused_index = Some(index);
                         self.dragged_tab_offset = Some(offset);
                     } else {
-                        mousebind_handler.unprocessed(ctx.window, mousebind);
+                        ctx.ui.skip(self.widget_id, msg);
                     }
                 }
-                _ => mousebind_handler.unprocessed(ctx.window, mousebind),
+                Msg::MouseScroll(MouseScroll {
+                    x,
+                    y,
+                    delta,
+                    is_horizontal,
+                    kind,
+                }) => {
+                    let bounds = ctx.ui.bounds(self.widget_id);
+                    let visual_position = VisualPosition::new(x, y).unoffset_by(bounds);
+
+                    if self
+                        .tabs
+                        .iter()
+                        .any(|tab| tab.tab_bounds().contains_position(visual_position))
+                    {
+                        ctx.ui.skip(self.widget_id, msg);
+                        continue;
+                    }
+
+                    let delta =
+                        delta * ctx.gfx.glyph_width() * if is_horizontal { 1.0 } else { -1.0 };
+
+                    self.camera.scroll(-delta, kind);
+                }
+                Msg::Action(action_name!(PreviousTab)) => self.tabs.focus_previous(),
+                Msg::Action(action_name!(NextTab)) => self.tabs.focus_next(),
+                _ => ctx.ui.skip(self.widget_id, msg),
             }
         }
 
-        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
+        for tab in self.tabs.iter_mut() {
+            let data = data_list.get_mut(tab.data_id()).unwrap();
+            let doc = (self.get_doc_mut)(data);
 
-        while let Some(action) = action_handler.next(ctx) {
-            match action {
-                action_name!(PreviousTab) => self.tabs.focus_previous(),
-                action_name!(NextTab) => self.tabs.focus_next(),
-                _ => action_handler.unprocessed(ctx.window, action),
-            }
+            tab.receive_msgs(doc, ctx);
         }
+    }
 
-        let mut mouse_scroll_handler = ctx.ui.mouse_scroll_handler(self.widget_id, ctx.window);
-
-        while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
-            let visual_position = ctx.window.mouse_position().unoffset_by(bounds);
-
-            if !self
-                .tabs
-                .iter()
-                .any(|tab| tab.tab_bounds().contains_position(visual_position))
-            {
-                mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
-                continue;
-            }
-
-            let delta = mouse_scroll.delta
-                * ctx.gfx.glyph_width()
-                * if mouse_scroll.is_horizontal {
-                    1.0
-                } else {
-                    -1.0
-                };
-
-            self.camera.scroll(-delta, mouse_scroll.kind);
-        }
+    pub fn update(&mut self, ctx: &mut Ctx) {
+        self.handle_dragged_tab(ctx.ui);
     }
 
     fn handle_dragged_tab(&mut self, ui: &mut Ui) {

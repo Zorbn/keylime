@@ -32,6 +32,7 @@ use crate::{
         cursor_index::CursorIndex,
         doc::{Doc, DocFlags},
     },
+    ui::msg::Msg,
 };
 
 use super::{
@@ -126,6 +127,52 @@ impl Editor {
     //         .set_shown(self.signature_help_popup.widget_id(), is_cursor_visible);
     // }
 
+    pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
+        while let Some(msg) = ctx.ui.msg(self.widget_id) {
+            match msg {
+                Msg::Action(action_name!(OpenFolder)) => {
+                    if let Ok(path) = find_file(FindFileKind::OpenFolder) {
+                        if let Err(err) = Self::open_folder(&path, ctx) {
+                            message("Error Opening Folder", &err.to_string(), MessageKind::Ok);
+                        }
+                    }
+                }
+                Msg::Action(action_name!(NewPane)) => self.add_pane(ctx),
+                Msg::Action(action_name!(ClosePane)) => self.close_pane(ctx),
+                Msg::Action(action_keybind!(key: Escape, mods: Mods::NONE)) => {
+                    if self.signature_help_popup.is_open() {
+                        self.signature_help_popup.clear(ctx.ui);
+                    } else if self.examine_popup.is_open() {
+                        self.examine_popup.clear(ctx.ui);
+                    } else {
+                        ctx.ui.skip(self.widget_id, msg);
+                    }
+                }
+                Msg::Action(action_name!(Examine)) => {
+                    self.signature_help_popup.clear(ctx.ui);
+
+                    let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
+
+                    if let Some((_, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) {
+                        let position = doc.cursor(CursorIndex::Main).position;
+                        self.examine_popup.open(position, true, doc, ctx);
+                    }
+                }
+                Msg::Action(action_name!(UndoCursorPosition)) => {
+                    self.cursor_history
+                        .undo(&mut self.panes, &mut self.doc_list, ctx);
+                }
+                Msg::Action(action_name!(RedoCursorPosition)) => {
+                    self.cursor_history
+                        .redo(&mut self.panes, &mut self.doc_list, ctx);
+                }
+                _ => ctx.ui.skip(self.widget_id, msg),
+            }
+        }
+
+        self.panes.receive_msgs(&mut self.doc_list, ctx);
+    }
+
     pub fn update(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx, dt: f32) {
         self.panes.update(self.widget_id, ctx);
         self.reload_changed_files(file_watcher, ctx);
@@ -138,14 +185,9 @@ impl Editor {
 
         let signature_help_triggers = SignatureHelpPopup::get_triggers(self.widget_id, doc, ctx);
 
-        self.handle_actions(ctx);
-        self.handle_mousebinds(ctx);
-
         self.update_hover(ctx, dt);
         self.pre_pane_update(ctx);
 
-        let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
-        pane.update(&mut self.doc_list, ctx);
         self.panes.remove_excess(ctx.ui, |pane| !pane.has_tabs());
 
         self.post_pane_update(signature_help_triggers, ctx);
@@ -156,71 +198,26 @@ impl Editor {
         }
     }
 
-    fn handle_actions(&mut self, ctx: &mut Ctx) {
-        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
+    // TODO:
+    // fn handle_mousebinds(&mut self, ctx: &mut Ctx) -> Option<()> {
+    //     let mut global_mousebind_handler = ctx.window.mousebind_handler();
 
-        while let Some(action) = action_handler.next(ctx) {
-            match action {
-                action_name!(OpenFolder) => {
-                    if let Ok(path) = find_file(FindFileKind::OpenFolder) {
-                        if let Err(err) = Self::open_folder(&path, ctx) {
-                            message("Error Opening Folder", &err.to_string(), MessageKind::Ok);
-                        }
-                    }
-                }
-                action_name!(NewPane) => self.add_pane(ctx),
-                action_name!(ClosePane) => self.close_pane(ctx),
-                action_keybind!(key: Escape, mods: Mods::NONE) => {
-                    if self.signature_help_popup.is_open() {
-                        self.signature_help_popup.clear(ctx.ui);
-                    } else if self.examine_popup.is_open() {
-                        self.examine_popup.clear(ctx.ui);
-                    } else {
-                        action_handler.unprocessed(ctx.window, action);
-                    }
-                }
-                action_name!(Examine) => {
-                    self.signature_help_popup.clear(ctx.ui);
+    //     if let Some(mousebind) = global_mousebind_handler.next(ctx.window) {
+    //         self.hover_timer = HOVER_TIME;
 
-                    let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
+    //         global_mousebind_handler.unprocessed(ctx.window, mousebind);
+    //     }
 
-                    if let Some((_, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) {
-                        let position = doc.cursor(CursorIndex::Main).position;
-                        self.examine_popup.open(position, true, doc, ctx);
-                    }
-                }
-                action_name!(UndoCursorPosition) => {
-                    self.cursor_history
-                        .undo(&mut self.panes, &mut self.doc_list, ctx);
-                }
-                action_name!(RedoCursorPosition) => {
-                    self.cursor_history
-                        .redo(&mut self.panes, &mut self.doc_list, ctx);
-                }
-                _ => action_handler.unprocessed(ctx.window, action),
-            }
-        }
-    }
+    //     let mut global_mouse_scroll_handler = ctx.window.mouse_scroll_handler();
 
-    fn handle_mousebinds(&mut self, ctx: &mut Ctx) -> Option<()> {
-        let mut global_mousebind_handler = ctx.window.mousebind_handler();
+    //     if let Some(mouse_scroll) = global_mouse_scroll_handler.next(ctx.window) {
+    //         self.hover_timer = HOVER_TIME;
 
-        if let Some(mousebind) = global_mousebind_handler.next(ctx.window) {
-            self.hover_timer = HOVER_TIME;
+    //         global_mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
+    //     }
 
-            global_mousebind_handler.unprocessed(ctx.window, mousebind);
-        }
-
-        let mut global_mouse_scroll_handler = ctx.window.mouse_scroll_handler();
-
-        if let Some(mouse_scroll) = global_mouse_scroll_handler.next(ctx.window) {
-            self.hover_timer = HOVER_TIME;
-
-            global_mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
-        }
-
-        Some(())
-    }
+    //     Some(())
+    // }
 
     fn update_hover(&mut self, ctx: &mut Ctx, dt: f32) {
         let last_hover_timer = self.hover_timer;

@@ -9,7 +9,10 @@ use crate::{
         action::{action_name, Action},
         input_handlers::ActionHandler,
     },
-    ui::core::{Ui, WidgetSettings},
+    ui::{
+        core::{Ui, WidgetSettings},
+        msg::Msg,
+    },
 };
 
 use super::{
@@ -20,12 +23,15 @@ use super::{
     widget_list::WidgetList,
 };
 
-pub trait PaneWrapper<T>: Deref<Target = Pane<T>> + DerefMut<Target = Pane<T>> {}
-
-impl<TPane: Deref<Target = Pane<TData>> + DerefMut<Target = Pane<TData>>, TData> PaneWrapper<TData>
-    for TPane
-{
+pub trait PaneWrapper<T>: Deref<Target = Pane<T>> + DerefMut<Target = Pane<T>> {
+    fn receive_msgs(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx);
+    fn update(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx);
 }
+
+// impl<TPane: Deref<Target = Pane<TData>> + DerefMut<Target = Pane<TData>>, TData> PaneWrapper<TData>
+//     for TPane
+// {
+// }
 
 pub struct PaneList<TPane: PaneWrapper<TData>, TData> {
     widget_id: WidgetId,
@@ -62,20 +68,32 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
     //     }
     // }
 
-    pub fn update(&mut self, widget_id: WidgetId, ctx: &mut Ctx) {
-        self.panes.update(ctx.ui);
-
-        let mut action_handler = ctx.ui.action_handler(widget_id, ctx.window);
-
-        while let Some(action) = action_handler.next(ctx) {
-            match action {
-                action_name!(PreviousPane) => self.panes.focus_previous(ctx.ui),
-                action_name!(NextPane) => self.panes.focus_next(ctx.ui),
-                action_name!(PreviousTab) => self.previous_tab(action, &mut action_handler, ctx),
-                action_name!(NextTab) => self.next_tab(action, &mut action_handler, ctx),
-                _ => action_handler.unprocessed(ctx.window, action),
+    pub fn receive_msgs(&mut self, data_list: &mut SlotList<TData>, ctx: &mut Ctx) {
+        while let Some(msg) = ctx.ui.msg(self.widget_id) {
+            match msg {
+                Msg::Action(action_name!(PreviousPane)) => self.panes.focus_previous(ctx.ui),
+                Msg::Action(action_name!(NextPane)) => self.panes.focus_next(ctx.ui),
+                Msg::Action(action_name!(PreviousTab)) => {
+                    if !self.previous_tab(ctx) {
+                        ctx.ui.skip(self.widget_id, msg);
+                    }
+                }
+                Msg::Action(action_name!(NextTab)) => {
+                    if !self.next_tab(ctx) {
+                        ctx.ui.skip(self.widget_id, msg);
+                    }
+                }
+                _ => ctx.ui.skip(self.widget_id, msg),
             }
         }
+
+        for pane in self.panes.iter_mut() {
+            pane.receive_msgs(data_list, ctx);
+        }
+    }
+
+    pub fn update(&mut self, widget_id: WidgetId, ctx: &mut Ctx) {
+        self.panes.update(ctx.ui);
     }
 
     pub fn animate(&mut self, data_list: &mut SlotList<TData>, ctx: &mut Ctx, dt: f32) {
@@ -95,27 +113,29 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
         }
     }
 
-    fn previous_tab(&mut self, action: Action, action_handler: &mut ActionHandler, ctx: &mut Ctx) {
+    fn previous_tab(&mut self, ctx: &mut Ctx) -> bool {
         let Some(pane) = self.panes.get_last_focused(ctx.ui) else {
-            return;
+            return true;
         };
 
         if pane.focused_tab_index() == 0 {
             self.panes.focus_previous(ctx.ui);
+            true
         } else {
-            action_handler.unprocessed(ctx.window, action);
+            false
         }
     }
 
-    fn next_tab(&mut self, action: Action, action_handler: &mut ActionHandler, ctx: &mut Ctx) {
+    fn next_tab(&mut self, ctx: &mut Ctx) -> bool {
         let Some(pane) = self.panes.get_last_focused(ctx.ui) else {
-            return;
+            return true;
         };
 
         if pane.focused_tab_index() == pane.tab_count() - 1 {
             self.panes.focus_next(ctx.ui);
+            true
         } else {
-            action_handler.unprocessed(ctx.window, action);
+            false
         }
     }
 

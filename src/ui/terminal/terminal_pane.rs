@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::{
     ctx::Ctx,
-    ui::{core::WidgetId, pane::Pane, slot_list::SlotList},
+    ui::{core::WidgetId, pane::Pane, pane_list::PaneWrapper, slot_list::SlotList},
 };
 
 use super::{action_name, terminal_emulator::TerminalEmulator, Term, TerminalDocs};
@@ -27,37 +27,42 @@ impl TerminalPane {
         Self { inner }
     }
 
-    pub fn update(&mut self, term_list: &mut SlotList<Term>, ctx: &mut Ctx) {
-        let mut action_handler = ctx.ui.action_handler(self.widget_id(), ctx.window);
-
-        while let Some(action) = action_handler.next(ctx) {
-            match action {
-                action_name!(NewTab) => {
-                    let term = Self::new_term();
-                    let term_index = term_list.add(term);
-
-                    self.add_tab(term_index, term_list, ctx);
-                }
-                action_name!(CloseTab) => {
-                    if let Some(tab) = self.get_focused_tab() {
-                        let term_id = tab.data_id();
-
-                        self.remove_tab(term_list, ctx.ui);
-
-                        if let Some((mut docs, _)) = term_list.remove(term_id) {
-                            docs.clear(ctx);
-                        }
-                    }
-                }
-                _ => action_handler.unprocessed(ctx.window, action),
-            }
-        }
-
-        self.inner.update(ctx);
-    }
-
     fn new_term() -> Term {
         (TerminalDocs::new(), TerminalEmulator::new())
+    }
+}
+
+impl PaneWrapper<Term> for TerminalPane {
+    fn receive_msgs(&mut self, term_list: &mut SlotList<Term>, ctx: &mut Ctx) {
+        // TODO:
+        // while let Some(msg) = ctx.ui.msg(self.widget_id) {
+        //     match msg {
+        //         action_name!(NewTab) => {
+        //             let term = Self::new_term();
+        //             let term_index = term_list.add(term);
+
+        //             self.add_tab(term_index, term_list, ctx);
+        //         }
+        //         action_name!(CloseTab) => {
+        //             if let Some(tab) = self.get_focused_tab() {
+        //                 let term_id = tab.data_id();
+
+        //                 self.remove_tab(term_list, ctx.ui);
+
+        //                 if let Some((mut docs, _)) = term_list.remove(term_id) {
+        //                     docs.clear(ctx);
+        //                 }
+        //             }
+        //         }
+        //         _ => action_handler.unprocessed(ctx.window, action),
+        //     }
+        // }
+
+        self.inner.receive_msgs(term_list, ctx);
+    }
+
+    fn update(&mut self, term_list: &mut SlotList<Term>, ctx: &mut Ctx) {
+        self.inner.update(ctx);
     }
 }
 

@@ -26,6 +26,7 @@ use crate::{
     ui::{
         camera::CameraRecenterKind,
         core::WidgetId,
+        msg::Msg,
         tab::Tab,
         terminal::{
             escape_sequences::{parse_escape_sequences, EscapeSequence},
@@ -147,47 +148,40 @@ impl TerminalEmulator {
         }
     }
 
-    pub fn update_input(
-        &mut self,
-        widget_id: WidgetId,
-        docs: &mut TerminalDocs,
-        tab: &mut Tab,
-        ctx: &mut Ctx,
-    ) {
+    // TODO: This is a hack.
+    pub fn receive_msgs(&mut self, widget_id: WidgetId, docs: &mut TerminalDocs, ctx: &mut Ctx) {
         let Some(mut pty) = self.pty.take() else {
-            ctx.ui
-                .action_handler(widget_id, ctx.window)
-                .drain(ctx.window);
-
-            ctx.ui
-                .grapheme_handler(widget_id, ctx.window)
-                .drain(ctx.window);
+            while let Some(msg) = ctx.ui.msg(widget_id) {
+                ctx.ui.skip(widget_id, msg);
+            }
 
             return;
         };
 
         let doc = self.doc_mut(docs);
 
-        let mut action_handler = ctx.ui.action_handler(widget_id, ctx.window);
-
-        while let Some(action) = action_handler.next(ctx) {
-            match action {
-                action_keybind!(key: Enter) => {
+        while let Some(msg) = ctx.ui.msg(widget_id) {
+            match msg {
+                Msg::Grapheme(grapheme) => {
+                    pty.input().extend(grapheme.bytes());
+                }
+                Msg::Action(action_keybind!(key: Enter)) => {
                     pty.input().push(b'\r');
                 }
-                action_keybind!(key: Escape) => {
+                Msg::Action(action_keybind!(key: Escape)) => {
                     pty.input().push(0x1B);
                 }
-                action_keybind!(key: Tab) => {
+                Msg::Action(action_keybind!(key: Tab)) => {
                     pty.input().push(b'\t');
                 }
-                action_keybind!(key: Backspace, mods) => {
+                Msg::Action(action_keybind!(key: Backspace, mods)) => {
                     let key_byte = if mods.contains(Mod::Ctrl) { 0x8 } else { 0x7F };
 
                     pty.input().extend_from_slice(&[key_byte]);
                 }
-                action_keybind!(keys: key @ (Key::Up | Key::Down | Key::Left | Key::Right | Key::Home | Key::End), mods) =>
-                {
+                Msg::Action(
+                    action_keybind!(keys: key @ (Key::Up | Key::Down | Key::Left | Key::Right | Key::Home | Key::End), mods),
+                ) => {
                     let key_byte = match key {
                         Key::Up => b'A',
                         Key::Down => b'B',
@@ -218,18 +212,18 @@ impl TerminalEmulator {
 
                     pty.input().push(key_byte);
                 }
-                action_name!(names: Some(ActionName::Copy | ActionName::Cut))
+                Msg::Action(action_name!(names: Some(ActionName::Copy | ActionName::Cut)))
                     if doc.has_selection() =>
                 {
                     handle_copy(doc, ctx);
                 }
-                action_name!(Paste) => {
+                Msg::Action(action_name!(Paste)) => {
                     let mut text = STRING_POOL.new_item();
                     let _ = ctx.window.get_clipboard(&mut text);
 
                     pty.input().extend(text.bytes());
                 }
-                action_keybind!(key, mods: Mods::CTRL) => {
+                Msg::Action(action_keybind!(key, mods: Mods::CTRL)) => {
                     const KEY_A: u8 = Key::A as u8;
                     const KEY_Z: u8 = Key::Z as u8;
 
@@ -239,19 +233,17 @@ impl TerminalEmulator {
                         pty.input().push(key & 0x1F);
                     }
                 }
-                _ => {}
+                _ => ctx.ui.skip(widget_id, msg),
             }
-        }
-
-        let mut grapheme_handler = ctx.ui.grapheme_handler(widget_id, ctx.window);
-
-        while let Some(grapheme) = grapheme_handler.next(ctx.window) {
-            pty.input().extend(grapheme.bytes());
         }
 
         pty.flush();
 
         self.pty = Some(pty);
+    }
+
+    pub fn update_input(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
+        let doc = self.doc_mut(docs);
 
         tab.update(doc, ctx);
     }

@@ -35,6 +35,12 @@ impl StatusBar {
     //             .floor();
     // }
 
+    pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
+        while let Some(msg) = ctx.ui.msg(self.widget_id) {
+            ctx.ui.skip(self.widget_id, msg);
+        }
+    }
+
     pub fn draw(&self, editor: &Editor, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;

@@ -45,9 +45,6 @@ impl<T> WidgetList<T> {
     }
 
     pub fn add(&mut self, widget: T, ui: &mut Ui) {
-        let get_widget_id = self.get_widget_id;
-        ui.focus(get_widget_id(&widget));
-
         let last_focused_index = self.last_focused_index(ui);
         let focused_index;
 

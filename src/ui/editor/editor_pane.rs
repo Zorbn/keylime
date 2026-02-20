@@ -12,6 +12,7 @@ use crate::{
     ui::{
         core::WidgetId,
         pane::Pane,
+        pane_list::PaneWrapper,
         slot_list::{SlotId, SlotList},
     },
 };
@@ -33,47 +34,6 @@ impl EditorPane {
         inner.add_tab(doc_index, doc_list, ctx);
 
         Self { inner }
-    }
-
-    pub fn update(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) {
-        let mut action_handler = ctx.ui.action_handler(self.widget_id(), ctx.window);
-
-        while let Some(action) = action_handler.next(ctx) {
-            match action {
-                action_name!(OpenFile) => {
-                    if let Ok(path) = find_file(FindFileKind::OpenFile) {
-                        if let Err(err) = self.open_file(&path, doc_list, ctx) {
-                            message("Error Opening File", &err.to_string(), MessageKind::Ok);
-                        }
-                    }
-                }
-                action_name!(SaveFile) => {
-                    if let Some((_, doc)) = self.inner.get_focused_tab_with_data_mut(doc_list) {
-                        try_save(doc, ctx);
-                    }
-                }
-                action_name!(NewTab) => {
-                    let _ = self.new_file(None, doc_list, ctx);
-                }
-                action_name!(CloseTab) => {
-                    self.remove_tab(doc_list, ctx);
-                }
-                action_name!(ReloadFile) => {
-                    if let Some((_, doc)) = self.inner.get_focused_tab_with_data_mut(doc_list) {
-                        if let Err(err) = doc.reload(ctx) {
-                            message("Failed to Reload File", &err.to_string(), MessageKind::Ok);
-                        }
-                    }
-                }
-                _ => action_handler.unprocessed(ctx.window, action),
-            }
-        }
-
-        self.inner.update(ctx);
-
-        if let Some((tab, doc)) = self.get_focused_tab_with_data_mut(doc_list) {
-            tab.update(doc, ctx);
-        }
     }
 
     pub fn new_file(
@@ -157,6 +117,52 @@ impl EditorPane {
         }
 
         true
+    }
+}
+
+impl PaneWrapper<Doc> for EditorPane {
+    fn receive_msgs(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) {
+        // TODO:
+        // while let Some(msg) = ctx.ui.msg(self.inner.widget_id()) {
+        //     match msg {
+        //         action_name!(OpenFile) => {
+        //             if let Ok(path) = find_file(FindFileKind::OpenFile) {
+        //                 if let Err(err) = self.open_file(&path, doc_list, ctx) {
+        //                     message("Error Opening File", &err.to_string(), MessageKind::Ok);
+        //                 }
+        //             }
+        //         }
+        //         action_name!(SaveFile) => {
+        //             if let Some((_, doc)) = self.inner.get_focused_tab_with_data_mut(doc_list) {
+        //                 try_save(doc, ctx);
+        //             }
+        //         }
+        //         action_name!(NewTab) => {
+        //             let _ = self.new_file(None, doc_list, ctx);
+        //         }
+        //         action_name!(CloseTab) => {
+        //             self.remove_tab(doc_list, ctx);
+        //         }
+        //         action_name!(ReloadFile) => {
+        //             if let Some((_, doc)) = self.inner.get_focused_tab_with_data_mut(doc_list) {
+        //                 if let Err(err) = doc.reload(ctx) {
+        //                     message("Failed to Reload File", &err.to_string(), MessageKind::Ok);
+        //                 }
+        //             }
+        //         }
+        //         _ => {}
+        //     }
+        // }
+
+        self.inner.receive_msgs(doc_list, ctx);
+    }
+
+    fn update(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) {
+        self.inner.update(ctx);
+
+        if let Some((tab, doc)) = self.get_focused_tab_with_data_mut(doc_list) {
+            tab.update(doc, ctx);
+        }
     }
 }
 

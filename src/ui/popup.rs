@@ -1,6 +1,6 @@
 use crate::{
     ctx::Ctx,
-    geometry::{position::Position, rect::Rect, sides::Sides, visual_position::VisualPosition},
+    geometry::{position::Position, rect::Rect, sides::Sides},
     input::action::action_name,
     platform::gfx::Gfx,
     pool::STRING_POOL,
@@ -8,7 +8,7 @@ use crate::{
         doc::{Doc, DocFlags},
         grapheme::{self, CharCursor},
     },
-    ui::core::WidgetSettings,
+    ui::{core::WidgetSettings, msg::Msg},
 };
 
 use super::{
@@ -94,19 +94,21 @@ impl Popup {
         self.tab.is_animating(ctx)
     }
 
+    pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
+        // TODO:
+        // while let Some(msg) = ctx.ui.msg(self.tab.widget_id()) {
+        //     match msg {
+        //         Msg::Action(action_name!(Copy)) => {}
+        //         Msg::Action(..) => ctx.ui.skip(self.tab.widget_id(), msg),
+        //         Msg::Grapheme(..) => ctx.ui.skip(self.tab.widget_id(), msg),
+        //         _ => {}
+        //     }
+        // }
+
+        self.tab.receive_msgs(&mut self.doc, ctx);
+    }
+
     pub fn update(&mut self, ctx: &mut Ctx) {
-        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
-
-        while let Some(action) = action_handler.next(ctx) {
-            if matches!(action, action_name!(Copy)) {
-                action_handler.unprocessed(ctx.window, action);
-            }
-        }
-
-        ctx.ui
-            .grapheme_handler(self.widget_id, ctx.window)
-            .drain(ctx.window);
-
         self.tab.update(&mut self.doc, ctx);
     }
 

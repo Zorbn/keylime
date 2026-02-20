@@ -68,6 +68,13 @@ impl SignatureHelpPopup {
     //     Some(())
     // }
 
+    // TODO:
+    pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
+        while let Some(msg) = ctx.ui.msg(self.widget_id) {
+            ctx.ui.skip(self.widget_id, msg);
+        }
+    }
+
     pub fn update(
         &mut self,
         is_doc_different: bool,
@@ -115,34 +122,36 @@ impl SignatureHelpPopup {
         doc: Option<&mut Doc>,
         ctx: &mut Ctx,
     ) -> (Option<char>, Option<char>) {
-        let mut trigger_char = None;
-        let mut retrigger_char = None;
+        // TODO:
+        (None, None)
+        // let mut trigger_char = None;
+        // let mut retrigger_char = None;
 
-        let Some(language_server) = doc.and_then(|doc| {
-            ctx.lsp
-                .get_language_server_mut(doc, ctx.config, ctx.current_dir)
-        }) else {
-            return (trigger_char, retrigger_char);
-        };
+        // let Some(language_server) = doc.and_then(|doc| {
+        //     ctx.lsp
+        //         .get_language_server_mut(doc, ctx.config, ctx.current_dir)
+        // }) else {
+        //     return (trigger_char, retrigger_char);
+        // };
 
-        let mut grapheme_handler = ctx.ui.grapheme_handler(widget_id, ctx.window);
+        // let mut grapheme_handler = ctx.ui.grapheme_handler(widget_id, ctx.window);
 
-        while let Some(c) = grapheme_handler
-            .next(ctx.window)
-            .and_then(|grapheme| grapheme.chars().nth(0))
-        {
-            if language_server.is_trigger_char(c) {
-                trigger_char = Some(c);
-            }
+        // while let Some(c) = grapheme_handler
+        //     .next(ctx.window)
+        //     .and_then(|grapheme| grapheme.chars().nth(0))
+        // {
+        //     if language_server.is_trigger_char(c) {
+        //         trigger_char = Some(c);
+        //     }
 
-            if language_server.is_retrigger_char(c) {
-                retrigger_char = Some(c);
-            }
+        //     if language_server.is_retrigger_char(c) {
+        //         retrigger_char = Some(c);
+        //     }
 
-            grapheme_handler.unprocessed(ctx.window);
-        }
+        //     grapheme_handler.unprocessed(ctx.window);
+        // }
 
-        (trigger_char, retrigger_char)
+        // (trigger_char, retrigger_char)
     }
 
     pub fn lsp_set_signature_help(

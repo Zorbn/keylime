@@ -1,12 +1,14 @@
+use std::collections::VecDeque;
+
 use crate::{
     geometry::{rect::Rect, visual_position::VisualPosition},
     input::{
-        input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
+        mods::Mods,
         mouse_button::MouseButton,
+        mouse_scroll::MouseScroll,
         mousebind::{Mousebind, MousebindKind},
     },
-    platform::window::Window,
-    text::grapheme::GraphemeCursor,
+    ui::msg::Msg,
 };
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +40,7 @@ pub struct Popup {
 pub struct WidgetSettings {
     pub is_shown: bool,
     pub is_component: bool,
+    pub is_resizable: bool,
     pub scale: f32,
     pub layout: WidgetLayout,
     pub popup: Option<Rect>,
@@ -48,6 +51,7 @@ impl Default for WidgetSettings {
         Self {
             is_shown: true,
             is_component: false,
+            is_resizable: true,
             scale: 1.0,
             layout: WidgetLayout::Vertical,
             popup: None,
@@ -62,6 +66,8 @@ pub struct Widget {
     settings: WidgetSettings,
     parent_id: Option<WidgetId>,
     child_ids: Vec<WidgetId>,
+    msgs: VecDeque<Msg>,
+    did_handle_msgs: bool,
 }
 
 #[derive(Debug, Default)]
@@ -70,22 +76,47 @@ struct WidgetSlot {
     generation: usize,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct Border {
+    widget_id: WidgetId,
+    index: usize,
+    precedence: usize,
+}
+
+struct GrabbedBorders {
+    position: VisualPosition,
+    horizontal: Option<Border>,
+    vertical: Option<Border>,
+    did_drag: bool,
+}
+
+#[derive(Default)]
+struct HoveredBorders {
+    horizontal: Option<Border>,
+    vertical: Option<Border>,
+}
+
 pub struct Ui {
     widget_slots: Vec<WidgetSlot>,
     hovered_widget_id: WidgetId,
     focus_history: Vec<WidgetId>,
     unused_widget_indices: Vec<usize>,
-    is_dragging: bool,
+    grabbed_borders: Option<GrabbedBorders>,
+    hovered_borders: HoveredBorders,
 }
 
 impl Ui {
+    const BORDER_RADIUS: f32 = 2.0;
+
     pub fn new() -> Self {
         let root = Widget {
             bounds: Rect::ZERO,
 
             settings: Default::default(),
             parent_id: None,
-            child_ids: vec![],
+            child_ids: Vec::new(),
+            msgs: VecDeque::new(),
+            did_handle_msgs: true,
         };
 
         Self {
@@ -96,7 +127,8 @@ impl Ui {
             hovered_widget_id: WidgetId::ROOT,
             focus_history: Vec::new(),
             unused_widget_indices: Vec::new(),
-            is_dragging: false,
+            grabbed_borders: None,
+            hovered_borders: Default::default(),
         }
     }
 
@@ -130,6 +162,7 @@ impl Ui {
         widget.settings = options;
         widget.parent_id = Some(parent_id);
         widget.child_ids.clear();
+        widget.msgs.clear();
 
         self.widget_mut(parent_id).child_ids.push(widget_id);
 
@@ -148,6 +181,8 @@ impl Ui {
         if self.is_focused(widget_id) {
             self.unfocus(widget_id);
         }
+
+        self.widget_mut(widget_id).msgs.clear();
 
         if let Some(parent_id) = self.widget(widget_id).parent_id {
             let parent = self.widget_mut(parent_id);
@@ -171,54 +206,376 @@ impl Ui {
         self.unused_widget_indices.push(widget_id.index);
     }
 
-    pub fn update(&mut self, window: &mut Window) {
-        let mut focused_widget_id = None;
+    pub fn send(&mut self, to_widget_id: WidgetId, msg: Msg) {
+        let widget = self.widget_mut(to_widget_id);
+        widget.msgs.push_back(msg);
+    }
 
-        let mut mousebind_handler = window.mousebind_handler();
+    fn send_to_focused_child(&mut self, msg: Msg) {
+        let focused_widget_id = self.focused_widget_id();
 
-        while let Some(mousebind) = mousebind_handler.next(window) {
-            let position = VisualPosition::new(mousebind.x, mousebind.y);
-            let widget_id = self.get_widget_id_at(position, WidgetId::ROOT);
-
-            match mousebind {
-                Mousebind {
-                    button: Some(MouseButton::Left),
-                    kind: MousebindKind::Press,
-                    ..
-                } => {
-                    focused_widget_id = widget_id;
-
-                    self.is_dragging = true;
-                }
-                Mousebind {
-                    button: Some(MouseButton::Left),
-                    kind: MousebindKind::Release,
-                    ..
-                } => self.is_dragging = false,
-                Mousebind {
-                    button: None,
-                    kind: MousebindKind::Move,
-                    ..
-                } => {
-                    let hovered_widget_id =
-                        self.get_widget_id_at(window.mouse_position(), WidgetId::ROOT);
-
-                    if let Some(hovered_widget_id) = hovered_widget_id {
-                        self.hover(hovered_widget_id);
-                    }
-                }
-                _ => {}
-            }
-
-            mousebind_handler.unprocessed(window, mousebind);
+        if focused_widget_id == WidgetId::ROOT {
+            return;
         }
 
-        if let Some(focused_widget_id) = focused_widget_id {
-            self.focus(focused_widget_id);
+        self.send(focused_widget_id, msg);
+    }
+
+    pub fn skip(&mut self, widget_id: WidgetId, msg: Msg) {
+        if matches!(msg, Msg::Resize { .. }) {
+            return;
+        }
+
+        let parent_id = self.widget(widget_id).parent_id.unwrap_or(WidgetId::ROOT);
+
+        if parent_id != WidgetId::ROOT {
+            self.send(parent_id, msg);
         }
     }
 
-    pub fn update_layout(&mut self, widget_id: WidgetId, bounds: Rect) {
+    pub fn has_msgs(&mut self) -> bool {
+        self.widget_slots
+            .iter_mut()
+            .enumerate()
+            .any(|(index, slot)| {
+                let has_msgs = !slot.widget.msgs.is_empty();
+
+                if has_msgs {
+                    assert!(
+                        slot.widget.did_handle_msgs,
+                        "Widget didn't handle msgs: {:?}, {:?}!",
+                        WidgetId {
+                            index,
+                            generation: slot.generation
+                        },
+                        slot.widget.msgs
+                    );
+
+                    slot.widget.did_handle_msgs = false;
+                }
+
+                has_msgs
+            })
+    }
+
+    pub fn msg(&mut self, id: WidgetId) -> Option<Msg> {
+        let widget = self.widget_mut(id);
+        let msg = widget.msgs.pop_front();
+
+        if msg.is_none() {
+            widget.did_handle_msgs = true;
+        }
+
+        msg
+    }
+
+    pub fn receive_msgs(&mut self) {
+        while let Some(msg) = self.msg(WidgetId::ROOT) {
+            match msg {
+                Msg::Resize { width, height } => {
+                    self.update_layout(WidgetId::ROOT, Rect::new(0.0, 0.0, width, height))
+                }
+                Msg::Mousebind(Mousebind {
+                    button: Some(MouseButton::Left),
+                    x,
+                    y,
+                    mods: Mods::NONE,
+                    kind: MousebindKind::Press,
+                    ..
+                }) => {
+                    let position = VisualPosition::new(x, y);
+
+                    let Some(focused_widget_id) = self.get_widget_id_at(position, WidgetId::ROOT)
+                    else {
+                        continue;
+                    };
+
+                    self.focus(focused_widget_id);
+
+                    let horizontal_dragged_border =
+                        self.get_border(focused_widget_id, WidgetLayout::Horizontal, x, y);
+
+                    let vertical_dragged_border =
+                        self.get_border(focused_widget_id, WidgetLayout::Vertical, x, y);
+
+                    if horizontal_dragged_border.is_none() && vertical_dragged_border.is_none() {
+                        self.send_to_focused_child(msg);
+                        continue;
+                    }
+
+                    self.grabbed_borders = Some(GrabbedBorders {
+                        position,
+                        horizontal: horizontal_dragged_border,
+                        vertical: vertical_dragged_border,
+                        did_drag: false,
+                    });
+                }
+                Msg::Mousebind(Mousebind {
+                    button: Some(MouseButton::Left),
+                    mods: Mods::NONE,
+                    kind: MousebindKind::Release,
+                    ..
+                }) => {
+                    let do_send_to_child = self
+                        .grabbed_borders
+                        .take()
+                        .is_none_or(|click| !click.did_drag);
+
+                    if do_send_to_child {
+                        self.send_to_focused_child(msg);
+                    }
+                }
+                Msg::Mousebind(Mousebind {
+                    x,
+                    y,
+                    kind: MousebindKind::Move,
+                    ..
+                }) => {
+                    let Some(GrabbedBorders {
+                        position,
+                        horizontal: horizontal_dragged_border,
+                        vertical: vertical_dragged_border,
+                        did_drag,
+                    }) = &mut self.grabbed_borders
+                    else {
+                        let hit_id = self
+                            .get_widget_id_at(VisualPosition::new(x, y), WidgetId::ROOT)
+                            .unwrap_or(WidgetId::ROOT);
+
+                        self.hovered_borders.horizontal =
+                            self.get_border(hit_id, WidgetLayout::Horizontal, x, y);
+
+                        self.hovered_borders.vertical =
+                            self.get_border(hit_id, WidgetLayout::Vertical, x, y);
+
+                        if hit_id != WidgetId::ROOT {
+                            self.send(hit_id, msg);
+                        }
+
+                        continue;
+                    };
+
+                    *did_drag = true;
+
+                    let dx = x - position.x;
+                    let dy = y - position.y;
+
+                    *position = VisualPosition::new(x, y);
+
+                    let horizontal_dragged_border = *horizontal_dragged_border;
+                    let vertical_dragged_border = *vertical_dragged_border;
+
+                    self.handle_dragged_border(horizontal_dragged_border, dx, dy);
+                    self.handle_dragged_border(vertical_dragged_border, dx, dy);
+
+                    let id_to_layout = horizontal_dragged_border
+                        .zip(vertical_dragged_border)
+                        .map(|(h, v)| if h.precedence > v.precedence { h } else { v })
+                        .or(horizontal_dragged_border)
+                        .or(vertical_dragged_border)
+                        .map(|border| border.widget_id)
+                        .unwrap();
+
+                    let bounds = self.bounds(id_to_layout);
+                    self.update_layout(id_to_layout, bounds);
+                }
+                Msg::MouseScroll(MouseScroll { x, y, .. }) => {
+                    let hit_id = self
+                        .get_widget_id_at(VisualPosition::new(x, y), WidgetId::ROOT)
+                        .unwrap_or(WidgetId::ROOT);
+
+                    if hit_id != WidgetId::ROOT {
+                        self.send(hit_id, msg);
+                    }
+                }
+                _ => self.send_to_focused_child(msg),
+            }
+        }
+    }
+
+    fn handle_dragged_border(
+        &mut self,
+        dragged_border: Option<Border>,
+        dx: f32,
+        dy: f32,
+    ) -> Option<()> {
+        let dragged_border = dragged_border?;
+        let parent = self.get_widget(dragged_border.widget_id)?;
+
+        if dragged_border.index + 1 >= parent.child_ids.len() {
+            return None;
+        }
+
+        let bounds = parent.bounds;
+
+        let (delta, size) = match parent.settings.layout {
+            WidgetLayout::Horizontal => (dx, bounds.width),
+            WidgetLayout::Vertical => (dy, bounds.height),
+            WidgetLayout::Tab { .. } => return None,
+        };
+
+        let total_scale = self.widget_total_scale(dragged_border.widget_id);
+        let min_scale = Self::BORDER_RADIUS * 2.0 / size * total_scale;
+        let delta = delta / size * total_scale;
+
+        self.drag_widget(
+            dragged_border.widget_id,
+            dragged_border.index,
+            delta,
+            min_scale,
+        );
+
+        Some(())
+    }
+
+    fn drag_widget(&mut self, parent_id: WidgetId, index: usize, delta: f32, min_scale: f32) {
+        let parent = self.widget(parent_id);
+        let first_child_id = parent.child_ids[index];
+        let second_child_id = parent.child_ids[index + 1];
+
+        let allowed_delta =
+            self.allowed_drag_delta(first_child_id, second_child_id, delta, min_scale);
+
+        let remaining_delta = delta - allowed_delta;
+
+        if let Some(index) = index
+            .checked_add_signed(delta.signum() as isize)
+            .filter(|index| *index + 1 < parent.child_ids.len())
+        {
+            self.drag_widget(parent_id, index, remaining_delta, min_scale);
+        }
+
+        let allowed_delta =
+            self.allowed_drag_delta(first_child_id, second_child_id, delta, min_scale);
+
+        self.widget_mut(first_child_id).settings.scale += allowed_delta;
+        self.widget_mut(second_child_id).settings.scale -= allowed_delta;
+    }
+
+    fn allowed_drag_delta(
+        &self,
+        first_child_id: WidgetId,
+        second_child_id: WidgetId,
+        delta: f32,
+        min_scale: f32,
+    ) -> f32 {
+        if delta < 0.0 {
+            delta.max((min_scale - self.widget(first_child_id).settings.scale).min(0.0))
+        } else {
+            delta.min((self.widget(second_child_id).settings.scale - min_scale).max(0.0))
+        }
+    }
+
+    fn get_border(
+        &self,
+        mut widget_id: WidgetId,
+        layout: WidgetLayout,
+        x: f32,
+        y: f32,
+    ) -> Option<Border> {
+        if matches!(layout, WidgetLayout::Tab { .. }) {
+            return None;
+        }
+
+        let mut precedence = 0;
+
+        while widget_id != WidgetId::ROOT {
+            let parent_id = self.widget(widget_id).parent_id.unwrap_or(WidgetId::ROOT);
+            let total_scale = self.widget_total_scale(parent_id);
+
+            let parent = self.widget(parent_id);
+
+            if parent.settings.layout != layout || !parent.settings.is_resizable {
+                widget_id = parent_id;
+                precedence += 1;
+                continue;
+            }
+
+            let mut divider_x = parent.bounds.x;
+            let mut divider_y = parent.bounds.y;
+
+            for i in 0..parent.child_ids.len().saturating_sub(1) {
+                let child_id = parent.child_ids[i];
+                let scale = self.widget(child_id).settings.scale;
+                let normal_scale = scale / total_scale;
+
+                // TODO: Can't we just use the laid out sizes directly now instead of recomputing?
+                match parent.settings.layout {
+                    WidgetLayout::Horizontal => divider_x += parent.bounds.width * normal_scale,
+                    WidgetLayout::Vertical => divider_y += parent.bounds.height * normal_scale,
+                    WidgetLayout::Tab { .. } => {}
+                };
+
+                let did_grab_horizontal = parent.settings.layout == WidgetLayout::Horizontal
+                    && (x - divider_x).abs() < Self::BORDER_RADIUS;
+                let did_grab_vertical = parent.settings.layout == WidgetLayout::Vertical
+                    && (y - divider_y).abs() < Self::BORDER_RADIUS;
+
+                if did_grab_horizontal || did_grab_vertical {
+                    return Some(Border {
+                        widget_id: parent_id,
+                        index: i,
+                        precedence,
+                    });
+                }
+            }
+
+            widget_id = parent_id;
+            precedence += 1;
+        }
+
+        None
+    }
+
+    // TODO:
+    // pub fn update(&mut self, window: &mut Window) {
+    //     let mut focused_widget_id = None;
+
+    //     let mut mousebind_handler = window.mousebind_handler();
+
+    //     while let Some(mousebind) = mousebind_handler.next(window) {
+    //         let position = VisualPosition::new(mousebind.x, mousebind.y);
+    //         let widget_id = self.get_widget_id_at(position, WidgetId::ROOT);
+
+    //         match mousebind {
+    //             Mousebind {
+    //                 button: Some(MouseButton::Left),
+    //                 kind: MousebindKind::Press,
+    //                 ..
+    //             } => {
+    //                 focused_widget_id = widget_id;
+
+    //                 self.is_dragging = true;
+    //             }
+    //             Mousebind {
+    //                 button: Some(MouseButton::Left),
+    //                 kind: MousebindKind::Release,
+    //                 ..
+    //             } => self.is_dragging = false,
+    //             Mousebind {
+    //                 button: None,
+    //                 kind: MousebindKind::Move,
+    //                 ..
+    //             } => {
+    //                 let hovered_widget_id =
+    //                     self.get_widget_id_at(window.mouse_position(), WidgetId::ROOT);
+
+    //                 if let Some(hovered_widget_id) = hovered_widget_id {
+    //                     self.hover(hovered_widget_id);
+    //                 }
+    //             }
+    //             _ => {}
+    //         }
+
+    //         mousebind_handler.unprocessed(window, mousebind);
+    //     }
+
+    //     if let Some(focused_widget_id) = focused_widget_id {
+    //         self.focus(focused_widget_id);
+    //     }
+    // }
+
+    fn update_layout(&mut self, widget_id: WidgetId, bounds: Rect) {
         let widget = self.widget_mut(widget_id);
         widget.bounds = bounds;
 
@@ -273,14 +630,13 @@ impl Ui {
                 Rect::new(child_x, child_y, child_width, child_height),
             );
 
-            // TODO:
-            // self.send(
-            //     child_id,
-            //     Msg::Resize {
-            //         width: child_width,
-            //         height: child_height,
-            //     },
-            // );
+            self.send(
+                child_id,
+                Msg::Resize {
+                    width: child_width,
+                    height: child_height,
+                },
+            );
         }
     }
 
@@ -321,6 +677,11 @@ impl Ui {
     }
 
     pub fn focus(&mut self, widget_id: WidgetId) {
+        if !self.is_focused(widget_id) {
+            self.send(self.focused_widget_id(), Msg::LostFocus);
+            self.send(widget_id, Msg::GainedFocus);
+        }
+
         self.remove_from_focused(widget_id);
         self.show(widget_id);
         self.focus_history.push(widget_id);
@@ -332,6 +693,9 @@ impl Ui {
         }
 
         self.focus_history.pop();
+
+        self.send(widget_id, Msg::LostFocus);
+        self.send(self.focused_widget_id(), Msg::GainedFocus);
     }
 
     pub fn unfocus_hierarchy(&mut self, widget_id: WidgetId) {
@@ -377,7 +741,7 @@ impl Ui {
     }
 
     pub fn is_in_focused_hierarchy(&self, widget_id: WidgetId) -> bool {
-        let widget = self.widget(widget_id);
+        // let widget = self.widget(widget_id);
 
         // TODO:
         // if widget.settings.is_component && widget.settings.is_shown {
@@ -399,6 +763,13 @@ impl Ui {
                 return false;
             }
         }
+    }
+
+    fn get_widget(&self, widget_id: WidgetId) -> Option<&Widget> {
+        self.widget_slots
+            .get(widget_id.index)
+            .filter(|slot| slot.generation == widget_id.generation)
+            .map(|slot| &slot.widget)
     }
 
     fn widget(&self, widget_id: WidgetId) -> &Widget {
@@ -450,38 +821,6 @@ impl Ui {
             self.is_visible(parent_id)
         } else {
             true
-        }
-    }
-
-    pub fn grapheme_handler(&self, widget_id: WidgetId, window: &Window) -> GraphemeHandler {
-        if self.is_in_focused_hierarchy(widget_id) {
-            window.grapheme_handler()
-        } else {
-            GraphemeHandler::new(GraphemeCursor::new(0, 0))
-        }
-    }
-
-    pub fn action_handler(&self, widget_id: WidgetId, window: &Window) -> ActionHandler {
-        if self.is_in_focused_hierarchy(widget_id) {
-            window.action_handler()
-        } else {
-            ActionHandler::new(0)
-        }
-    }
-
-    pub fn mousebind_handler(&self, widget_id: WidgetId, window: &Window) -> MousebindHandler {
-        if self.is_hovered(widget_id) && self.is_visible(widget_id) {
-            window.mousebind_handler()
-        } else {
-            MousebindHandler::new(0)
-        }
-    }
-
-    pub fn mouse_scroll_handler(&self, widget_id: WidgetId, window: &Window) -> MouseScrollHandler {
-        if self.is_hovered(widget_id) && self.is_visible(widget_id) {
-            window.mouse_scroll_handler()
-        } else {
-            MouseScrollHandler::new(0)
         }
     }
 }

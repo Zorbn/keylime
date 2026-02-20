@@ -14,6 +14,7 @@ use crate::{
         command_palette::{file_explorer_mode::FileExplorerMode, CommandPalette},
         core::{Ui, WidgetId},
         editor::Editor,
+        msg::Msg,
         status_bar::StatusBar,
         terminal::Terminal,
     },
@@ -47,6 +48,10 @@ pub struct App {
     config_dir: Pooled<PathBuf>,
     config: Config,
     config_error: Option<ConfigError>,
+
+    // TODO: Hack
+    last_width: f32,
+    last_height: f32,
 }
 
 impl App {
@@ -100,6 +105,9 @@ impl App {
             config_dir,
             config,
             config_error,
+
+            last_width: 0.0,
+            last_height: 0.0,
         };
 
         app.layout(window, gfx, time);
@@ -107,6 +115,43 @@ impl App {
     }
 
     pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64, dt: f32) {
+        if gfx.width() != self.last_width || gfx.height() != self.last_height {
+            self.last_width = gfx.width();
+            self.last_height = gfx.height();
+
+            self.ui.send(
+                WidgetId::ROOT,
+                Msg::Resize {
+                    width: gfx.width(),
+                    height: gfx.height(),
+                },
+            );
+        }
+
+        let mut grapheme_handler = window.todo_grapheme_handler();
+
+        while let Some(grapheme) = grapheme_handler.next(window) {
+            self.ui.send(WidgetId::ROOT, Msg::Grapheme(grapheme.into()));
+        }
+
+        let mut action_handler = window.todo_action_handler();
+
+        while let Some(action) = action_handler.next(&self.config, window) {
+            self.ui.send(WidgetId::ROOT, Msg::Action(action));
+        }
+
+        let mut mousebind_handler = window.todo_mousebind_handler();
+
+        while let Some(mousebind) = mousebind_handler.next(window) {
+            self.ui.send(WidgetId::ROOT, Msg::Mousebind(mousebind));
+        }
+
+        let mut mouse_scroll_handler = window.todo_mouse_scroll_handler();
+
+        while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
+            self.ui.send(WidgetId::ROOT, Msg::MouseScroll(mouse_scroll));
+        }
+
         let config_changed = self
             .file_watcher
             .changed_files(&self.current_dir)
@@ -136,7 +181,14 @@ impl App {
             err.show_message();
         }
 
-        ctx.ui.update(ctx.window);
+        while ctx.ui.has_msgs() {
+            ctx.ui.receive_msgs();
+
+            self.editor.receive_msgs(ctx);
+            self.terminal.receive_msgs(ctx);
+            self.status_bar.receive_msgs(ctx);
+        }
+
         // Lsp::update(&mut self.editor, &mut self.command_palette, ctx);
 
         // self.command_palette.update(&mut self.editor, ctx);
@@ -164,9 +216,8 @@ impl App {
     }
 
     fn layout(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64) {
-        // TODO: Do this on an actual resize event/callback probably.
-        let bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
-        self.ui.update_layout(WidgetId::ROOT, bounds);
+        // let bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
+        // self.ui.update_layout(WidgetId::ROOT, bounds);
 
         // self.ui.widget_mut(WidgetId::ROOT).bounds = bounds;
 

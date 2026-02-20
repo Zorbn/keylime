@@ -27,6 +27,7 @@ use crate::{
     ui::{
         camera::CameraRecenterRequest,
         core::{Ui, WidgetSettings},
+        msg::Msg,
     },
 };
 
@@ -105,6 +106,10 @@ impl Tab {
         self.data_id
     }
 
+    pub fn widget_id(&self) -> WidgetId {
+        self.widget_id
+    }
+
     pub fn is_animating(&self, ctx: &Ctx) -> bool {
         self.camera.is_moving()
             || (self.tab_bounds.x - self.tab_animation_state.x).abs() > 0.5
@@ -141,73 +146,79 @@ impl Tab {
     //     self.margin = margin;
     // }
 
-    pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
-        let mut grapheme_handler = ctx.ui.grapheme_handler(self.widget_id, ctx.window);
-
-        while let Some(grapheme) = grapheme_handler.next(ctx.window) {
-            let grapheme: Pooled<String> = grapheme.into();
-
-            handle_grapheme(&grapheme, doc, ctx);
-        }
-
-        let mut global_mousebind_handler = ctx.window.mousebind_handler();
-
-        while let Some(mousebind) = global_mousebind_handler.next(ctx.window) {
-            if let Mousebind {
-                button: Some(MouseButton::Left),
-                kind: MousebindKind::Release,
-                ..
-            } = mousebind
-            {
-                self.mouse_drag = None;
-            }
-
-            global_mousebind_handler.unprocessed(ctx.window, mousebind);
-        }
-
-        let mut mousebind_handler = ctx.ui.mousebind_handler(self.widget_id, ctx.window);
-
-        while let Some(mousebind) = mousebind_handler.next(ctx.window) {
-            if !ctx
-                .ui
-                .bounds(self.widget_id)
-                .contains_position(VisualPosition::new(mousebind.x, mousebind.y))
-            {
-                mousebind_handler.unprocessed(ctx.window, mousebind);
-                continue;
-            }
-
-            let position = self.mouse_to_position(mousebind.x, mousebind.y, doc, ctx.ui, ctx.gfx);
-
-            match mousebind {
-                Mousebind {
+    pub fn receive_msgs(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+        while let Some(msg) = ctx.ui.msg(self.widget_id) {
+            match msg {
+                Msg::Grapheme(grapheme) => handle_grapheme(&grapheme, doc, ctx),
+                Msg::Mousebind(Mousebind {
                     button: Some(MouseButton::Left),
-                    mods: Mods::NONE | Mods::SHIFT,
+                    kind: MousebindKind::Release,
+                    ..
+                })
+                | Msg::LostFocus => self.mouse_drag = None,
+                Msg::Mousebind(Mousebind {
+                    button: Some(MouseButton::Left),
+                    x,
+                    y,
+                    mods: mods @ (Mods::NONE | Mods::SHIFT),
                     count,
                     kind: MousebindKind::Press,
                     ..
-                } => {
-                    handle_left_click(doc, position, mousebind.mods, count, false, ctx.gfx);
+                }) => {
+                    let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.gfx);
+
+                    handle_left_click(doc, position, mods, count, false, ctx.gfx);
 
                     self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
                     self.mouse_drag = Some(count);
                 }
-                Mousebind {
+                Msg::Mousebind(Mousebind {
                     button: Some(MouseButton::Left),
+                    x,
+                    y,
                     mods,
                     kind: MousebindKind::Press,
                     ..
-                } if mods.contains(Mod::Ctrl) || mods.contains(Mod::Cmd) => {
+                }) if mods.contains(Mod::Ctrl) || mods.contains(Mod::Cmd) => {
+                    let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.gfx);
+
                     if mods.contains(Mod::Alt) {
                         doc.add_cursor_at(position, ctx.gfx);
                     } else {
                         doc.lsp_definition(position, ctx);
                     }
                 }
-                _ => mousebind_handler.unprocessed(ctx.window, mousebind),
+                Msg::MouseScroll(mouse_scroll) => {
+                    let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
+
+                    if !ctx.ui.bounds(self.widget_id).contains_position(position) {
+                        ctx.ui.skip(self.widget_id, msg);
+                        continue;
+                    }
+
+                    let delta = mouse_scroll.delta * ctx.gfx.line_height();
+
+                    if mouse_scroll.is_horizontal {
+                        self.camera.vertical.reset_velocity();
+                        self.camera.horizontal.scroll(-delta, mouse_scroll.kind);
+                    } else {
+                        self.camera.horizontal.reset_velocity();
+                        self.camera.vertical.scroll(delta, mouse_scroll.kind);
+                    }
+                }
+                Msg::Action(action) => {
+                    let was_handled = handle_action(action, self, doc, ctx);
+
+                    if !was_handled {
+                        ctx.ui.skip(self.widget_id, msg);
+                    }
+                }
+                _ => ctx.ui.skip(self.widget_id, msg),
             }
         }
+    }
 
+    pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
         if let Some(count) = self.mouse_drag {
             let visual_position = ctx.window.mouse_position();
             let position =
@@ -216,16 +227,6 @@ impl Tab {
             handle_left_click(doc, position, Mods::NONE, count, true, ctx.gfx);
 
             self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
-        }
-
-        let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
-
-        while let Some(action) = action_handler.next(ctx) {
-            let was_handled = handle_action(action, self, doc, ctx);
-
-            if !was_handled {
-                action_handler.unprocessed(ctx.window, action);
-            }
         }
 
         doc.combine_overlapping_cursors();
@@ -297,38 +298,11 @@ impl Tab {
     }
 
     fn animate_camera(&mut self, widget_id: Option<WidgetId>, doc: &Doc, ctx: &mut Ctx, dt: f32) {
-        if let Some(widget_id) = widget_id {
-            self.handle_mouse_scrolls(widget_id, ctx);
-        }
-
         self.animate_camera_vertical(doc, ctx, dt);
         self.animate_camera_horizontal(doc, ctx, dt);
 
         self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
         self.handled_doc_len = doc.lines().len();
-    }
-
-    fn handle_mouse_scrolls(&mut self, widget_id: WidgetId, ctx: &mut Ctx) {
-        let mut mouse_scroll_handler = ctx.ui.mouse_scroll_handler(widget_id, ctx.window);
-
-        while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
-            let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
-
-            if !ctx.ui.bounds(self.widget_id).contains_position(position) {
-                mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
-                continue;
-            }
-
-            let delta = mouse_scroll.delta * ctx.gfx.line_height();
-
-            if mouse_scroll.is_horizontal {
-                self.camera.vertical.reset_velocity();
-                self.camera.horizontal.scroll(-delta, mouse_scroll.kind);
-            } else {
-                self.camera.horizontal.reset_velocity();
-                self.camera.vertical.scroll(delta, mouse_scroll.kind);
-            }
-        }
     }
 
     pub fn skip_camera_animations(&mut self, doc: &Doc, ctx: &mut Ctx) {
