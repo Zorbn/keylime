@@ -67,7 +67,7 @@ impl<T> Pane<T> {
 
         let gfx = &mut ctx.gfx;
 
-        let mut tab_x = bounds.x;
+        let mut tab_x = 0.0;
         let tab_height = gfx.tab_height();
 
         for i in 0..self.tabs.len() {
@@ -93,10 +93,12 @@ impl<T> Pane<T> {
             tab.layout(tab_bounds, doc_bounds, 0.0, doc, gfx);
         }
 
-        self.tab_bar_width = tab_x - bounds.x;
+        self.tab_bar_width = tab_x;
     }
 
     pub fn update(&mut self, ctx: &mut Ctx) {
+        let bounds = ctx.ui.widget(self.widget_id).bounds;
+
         let mut global_mousebind_handler = ctx.window.mousebind_handler();
 
         while let Some(mousebind) = global_mousebind_handler.next(ctx.window) {
@@ -128,7 +130,8 @@ impl<T> Pane<T> {
 
         while let Some(mousebind) = mousebind_handler.next(ctx.window) {
             let visual_position =
-                VisualPosition::new(mousebind.x + self.camera.position(), mousebind.y);
+                VisualPosition::new(mousebind.x + self.camera.position(), mousebind.y)
+                    .unoffset_by(bounds);
 
             match mousebind {
                 Mousebind {
@@ -173,7 +176,7 @@ impl<T> Pane<T> {
         let mut mouse_scroll_handler = ctx.ui.mouse_scroll_handler(self.widget_id, ctx.window);
 
         while let Some(mouse_scroll) = mouse_scroll_handler.next(ctx.window) {
-            let visual_position = ctx.window.mouse_position();
+            let visual_position = ctx.window.mouse_position().unoffset_by(bounds);
 
             if !self
                 .tabs
@@ -399,18 +402,10 @@ impl<T> Pane<T> {
 
         let camera_x = self.camera.position().floor();
 
-        let bounds = ctx.ui.widget(self.widget_id).bounds;
-        let mut tab_bounds = tab
-            .visual_tab_bounds()
-            .unoffset_by(bounds)
-            .shift_x(-camera_x);
+        let tab_bounds = tab.visual_tab_bounds().shift_x(-camera_x);
         let mut tab_background = theme.background;
 
         if is_focused {
-            if let Some(offset) = self.dragged_tab_offset {
-                tab_bounds.x += ctx.window.mouse_position().x - tab_bounds.x + offset;
-            }
-
             if let Some(background) = background {
                 tab_background = background;
             }
