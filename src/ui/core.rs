@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::{
+    config::Config,
     geometry::{rect::Rect, visual_position::VisualPosition},
     input::{
         mods::Mods,
@@ -8,6 +9,7 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::{Mousebind, MousebindKind},
     },
+    platform::gfx::Gfx,
     ui::msg::Msg,
 };
 
@@ -29,11 +31,6 @@ pub enum WidgetLayout {
     Horizontal,
     Vertical,
     Tab { index: usize },
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Popup {
-    bounds: Rect,
 }
 
 #[derive(Debug)]
@@ -106,8 +103,6 @@ pub struct Ui {
 }
 
 impl Ui {
-    const BORDER_RADIUS: f32 = 2.0;
-
     pub fn new() -> Self {
         let root = Widget {
             bounds: Rect::ZERO,
@@ -269,7 +264,7 @@ impl Ui {
         msg
     }
 
-    pub fn receive_msgs(&mut self) {
+    pub fn receive_msgs(&mut self, gfx: &Gfx) {
         while let Some(msg) = self.msg(WidgetId::ROOT) {
             match msg {
                 Msg::Resize { width, height } => {
@@ -292,21 +287,21 @@ impl Ui {
 
                     self.focus(focused_widget_id);
 
-                    let horizontal_dragged_border =
-                        self.get_border(focused_widget_id, WidgetLayout::Horizontal, x, y);
+                    let horizontal =
+                        self.get_border(focused_widget_id, WidgetLayout::Horizontal, x, y, gfx);
 
-                    let vertical_dragged_border =
-                        self.get_border(focused_widget_id, WidgetLayout::Vertical, x, y);
+                    let vertical =
+                        self.get_border(focused_widget_id, WidgetLayout::Vertical, x, y, gfx);
 
-                    if horizontal_dragged_border.is_none() && vertical_dragged_border.is_none() {
+                    if horizontal.is_none() && vertical.is_none() {
                         self.send_to_focused_child(msg);
                         continue;
                     }
 
                     self.grabbed_borders = Some(GrabbedBorders {
                         position,
-                        horizontal: horizontal_dragged_border,
-                        vertical: vertical_dragged_border,
+                        horizontal,
+                        vertical,
                         did_drag: false,
                     });
                 }
@@ -331,6 +326,16 @@ impl Ui {
                     kind: MousebindKind::Move,
                     ..
                 }) => {
+                    let hit_id = self
+                        .get_widget_id_at(VisualPosition::new(x, y), WidgetId::ROOT)
+                        .unwrap_or(WidgetId::ROOT);
+
+                    self.hovered_borders.horizontal =
+                        self.get_border(hit_id, WidgetLayout::Horizontal, x, y, gfx);
+
+                    self.hovered_borders.vertical =
+                        self.get_border(hit_id, WidgetLayout::Vertical, x, y, gfx);
+
                     let Some(GrabbedBorders {
                         position,
                         horizontal: horizontal_dragged_border,
@@ -338,16 +343,6 @@ impl Ui {
                         did_drag,
                     }) = &mut self.grabbed_borders
                     else {
-                        let hit_id = self
-                            .get_widget_id_at(VisualPosition::new(x, y), WidgetId::ROOT)
-                            .unwrap_or(WidgetId::ROOT);
-
-                        self.hovered_borders.horizontal =
-                            self.get_border(hit_id, WidgetLayout::Horizontal, x, y);
-
-                        self.hovered_borders.vertical =
-                            self.get_border(hit_id, WidgetLayout::Vertical, x, y);
-
                         if hit_id != WidgetId::ROOT {
                             self.send(hit_id, msg);
                         }
@@ -365,8 +360,8 @@ impl Ui {
                     let horizontal_dragged_border = *horizontal_dragged_border;
                     let vertical_dragged_border = *vertical_dragged_border;
 
-                    self.handle_dragged_border(horizontal_dragged_border, dx, dy);
-                    self.handle_dragged_border(vertical_dragged_border, dx, dy);
+                    self.handle_dragged_border(horizontal_dragged_border, dx, dy, gfx);
+                    self.handle_dragged_border(vertical_dragged_border, dx, dy, gfx);
 
                     let id_to_layout = horizontal_dragged_border
                         .zip(vertical_dragged_border)
@@ -398,6 +393,7 @@ impl Ui {
         dragged_border: Option<Border>,
         dx: f32,
         dy: f32,
+        gfx: &Gfx,
     ) -> Option<()> {
         let dragged_border = dragged_border?;
         let parent = self.get_widget(dragged_border.widget_id)?;
@@ -415,7 +411,7 @@ impl Ui {
         };
 
         let total_scale = self.widget_total_scale(dragged_border.widget_id);
-        let min_scale = Self::BORDER_RADIUS * 2.0 / size * total_scale;
+        let min_scale = Self::border_radius(gfx) * 2.0 / size * total_scale;
         let delta = delta / size * total_scale;
 
         self.drag_widget(
@@ -472,6 +468,7 @@ impl Ui {
         layout: WidgetLayout,
         x: f32,
         y: f32,
+        gfx: &Gfx,
     ) -> Option<Border> {
         if matches!(layout, WidgetLayout::Tab { .. }) {
             return None;
@@ -494,27 +491,33 @@ impl Ui {
             let mut divider_x = parent.bounds.x;
             let mut divider_y = parent.bounds.y;
 
-            for i in 0..parent.child_ids.len().saturating_sub(1) {
-                let child_id = parent.child_ids[i];
-                let scale = self.widget(child_id).settings.scale;
-                let normal_scale = scale / total_scale;
+            let border_children = parent
+                .child_ids
+                .iter()
+                .copied()
+                .enumerate()
+                .filter(|(_, child_id)| self.widget(*child_id).settings.popup.is_none())
+                .rev()
+                .skip(1);
 
-                // TODO: Can't we just use the laid out sizes directly now instead of recomputing?
+            for (index, child_id) in border_children {
+                let child = self.widget(child_id);
+
                 match parent.settings.layout {
-                    WidgetLayout::Horizontal => divider_x += parent.bounds.width * normal_scale,
-                    WidgetLayout::Vertical => divider_y += parent.bounds.height * normal_scale,
+                    WidgetLayout::Horizontal => divider_x = child.bounds.right(),
+                    WidgetLayout::Vertical => divider_y = child.bounds.bottom(),
                     WidgetLayout::Tab { .. } => {}
                 };
 
                 let did_grab_horizontal = parent.settings.layout == WidgetLayout::Horizontal
-                    && (x - divider_x).abs() < Self::BORDER_RADIUS;
+                    && (x - divider_x).abs() < Self::border_radius(gfx);
                 let did_grab_vertical = parent.settings.layout == WidgetLayout::Vertical
-                    && (y - divider_y).abs() < Self::BORDER_RADIUS;
+                    && (y - divider_y).abs() < Self::border_radius(gfx);
 
                 if did_grab_horizontal || did_grab_vertical {
                     return Some(Border {
                         widget_id: parent_id,
-                        index: i,
+                        index,
                         precedence,
                     });
                 }
@@ -525,6 +528,10 @@ impl Ui {
         }
 
         None
+    }
+
+    fn border_radius(gfx: &Gfx) -> f32 {
+        gfx.border_width() * 2.0
     }
 
     // TODO:
@@ -574,6 +581,91 @@ impl Ui {
     //         self.focus(focused_widget_id);
     //     }
     // }
+
+    pub fn draw(&mut self, config: &Config, gfx: &mut Gfx) {
+        let (horizontal, vertical, is_dragged) = if let Some(GrabbedBorders {
+            horizontal,
+            vertical,
+            ..
+        }) = self.grabbed_borders
+        {
+            (horizontal, vertical, true)
+        } else {
+            (
+                self.hovered_borders.horizontal,
+                self.hovered_borders.vertical,
+                false,
+            )
+        };
+
+        if horizontal.is_none() && vertical.is_none() {
+            return;
+        }
+
+        gfx.begin(None);
+
+        self.draw_border(horizontal, is_dragged, config, gfx);
+        self.draw_border(vertical, is_dragged, config, gfx);
+
+        gfx.end();
+    }
+
+    fn draw_border(
+        &mut self,
+        border: Option<Border>,
+        is_dragged: bool,
+        config: &Config,
+        gfx: &mut Gfx,
+    ) {
+        let Some(border) = border else {
+            return;
+        };
+
+        let parent = &self.widget(border.widget_id);
+
+        let rect = match parent.settings.layout {
+            WidgetLayout::Horizontal => {
+                let x = parent.bounds.x
+                    + parent.child_ids[..=border.index]
+                        .iter()
+                        .map(|child_id| self.bounds(*child_id).width)
+                        .sum::<f32>();
+
+                Rect::new(
+                    x - Self::border_radius(gfx),
+                    parent.bounds.y,
+                    Self::border_radius(gfx) * 2.0,
+                    parent.bounds.height,
+                )
+            }
+            WidgetLayout::Vertical => {
+                let y = parent.bounds.y
+                    + parent.child_ids[..=border.index]
+                        .iter()
+                        .map(|child_id| self.bounds(*child_id).height)
+                        .sum::<f32>();
+
+                Rect::new(
+                    parent.bounds.x,
+                    y - Self::border_radius(gfx),
+                    parent.bounds.width,
+                    Self::border_radius(gfx) * 2.0,
+                )
+            }
+            WidgetLayout::Tab { .. } => return,
+        };
+
+        gfx.add_rect(rect, config.theme.background);
+
+        gfx.add_rect(
+            rect,
+            if is_dragged {
+                config.theme.keyword
+            } else {
+                config.theme.emphasized
+            },
+        );
+    }
 
     fn update_layout(&mut self, widget_id: WidgetId, bounds: Rect) {
         let widget = self.widget_mut(widget_id);

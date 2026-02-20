@@ -182,7 +182,7 @@ impl App {
         }
 
         while ctx.ui.has_msgs() {
-            ctx.ui.receive_msgs();
+            ctx.ui.receive_msgs(ctx.gfx);
 
             self.editor.receive_msgs(ctx);
             self.terminal.receive_msgs(ctx);
@@ -211,6 +211,8 @@ impl App {
         self.terminal.draw(ctx);
         self.editor.draw(ctx);
         // self.command_palette.draw(ctx);
+
+        ctx.ui.draw(ctx.config, ctx.gfx);
 
         gfx.end_frame();
     }
