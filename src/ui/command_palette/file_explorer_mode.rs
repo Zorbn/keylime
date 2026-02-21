@@ -207,7 +207,7 @@ impl FileExplorerMode {
             self.starting_path.as_ref().map(Pooled::<PathBuf>::as_ref)
         } else {
             let (pane, doc_list) = editor.last_focused_pane_and_doc_list(ui);
-            let (_, doc) = pane.get_focused_tab_with_data(doc_list)?;
+            let (_, doc) = pane.get_focused_tab_with_data(doc_list, ui)?;
 
             doc.path().some().and_then(|path| path.parent())
         };

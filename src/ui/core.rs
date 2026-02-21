@@ -26,7 +26,7 @@ impl WidgetId {
     };
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WidgetLayout {
     Horizontal,
     Vertical,
@@ -98,6 +98,7 @@ pub struct Ui {
     unused_widget_indices: Vec<usize>,
     grabbed_borders: Option<GrabbedBorders>,
     hovered_borders: HoveredBorders,
+    is_dragging: bool,
 }
 
 impl Ui {
@@ -122,6 +123,7 @@ impl Ui {
             unused_widget_indices: Vec::new(),
             grabbed_borders: None,
             hovered_borders: Default::default(),
+            is_dragging: false,
         }
     }
 
@@ -276,6 +278,8 @@ impl Ui {
                     kind: MousebindKind::Press,
                     ..
                 }) => {
+                    self.is_dragging = true;
+
                     let position = VisualPosition::new(x, y);
 
                     let Some(focused_widget_id) = self.get_widget_id_at(position, WidgetId::ROOT)
@@ -309,6 +313,8 @@ impl Ui {
                     kind: MousebindKind::Release,
                     ..
                 }) => {
+                    self.is_dragging = false;
+
                     let do_send_to_child = self
                         .grabbed_borders
                         .take()
@@ -341,7 +347,9 @@ impl Ui {
                         did_drag,
                     }) = &mut self.grabbed_borders
                     else {
-                        if hit_id != WidgetId::ROOT {
+                        if self.is_dragging {
+                            self.send_to_focused_child(msg);
+                        } else if hit_id != WidgetId::ROOT {
                             self.send(hit_id, msg);
                         }
 
@@ -882,6 +890,29 @@ impl Ui {
 
     pub fn child_ids(&self, widget_id: WidgetId) -> &[WidgetId] {
         &self.widget(widget_id).child_ids
+    }
+
+    pub fn move_child(&mut self, child_id: WidgetId, to_index: usize) {
+        let Some(parent_id) = self.widget(child_id).parent_id else {
+            return;
+        };
+
+        let parent = self.widget_mut(parent_id);
+
+        let Some(from_index) = parent
+            .child_ids
+            .iter()
+            .position(|widget_id| *widget_id == child_id)
+        else {
+            return;
+        };
+
+        parent.child_ids.remove(from_index);
+        parent.child_ids.insert(to_index, child_id);
+    }
+
+    pub fn layout(&self, widget_id: WidgetId) -> WidgetLayout {
+        self.widget(widget_id).settings.layout
     }
 
     pub fn set_layout(&mut self, widget_id: WidgetId, layout: WidgetLayout) {

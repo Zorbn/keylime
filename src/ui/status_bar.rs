@@ -119,7 +119,7 @@ impl StatusBar {
         current_dir: &Path,
     ) -> Option<Pooled<String>> {
         let (pane, doc_list) = editor.last_focused_pane_and_doc_list(ui);
-        let (_, doc) = pane.get_focused_tab_with_data(doc_list)?;
+        let (_, doc) = pane.get_focused_tab_with_data(doc_list, ui)?;
         let position = doc.cursor(CursorIndex::Main).position;
 
         let mut doc_text = STRING_POOL.new_item();

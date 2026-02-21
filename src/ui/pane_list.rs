@@ -92,7 +92,11 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
         }
     }
 
-    pub fn update(&mut self, widget_id: WidgetId, ctx: &mut Ctx) {
+    pub fn update(&mut self, data_list: &mut SlotList<TData>, ctx: &mut Ctx) {
+        for pane in self.panes.iter_mut() {
+            pane.update(data_list, ctx);
+        }
+
         self.panes.update(ctx.ui);
     }
 
@@ -118,7 +122,7 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
             return true;
         };
 
-        if pane.focused_tab_index() == 0 {
+        if pane.focused_tab_index(ctx.ui) == 0 {
             self.panes.focus_previous(ctx.ui);
             true
         } else {
@@ -131,7 +135,7 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
             return true;
         };
 
-        if pane.focused_tab_index() == pane.tab_count() - 1 {
+        if pane.focused_tab_index(ctx.ui) == pane.tab_count() - 1 {
             self.panes.focus_next(ctx.ui);
             true
         } else {

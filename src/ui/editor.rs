@@ -153,7 +153,9 @@ impl Editor {
 
                     let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
 
-                    if let Some((_, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) {
+                    if let Some((_, doc)) =
+                        pane.get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui)
+                    {
                         let position = doc.cursor(CursorIndex::Main).position;
                         self.examine_popup.open(position, true, doc, ctx);
                     }
@@ -177,13 +179,13 @@ impl Editor {
     }
 
     pub fn update(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx, dt: f32) {
-        self.panes.update(self.widget_id, ctx);
+        self.panes.update(&mut self.doc_list, ctx);
         self.reload_changed_files(file_watcher, ctx);
 
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
 
         let doc = pane
-            .get_focused_tab_with_data_mut(&mut self.doc_list)
+            .get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui)
             .map(|(_, doc)| doc);
 
         let signature_help_triggers = SignatureHelpPopup::get_triggers(self.widget_id, doc, ctx);
@@ -236,7 +238,7 @@ impl Editor {
         let pane = self.panes.get_hovered_mut(ctx.ui);
 
         let Some((tab, doc)) =
-            pane.and_then(|pane| pane.get_focused_tab_with_data_mut(&mut self.doc_list))
+            pane.and_then(|pane| pane.get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui))
         else {
             self.examine_popup.clear(ctx.ui);
             return;
@@ -254,7 +256,7 @@ impl Editor {
     fn pre_pane_update(&mut self, ctx: &mut Ctx) {
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
 
-        let Some((_, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) else {
+        let Some((_, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui) else {
             return;
         };
 
@@ -270,7 +272,8 @@ impl Editor {
     ) {
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
 
-        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list) else {
+        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui)
+        else {
             self.signature_help_popup.clear(ctx.ui);
             self.completion_list.clear(ctx);
 
@@ -319,7 +322,7 @@ impl Editor {
 
         let command = result.command?;
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
-        let (_, doc) = pane.get_focused_tab_with_data_mut(&mut self.doc_list)?;
+        let (_, doc) = pane.get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui)?;
         let language_server = doc.get_language_server_mut(ctx)?;
 
         language_server.execute_command(&command.command, &command.arguments);
@@ -455,7 +458,7 @@ impl Editor {
     fn is_cursor_visible(&self, ctx: &mut Ctx) -> bool {
         let pane = self.panes.get_last_focused(ctx.ui).unwrap();
 
-        let Some((tab, doc)) = pane.get_focused_tab_with_data(&self.doc_list) else {
+        let Some((tab, doc)) = pane.get_focused_tab_with_data(&self.doc_list, ctx.ui) else {
             return false;
         };
 

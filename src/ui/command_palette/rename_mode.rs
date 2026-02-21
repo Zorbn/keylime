@@ -38,7 +38,7 @@ impl CommandPaletteMode for RenameMode {
     ) -> CommandPaletteAction {
         let (pane, doc_list) = args.editor.last_focused_pane_and_doc_list(args.ctx.ui);
 
-        let Some((_, doc)) = pane.get_focused_tab_with_data(doc_list) else {
+        let Some((_, doc)) = pane.get_focused_tab_with_data(doc_list, args.ctx.ui) else {
             return CommandPaletteAction::Close;
         };
 

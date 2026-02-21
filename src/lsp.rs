@@ -186,7 +186,7 @@ impl Lsp {
                     return None;
                 }
 
-                let (tab, doc) = pane.get_focused_tab_with_data_mut(doc_list)?;
+                let (tab, doc) = pane.get_focused_tab_with_data_mut(doc_list, ctx.ui)?;
                 let position = range.decode(encoding, doc).start;
 
                 doc.jump_cursors(position, false, ctx.gfx);

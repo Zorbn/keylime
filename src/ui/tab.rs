@@ -42,7 +42,6 @@ const GUTTER_PADDING_WIDTH: f32 = 1.0;
 const GUTTER_BORDER_WIDTH: f32 = 0.5;
 
 const CURSOR_ANIMATION_SPEED: f64 = 8.0;
-const TAB_ANIMATION_SPEED: f32 = 10.0;
 
 #[derive(Debug, Clone, Copy)]
 struct VisibleLines {
@@ -261,14 +260,8 @@ impl Tab {
     }
 
     pub fn animate(&mut self, widget_id: Option<WidgetId>, doc: &Doc, ctx: &mut Ctx, dt: f32) {
-        self.animate_tab(dt);
         self.animate_cursors(doc, ctx);
         self.animate_camera(widget_id, doc, ctx, dt);
-    }
-
-    fn animate_tab(&mut self, dt: f32) {
-        self.tab_animation_state.x +=
-            (self.tab_bounds.x - self.tab_animation_state.x) * TAB_ANIMATION_SPEED * dt;
     }
 
     fn animate_cursors(&mut self, doc: &Doc, ctx: &mut Ctx) {

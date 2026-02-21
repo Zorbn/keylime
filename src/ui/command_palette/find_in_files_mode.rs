@@ -91,7 +91,7 @@ impl FindInFilesMode {
             return CommandPaletteAction::Stay;
         }
 
-        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(doc_list) else {
+        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(doc_list, args.ctx.ui) else {
             return CommandPaletteAction::Close;
         };
 

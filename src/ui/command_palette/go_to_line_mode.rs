@@ -26,7 +26,7 @@ impl CommandPaletteMode for GoToLineMode {
 
         let (pane, doc_list) = args.editor.last_focused_pane_and_doc_list_mut(args.ctx.ui);
 
-        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(doc_list) else {
+        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(doc_list, args.ctx.ui) else {
             return CommandPaletteAction::Close;
         };
 

@@ -48,7 +48,7 @@ impl CommandPaletteMode for SearchMode {
     ) -> CommandPaletteAction {
         let (pane, doc_list) = args.editor.last_focused_pane_and_doc_list_mut(args.ctx.ui);
 
-        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(doc_list) else {
+        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(doc_list, args.ctx.ui) else {
             return CommandPaletteAction::Stay;
         };
 
@@ -125,7 +125,7 @@ impl CommandPaletteMode for SearchAndReplaceMode {
 
         let (pane, doc_list) = args.editor.last_focused_pane_and_doc_list_mut(args.ctx.ui);
 
-        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(doc_list) else {
+        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(doc_list, args.ctx.ui) else {
             return CommandPaletteAction::Stay;
         };
 
@@ -170,7 +170,7 @@ impl CommandPaletteMode for SearchAndReplaceMode {
 fn start(editor: &Editor, ui: &Ui) -> Position {
     let (pane, doc_list) = editor.last_focused_pane_and_doc_list(ui);
 
-    let Some((_, doc)) = pane.get_focused_tab_with_data(doc_list) else {
+    let Some((_, doc)) = pane.get_focused_tab_with_data(doc_list, ui) else {
         return Position::ZERO;
     };
 
@@ -185,7 +185,7 @@ fn preview_search(
 ) {
     let (pane, doc_list) = editor.last_focused_pane_and_doc_list_mut(ctx.ui);
 
-    let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(doc_list) else {
+    let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(doc_list, ctx.ui) else {
         return;
     };
 

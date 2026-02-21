@@ -129,7 +129,7 @@ impl CursorHistory {
         ui: &Ui,
     ) -> Option<CursorHistoryItem> {
         let pane = panes.get_last_focused(ui)?;
-        let doc_id = pane.get_focused_tab()?.data_id();
+        let doc_id = pane.get_focused_tab(ui)?.data_id();
 
         let doc = doc_list.get(doc_id)?;
         let cursor = doc.cursor(CursorIndex::Main);
