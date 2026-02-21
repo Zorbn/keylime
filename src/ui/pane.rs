@@ -517,6 +517,7 @@ impl<T> Pane<T> {
             parent_id,
             WidgetSettings {
                 layout: WidgetLayout::Vertical,
+                is_resizable: false,
                 ..Default::default()
             },
         );
@@ -537,43 +538,14 @@ impl<T> Pane<T> {
         self.tab_bar.is_animating() || self.tabs.iter().any(|tab| tab.is_animating(ctx))
     }
 
-    // pub fn layout(&mut self, bounds: Rect, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
-    //     ctx.ui.widget_mut(self.widget_id).bounds = bounds;
-
-    //     let gfx = &mut ctx.gfx;
-
-    //     let mut tab_x = 0.0;
-    //     let tab_height = gfx.tab_height();
-
-    //     for i in 0..self.tabs.len() {
-    //         let get_doc = self.get_doc;
-
-    //         let Some((tab, data)) = self.get_tab_with_data_mut(i, data_list) else {
-    //             return;
-    //         };
-
-    //         let doc = (get_doc)(data);
-
-    //         let tab_width = gfx.glyph_width() * 4.0
-    //             + gfx.measure_text(doc.file_name()) as f32 * gfx.glyph_width();
-
-    //         let tab_bounds = Rect::new(tab_x, bounds.y, tab_width, tab_height);
-
-    //         let doc_bounds = bounds
-    //             .shrink_left_by(bounds.left_border(gfx.border_width()))
-    //             .shrink_top_by(tab_bounds);
-
-    //         tab_x += tab_width - gfx.border_width();
-
-    //         tab.layout(tab_bounds, doc_bounds, 0.0, doc, gfx);
-    //     }
-
-    //     self.tab_bar_width = tab_x;
-    // }
-
     pub fn receive_msgs(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
+                Msg::Resize { height, .. } => {
+                    let tab_height = ctx.gfx.tab_height();
+                    ctx.ui.set_scale(self.tab_bar.widget_id, tab_height);
+                    ctx.ui.set_scale(self.view.widget_id, height - tab_height);
+                }
                 Msg::Action(action_name!(PreviousTab)) => self.focus_previous_tab(ctx.ui),
                 Msg::Action(action_name!(NextTab)) => self.focus_next_tab(ctx.ui),
                 _ => ctx.ui.skip(self.widget_id, msg),

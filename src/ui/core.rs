@@ -287,8 +287,6 @@ impl Ui {
                         continue;
                     };
 
-                    self.focus(focused_widget_id);
-
                     let horizontal =
                         self.get_border(focused_widget_id, WidgetLayout::Horizontal, x, y, gfx);
 
@@ -296,6 +294,7 @@ impl Ui {
                         self.get_border(focused_widget_id, WidgetLayout::Vertical, x, y, gfx);
 
                     if horizontal.is_none() && vertical.is_none() {
+                        self.focus(focused_widget_id);
                         self.send_to_focused_child(msg);
                         continue;
                     }
@@ -539,54 +538,6 @@ impl Ui {
     fn border_radius(gfx: &Gfx) -> f32 {
         gfx.border_width() * 2.0
     }
-
-    // TODO:
-    // pub fn update(&mut self, window: &mut Window) {
-    //     let mut focused_widget_id = None;
-
-    //     let mut mousebind_handler = window.mousebind_handler();
-
-    //     while let Some(mousebind) = mousebind_handler.next(window) {
-    //         let position = VisualPosition::new(mousebind.x, mousebind.y);
-    //         let widget_id = self.get_widget_id_at(position, WidgetId::ROOT);
-
-    //         match mousebind {
-    //             Mousebind {
-    //                 button: Some(MouseButton::Left),
-    //                 kind: MousebindKind::Press,
-    //                 ..
-    //             } => {
-    //                 focused_widget_id = widget_id;
-
-    //                 self.is_dragging = true;
-    //             }
-    //             Mousebind {
-    //                 button: Some(MouseButton::Left),
-    //                 kind: MousebindKind::Release,
-    //                 ..
-    //             } => self.is_dragging = false,
-    //             Mousebind {
-    //                 button: None,
-    //                 kind: MousebindKind::Move,
-    //                 ..
-    //             } => {
-    //                 let hovered_widget_id =
-    //                     self.get_widget_id_at(window.mouse_position(), WidgetId::ROOT);
-
-    //                 if let Some(hovered_widget_id) = hovered_widget_id {
-    //                     self.hover(hovered_widget_id);
-    //                 }
-    //             }
-    //             _ => {}
-    //         }
-
-    //         mousebind_handler.unprocessed(window, mousebind);
-    //     }
-
-    //     if let Some(focused_widget_id) = focused_widget_id {
-    //         self.focus(focused_widget_id);
-    //     }
-    // }
 
     pub fn draw(&mut self, config: &Config, gfx: &mut Gfx) {
         let (horizontal, vertical, is_dragged) = if let Some(GrabbedBorders {
@@ -915,7 +866,16 @@ impl Ui {
 
         widget.settings.layout = layout;
 
-        let parent_id = widget.parent_id.unwrap_or(WidgetId::ROOT);
+        self.update_parent_layout(widget_id);
+    }
+
+    pub fn set_scale(&mut self, widget_id: WidgetId, scale: f32) {
+        self.widget_mut(widget_id).settings.scale = scale;
+        self.update_parent_layout(widget_id);
+    }
+
+    fn update_parent_layout(&mut self, widget_id: WidgetId) {
+        let parent_id = self.widget(widget_id).parent_id.unwrap_or(WidgetId::ROOT);
         let parent = self.widget(parent_id);
         let parent_bounds = parent.bounds;
 
