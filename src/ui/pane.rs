@@ -36,11 +36,15 @@ struct TabAnimationState {
 }
 
 impl TabAnimationState {
-    fn bounds(&self) -> Rect {
+    fn visual_bounds(&self) -> Rect {
         Rect {
             x: self.x,
             ..self.target
         }
+    }
+
+    fn bounds(&self) -> Rect {
+        self.target
     }
 }
 
@@ -89,7 +93,9 @@ impl<T> PaneTabBar<T> {
                     kind: MousebindKind::Release,
                     ..
                 })
-                | Msg::LostFocus => self.dragged_tab_offset = None,
+                | Msg::LostFocus => {
+                    self.dragged_tab_offset = None;
+                }
                 Msg::Mousebind(Mousebind {
                     button: Some(MouseButton::Left),
                     mods: Mods::NONE,
@@ -113,7 +119,7 @@ impl<T> PaneTabBar<T> {
 
                     let index = self.tab_animation_states.iter().position(|tab| {
                         let bounds = ctx.ui.bounds(self.widget_id);
-                        let tab_bounds = tab.bounds();
+                        let tab_bounds = tab.visual_bounds();
 
                         offset = tab_bounds.x - visual_position.x - bounds.x;
 
@@ -156,7 +162,6 @@ impl<T> PaneTabBar<T> {
         let gfx = &mut ctx.gfx;
 
         let mut tab_x = 0.0;
-        let tab_y = ctx.ui.bounds(self.widget_id).y;
         let tab_height = gfx.tab_height();
 
         for (index, tab) in tabs.iter().enumerate() {
@@ -169,7 +174,7 @@ impl<T> PaneTabBar<T> {
             let tab_width = gfx.glyph_width() * 4.0
                 + gfx.measure_text(doc.file_name()) as f32 * gfx.glyph_width();
 
-            let target = Rect::new(tab_x, tab_y, tab_width, tab_height);
+            let target = Rect::new(tab_x, 0.0, tab_width, tab_height);
             let animation_state = &mut self.tab_animation_states[index];
 
             animation_state.target = target;
@@ -217,7 +222,7 @@ impl<T> PaneTabBar<T> {
 
     fn recenter_request_on_tab(&self, view: &PaneView, ui: &Ui) -> CameraRecenterRequest {
         let focused_index = view.focused_index(ui);
-        let tab_bounds = self.tab_animation_states[focused_index].bounds();
+        let tab_bounds = self.tab_animation_states[focused_index].visual_bounds();
 
         CameraRecenterRequest {
             can_start: Some(focused_index) != self.handled_focused_index,
@@ -237,7 +242,7 @@ impl<T> PaneTabBar<T> {
         }
 
         let focused_index = view.focused_index(ui);
-        let focused_tab_bounds = self.tab_animation_states[focused_index].bounds();
+        let focused_tab_bounds = self.tab_animation_states[focused_index].visual_bounds();
 
         let focused_tab_right = focused_tab_bounds.right();
         let focused_tab_left = focused_tab_bounds.left();
@@ -262,6 +267,7 @@ impl<T> PaneTabBar<T> {
         if let Some(index) = index {
             let focused_widget_id = ui.child_ids(view.widget_id)[focused_index];
             ui.move_child(focused_widget_id, index);
+            view.set_focused_index(index, ui);
 
             tabs.swap(focused_index, index);
             self.tab_animation_states.swap(focused_index, index);
@@ -271,6 +277,7 @@ impl<T> PaneTabBar<T> {
     fn draw(
         &self,
         focused_index: usize,
+        is_pane_focused: bool,
         background: Option<Color>,
         tabs: &[Tab],
         data_list: &SlotList<T>,
@@ -295,12 +302,22 @@ impl<T> PaneTabBar<T> {
                 continue;
             }
 
-            self.draw_tab_from_index(i, false, background, tabs, data_list, get_doc, ctx);
+            self.draw_tab_from_index(
+                i,
+                false,
+                is_pane_focused,
+                background,
+                tabs,
+                data_list,
+                get_doc,
+                ctx,
+            );
         }
 
         let focused_tab_bounds = self.draw_tab_from_index(
             focused_index,
             true,
+            is_pane_focused,
             background,
             tabs,
             data_list,
@@ -339,6 +356,7 @@ impl<T> PaneTabBar<T> {
         &self,
         index: usize,
         is_focused: bool,
+        is_pane_focused: bool,
         background: Option<Color>,
         tabs: &[Tab],
         data_list: &SlotList<T>,
@@ -349,14 +367,22 @@ impl<T> PaneTabBar<T> {
             return Rect::ZERO;
         };
 
-        let bounds = self.tab_animation_states[index].bounds();
+        let bounds = self.tab_animation_states[index].visual_bounds();
 
-        self.draw_tab(is_focused, background, bounds, get_doc(data), ctx)
+        self.draw_tab(
+            is_focused,
+            is_pane_focused,
+            background,
+            bounds,
+            get_doc(data),
+            ctx,
+        )
     }
 
     fn draw_tab(
         &self,
         is_focused: bool,
+        is_pane_focused: bool,
         background: Option<Color>,
         bounds: Rect,
         doc: &Doc,
@@ -394,7 +420,7 @@ impl<T> PaneTabBar<T> {
         }
 
         if is_focused {
-            let foreground = if ctx.ui.is_focused(self.widget_id) {
+            let foreground = if is_pane_focused {
                 theme.keyword
             } else {
                 theme.emphasized
@@ -454,6 +480,18 @@ impl PaneView {
 
     fn set_focused_index(&self, index: usize, ui: &mut Ui) {
         ui.set_layout(self.widget_id, WidgetLayout::Tab { index });
+    }
+
+    fn focus(&self, ui: &mut Ui) {
+        let focused_index = self.focused_index(ui);
+
+        let focused_id = ui
+            .child_ids(self.widget_id)
+            .get(focused_index)
+            .copied()
+            .unwrap_or(self.widget_id);
+
+        ui.focus(focused_id);
     }
 }
 
@@ -579,6 +617,7 @@ impl<T> Pane<T> {
     pub fn draw(&mut self, background: Option<Color>, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
         self.tab_bar.draw(
             self.focused_tab_index(ctx.ui),
+            ctx.ui.is_in_focused_hierarchy(self.widget_id),
             background,
             &self.tabs,
             data_list,
@@ -671,7 +710,7 @@ impl<T> Pane<T> {
         );
 
         self.view.set_focused_index(index, ctx.ui);
-        ctx.ui.focus(tab_id);
+        self.view.focus(ctx.ui);
     }
 
     pub fn remove_tab(&mut self, data_list: &mut SlotList<T>, ui: &mut Ui) {
@@ -684,7 +723,7 @@ impl<T> Pane<T> {
 
         (get_doc_mut)(data).remove_usage();
 
-        if let Some(child_id) = ui.child_ids(self.widget_id).get(index) {
+        if let Some(child_id) = ui.child_ids(self.view.widget_id).get(index) {
             ui.remove_widget(*child_id);
         } else {
             return;
@@ -694,23 +733,20 @@ impl<T> Pane<T> {
         self.tab_bar.tab_animation_states.remove(index);
 
         let focused_index = index.min(self.tabs.len());
-        self.view.set_focused_index(index, ui);
-
-        if self.has_tabs() {
-            ui.focus(ui.child_ids(self.view.widget_id)[focused_index]);
-        } else {
-            ui.focus(self.widget_id);
-        }
+        self.view.set_focused_index(focused_index, ui);
+        self.view.focus(ui);
     }
 
     fn focus_next_tab(&self, ui: &mut Ui) {
         let index = (self.focused_tab_index(ui) + 1).min(self.tabs.len());
         self.view.set_focused_index(index, ui);
+        self.view.focus(ui);
     }
 
     fn focus_previous_tab(&self, ui: &mut Ui) {
         let index = self.focused_tab_index(ui).saturating_sub(1);
         self.view.set_focused_index(index, ui);
+        self.view.focus(ui);
     }
 
     pub fn tab_count(&self) -> usize {

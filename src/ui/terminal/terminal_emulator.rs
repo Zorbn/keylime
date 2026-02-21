@@ -183,7 +183,7 @@ impl TerminalEmulator {
                 }
                 Msg::Action(
                     action_keybind!(keys: key @ (Key::Up | Key::Down | Key::Left | Key::Right | Key::Home | Key::End), mods),
-                ) => {
+                ) if !mods.contains(Mod::Cmd) => {
                     let key_byte = match key {
                         Key::Up => b'A',
                         Key::Down => b'B',

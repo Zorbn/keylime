@@ -76,8 +76,6 @@ pub struct Tab {
     handled_doc_len: usize,
     cursor_animation_states: Vec<CursorAnimationState>,
 
-    tab_animation_state: TabAnimationState,
-    tab_bounds: Rect,
     gutter_bounds: Rect,
     margin: f32,
 }
@@ -94,8 +92,6 @@ impl Tab {
             handled_doc_len: 1,
             cursor_animation_states: Vec::new(),
 
-            tab_animation_state: TabAnimationState { x: 0.0 },
-            tab_bounds: Rect::ZERO,
             gutter_bounds: Rect::ZERO,
             margin: 0.0,
         }
@@ -111,7 +107,6 @@ impl Tab {
 
     pub fn is_animating(&self, ctx: &Ctx) -> bool {
         self.camera.is_moving()
-            || (self.tab_bounds.x - self.tab_animation_state.x).abs() > 0.5
             || self.cursor_animation_states.iter().any(|animation_state| {
                 self.cursor_animation_progress(ctx.time, animation_state.last_time) < 1.0
             })
@@ -491,21 +486,6 @@ impl Tab {
         VisualPosition::new(visual.x + self.margin, visual.y + self.margin)
     }
 
-    pub fn set_tab_animation_x(&mut self, x: f32) {
-        self.tab_animation_state.x = x;
-    }
-
-    pub fn visual_tab_bounds(&self) -> Rect {
-        Rect {
-            x: self.tab_animation_state.x,
-            ..self.tab_bounds
-        }
-    }
-
-    pub fn tab_bounds(&self) -> Rect {
-        self.tab_bounds
-    }
-
     // TODO:
     pub fn doc_bounds(&self, ui: &Ui) -> Rect {
         ui.bounds(self.widget_id)
@@ -540,6 +520,10 @@ impl Tab {
         doc: &mut Doc,
         ctx: &mut Ctx,
     ) {
+        if !ctx.ui.is_visible(self.widget_id) {
+            return;
+        }
+
         let language = ctx.config.get_language_for_doc(doc);
 
         if let Some(language) = language {

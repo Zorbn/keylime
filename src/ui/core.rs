@@ -191,7 +191,7 @@ impl Ui {
             }
         }
 
-        for i in 0..self.widget(widget_id).child_ids.len() {
+        for i in (0..self.widget(widget_id).child_ids.len()).rev() {
             let child_id = self.widget(widget_id).child_ids[i];
 
             self.remove_widget(child_id);
@@ -715,11 +715,6 @@ impl Ui {
                     let widget = self.widget_mut(widget_id);
                     let index = index.min(widget.child_ids.len().saturating_sub(1));
                     widget.settings.layout = WidgetLayout::Tab { index };
-
-                    if i != index {
-                        child_width = 0.0;
-                        child_height = 0.0;
-                    }
                 }
             }
 
@@ -939,6 +934,12 @@ impl Ui {
         }
 
         if let Some(parent_id) = widget.parent_id {
+            if let WidgetLayout::Tab { index } = self.layout(parent_id) {
+                if self.child_ids(parent_id).get(index) != Some(&widget_id) {
+                    return false;
+                }
+            }
+
             self.is_visible(parent_id)
         } else {
             true
