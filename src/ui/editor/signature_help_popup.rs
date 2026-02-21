@@ -27,6 +27,7 @@ impl SignatureHelpPopup {
             parent_id,
             WidgetSettings {
                 popup: Some(Rect::ZERO),
+                wants_msgs: false,
                 ..Default::default()
             },
         );

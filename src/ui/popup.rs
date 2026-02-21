@@ -39,6 +39,7 @@ impl Popup {
             parent_id,
             WidgetSettings {
                 is_shown: false,
+                wants_msgs: false,
                 popup: Some(Rect::ZERO),
                 ..Default::default()
             },

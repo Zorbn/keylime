@@ -5,10 +5,7 @@ use std::{
 
 use crate::{
     ctx::Ctx,
-    input::{
-        action::{action_name, Action},
-        input_handlers::ActionHandler,
-    },
+    input::action::action_name,
     ui::{
         core::{Ui, WidgetSettings},
         msg::Msg,
@@ -26,12 +23,8 @@ use super::{
 pub trait PaneWrapper<T>: Deref<Target = Pane<T>> + DerefMut<Target = Pane<T>> {
     fn receive_msgs(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx);
     fn update(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx);
+    fn widget_id(&self) -> WidgetId;
 }
-
-// impl<TPane: Deref<Target = Pane<TData>> + DerefMut<Target = Pane<TData>>, TData> PaneWrapper<TData>
-//     for TPane
-// {
-// }
 
 pub struct PaneList<TPane: PaneWrapper<TData>, TData> {
     widget_id: WidgetId,
@@ -49,7 +42,7 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
                     ..Default::default()
                 },
             ),
-            panes: WidgetList::new(|pane| pane.widget_id()),
+            panes: WidgetList::new(PaneWrapper::widget_id),
             _phantom: PhantomData,
         }
     }
@@ -58,31 +51,13 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
         self.panes.iter().any(|pane| pane.is_animating(ctx))
     }
 
-    // pub fn layout(&mut self, bounds: Rect, data_list: &mut SlotList<TData>, ctx: &mut Ctx) {
-    //     let mut pane_bounds = bounds;
-    //     pane_bounds.width = (pane_bounds.width / self.panes.len() as f32).ceil();
-
-    //     for pane in self.panes.iter_mut() {
-    //         pane.layout(pane_bounds, data_list, ctx);
-    //         pane_bounds.x += pane_bounds.width;
-    //     }
-    // }
-
     pub fn receive_msgs(&mut self, data_list: &mut SlotList<TData>, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
                 Msg::Action(action_name!(PreviousPane)) => self.panes.focus_previous(ctx.ui),
                 Msg::Action(action_name!(NextPane)) => self.panes.focus_next(ctx.ui),
-                Msg::Action(action_name!(PreviousTab)) => {
-                    if !self.previous_tab(ctx) {
-                        ctx.ui.skip(self.widget_id, msg);
-                    }
-                }
-                Msg::Action(action_name!(NextTab)) => {
-                    if !self.next_tab(ctx) {
-                        ctx.ui.skip(self.widget_id, msg);
-                    }
-                }
+                Msg::Action(action_name!(PreviousTab)) => self.panes.focus_previous(ctx.ui),
+                Msg::Action(action_name!(NextTab)) => self.panes.focus_next(ctx.ui),
                 _ => ctx.ui.skip(self.widget_id, msg),
             }
         }
@@ -114,32 +89,6 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
     ) {
         for pane in self.panes.iter_mut() {
             pane.draw(background, data_list, ctx);
-        }
-    }
-
-    fn previous_tab(&mut self, ctx: &mut Ctx) -> bool {
-        let Some(pane) = self.panes.get_last_focused(ctx.ui) else {
-            return true;
-        };
-
-        if pane.focused_tab_index(ctx.ui) == 0 {
-            self.panes.focus_previous(ctx.ui);
-            true
-        } else {
-            false
-        }
-    }
-
-    fn next_tab(&mut self, ctx: &mut Ctx) -> bool {
-        let Some(pane) = self.panes.get_last_focused(ctx.ui) else {
-            return true;
-        };
-
-        if pane.focused_tab_index(ctx.ui) == pane.tab_count() - 1 {
-            self.panes.focus_next(ctx.ui);
-            true
-        } else {
-            false
         }
     }
 

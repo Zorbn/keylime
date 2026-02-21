@@ -37,6 +37,7 @@ pub enum WidgetLayout {
 pub struct WidgetSettings {
     pub is_shown: bool,
     pub is_resizable: bool,
+    pub wants_msgs: bool,
     pub scale: f32,
     pub layout: WidgetLayout,
     pub popup: Option<Rect>,
@@ -47,6 +48,7 @@ impl Default for WidgetSettings {
         Self {
             is_shown: true,
             is_resizable: true,
+            wants_msgs: true,
             scale: 1.0,
             layout: WidgetLayout::Vertical,
             popup: None,
@@ -102,9 +104,9 @@ pub struct Ui {
 }
 
 impl Ui {
-    pub fn new() -> Self {
+    pub fn new(width: f32, height: f32) -> Self {
         let root = Widget {
-            bounds: Rect::ZERO,
+            bounds: Rect::new(0.0, 0.0, width, height),
 
             settings: Default::default(),
             parent_id: None,
@@ -160,6 +162,7 @@ impl Ui {
         widget.msgs.clear();
 
         self.widget_mut(parent_id).child_ids.push(widget_id);
+        self.update_parent_layout(parent_id);
 
         widget_id
     }
@@ -179,16 +182,15 @@ impl Ui {
 
         self.widget_mut(widget_id).msgs.clear();
 
-        if let Some(parent_id) = self.widget(widget_id).parent_id {
-            let parent = self.widget_mut(parent_id);
+        let parent_id = self.widget(widget_id).parent_id.unwrap_or(WidgetId::ROOT);
+        let parent = self.widget_mut(parent_id);
 
-            if let Some(index) = parent
-                .child_ids
-                .iter()
-                .position(|child_id| *child_id == widget_id)
-            {
-                parent.child_ids.remove(index);
-            }
+        if let Some(index) = parent
+            .child_ids
+            .iter()
+            .position(|child_id| *child_id == widget_id)
+        {
+            parent.child_ids.remove(index);
         }
 
         for i in (0..self.widget(widget_id).child_ids.len()).rev() {
@@ -199,11 +201,18 @@ impl Ui {
 
         self.widget_slots[widget_id.index].generation += 1;
         self.unused_widget_indices.push(widget_id.index);
+
+        self.update_parent_layout(parent_id);
     }
 
     pub fn send(&mut self, to_widget_id: WidgetId, msg: Msg) {
         let widget = self.widget_mut(to_widget_id);
-        widget.msgs.push_back(msg);
+
+        if widget.settings.wants_msgs {
+            widget.msgs.push_back(msg);
+        } else {
+            self.skip(to_widget_id, msg);
+        }
     }
 
     fn send_to_focused_child(&mut self, msg: Msg) {
@@ -217,7 +226,7 @@ impl Ui {
     }
 
     pub fn skip(&mut self, widget_id: WidgetId, msg: Msg) {
-        if matches!(msg, Msg::Resize { .. }) {
+        if matches!(msg, Msg::Resize { .. } | Msg::GainedFocus | Msg::LostFocus) {
             return;
         }
 

@@ -68,7 +68,7 @@ impl App {
         window.set_theme(&config.theme);
         gfx.set_font(&config.font, config.font_size);
 
-        let mut ui = Ui::new();
+        let mut ui = Ui::new(gfx.width(), gfx.height());
         let mut lsp = Lsp::new();
 
         let mut ctx = Ctx {
@@ -106,15 +106,14 @@ impl App {
             config,
             config_error,
 
-            last_width: 0.0,
-            last_height: 0.0,
+            last_width: gfx.width(),
+            last_height: gfx.height(),
         };
 
-        app.layout(window, gfx, time);
         app
     }
 
-    pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64, dt: f32) {
+    fn receive_msgs(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64) {
         if gfx.width() != self.last_width || gfx.height() != self.last_height {
             self.last_width = gfx.width();
             self.last_height = gfx.height();
@@ -152,6 +151,17 @@ impl App {
             self.ui.send(WidgetId::ROOT, Msg::MouseScroll(mouse_scroll));
         }
 
+        let ctx = ctx_for_app!(self, window, gfx, time);
+
+        while ctx.ui.has_msgs() {
+            ctx.ui.receive_msgs(ctx.gfx);
+
+            self.editor.receive_msgs(ctx);
+            self.terminal.receive_msgs(ctx);
+        }
+    }
+
+    pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64, dt: f32) {
         let config_changed = self
             .file_watcher
             .changed_files(&self.current_dir)
@@ -167,13 +177,10 @@ impl App {
             gfx.set_font(&self.config.font, self.config.font_size);
 
             self.editor.clear_doc_highlights();
-            self.layout(window, gfx, time);
+            // TODO: Since font size could have changed we probably need to send a resize event or something.
         }
 
-        let ctx = ctx_for_app!(self, window, gfx, time);
-
-        if let Some(err) = ctx
-            .window
+        if let Some(err) = window
             .was_shown()
             .then(|| self.config_error.take())
             .flatten()
@@ -181,13 +188,9 @@ impl App {
             err.show_message();
         }
 
-        while ctx.ui.has_msgs() {
-            ctx.ui.receive_msgs(ctx.gfx);
+        self.receive_msgs(window, gfx, time);
 
-            self.editor.receive_msgs(ctx);
-            self.terminal.receive_msgs(ctx);
-            self.status_bar.receive_msgs(ctx);
-        }
+        let ctx = ctx_for_app!(self, window, gfx, time);
 
         // Lsp::update(&mut self.editor, &mut self.command_palette, ctx);
 
@@ -201,7 +204,7 @@ impl App {
     }
 
     pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64) {
-        self.layout(window, gfx, time);
+        self.receive_msgs(window, gfx, time);
 
         gfx.begin_frame(self.config.theme.background);
 
@@ -215,27 +218,6 @@ impl App {
         ctx.ui.draw(ctx.config, ctx.gfx);
 
         gfx.end_frame();
-    }
-
-    fn layout(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64) {
-        // let bounds = Rect::new(0.0, 0.0, gfx.width(), gfx.height());
-        // self.ui.update_layout(WidgetId::ROOT, bounds);
-
-        // self.ui.widget_mut(WidgetId::ROOT).bounds = bounds;
-
-        // let ctx = ctx_for_app!(self, window, gfx, time);
-
-        // self.command_palette.layout(bounds, ctx);
-
-        // self.status_bar.layout(bounds, ctx);
-        // let status_bar_bounds = ctx.ui.widget(self.status_bar.widget_id()).bounds;
-        // bounds = bounds.shrink_bottom_by(status_bar_bounds);
-
-        // self.terminal.layout(bounds, ctx);
-        // let terminal_bounds = ctx.ui.widget(self.terminal.widget_id()).bounds;
-        // bounds = bounds.shrink_bottom_by(terminal_bounds);
-
-        // self.editor.layout(bounds, ctx);
     }
 
     pub fn close(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64) {

@@ -172,6 +172,10 @@ impl PaneWrapper<Doc> for EditorPane {
             tab.update(doc, ctx);
         }
     }
+
+    fn widget_id(&self) -> WidgetId {
+        self.widget_id
+    }
 }
 
 impl Deref for EditorPane {

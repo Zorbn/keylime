@@ -64,8 +64,12 @@ impl PaneWrapper<Term> for TerminalPane {
         self.inner.receive_msgs(term_list, ctx);
     }
 
-    fn update(&mut self, term_list: &mut SlotList<Term>, ctx: &mut Ctx) {
+    fn update(&mut self, _term_list: &mut SlotList<Term>, ctx: &mut Ctx) {
         self.inner.update(ctx);
+    }
+
+    fn widget_id(&self) -> WidgetId {
+        self.widget_id
     }
 }
 

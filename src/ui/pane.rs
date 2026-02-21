@@ -458,15 +458,10 @@ impl PaneView {
                 parent_id,
                 WidgetSettings {
                     layout: WidgetLayout::Tab { index: 0 },
+                    wants_msgs: false,
                     ..Default::default()
                 },
             ),
-        }
-    }
-
-    fn receive_msgs(&self, ui: &mut Ui) {
-        while let Some(msg) = ui.msg(self.widget_id) {
-            ui.skip(self.widget_id, msg);
         }
     }
 
@@ -546,14 +541,21 @@ impl<T> Pane<T> {
                     ctx.ui.set_scale(self.tab_bar.widget_id, tab_height);
                     ctx.ui.set_scale(self.view.widget_id, height - tab_height);
                 }
-                Msg::Action(action_name!(PreviousTab)) => self.focus_previous_tab(ctx.ui),
-                Msg::Action(action_name!(NextTab)) => self.focus_next_tab(ctx.ui),
+                Msg::Action(action_name!(PreviousTab)) => {
+                    if !self.focus_previous_tab(ctx.ui) {
+                        ctx.ui.skip(self.widget_id, msg);
+                    }
+                }
+                Msg::Action(action_name!(NextTab)) => {
+                    if !self.focus_next_tab(ctx.ui) {
+                        ctx.ui.skip(self.widget_id, msg);
+                    }
+                }
                 _ => ctx.ui.skip(self.widget_id, msg),
             }
         }
 
         self.tab_bar.receive_msgs(&self.view, ctx);
-        self.view.receive_msgs(ctx.ui);
 
         for tab in self.tabs.iter_mut() {
             let data = data_list.get_mut(tab.data_id()).unwrap();
@@ -709,16 +711,30 @@ impl<T> Pane<T> {
         self.view.focus(ui);
     }
 
-    fn focus_next_tab(&self, ui: &mut Ui) {
-        let index = (self.focused_tab_index(ui) + 1).min(self.tabs.len());
-        self.view.set_focused_index(index, ui);
+    fn focus_next_tab(&self, ui: &mut Ui) -> bool {
+        let focused_index = self.focused_tab_index(ui);
+
+        if focused_index + 1 >= self.tabs.len() {
+            return false;
+        }
+
+        self.view.set_focused_index(focused_index + 1, ui);
         self.view.focus(ui);
+
+        true
     }
 
-    fn focus_previous_tab(&self, ui: &mut Ui) {
-        let index = self.focused_tab_index(ui).saturating_sub(1);
-        self.view.set_focused_index(index, ui);
+    fn focus_previous_tab(&self, ui: &mut Ui) -> bool {
+        let focused_index = self.focused_tab_index(ui);
+
+        if focused_index == 0 {
+            return false;
+        }
+
+        self.view.set_focused_index(focused_index - 1, ui);
         self.view.focus(ui);
+
+        true
     }
 
     pub fn tab_count(&self) -> usize {

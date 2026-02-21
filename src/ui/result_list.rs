@@ -18,6 +18,7 @@ use crate::{
     ui::{
         camera::{CameraAxis, CameraRecenterRequest},
         msg::Msg,
+        widget_list::WidgetList,
     },
 };
 
@@ -69,7 +70,13 @@ impl<T> ResultList<T> {
             do_show_when_empty,
 
             result_bounds: Rect::ZERO,
-            widget_id: ui.new_widget(parent_id, Default::default()),
+            widget_id: ui.new_widget(
+                parent_id,
+                WidgetSettings {
+                    wants_msgs: false,
+                    ..Default::default()
+                },
+            ),
 
             camera: CameraAxis::new(),
         }

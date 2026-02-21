@@ -10,6 +10,7 @@ use crate::{
     lsp::{types::DecodedDiagnostic, Lsp},
     pool::{format_pooled, Pooled, STRING_POOL},
     text::{cursor_index::CursorIndex, doc::LineEnding},
+    ui::core::WidgetSettings,
 };
 
 use super::{
@@ -24,7 +25,13 @@ pub struct StatusBar {
 impl StatusBar {
     pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
         Self {
-            widget_id: ui.new_widget(parent_id, Default::default()),
+            widget_id: ui.new_widget(
+                parent_id,
+                WidgetSettings {
+                    wants_msgs: false,
+                    ..Default::default()
+                },
+            ),
         }
     }
 
@@ -34,12 +41,6 @@ impl StatusBar {
     //             .at_bottom_of(bounds)
     //             .floor();
     // }
-
-    pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
-        while let Some(msg) = ctx.ui.msg(self.widget_id) {
-            ctx.ui.skip(self.widget_id, msg);
-        }
-    }
 
     pub fn draw(&self, editor: &Editor, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;
