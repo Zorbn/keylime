@@ -621,14 +621,12 @@ impl Ui {
             WidgetLayout::Tab { .. } => return,
         };
 
-        gfx.add_rect(rect, config.theme.background);
-
         gfx.add_rect(
             rect,
             if is_dragged {
                 config.theme.keyword
             } else {
-                config.theme.emphasized
+                config.theme.border
             },
         );
     }

@@ -477,10 +477,6 @@ impl Editor {
         let pane = EditorPane::new(&mut self.doc_list, self.panes.widget_id(), ctx);
 
         self.panes.add(pane, ctx.ui);
-
-        let bounds = ctx.ui.bounds(self.widget_id);
-        // TODO:
-        // self.layout(bounds, ctx);
     }
 
     fn close_pane(&mut self, ctx: &mut Ctx) {

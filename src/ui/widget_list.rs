@@ -55,7 +55,7 @@ impl<T> WidgetList<T> {
         } else {
             focused_index = last_focused_index + 1;
 
-            self.widgets.insert(last_focused_index + 1, widget);
+            self.widgets.insert(focused_index, widget);
         }
 
         self.focus_index(focused_index, ui);

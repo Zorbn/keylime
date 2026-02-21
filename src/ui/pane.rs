@@ -541,6 +541,7 @@ impl<T> Pane<T> {
                     ctx.ui.set_scale(self.tab_bar.widget_id, tab_height);
                     ctx.ui.set_scale(self.view.widget_id, height - tab_height);
                 }
+                Msg::GainedFocus => self.view.focus(ctx.ui),
                 Msg::Action(action_name!(PreviousTab)) => {
                     if !self.focus_previous_tab(ctx.ui) {
                         ctx.ui.skip(self.widget_id, msg);
