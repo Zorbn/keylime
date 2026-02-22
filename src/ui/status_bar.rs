@@ -10,7 +10,10 @@ use crate::{
     lsp::{types::DecodedDiagnostic, Lsp},
     pool::{format_pooled, Pooled, STRING_POOL},
     text::{cursor_index::CursorIndex, doc::LineEnding},
-    ui::core::WidgetSettings,
+    ui::{
+        core::{WidgetScale, WidgetSettings},
+        msg::Msg,
+    },
 };
 
 use super::{
@@ -23,24 +26,29 @@ pub struct StatusBar {
 }
 
 impl StatusBar {
-    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
+    pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
         Self {
-            widget_id: ui.new_widget(
+            widget_id: ctx.ui.new_widget(
                 parent_id,
                 WidgetSettings {
-                    wants_msgs: false,
+                    scale: WidgetScale::Fixed(ctx.gfx.tab_height()),
                     ..Default::default()
                 },
             ),
         }
     }
 
-    // pub fn layout(&self, bounds: Rect, ctx: &mut Ctx) {
-    //     ctx.ui.widget_mut(self.widget_id).bounds =
-    //         Rect::new(0.0, 0.0, bounds.width, ctx.gfx.tab_height())
-    //             .at_bottom_of(bounds)
-    //             .floor();
-    // }
+    pub fn receive_msgs(&self, ctx: &mut Ctx) {
+        while let Some(msg) = ctx.ui.msg(self.widget_id) {
+            let Msg::FontChanged = msg else {
+                ctx.ui.skip(self.widget_id, msg);
+                continue;
+            };
+
+            ctx.ui
+                .set_scale(self.widget_id, WidgetScale::Fixed(ctx.gfx.tab_height()))
+        }
+    }
 
     pub fn draw(&self, editor: &Editor, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;

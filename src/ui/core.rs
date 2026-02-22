@@ -33,12 +33,17 @@ pub enum WidgetLayout {
     Tab { index: usize },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum WidgetScale {
+    Fractional(f32),
+    Fixed(f32),
+}
+
 #[derive(Debug)]
 pub struct WidgetSettings {
     pub is_shown: bool,
-    pub is_resizable: bool,
     pub wants_msgs: bool,
-    pub scale: f32,
+    pub scale: WidgetScale,
     pub layout: WidgetLayout,
     pub popup: Option<Rect>,
     pub main_child_index: Option<usize>,
@@ -48,9 +53,8 @@ impl Default for WidgetSettings {
     fn default() -> Self {
         Self {
             is_shown: true,
-            is_resizable: true,
             wants_msgs: true,
-            scale: 1.0,
+            scale: WidgetScale::Fractional(1.0),
             layout: WidgetLayout::Vertical,
             popup: None,
             main_child_index: None,
@@ -460,8 +464,15 @@ impl Ui {
         let allowed_delta =
             self.allowed_drag_delta(first_child_id, second_child_id, delta, min_scale);
 
-        self.widget_mut(first_child_id).settings.scale += allowed_delta;
-        self.widget_mut(second_child_id).settings.scale -= allowed_delta;
+        if let WidgetScale::Fractional(scale) = &mut self.widget_mut(first_child_id).settings.scale
+        {
+            *scale += allowed_delta;
+        }
+
+        if let WidgetScale::Fractional(scale) = &mut self.widget_mut(second_child_id).settings.scale
+        {
+            *scale -= allowed_delta;
+        }
     }
 
     fn allowed_drag_delta(
@@ -471,10 +482,20 @@ impl Ui {
         delta: f32,
         min_scale: f32,
     ) -> f32 {
+        let WidgetScale::Fractional(first_scale) = self.widget(first_child_id).settings.scale
+        else {
+            return 0.0;
+        };
+
+        let WidgetScale::Fractional(second_scale) = self.widget(second_child_id).settings.scale
+        else {
+            return 0.0;
+        };
+
         if delta < 0.0 {
-            delta.max((min_scale - self.widget(first_child_id).settings.scale).min(0.0))
+            delta.max((min_scale - first_scale).min(0.0))
         } else {
-            delta.min((self.widget(second_child_id).settings.scale - min_scale).max(0.0))
+            delta.min((second_scale - min_scale).max(0.0))
         }
     }
 
@@ -496,7 +517,7 @@ impl Ui {
             let parent_id = self.widget(widget_id).parent_id.unwrap_or(WidgetId::ROOT);
             let parent = self.widget(parent_id);
 
-            if parent.settings.layout != layout || !parent.settings.is_resizable {
+            if parent.settings.layout != layout {
                 widget_id = parent_id;
                 precedence += 1;
                 continue;
@@ -510,12 +531,21 @@ impl Ui {
                 .iter()
                 .copied()
                 .enumerate()
-                .filter(|(_, child_id)| self.is_part_of_layout(*child_id))
-                .rev()
-                .skip(1);
+                .filter(|(_, child_id)| self.is_part_of_layout(*child_id));
+
+            let mut matched_border = None;
 
             for (index, child_id) in border_children {
                 let child = self.widget(child_id);
+
+                if !matches!(child.settings.scale, WidgetScale::Fractional(..)) {
+                    matched_border = None;
+                    continue;
+                }
+
+                if matched_border.is_some() {
+                    return matched_border;
+                }
 
                 match parent.settings.layout {
                     WidgetLayout::Horizontal => divider_x = child.bounds.right(),
@@ -529,7 +559,7 @@ impl Ui {
                     && (y - divider_y).abs() < Self::border_radius(gfx);
 
                 if did_grab_horizontal || did_grab_vertical {
-                    return Some(Border {
+                    matched_border = Some(Border {
                         widget_id: parent_id,
                         index,
                         precedence,
@@ -648,16 +678,26 @@ impl Ui {
             let mut child_width = bounds.width;
             let mut child_height = bounds.height;
 
-            let scale = child.settings.scale;
-
             match widget.settings.layout {
                 WidgetLayout::Horizontal => {
-                    child_width = (bounds.width * scale / total_scale).ceil();
+                    child_width = match child.settings.scale {
+                        WidgetScale::Fractional(scale) => {
+                            (bounds.width * scale / total_scale).ceil()
+                        }
+                        WidgetScale::Fixed(scale) => scale,
+                    }
+                    .min(bounds.right() - child_x);
 
                     next_child_x += child_width;
                 }
                 WidgetLayout::Vertical => {
-                    child_height = (bounds.height * scale / total_scale).ceil();
+                    child_height = match child.settings.scale {
+                        WidgetScale::Fractional(scale) => {
+                            (bounds.height * scale / total_scale).ceil()
+                        }
+                        WidgetScale::Fixed(scale) => scale,
+                    }
+                    .min(bounds.bottom() - child_y);
 
                     next_child_y += child_height;
                 }
@@ -684,7 +724,16 @@ impl Ui {
     }
 
     fn widget_total_scale(&self, widget_id: WidgetId) -> f32 {
-        let mut total_scale = 0.0;
+        let widget = self.widget(widget_id);
+
+        let size = match widget.settings.layout {
+            WidgetLayout::Horizontal => widget.bounds.width,
+            WidgetLayout::Vertical => widget.bounds.height,
+            WidgetLayout::Tab { .. } => return 1.0,
+        };
+
+        let mut total_fractional_scale = 0.0;
+        let mut total_fixed_scale = 0.0;
 
         for child_id in &self.widget(widget_id).child_ids {
             if !self.is_part_of_layout(*child_id) {
@@ -692,10 +741,13 @@ impl Ui {
             }
 
             let child = self.widget(*child_id);
-            total_scale += child.settings.scale;
+            match child.settings.scale {
+                WidgetScale::Fractional(scale) => total_fractional_scale += scale,
+                WidgetScale::Fixed(scale) => total_fixed_scale += scale,
+            }
         }
 
-        total_scale
+        total_fractional_scale / ((size - total_fixed_scale) / size)
     }
 
     fn get_widget_id_at(&self, position: VisualPosition, widget_id: WidgetId) -> Option<WidgetId> {
@@ -914,7 +966,7 @@ impl Ui {
         self.update_parent_layout(widget_id);
     }
 
-    pub fn set_scale(&mut self, widget_id: WidgetId, scale: f32) {
+    pub fn set_scale(&mut self, widget_id: WidgetId, scale: WidgetScale) {
         self.widget_mut(widget_id).settings.scale = scale;
         self.update_parent_layout(widget_id);
     }

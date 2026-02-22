@@ -25,7 +25,7 @@ use crate::{
 
 use super::{
     color::Color,
-    core::{Ui, WidgetId, WidgetSettings},
+    core::{Ui, WidgetId, WidgetScale, WidgetSettings},
     slot_list::{SlotId, SlotList},
     tab::Tab,
 };
@@ -63,7 +63,7 @@ struct PaneTabBar<T> {
 }
 
 impl<T> PaneTabBar<T> {
-    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
+    pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
         Self {
             _phantom: PhantomData,
 
@@ -73,7 +73,13 @@ impl<T> PaneTabBar<T> {
             tab_bar_width: 0.0,
             camera: CameraAxis::new(),
 
-            widget_id: ui.new_widget(parent_id, Default::default()),
+            widget_id: ctx.ui.new_widget(
+                parent_id,
+                WidgetSettings {
+                    scale: WidgetScale::Fixed(ctx.gfx.tab_height()),
+                    ..Default::default()
+                },
+            ),
         }
     }
 
@@ -88,6 +94,10 @@ impl<T> PaneTabBar<T> {
     pub fn receive_msgs(&mut self, view: &PaneView, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
+                Msg::FontChanged => {
+                    ctx.ui
+                        .set_scale(self.widget_id, WidgetScale::Fixed(ctx.gfx.tab_height()));
+                }
                 Msg::Mousebind(Mousebind {
                     button: Some(MouseButton::Left),
                     kind: MousebindKind::Release,
@@ -506,13 +516,12 @@ impl<T> Pane<T> {
         get_doc: fn(&T) -> &Doc,
         get_doc_mut: fn(&mut T) -> &mut Doc,
         parent_id: WidgetId,
-        ui: &mut Ui,
+        ctx: &mut Ctx,
     ) -> Self {
-        let widget_id = ui.new_widget(
+        let widget_id = ctx.ui.new_widget(
             parent_id,
             WidgetSettings {
                 layout: WidgetLayout::Vertical,
-                is_resizable: false,
                 main_child_index: Some(1),
                 ..Default::default()
             },
@@ -520,8 +529,8 @@ impl<T> Pane<T> {
 
         Self {
             tabs: Vec::new(),
-            tab_bar: PaneTabBar::new(widget_id, ui),
-            view: PaneView::new(widget_id, ui),
+            tab_bar: PaneTabBar::new(widget_id, ctx),
+            view: PaneView::new(widget_id, ctx.ui),
 
             get_doc,
             get_doc_mut,
@@ -537,11 +546,6 @@ impl<T> Pane<T> {
     pub fn receive_msgs(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
-                Msg::Resize { height, .. } => {
-                    let tab_height = ctx.gfx.tab_height();
-                    ctx.ui.set_scale(self.tab_bar.widget_id, tab_height);
-                    ctx.ui.set_scale(self.view.widget_id, height - tab_height);
-                }
                 Msg::Action(action_name!(PreviousTab)) => {
                     if !self.focus_previous_tab(ctx.ui) {
                         ctx.ui.skip(self.widget_id, msg);

@@ -32,7 +32,7 @@ use crate::{
         cursor_index::CursorIndex,
         doc::{Doc, DocFlags},
     },
-    ui::msg::Msg,
+    ui::{core::WidgetSettings, msg::Msg},
 };
 
 use super::{

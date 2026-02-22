@@ -6,6 +6,7 @@ use crate::{
 #[derive(Debug)]
 pub enum Msg {
     Resize { width: f32, height: f32 },
+    FontChanged,
     GainedFocus,
     LostFocus,
     Mousebind(Mousebind),

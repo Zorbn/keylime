@@ -21,7 +21,7 @@ impl TerminalPane {
             |(docs, emulator)| emulator.doc(docs),
             |(docs, emulator)| emulator.doc_mut(docs),
             widget_id,
-            ctx.ui,
+            ctx,
         );
 
         let term = Self::new_term();

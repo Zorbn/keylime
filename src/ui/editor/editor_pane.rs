@@ -33,7 +33,7 @@ impl EditorPane {
     pub fn new(doc_list: &mut SlotList<Doc>, parent_id: WidgetId, ctx: &mut Ctx) -> Self {
         let widget_id = ctx.ui.new_widget(parent_id, Default::default());
 
-        let mut inner = Pane::new(|doc| doc, |doc| doc, widget_id, ctx.ui);
+        let mut inner = Pane::new(|doc| doc, |doc| doc, widget_id, ctx);
 
         let doc_index = doc_list.add(Doc::new(None, None, DocFlags::MULTI_LINE));
         inner.add_tab(doc_index, doc_list, ctx);

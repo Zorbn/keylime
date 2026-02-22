@@ -84,7 +84,7 @@ impl App {
         let mut command_palette = CommandPalette::new(WidgetId::ROOT, ctx.ui);
         let mut editor = Editor::new(WidgetId::ROOT, &mut ctx);
         let terminal = Terminal::new(WidgetId::ROOT, &mut ctx);
-        let status_bar = StatusBar::new(WidgetId::ROOT, ctx.ui);
+        let status_bar = StatusBar::new(WidgetId::ROOT, &mut ctx);
 
         let (pane, _) = editor.last_focused_pane_and_doc_list(ctx.ui);
         ctx.ui.focus(pane.widget_id());
@@ -123,6 +123,8 @@ impl App {
                     height: gfx.height(),
                 },
             );
+
+            println!("resized to: {:?}", gfx.height());
         }
 
         let mut grapheme_handler = window.todo_grapheme_handler();
@@ -157,6 +159,7 @@ impl App {
             self.command_palette.receive_msgs(&mut self.editor, ctx);
             self.editor.receive_msgs(ctx);
             self.terminal.receive_msgs(ctx);
+            self.status_bar.receive_msgs(ctx);
         }
     }
 
@@ -209,10 +212,10 @@ impl App {
 
         let ctx = ctx_for_app!(self, window, gfx, time);
 
+        self.command_palette.draw(ctx);
+        self.editor.draw(ctx);
         self.status_bar.draw(&self.editor, ctx);
         self.terminal.draw(ctx);
-        self.editor.draw(ctx);
-        self.command_palette.draw(ctx);
 
         ctx.ui.draw(ctx.config, ctx.gfx);
 

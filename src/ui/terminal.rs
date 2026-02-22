@@ -7,7 +7,7 @@ use crate::{
     input::action::action_name,
     platform::process::Process,
     text::doc::{Doc, DocFlags},
-    ui::msg::Msg,
+    ui::{core::WidgetSettings, msg::Msg},
 };
 
 use super::{core::WidgetId, pane_list::PaneList, slot_list::SlotList};
@@ -66,23 +66,6 @@ impl Terminal {
     pub fn is_animating(&self, ctx: &Ctx) -> bool {
         self.panes.is_animating(ctx)
     }
-
-    // pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
-    //     let gfx = &mut ctx.gfx;
-
-    //     let bounds = Rect::new(
-    //         0.0,
-    //         0.0,
-    //         bounds.width,
-    //         gfx.tab_height() + gfx.line_height() * ctx.config.terminal_height,
-    //     )
-    //     .at_bottom_of(bounds)
-    //     .floor();
-
-    //     ctx.ui.widget_mut(self.widget_id).bounds = bounds;
-
-    //     self.panes.layout(bounds, &mut self.term_list, ctx);
-    // }
 
     pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
