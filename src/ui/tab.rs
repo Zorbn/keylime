@@ -9,6 +9,7 @@ use crate::{
         visual_position::VisualPosition,
     },
     input::{
+        action::{action_keybind, action_name},
         editing_actions::{handle_action, handle_grapheme, handle_left_click},
         mods::{Mod, Mods},
         mouse_button::MouseButton,
@@ -75,6 +76,7 @@ pub struct Tab {
     mouse_drag: Option<MouseClickCount>,
     handled_doc_len: usize,
     cursor_animation_states: Vec<CursorAnimationState>,
+    do_show_completions: bool,
 
     gutter_bounds: Rect,
     margin: f32,
@@ -91,6 +93,7 @@ impl Tab {
             mouse_drag: None,
             handled_doc_len: 1,
             cursor_animation_states: Vec::new(),
+            do_show_completions: false,
 
             gutter_bounds: Rect::ZERO,
             margin: 0.0,
@@ -148,13 +151,19 @@ impl Tab {
 
     pub fn receive_msg(&mut self, msg: Msg, doc: &mut Doc, ctx: &mut Ctx) {
         match msg {
-            Msg::Grapheme(grapheme) => handle_grapheme(&grapheme, doc, ctx),
+            Msg::Grapheme(grapheme) => {
+                handle_grapheme(&grapheme, doc, ctx);
+                self.set_show_completions(true, ctx.ui);
+            }
+            Msg::LostFocus => {
+                self.mouse_drag = None;
+                self.set_show_completions(false, ctx.ui);
+            }
             Msg::Mousebind(Mousebind {
                 button: Some(MouseButton::Left),
                 kind: MousebindKind::Release,
                 ..
-            })
-            | Msg::LostFocus => self.mouse_drag = None,
+            }) => self.mouse_drag = None,
             Msg::Mousebind(Mousebind {
                 button: Some(MouseButton::Left),
                 x,
@@ -206,13 +215,35 @@ impl Tab {
                 }
             }
             Msg::Action(action) => {
+                let previous_position = doc.cursor(CursorIndex::Main).position;
                 let was_handled = handle_action(action, self, doc, ctx);
 
                 if !was_handled {
                     ctx.ui.skip(self.widget_id, msg);
+                    return;
+                }
+
+                if matches!(action, action_name!(DeleteBackward)) {
+                    self.set_show_completions(true, ctx.ui);
+                } else if doc.cursor(CursorIndex::Main).position != previous_position {
+                    self.set_show_completions(false, ctx.ui);
                 }
             }
             _ => ctx.ui.skip(self.widget_id, msg),
+        }
+    }
+
+    fn set_show_completions(&mut self, value: bool, ui: &mut Ui) {
+        if !self.do_show_completions && !value {
+            return;
+        }
+
+        self.do_show_completions = value;
+
+        if self.do_show_completions {
+            ui.send_to_parent(self.widget_id, Msg::ShowCompletions);
+        } else {
+            ui.send_to_parent(self.widget_id, Msg::HideCompletions);
         }
     }
 
@@ -854,7 +885,7 @@ impl Tab {
             self.draw_selection(selection, doc, camera_position, visible_lines, ctx);
         }
 
-        let is_focused = ctx.ui.is_child_focused(self.widget_id);
+        let is_focused = ctx.ui.is_focused(self.widget_id);
 
         if !self.do_show_cursors(is_focused, ctx) {
             return;

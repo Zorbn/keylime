@@ -130,6 +130,29 @@ impl Editor {
     pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
+                Msg::ShowCompletions => {
+                    let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
+
+                    if let Some((tab, doc)) =
+                        pane.get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui)
+                    {
+                        ctx.ui
+                            .reparent_widget(self.completion_list.widget_id(), tab.widget_id());
+
+                        let cursor_position = doc.cursor(CursorIndex::Main).position;
+                        let cursor_visual_position = doc
+                            .position_to_visual(
+                                cursor_position,
+                                tab.camera.position().floor(),
+                                ctx.gfx,
+                            )
+                            .offset_by(tab.doc_bounds(ctx.ui));
+
+                        doc.update_tokens(); // TODO: We could now be doing this multiple times per frame. Is that a good idea?
+                        self.completion_list.show(cursor_visual_position, doc, ctx);
+                    }
+                }
+                Msg::HideCompletions => self.completion_list.hide(ctx),
                 Msg::Action(action_name!(OpenFolder)) => {
                     if let Ok(path) = find_file(FindFileKind::OpenFolder) {
                         if let Err(err) = Self::open_folder(&path, ctx) {
@@ -173,9 +196,17 @@ impl Editor {
         }
 
         self.panes.receive_msgs(&mut self.doc_list, ctx);
-        self.completion_list.receive_msgs(ctx);
         self.signature_help_popup.receive_msgs(ctx);
         self.examine_popup.receive_msgs(ctx);
+
+        let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
+
+        let doc = pane
+            .get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui)
+            .map(|(_, doc)| doc);
+
+        let result = self.completion_list.receive_msgs(doc, ctx);
+        self.lsp_handle_completion_list_result(result, ctx);
     }
 
     pub fn update(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx, dt: f32) {
@@ -197,7 +228,7 @@ impl Editor {
 
         self.post_pane_update(signature_help_triggers, ctx);
 
-        if !ctx.ui.is_child_focused(self.widget_id) {
+        if !ctx.ui.is_focused(self.widget_id) {
             self.signature_help_popup.clear(ctx.ui);
             self.completion_list.clear(ctx);
         }
@@ -260,9 +291,7 @@ impl Editor {
             return;
         };
 
-        let result = self.completion_list.update(doc, ctx);
-
-        self.lsp_handle_completion_list_result(result, ctx);
+        self.completion_list.update(doc, ctx);
     }
 
     fn post_pane_update(
@@ -293,9 +322,6 @@ impl Editor {
 
         self.signature_help_popup
             .update(is_doc_different, signature_help_triggers, doc, ctx);
-
-        self.completion_list
-            .update_results(did_cursor_move, doc, ctx);
 
         self.examine_popup.update(did_cursor_move, doc, ctx);
 

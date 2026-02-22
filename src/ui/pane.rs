@@ -596,7 +596,7 @@ impl<T> Pane<T> {
     pub fn draw(&mut self, background: Option<Color>, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
         self.tab_bar.draw(
             self.focused_tab_index(ctx.ui),
-            ctx.ui.is_child_focused(self.widget_id),
+            ctx.ui.is_focused(self.widget_id),
             background,
             &self.tabs,
             data_list,

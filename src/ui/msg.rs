@@ -15,4 +15,6 @@ pub enum Msg {
     MouseScroll(MouseScroll),
     Grapheme(Pooled<String>),
     Action(Action),
+    ShowCompletions,
+    HideCompletions,
 }

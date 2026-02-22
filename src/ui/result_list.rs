@@ -49,7 +49,6 @@ pub struct ResultList<T> {
     max_visible_results: usize,
     do_show_when_empty: bool,
 
-    result_bounds: Rect,
     widget_id: WidgetId,
 
     camera: CameraAxis,
@@ -69,7 +68,6 @@ impl<T> ResultList<T> {
             max_visible_results,
             do_show_when_empty,
 
-            result_bounds: Rect::ZERO,
             widget_id: ui.new_widget(parent_id, Default::default()),
 
             camera: CameraAxis::new(),
@@ -103,12 +101,6 @@ impl<T> ResultList<T> {
 
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
-                Msg::FontChanged | Msg::Resize { .. } => {
-                    let bounds = ctx.ui.bounds(self.widget_id);
-
-                    self.result_bounds =
-                        Rect::new(0.0, 0.0, bounds.width, ctx.gfx.line_height() * 1.25);
-                }
                 Msg::Mousebind(Mousebind {
                     button: button @ (None | Some(MouseButton::Left)),
                     x,
@@ -149,7 +141,7 @@ impl<T> ResultList<T> {
                         continue;
                     }
 
-                    let delta = delta * self.result_bounds.height;
+                    let delta = delta * Self::result_height(ctx.gfx);
                     self.camera.scroll(delta, kind);
                 }
                 Msg::Action(action_keybind!(key: Escape, mods: Mods::NONE)) => {
@@ -184,8 +176,8 @@ impl<T> ResultList<T> {
             return false;
         }
 
-        let clicked_result_index =
-            ((position.y + self.camera.position() - bounds.y) / self.result_bounds.height) as usize;
+        let clicked_result_index = ((position.y + self.camera.position() - bounds.y)
+            / Self::result_height(ctx.gfx)) as usize;
 
         if clicked_result_index >= self.len() {
             return false;
@@ -200,15 +192,15 @@ impl<T> ResultList<T> {
     pub fn animate(&mut self, ctx: &Ctx, dt: f32) {
         let focused_index = self.focused_index();
         let bounds = ctx.ui.bounds(self.widget_id);
+        let result_height = Self::result_height(ctx.gfx);
 
-        let target_y =
-            (focused_index as f32 + 0.5) * self.result_bounds.height - self.camera.position();
-        let max_y = (self.len() as f32 * self.result_bounds.height - bounds.height).max(0.0);
+        let target_y = (focused_index as f32 + 0.5) * result_height - self.camera.position();
+        let max_y = (self.len() as f32 * result_height - bounds.height).max(0.0);
 
         let recenter_request = CameraRecenterRequest {
             can_start: Some(focused_index) != self.handled_focused_index,
             target_position: target_y,
-            scroll_border: self.result_bounds.height * RECENTER_DISTANCE as f32,
+            scroll_border: result_height * RECENTER_DISTANCE as f32,
         };
 
         self.mark_focused_handled();
@@ -226,10 +218,12 @@ impl<T> ResultList<T> {
             return;
         }
 
+        let ui = &ctx.ui;
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
         let bounds = ctx.ui.bounds(self.widget_id);
+        let result_height = Self::result_height(gfx);
 
         gfx.begin(Some(bounds));
 
@@ -242,15 +236,15 @@ impl<T> ResultList<T> {
 
         let camera_y = self.camera.position().floor();
 
-        let min_y = self.min_visible_result_index();
-        let sub_line_offset_y = camera_y - min_y as f32 * self.result_bounds.height;
-        let max_y = self.max_visible_result_index(ctx.ui);
+        let min_y = self.min_visible_result_index(gfx);
+        let sub_line_offset_y = camera_y - min_y as f32 * result_height;
+        let max_y = self.max_visible_result_index(ui, gfx);
 
         for (i, y) in (min_y..max_y).enumerate() {
-            let background_visual_y = i as f32 * self.result_bounds.height - sub_line_offset_y;
+            let background_visual_y = i as f32 * result_height - sub_line_offset_y;
 
             let foreground_visual_y =
-                background_visual_y + (self.result_bounds.height - gfx.glyph_height()) / 2.0;
+                background_visual_y + (result_height - gfx.glyph_height()) / 2.0;
 
             let Some(result) = self.get(y) else {
                 continue;
@@ -260,13 +254,8 @@ impl<T> ResultList<T> {
 
             if y == self.focused_index() {
                 gfx.add_rect(
-                    Rect::new(
-                        0.0,
-                        background_visual_y,
-                        self.result_bounds.width,
-                        self.result_bounds.height,
-                    )
-                    .add_margin(-gfx.border_width()),
+                    Rect::new(0.0, background_visual_y, bounds.width, result_height)
+                        .add_margin(-gfx.border_width()),
                     theme.emphasized,
                 );
             }
@@ -299,17 +288,20 @@ impl<T> ResultList<T> {
         self.camera.is_moving()
     }
 
-    pub fn min_visible_result_index(&self) -> usize {
-        (self.camera.position().floor() / self.result_bounds.height) as usize
+    pub fn min_visible_result_index(&self, gfx: &Gfx) -> usize {
+        (self.camera.position().floor() / Self::result_height(gfx)) as usize
     }
 
-    pub fn max_visible_result_index(&self, ui: &Ui) -> usize {
+    pub fn max_visible_result_index(&self, ui: &Ui, gfx: &Gfx) -> usize {
         let bounds = ui.bounds(self.widget_id);
-        let max_y = ((self.camera.position().floor() + bounds.height) / self.result_bounds.height)
-            as usize
-            + 1;
+        let result_height = Self::result_height(gfx);
+        let max_y = ((self.camera.position().floor() + bounds.height) / result_height) as usize + 1;
 
         max_y.min(self.len())
+    }
+
+    pub fn result_height(gfx: &Gfx) -> f32 {
+        gfx.line_height() * 1.25
     }
 }
 

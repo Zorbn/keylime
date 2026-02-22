@@ -16,10 +16,13 @@ pub struct Trie {
 
 impl Trie {
     pub fn new() -> Self {
-        Self {
+        let mut trie = Self {
             nodes: Vec::new(),
             data: Vec::new(),
-        }
+        };
+
+        trie.clear();
+        trie
     }
 
     pub fn insert(&mut self, text: &str) {

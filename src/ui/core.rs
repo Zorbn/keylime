@@ -166,7 +166,7 @@ impl Ui {
         widget.msgs.clear();
 
         self.widget_mut(parent_id).child_ids.push(widget_id);
-        self.update_parent_layout(parent_id);
+        self.update_layout_from(widget_id);
 
         widget_id
     }
@@ -180,12 +180,33 @@ impl Ui {
             return;
         }
 
-        if self.is_focused(widget_id) {
+        if self.is_focused_id(widget_id) {
             self.unfocus(widget_id);
         }
 
-        self.widget_mut(widget_id).msgs.clear();
+        let widget = self.widget_mut(widget_id);
+        widget.msgs.clear();
+        let popup = widget.settings.popup;
 
+        self.remove_widget_from_parent(widget_id);
+
+        if popup.is_none() {
+            self.update_layout_from_parent(widget_id);
+        }
+
+        self.widget_slots[widget_id.index].generation += 1;
+        self.unused_widget_indices.push(widget_id.index);
+    }
+
+    pub fn reparent_widget(&mut self, widget_id: WidgetId, parent_id: WidgetId) {
+        self.remove_widget_from_parent(widget_id);
+        self.update_layout_from_parent(widget_id);
+
+        self.widget_mut(widget_id).parent_id = Some(parent_id);
+        self.update_layout_from_parent(widget_id);
+    }
+
+    fn remove_widget_from_parent(&mut self, widget_id: WidgetId) {
         let parent_id = self.widget(widget_id).parent_id.unwrap_or(WidgetId::ROOT);
         let parent = self.widget_mut(parent_id);
 
@@ -196,17 +217,6 @@ impl Ui {
         {
             parent.child_ids.remove(index);
         }
-
-        for i in (0..self.widget(widget_id).child_ids.len()).rev() {
-            let child_id = self.widget(widget_id).child_ids[i];
-
-            self.remove_widget(child_id);
-        }
-
-        self.widget_slots[widget_id.index].generation += 1;
-        self.unused_widget_indices.push(widget_id.index);
-
-        self.update_parent_layout(parent_id);
     }
 
     pub fn send(&mut self, to_widget_id: WidgetId, msg: Msg) {
@@ -218,6 +228,14 @@ impl Ui {
         }
 
         widget.msgs.push_back(msg);
+    }
+
+    pub fn send_to_parent(&mut self, widget_id: WidgetId, msg: Msg) {
+        let Some(parent_id) = self.widget(widget_id).parent_id else {
+            return;
+        };
+
+        self.send(parent_id, msg);
     }
 
     fn send_to_focused_child(&mut self, msg: Msg) {
@@ -370,7 +388,7 @@ impl Ui {
                     else {
                         self.send_to_focused_child(msg.clone());
 
-                        if hit_id != WidgetId::ROOT && !self.is_focused(hit_id) {
+                        if hit_id != WidgetId::ROOT && !self.is_focused_id(hit_id) {
                             self.send(hit_id, msg);
                         }
 
@@ -681,9 +699,8 @@ impl Ui {
             let child = self.widget(child_id);
 
             if !self.is_part_of_layout(child_id) {
-                if let Some(popup_bounds) = child.settings.popup {
+                if child.settings.popup.is_some() {
                     self.send(child_id, Msg::PopupParentResized { bounds });
-                    self.update_layout(child_id, popup_bounds);
                 }
 
                 continue;
@@ -788,6 +805,10 @@ impl Ui {
     }
 
     pub fn focus(&mut self, widget_id: WidgetId) {
+        if self.is_focused_id(widget_id) {
+            return;
+        }
+
         let widget = self.widget(widget_id);
 
         if let WidgetLayout::Tab { index } = widget.settings.layout {
@@ -820,29 +841,63 @@ impl Ui {
             }
         }
 
-        if !self.is_focused(widget_id) {
-            self.send(self.focused_widget_id(), Msg::LostFocus);
-            self.send(widget_id, Msg::GainedFocus);
-        }
+        let last_focused_id = self.focused_widget_id();
+        self.notify_focus_gained(widget_id);
 
         self.remove_from_focused(widget_id);
         self.show(widget_id);
         self.focus_history.push(widget_id);
+
+        self.notify_focus_lost(last_focused_id);
     }
 
     pub fn unfocus(&mut self, widget_id: WidgetId) {
-        if !self.is_focused(widget_id) {
+        if !self.is_focused_id(widget_id) {
             return;
         }
+
+        let new_focused_id = self
+            .focus_history
+            .get(self.focus_history.len().saturating_sub(1))
+            .copied()
+            .unwrap_or(WidgetId::ROOT);
+
+        self.notify_focus_gained(new_focused_id);
 
         self.focus_history.pop();
 
         self.send(widget_id, Msg::LostFocus);
         self.send(self.focused_widget_id(), Msg::GainedFocus);
+
+        self.notify_focus_lost(widget_id);
+    }
+
+    fn notify_focus_lost(&mut self, widget_id: WidgetId) {
+        if self.is_focused(widget_id) {
+            return;
+        }
+
+        self.send(widget_id, Msg::LostFocus);
+
+        if let Some(parent_id) = self.widget(widget_id).parent_id {
+            self.notify_focus_lost(parent_id);
+        }
+    }
+
+    fn notify_focus_gained(&mut self, widget_id: WidgetId) {
+        if self.is_focused(widget_id) {
+            return;
+        }
+
+        self.send(widget_id, Msg::GainedFocus);
+
+        if let Some(parent_id) = self.widget(widget_id).parent_id {
+            self.notify_focus_gained(parent_id);
+        }
     }
 
     pub fn unfocus_hierarchy(&mut self, widget_id: WidgetId) {
-        while !self.focus_history.is_empty() && self.is_child_focused(widget_id) {
+        while !self.focus_history.is_empty() && self.is_focused(widget_id) {
             self.focus_history.pop();
         }
     }
@@ -876,7 +931,7 @@ impl Ui {
         widget.settings.is_shown = true;
 
         if widget.settings.popup.is_none() {
-            self.update_parent_layout(widget_id);
+            self.update_layout_from_parent(widget_id);
         }
     }
 
@@ -892,7 +947,7 @@ impl Ui {
         widget.settings.is_shown = false;
 
         if widget.settings.popup.is_none() {
-            self.update_parent_layout(widget_id);
+            self.update_layout_from_parent(widget_id);
         }
     }
 
@@ -904,11 +959,11 @@ impl Ui {
         }
     }
 
-    pub fn is_focused(&self, widget_id: WidgetId) -> bool {
+    fn is_focused_id(&self, widget_id: WidgetId) -> bool {
         self.focused_widget_id() == widget_id
     }
 
-    pub fn is_child_focused(&self, widget_id: WidgetId) -> bool {
+    pub fn is_focused(&self, widget_id: WidgetId) -> bool {
         // let widget = self.widget(widget_id);
 
         // TODO:
@@ -918,15 +973,15 @@ impl Ui {
         //     }
         // }
 
-        let mut focused_hierarchy_id = self.focused_widget_id();
+        let mut focused_id = self.focused_widget_id();
 
         loop {
-            if focused_hierarchy_id == widget_id {
+            if focused_id == widget_id {
                 return true;
             }
 
-            if let Some(parent_id) = self.widget(focused_hierarchy_id).parent_id {
-                focused_hierarchy_id = parent_id;
+            if let Some(parent_id) = self.widget(focused_id).parent_id {
+                focused_id = parent_id;
             } else {
                 return false;
             }
@@ -986,16 +1041,13 @@ impl Ui {
     }
 
     pub fn set_layout(&mut self, widget_id: WidgetId, layout: WidgetLayout) {
-        let widget = self.widget_mut(widget_id);
-
-        widget.settings.layout = layout;
-
-        self.update_parent_layout(widget_id);
+        self.widget_mut(widget_id).settings.layout = layout;
+        self.update_layout_from(widget_id);
     }
 
     pub fn set_scale(&mut self, widget_id: WidgetId, scale: WidgetScale) {
         self.widget_mut(widget_id).settings.scale = scale;
-        self.update_parent_layout(widget_id);
+        self.update_layout_from(widget_id);
     }
 
     pub fn set_popup(&mut self, widget_id: WidgetId, popup: Option<Rect>) {
@@ -1005,14 +1057,37 @@ impl Ui {
 
         widget.settings.popup = popup;
 
+        if let Some(popup) = popup {
+            self.send(
+                widget_id,
+                Msg::Resize {
+                    width: popup.width,
+                    height: popup.height,
+                },
+            );
+
+            self.update_layout(widget_id, popup);
+        }
+
         if previous_popup.is_some() != popup.is_some() {
-            self.update_parent_layout(widget_id);
+            self.update_layout_from_parent(widget_id);
         } else {
             self.update_layout(widget_id, bounds);
         }
     }
 
-    fn update_parent_layout(&mut self, widget_id: WidgetId) {
+    fn update_layout_from(&mut self, widget_id: WidgetId) {
+        let widget = self.widget(widget_id);
+
+        if widget.settings.popup.is_some() {
+            self.update_layout(widget_id, widget.bounds);
+            return;
+        }
+
+        self.update_layout_from_parent(widget_id);
+    }
+
+    fn update_layout_from_parent(&mut self, widget_id: WidgetId) {
         let parent_id = self.widget(widget_id).parent_id.unwrap_or(WidgetId::ROOT);
         let parent = self.widget(parent_id);
         let parent_bounds = parent.bounds;

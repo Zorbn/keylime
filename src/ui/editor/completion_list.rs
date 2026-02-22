@@ -15,6 +15,7 @@ use crate::{
     text::{compare::score_fuzzy_match, cursor_index::CursorIndex, doc::Doc},
     ui::{
         core::{Ui, WidgetId, WidgetSettings},
+        msg::Msg,
         popup::{Popup, PopupAlignment},
         result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     },
@@ -65,8 +66,6 @@ pub struct CompletionList {
     min_width: f32,
     prefix: String,
 
-    should_open: bool,
-
     lsp_expected_responses: HashMap<usize, usize>,
 
     detail_popup: Popup,
@@ -90,8 +89,6 @@ impl CompletionList {
             result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS, false, widget_id, ui),
             min_width: 0.0,
             prefix: String::new(),
-
-            should_open: false,
 
             lsp_expected_responses: HashMap::new(),
 
@@ -159,21 +156,38 @@ impl CompletionList {
     //         .layout(position, PopupAlignment::TopLeft, ctx);
     // }
 
-    // TODO:
-    pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
-        while let Some(msg) = ctx.ui.msg(self.widget_id) {
-            ctx.ui.skip(self.widget_id, msg);
+    pub fn receive_msgs(
+        &mut self,
+        doc: Option<&mut Doc>,
+        ctx: &mut Ctx,
+    ) -> Option<CompletionListResult> {
+        let result_input = self.result_list.receive_msgs(ctx);
+
+        let mut completion_result = None;
+
+        match result_input {
+            ResultListInput::Complete
+            | ResultListInput::Submit {
+                kind: ResultListSubmitKind::Normal,
+            } => {
+                if let Some(doc) = doc {
+                    completion_result = self.perform_result_action(doc, ctx);
+                }
+
+                self.clear(ctx);
+            }
+            ResultListInput::Close => self.clear(ctx),
+            _ => {}
         }
 
         self.detail_popup.receive_msgs(ctx);
         self.documentation_popup.receive_msgs(ctx);
 
-        self.result_list.receive_msgs(ctx);
+        completion_result
     }
 
     // TODO:
-    pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) -> Option<CompletionListResult> {
-        None
+    pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
         // let result_input = self.result_list.update(ctx);
 
         // let mut completion_result = None;
@@ -190,23 +204,23 @@ impl CompletionList {
         //     _ => {}
         // }
 
-        // if let Some(CompletionResult::Completion {
-        //     item,
-        //     resolve_state: resolve_state @ CompletionResolveState::NeedsRequest,
-        // }) = self.result_list.get_focused_mut()
-        // {
-        //     *resolve_state = CompletionResolveState::NeedsResponse;
+        if let Some(CompletionResult::Completion {
+            item,
+            resolve_state: resolve_state @ CompletionResolveState::NeedsRequest,
+        }) = self.result_list.get_focused_mut()
+        {
+            *resolve_state = CompletionResolveState::NeedsResponse;
 
-        //     if let Some(sent_request) = Self::lsp_completion_item_resolve(item, doc, ctx) {
-        //         let index = self.result_list.focused_index();
+            if let Some(sent_request) = Self::lsp_completion_item_resolve(item, doc, ctx) {
+                let index = self.result_list.focused_index();
 
-        //         self.lsp_expected_responses.insert(sent_request.id, index);
-        //     }
-        // }
+                self.lsp_expected_responses.insert(sent_request.id, index);
+            }
+        }
 
-        // self.set_popups_shown(ctx);
-        // self.detail_popup.update(ctx);
-        // self.documentation_popup.update(ctx);
+        self.set_popups_shown(ctx);
+        self.detail_popup.update(ctx);
+        self.documentation_popup.update(ctx);
 
         // self.should_open = self.should_open(ctx);
 
@@ -240,6 +254,13 @@ impl CompletionList {
         } else {
             self.documentation_popup.hide(ctx.ui);
         }
+    }
+
+    fn set_results_shown(&self, ui: &mut Ui) {
+        ui.set_shown(
+            self.result_list.widget_id(),
+            !self.result_list.results.is_empty(),
+        );
     }
 
     pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
@@ -328,7 +349,7 @@ impl CompletionList {
         doc: &Doc,
         ctx: &mut Ctx,
     ) {
-        self.clear_results();
+        self.clear_results(ctx.ui);
 
         let resolve_state = if needs_resolve {
             CompletionResolveState::NeedsRequest
@@ -337,7 +358,7 @@ impl CompletionList {
         };
 
         if items.is_empty() {
-            self.add_token_results(doc);
+            self.add_token_results(doc, ctx.ui);
         }
 
         items.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
@@ -360,6 +381,7 @@ impl CompletionList {
         }
 
         self.set_popups_shown(ctx);
+        self.set_results_shown(ctx.ui);
     }
 
     pub fn lsp_update_code_action_results(
@@ -389,29 +411,67 @@ impl CompletionList {
                 }
             }
         }
+
+        self.set_results_shown(ctx.ui);
     }
 
-    pub fn update_results(
-        &mut self,
-        did_cursor_move: bool,
-        doc: &mut Doc,
-        ctx: &mut Ctx,
-    ) -> Option<()> {
-        if !self.should_open {
-            if did_cursor_move {
-                self.prefix.clear();
-                self.clear(ctx);
-            }
+    pub fn show(&mut self, visual_position: VisualPosition, doc: &mut Doc, ctx: &mut Ctx) {
+        ctx.ui.hide(self.widget_id);
 
-            return None;
+        self.update_results(doc, ctx);
+
+        if self.result_list.is_empty() {
+            return;
         }
 
+        ctx.ui.show(self.widget_id);
+        ctx.ui.focus(self.result_list.widget_id());
+
+        let min_y = self.result_list.min_visible_result_index(ctx.gfx);
+        let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
+        let mut longest_visible_result = 0;
+
+        for y in min_y..max_y {
+            let Some(result) = self.result_list.get(y) else {
+                continue;
+            };
+
+            let label = result.label();
+
+            longest_visible_result = longest_visible_result.max(label.len());
+        }
+
+        let gfx = &ctx.gfx;
+
+        let width = (longest_visible_result as f32 + 2.0) * gfx.glyph_width();
+        let width = width.max(self.min_width);
+
+        self.min_width = width;
+
+        ctx.ui.set_popup(
+            self.result_list.widget_id(),
+            Some(Rect::new(
+                visual_position.x - (self.prefix.len() as f32 + 1.0) * gfx.glyph_width()
+                    + gfx.border_width(),
+                visual_position.y + gfx.line_height(),
+                width,
+                ResultList::<CompletionResult>::result_height(gfx)
+                    * self
+                        .result_list
+                        .results
+                        .len()
+                        .min(MAX_VISIBLE_COMPLETION_RESULTS) as f32,
+            )),
+        );
+    }
+
+    fn update_results(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
         self.prefix.clear();
 
         let Some(prefix) = doc.get_completion_prefix(ctx.gfx) else {
             self.clear(ctx);
 
-            return None;
+            return;
         };
 
         self.prefix.push_str(prefix);
@@ -419,16 +479,19 @@ impl CompletionList {
         if doc.get_language_server_mut(ctx).is_some() {
             doc.lsp_completion(ctx);
 
-            return Some(());
+            return;
         }
 
         self.clear(ctx);
-        self.add_token_results(doc);
-
-        Some(())
+        self.add_token_results(doc, ctx.ui);
     }
 
-    fn add_token_results(&mut self, doc: &Doc) {
+    pub fn hide(&mut self, ctx: &mut Ctx) {
+        ctx.ui.hide(self.widget_id);
+        self.clear(ctx);
+    }
+
+    fn add_token_results(&mut self, doc: &Doc, ui: &mut Ui) {
         if self.prefix.is_empty() {
             return;
         }
@@ -438,17 +501,20 @@ impl CompletionList {
                 .results
                 .push(CompletionResult::SimpleCompletion(result));
         });
+
+        self.set_results_shown(ui);
     }
 
     pub fn clear(&mut self, ctx: &mut Ctx) {
-        self.clear_results();
+        self.clear_results(ctx.ui);
         self.set_popups_shown(ctx);
     }
 
-    fn clear_results(&mut self) {
+    fn clear_results(&mut self, ui: &mut Ui) {
         self.result_list.drain();
         self.lsp_expected_responses.clear();
         self.min_width = 0.0;
+        self.set_results_shown(ui);
     }
 
     fn perform_result_action(

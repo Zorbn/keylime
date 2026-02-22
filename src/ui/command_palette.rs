@@ -186,7 +186,7 @@ impl CommandPalette {
     }
 
     pub fn update(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
-        if ctx.ui.is_visible(self.widget_id) && !ctx.ui.is_child_focused(self.widget_id) {
+        if ctx.ui.is_visible(self.widget_id) && !ctx.ui.is_focused(self.widget_id) {
             self.close(ctx.ui);
         }
 
