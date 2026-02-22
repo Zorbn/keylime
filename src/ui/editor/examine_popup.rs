@@ -63,20 +63,26 @@ impl ExaminePopup {
         self.popup.receive_msgs(ctx);
     }
 
-    pub fn update(&mut self, did_cursor_move: bool, doc: &Doc, ctx: &mut Ctx) {
-        let needs_clear = match self.kind {
-            ExaminePopupKind::None => false,
-            ExaminePopupKind::Diagnostic => {
-                did_cursor_move || ctx.lsp.get_diagnostic_at(self.open_position, doc).is_none()
-            }
-            ExaminePopupKind::Hover => did_cursor_move,
-        };
-
-        if needs_clear {
-            self.clear(ctx.ui);
+    pub fn update(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
+        if matches!(self.kind, ExaminePopupKind::Diagnostic)
+            && ctx.lsp.get_diagnostic_at(self.open_position, doc).is_none()
+        {
+            self.hide(ctx.ui);
         }
 
-        self.popup.update(ctx);
+        let tab_bounds = tab.doc_bounds(ctx.ui);
+        let position = doc
+            .position_to_visual(self.position, tab.camera.position(), ctx.gfx)
+            .offset_by(tab_bounds);
+
+        let is_position_visible = tab_bounds.contains_position(position);
+
+        ctx.ui.set_shown(
+            self.popup.widget_id(),
+            self.kind != ExaminePopupKind::None && is_position_visible,
+        );
+
+        self.popup.update(position, PopupAlignment::Above, ctx);
     }
 
     pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
@@ -117,13 +123,13 @@ impl ExaminePopup {
         self.kind != ExaminePopupKind::None
     }
 
-    pub fn clear(&mut self, ui: &mut Ui) {
+    pub fn hide(&mut self, ui: &mut Ui) {
         self.kind = ExaminePopupKind::None;
         self.popup.hide(ui);
     }
 
     fn set_data(&mut self, kind: ExaminePopupData, doc: &Doc, ctx: &mut Ctx) {
-        self.clear(ctx.ui);
+        self.hide(ctx.ui);
 
         match kind {
             ExaminePopupData::None => {}

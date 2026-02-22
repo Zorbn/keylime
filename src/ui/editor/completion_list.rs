@@ -3,7 +3,6 @@ use std::collections::{hash_map::Entry, HashMap};
 use crate::{
     ctx::Ctx,
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
-    input::action::action_keybind,
     lsp::{
         types::{
             Command, DecodedCodeAction, DecodedCodeActionResult, DecodedCompletionItem,
@@ -15,7 +14,6 @@ use crate::{
     text::{compare::score_fuzzy_match, cursor_index::CursorIndex, doc::Doc},
     ui::{
         core::{Ui, WidgetId, WidgetSettings},
-        msg::Msg,
         popup::{Popup, PopupAlignment},
         result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     },
@@ -103,59 +101,6 @@ impl CompletionList {
             || self.documentation_popup.is_animating(ctx)
     }
 
-    // pub fn layout(&mut self, visual_position: VisualPosition, ctx: &mut Ctx) {
-    //     let min_y = self.result_list.min_visible_result_index();
-    //     let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
-    //     let mut longest_visible_result = 0;
-
-    //     for y in min_y..max_y {
-    //         let Some(result) = self.result_list.get(y) else {
-    //             continue;
-    //         };
-
-    //         let label = result.label();
-
-    //         longest_visible_result = longest_visible_result.max(label.len());
-    //     }
-
-    //     let gfx = &ctx.gfx;
-
-    //     let width = (longest_visible_result as f32 + 2.0) * gfx.glyph_width();
-    //     let width = width.max(self.min_width);
-
-    //     self.min_width = width;
-
-    //     self.result_list.layout(
-    //         Rect::new(
-    //             visual_position.x - (self.prefix.len() as f32 + 1.0) * gfx.glyph_width()
-    //                 + gfx.border_width(),
-    //             visual_position.y + gfx.line_height(),
-    //             width,
-    //             0.0,
-    //         ),
-    //         ctx.ui,
-    //         gfx,
-    //     );
-
-    //     let result_list_bounds = ctx.ui.widget(self.result_list.widget_id()).bounds;
-
-    //     let mut position = VisualPosition::new(
-    //         result_list_bounds.right(),
-    //         result_list_bounds.y + gfx.border_width(),
-    //     );
-
-    //     self.detail_popup
-    //         .layout(position, PopupAlignment::TopLeft, ctx);
-
-    //     if ctx.ui.is_visible(self.detail_popup.widget_id()) {
-    //         let detail_popup_bounds = ctx.ui.widget(self.detail_popup.widget_id()).bounds;
-    //         position.y += detail_popup_bounds.height - ctx.gfx.border_width();
-    //     }
-
-    //     self.documentation_popup
-    //         .layout(position, PopupAlignment::TopLeft, ctx);
-    // }
-
     pub fn receive_msgs(
         &mut self,
         doc: Option<&mut Doc>,
@@ -174,9 +119,9 @@ impl CompletionList {
                     completion_result = self.perform_result_action(doc, ctx);
                 }
 
-                self.clear(ctx);
+                self.hide(ctx);
             }
-            ResultListInput::Close => self.clear(ctx),
+            ResultListInput::Close => self.hide(ctx),
             _ => {}
         }
 
@@ -202,10 +147,7 @@ impl CompletionList {
         }
 
         self.set_popups_shown(ctx);
-        self.resize_popups(ctx);
-
-        self.detail_popup.update(ctx);
-        self.documentation_popup.update(ctx);
+        self.update_popups(ctx);
     }
 
     fn set_popups_shown(&mut self, ctx: &mut Ctx) {
@@ -237,7 +179,7 @@ impl CompletionList {
         }
     }
 
-    fn resize_popups(&mut self, ctx: &mut Ctx) {
+    fn update_popups(&mut self, ctx: &mut Ctx) {
         let min_y = self.result_list.min_visible_result_index(ctx.gfx);
         let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
         let mut longest_visible_result = 0;
@@ -280,7 +222,7 @@ impl CompletionList {
         );
 
         self.detail_popup
-            .resize(position, PopupAlignment::TopLeft, ctx);
+            .update(position, PopupAlignment::TopLeft, ctx);
 
         if ctx.ui.is_visible(self.detail_popup.widget_id()) {
             let detail_popup_bounds = ctx.ui.bounds(self.detail_popup.widget_id());
@@ -288,14 +230,19 @@ impl CompletionList {
         }
 
         self.documentation_popup
-            .resize(position, PopupAlignment::TopLeft, ctx);
+            .update(position, PopupAlignment::TopLeft, ctx);
     }
 
-    fn set_results_shown(&self, ui: &mut Ui) {
-        ui.set_shown(
-            self.result_list.widget_id(),
-            !self.result_list.results.is_empty(),
-        );
+    fn show_results(&self, ui: &mut Ui) {
+        if self.result_list.results.is_empty() {
+            return;
+        }
+
+        ui.show(self.result_list.widget_id());
+        ui.show(self.detail_popup.widget_id());
+        ui.show(self.documentation_popup.widget_id());
+
+        ui.focus(self.result_list.widget_id());
     }
 
     pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
@@ -329,12 +276,7 @@ impl CompletionList {
         self.documentation_popup.draw(None, ctx);
     }
 
-    pub fn lsp_resolve_completion_item(
-        &mut self,
-        id: Option<usize>,
-        item: DecodedCompletionItem,
-        ctx: &mut Ctx,
-    ) {
+    pub fn lsp_resolve_completion_item(&mut self, id: Option<usize>, item: DecodedCompletionItem) {
         let Some(id) = id else {
             return;
         };
@@ -364,7 +306,7 @@ impl CompletionList {
         doc: &Doc,
         ctx: &mut Ctx,
     ) {
-        self.clear_results(ctx.ui);
+        self.clear_results();
 
         let resolve_state = if needs_resolve {
             CompletionResolveState::NeedsRequest
@@ -395,7 +337,7 @@ impl CompletionList {
             });
         }
 
-        self.set_results_shown(ctx.ui);
+        self.show_results(ctx.ui);
     }
 
     pub fn lsp_update_code_action_results(
@@ -403,7 +345,7 @@ impl CompletionList {
         results: Vec<DecodedCodeActionResult>,
         ctx: &mut Ctx,
     ) {
-        self.clear(ctx);
+        self.hide(ctx);
 
         for result in results {
             match result {
@@ -426,7 +368,7 @@ impl CompletionList {
             }
         }
 
-        self.set_results_shown(ctx.ui);
+        self.show_results(ctx.ui);
     }
 
     pub fn show(&mut self, position: VisualPosition, doc: &mut Doc, ctx: &mut Ctx) {
@@ -435,23 +377,14 @@ impl CompletionList {
             Some(Rect::new(position.x, position.y, 0.0, 0.0)),
         );
 
-        ctx.ui.hide(self.widget_id);
-
         self.update_results(doc, ctx);
-
-        if self.result_list.is_empty() {
-            return;
-        }
-
-        ctx.ui.show(self.widget_id);
-        ctx.ui.focus(self.result_list.widget_id());
     }
 
     fn update_results(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
         self.prefix.clear();
 
         let Some(prefix) = doc.get_completion_prefix(ctx.gfx) else {
-            self.clear(ctx);
+            self.hide(ctx);
 
             return;
         };
@@ -464,13 +397,17 @@ impl CompletionList {
             return;
         }
 
-        self.clear(ctx);
+        self.hide(ctx);
         self.add_token_results(doc, ctx.ui);
     }
 
     pub fn hide(&mut self, ctx: &mut Ctx) {
-        ctx.ui.hide(self.widget_id);
-        self.clear(ctx);
+        ctx.ui.hide(self.result_list.widget_id());
+        ctx.ui.hide(self.detail_popup.widget_id());
+        ctx.ui.hide(self.documentation_popup.widget_id());
+
+        self.clear_results();
+        self.set_popups_shown(ctx);
     }
 
     fn add_token_results(&mut self, doc: &Doc, ui: &mut Ui) {
@@ -484,19 +421,13 @@ impl CompletionList {
                 .push(CompletionResult::SimpleCompletion(result));
         });
 
-        self.set_results_shown(ui);
+        self.show_results(ui);
     }
 
-    pub fn clear(&mut self, ctx: &mut Ctx) {
-        self.clear_results(ctx.ui);
-        self.set_popups_shown(ctx);
-    }
-
-    fn clear_results(&mut self, ui: &mut Ui) {
+    fn clear_results(&mut self) {
         self.result_list.drain();
         self.lsp_expected_responses.clear();
         self.longest_result_length = 0;
-        self.set_results_shown(ui);
     }
 
     fn perform_result_action(

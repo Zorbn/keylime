@@ -180,19 +180,28 @@ impl Ui {
             return;
         }
 
-        if self.is_focused_id(widget_id) {
-            self.unfocus(widget_id);
-        }
-
-        let widget = self.widget_mut(widget_id);
-        widget.msgs.clear();
-        let popup = widget.settings.popup;
+        let popup = self.widget(widget_id).settings.popup;
 
         self.remove_widget_from_parent(widget_id);
 
         if popup.is_none() {
             self.update_layout_from_parent(widget_id);
         }
+
+        self.remove_widgets_downward(widget_id);
+    }
+
+    fn remove_widgets_downward(&mut self, widget_id: WidgetId) {
+        for i in 0..self.widget(widget_id).child_ids.len() {
+            let child_id = self.widget(widget_id).child_ids[i];
+
+            self.remove_widgets_downward(child_id);
+        }
+
+        self.remove_from_focused(widget_id);
+
+        let widget = self.widget_mut(widget_id);
+        widget.msgs.clear();
 
         self.widget_slots[widget_id.index].generation += 1;
         self.unused_widget_indices.push(widget_id.index);

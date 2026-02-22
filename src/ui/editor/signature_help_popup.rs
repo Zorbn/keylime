@@ -22,7 +22,6 @@ pub struct SignatureHelpPopup {
 
 impl SignatureHelpPopup {
     pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
-        // TODO: Is it even useful to make there be a parent widget here?
         let widget_id = ctx.ui.new_widget(
             parent_id,
             WidgetSettings {
@@ -47,64 +46,46 @@ impl SignatureHelpPopup {
         self.label_popup.is_animating(ctx) || self.documentation_popup.is_animating(ctx)
     }
 
-    // pub fn layout(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) -> Option<()> {
-    //     let position = doc.cursor(CursorIndex::Main).position;
-
-    //     let mut position = doc.position_to_visual(position, tab.camera.position(), ctx.gfx);
-    //     position = position.offset_by(tab.doc_bounds());
-
-    //     if ctx.ui.is_visible(self.documentation_popup.widget_id()) {
-    //         self.documentation_popup
-    //             .layout(position, PopupAlignment::Above, ctx);
-
-    //         let documentation_bounds = ctx.ui.widget(self.documentation_popup.widget_id()).bounds;
-
-    //         position.x = documentation_bounds.x + ctx.gfx.glyph_width();
-    //         position.y -= documentation_bounds.height - ctx.gfx.border_width();
-    //     }
-
-    //     self.label_popup
-    //         .layout(position, PopupAlignment::Above, ctx);
-
-    //     Some(())
-    // }
-
-    // TODO:
     pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
-        while let Some(msg) = ctx.ui.msg(self.widget_id) {
-            ctx.ui.skip(self.widget_id, msg);
-        }
-
         self.label_popup.receive_msgs(ctx);
         self.documentation_popup.receive_msgs(ctx);
     }
 
-    pub fn update(
+    pub fn trigger(
         &mut self,
-        is_doc_different: bool,
-        (trigger_char, retrigger_char): (Option<char>, Option<char>),
         doc: &mut Doc,
+        trigger_char: char,
+        is_retrigger: bool,
         ctx: &mut Ctx,
     ) {
-        if is_doc_different {
-            self.clear(ctx.ui);
+        if is_retrigger && self.help.is_none() {
+            return;
         }
 
         let position = doc.cursor(CursorIndex::Main).position;
-        let is_retrigger = self.help.is_some();
 
-        if trigger_char.is_some()
-            || (is_retrigger && (retrigger_char.is_some() || position != self.help_position))
-        {
-            let trigger_char = trigger_char.or(retrigger_char);
+        doc.lsp_signature_help(Some(trigger_char), is_retrigger, ctx);
 
-            doc.lsp_signature_help(trigger_char, false, ctx);
+        self.help_position = position;
+    }
 
-            self.help_position = position;
+    pub fn update(&mut self, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) {
+        let mut position = doc
+            .position_to_visual(self.help_position, tab.camera.position(), ctx.gfx)
+            .offset_by(tab.doc_bounds(ctx.ui));
+
+        if ctx.ui.is_visible(self.documentation_popup.widget_id()) {
+            self.documentation_popup
+                .update(position, PopupAlignment::Above, ctx);
+
+            let documentation_bounds = ctx.ui.bounds(self.documentation_popup.widget_id());
+
+            position.x = documentation_bounds.x + ctx.gfx.glyph_width();
+            position.y -= documentation_bounds.height - ctx.gfx.border_width();
         }
 
-        self.label_popup.update(ctx);
-        self.documentation_popup.update(ctx);
+        self.label_popup
+            .update(position, PopupAlignment::Above, ctx);
     }
 
     pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
@@ -119,43 +100,6 @@ impl SignatureHelpPopup {
         self.documentation_popup.draw(None, ctx);
 
         Some(())
-    }
-
-    pub fn get_triggers(
-        widget_id: WidgetId,
-        doc: Option<&mut Doc>,
-        ctx: &mut Ctx,
-    ) -> (Option<char>, Option<char>) {
-        // TODO:
-        (None, None)
-        // let mut trigger_char = None;
-        // let mut retrigger_char = None;
-
-        // let Some(language_server) = doc.and_then(|doc| {
-        //     ctx.lsp
-        //         .get_language_server_mut(doc, ctx.config, ctx.current_dir)
-        // }) else {
-        //     return (trigger_char, retrigger_char);
-        // };
-
-        // let mut grapheme_handler = ctx.ui.grapheme_handler(widget_id, ctx.window);
-
-        // while let Some(c) = grapheme_handler
-        //     .next(ctx.window)
-        //     .and_then(|grapheme| grapheme.chars().nth(0))
-        // {
-        //     if language_server.is_trigger_char(c) {
-        //         trigger_char = Some(c);
-        //     }
-
-        //     if language_server.is_retrigger_char(c) {
-        //         retrigger_char = Some(c);
-        //     }
-
-        //     grapheme_handler.unprocessed(ctx.window);
-        // }
-
-        // (trigger_char, retrigger_char)
     }
 
     pub fn lsp_set_signature_help(
@@ -187,7 +131,7 @@ impl SignatureHelpPopup {
         self.help.is_some()
     }
 
-    pub fn clear(&mut self, ui: &mut Ui) {
+    pub fn hide(&mut self, ui: &mut Ui) {
         self.help = None;
 
         self.label_popup.hide(ui);

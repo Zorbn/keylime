@@ -56,7 +56,30 @@ impl Popup {
         }
     }
 
-    pub fn resize(&mut self, position: VisualPosition, alignment: PopupAlignment, ctx: &mut Ctx) {
+    pub fn is_animating(&self, ctx: &Ctx) -> bool {
+        self.tab.is_animating(ctx)
+    }
+
+    pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
+        let widget_id = self.tab.widget_id();
+
+        while let Some(msg) = ctx.ui.msg(widget_id) {
+            match msg {
+                Msg::FontChanged => self.tab.set_margin(Self::margin(ctx.gfx)),
+                Msg::Action(action_name!(Copy)) => self.tab.receive_msg(msg, &mut self.doc, ctx),
+                Msg::Action(..) => ctx.ui.skip(widget_id, msg),
+                Msg::Grapheme(..) => ctx.ui.skip(widget_id, msg),
+                _ => self.tab.receive_msg(msg, &mut self.doc, ctx),
+            }
+        }
+    }
+
+    pub fn update(&mut self, position: VisualPosition, alignment: PopupAlignment, ctx: &mut Ctx) {
+        self.resize(position, alignment, ctx);
+        self.tab.update(&mut self.doc, ctx);
+    }
+
+    fn resize(&mut self, position: VisualPosition, alignment: PopupAlignment, ctx: &mut Ctx) {
         let gfx = &mut ctx.gfx;
 
         let mut bounds = Rect::ZERO;
@@ -93,30 +116,8 @@ impl Popup {
         ctx.ui.set_popup(self.widget_id, Some(bounds));
     }
 
-    pub fn is_animating(&self, ctx: &Ctx) -> bool {
-        self.tab.is_animating(ctx)
-    }
-
-    pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
-        let widget_id = self.tab.widget_id();
-
-        while let Some(msg) = ctx.ui.msg(widget_id) {
-            match msg {
-                Msg::FontChanged => self.tab.set_margin(Self::margin(ctx.gfx)),
-                Msg::Action(action_name!(Copy)) => self.tab.receive_msg(msg, &mut self.doc, ctx),
-                Msg::Action(..) => ctx.ui.skip(widget_id, msg),
-                Msg::Grapheme(..) => ctx.ui.skip(widget_id, msg),
-                _ => self.tab.receive_msg(msg, &mut self.doc, ctx),
-            }
-        }
-    }
-
-    pub fn update(&mut self, ctx: &mut Ctx) {
-        self.tab.update(&mut self.doc, ctx);
-    }
-
     pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.tab.animate(Some(self.widget_id), &self.doc, ctx, dt);
+        self.tab.animate(&self.doc, ctx, dt);
     }
 
     pub fn draw(&mut self, foreground: Option<Color>, ctx: &mut Ctx) {

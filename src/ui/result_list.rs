@@ -18,14 +18,13 @@ use crate::{
     ui::{
         camera::{CameraAxis, CameraRecenterRequest},
         msg::Msg,
-        widget_list::WidgetList,
     },
 };
 
 use super::{
     camera::RECENTER_DISTANCE,
     color::Color,
-    core::{Ui, WidgetId, WidgetSettings},
+    core::{Ui, WidgetId},
     focus_list::FocusList,
 };
 

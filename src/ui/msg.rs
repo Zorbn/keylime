@@ -6,8 +6,13 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub enum Msg {
-    Resize { width: f32, height: f32 },
-    PopupParentResized { bounds: Rect },
+    Resize {
+        width: f32,
+        height: f32,
+    },
+    PopupParentResized {
+        bounds: Rect,
+    },
     FontChanged,
     GainedFocus,
     LostFocus,
@@ -17,4 +22,9 @@ pub enum Msg {
     Action(Action),
     ShowCompletions,
     HideCompletions,
+    TriggerSignatureHelp {
+        trigger_char: char,
+        is_retrigger: bool,
+    },
+    HideEditorPopups,
 }

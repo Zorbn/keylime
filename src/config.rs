@@ -44,7 +44,6 @@ const DEFAULT_COMMENT: fn() -> Pooled<String> = || "//".into();
 const DEFAULT_HAS_IDENTIFIERS: fn() -> bool = || true;
 const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
 const DEFAULT_FORMAT_ON_SAVE: fn() -> bool = || true;
-const DEFAULT_TERMINAL_HEIGHT: fn() -> f32 = || 12.0;
 const DEFAULT_IGNORED_FILES: fn() -> Vec<Pooled<String>> = || {
     ["target", "build", "out", ".git", "node_modules"]
         .iter()
@@ -129,8 +128,6 @@ struct ConfigDesc<'a> {
     trim_trailing_whitespace: bool,
     #[serde(default = "DEFAULT_FORMAT_ON_SAVE")]
     format_on_save: bool,
-    #[serde(default = "DEFAULT_TERMINAL_HEIGHT")]
-    terminal_height: f32,
     theme: &'a str,
     #[serde(default = "DEFAULT_IGNORED_FILES")]
     ignored_files: Vec<Pooled<String>>,
@@ -158,7 +155,6 @@ pub struct Config {
     pub font_size: f32,
     pub trim_trailing_whitespace: bool,
     pub format_on_save: bool,
-    pub terminal_height: f32,
     pub theme: Theme,
     pub keymaps: HashMap<Keybind, ActionName>,
     pub languages: Vec<Language>,
@@ -237,7 +233,6 @@ impl Config {
             font_size: config_desc.font_size,
             trim_trailing_whitespace: config_desc.trim_trailing_whitespace,
             format_on_save: config_desc.format_on_save,
-            terminal_height: config_desc.terminal_height.max(0.0),
             ignored_files,
             ignored_extensions,
             theme,
@@ -354,7 +349,6 @@ impl Default for Config {
             font_size: 13.0,
             trim_trailing_whitespace: DEFAULT_TRIM_TRAILING_WHITESPACE(),
             format_on_save: DEFAULT_FORMAT_ON_SAVE(),
-            terminal_height: DEFAULT_TERMINAL_HEIGHT(),
             theme: Theme::default(),
             keymaps: DEFAULT_KEYMAPS(),
             languages: Vec::new(),

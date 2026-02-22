@@ -25,7 +25,6 @@ use crate::{
     },
     ui::{
         camera::CameraRecenterKind,
-        core::WidgetId,
         msg::Msg,
         tab::Tab,
         terminal::{

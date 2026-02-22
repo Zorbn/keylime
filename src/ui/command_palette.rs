@@ -200,7 +200,7 @@ impl CommandPalette {
     }
 
     pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.tab.animate(Some(self.widget_id), &self.doc, ctx, dt);
+        self.tab.animate(&self.doc, ctx, dt);
         self.result_list.animate(ctx, dt);
     }
 

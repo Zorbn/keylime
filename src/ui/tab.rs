@@ -9,7 +9,7 @@ use crate::{
         visual_position::VisualPosition,
     },
     input::{
-        action::{action_keybind, action_name},
+        action::action_name,
         editing_actions::{handle_action, handle_grapheme, handle_left_click},
         mods::{Mod, Mods},
         mouse_button::MouseButton,
@@ -17,7 +17,7 @@ use crate::{
     },
     lsp::types::DecodedRange,
     platform::gfx::Gfx,
-    pool::{format_pooled, Pooled},
+    pool::format_pooled,
     text::{
         cursor_index::CursorIndex,
         doc::{Doc, DocFlag},
@@ -61,10 +61,6 @@ struct CursorAnimationState {
     last_time: f64,
     last_position: VisualPosition,
     position: VisualPosition,
-}
-
-struct TabAnimationState {
-    x: f32,
 }
 
 pub struct Tab {
@@ -158,10 +154,32 @@ impl Tab {
             Msg::Grapheme(grapheme) => {
                 handle_grapheme(&grapheme, doc, ctx);
                 self.set_show_completions(true, ctx.ui);
+
+                if let Some((language_server, c)) = doc
+                    .get_language_server_mut(ctx)
+                    .zip(grapheme.chars().next())
+                {
+                    let is_retrigger = if language_server.is_trigger_char(c) {
+                        false
+                    } else if language_server.is_retrigger_char(c) {
+                        true
+                    } else {
+                        return;
+                    };
+
+                    ctx.ui.send_to_parent(
+                        self.widget_id,
+                        Msg::TriggerSignatureHelp {
+                            trigger_char: c,
+                            is_retrigger,
+                        },
+                    );
+                }
             }
             Msg::LostFocus => {
                 self.mouse_drag = None;
                 self.set_show_completions(false, ctx.ui);
+                ctx.ui.send_to_parent(self.widget_id, Msg::HideEditorPopups);
             }
             Msg::Mousebind(Mousebind {
                 button: Some(MouseButton::Left),
@@ -289,9 +307,9 @@ impl Tab {
         }
     }
 
-    pub fn animate(&mut self, widget_id: Option<WidgetId>, doc: &Doc, ctx: &mut Ctx, dt: f32) {
+    pub fn animate(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
         self.animate_cursors(doc, ctx);
-        self.animate_camera(widget_id, doc, ctx, dt);
+        self.animate_camera(doc, ctx, dt);
     }
 
     fn animate_cursors(&mut self, doc: &Doc, ctx: &mut Ctx) {
@@ -324,7 +342,7 @@ impl Tab {
         }
     }
 
-    fn animate_camera(&mut self, widget_id: Option<WidgetId>, doc: &Doc, ctx: &mut Ctx, dt: f32) {
+    fn animate_camera(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
         self.animate_camera_vertical(doc, ctx, dt);
         self.animate_camera_horizontal(doc, ctx, dt);
 

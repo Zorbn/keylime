@@ -3,7 +3,6 @@ use terminal_pane::TerminalPane;
 
 use crate::{
     ctx::Ctx,
-    geometry::rect::Rect,
     input::action::action_name,
     platform::process::Process,
     text::doc::{Doc, DocFlags},
@@ -150,12 +149,7 @@ impl Terminal {
 
     fn add_pane(&mut self, ctx: &mut Ctx) {
         let pane = TerminalPane::new(&mut self.term_list, self.panes.widget_id(), ctx);
-
         self.panes.add(pane, ctx.ui);
-
-        let bounds = ctx.ui.bounds(self.widget_id);
-        // TODO:
-        // self.layout(bounds, ctx);
     }
 
     fn close_pane(&mut self, ctx: &mut Ctx) {

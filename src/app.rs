@@ -6,7 +6,6 @@ use std::{
 use crate::{
     config::{Config, ConfigError},
     ctx::Ctx,
-    geometry::rect::Rect,
     lsp::Lsp,
     platform::{file_watcher::FileWatcher, gfx::Gfx, process::Process, window::Window},
     pool::Pooled,
@@ -88,7 +87,6 @@ impl App {
 
         let mut command_palette = CommandPalette::new(controller_id, ctx.ui);
         let mut editor = Editor::new(controller_id, &mut ctx);
-        // TODO: Use config's terminal_height again but still let terminal be resizable.
         let terminal = Terminal::new(controller_id, &mut ctx);
         let status_bar = StatusBar::new(controller_id, &mut ctx);
 

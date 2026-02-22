@@ -578,18 +578,14 @@ impl<T> Pane<T> {
         self.tab_bar
             .animate(&self.tabs, data_list, self.get_doc, &self.view, ctx, dt);
 
-        let focused_index = self.focused_tab_index(ctx.ui);
-        let widget_id = self.widget_id;
         let get_doc = self.get_doc;
 
-        for (index, tab) in self.tabs.iter_mut().enumerate() {
+        for tab in self.tabs.iter_mut() {
             let Some(data) = data_list.get_mut(tab.data_id()) else {
                 continue;
             };
 
-            let widget_id = (index == focused_index).then_some(widget_id);
-
-            tab.animate(widget_id, get_doc(data), ctx, dt);
+            tab.animate(get_doc(data), ctx, dt);
         }
     }
 
