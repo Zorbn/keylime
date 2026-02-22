@@ -206,4 +206,8 @@ impl Rect {
     pub fn bottom(&self) -> f32 {
         self.y + self.height
     }
+
+    pub fn position(&self) -> VisualPosition {
+        VisualPosition::new(self.x, self.y)
+    }
 }

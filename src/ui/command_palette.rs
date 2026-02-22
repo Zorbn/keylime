@@ -112,10 +112,10 @@ impl CommandPalette {
     pub fn receive_msgs(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
-                Msg::FontChanged => self.resize_popup(ctx),
+                Msg::FontChanged => self.resize_popups(ctx),
                 Msg::PopupParentResized { bounds } => {
                     self.parent_bounds = bounds;
-                    self.resize_popup(ctx);
+                    self.resize_popups(ctx);
                 }
                 Msg::GainedFocus => ctx.ui.focus(self.result_list.widget_id()),
                 Msg::Action(action) => {
@@ -150,7 +150,7 @@ impl CommandPalette {
         }
     }
 
-    fn resize_popup(&mut self, ctx: &mut Ctx) {
+    fn resize_popups(&mut self, ctx: &mut Ctx) {
         let title_height = Self::title_height(ctx.gfx);
         let input_height = ctx.gfx.line_height() * 2.0;
         let results_height = ctx.gfx.line_height() * MAX_VISIBLE_RESULTS as f32;

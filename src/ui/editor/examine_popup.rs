@@ -32,9 +32,9 @@ pub struct ExaminePopup {
 }
 
 impl ExaminePopup {
-    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
+    pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
         Self {
-            popup: Popup::new(parent_id, ui),
+            popup: Popup::new(parent_id, ctx),
             kind: ExaminePopupKind::None,
             position: Position::ZERO,
             open_position: Position::ZERO,

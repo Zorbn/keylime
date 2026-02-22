@@ -143,6 +143,10 @@ impl Tab {
     //     self.margin = margin;
     // }
 
+    pub fn set_margin(&mut self, margin: f32) {
+        self.margin = margin;
+    }
+
     pub fn receive_msgs(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             self.receive_msg(msg, doc, ctx);

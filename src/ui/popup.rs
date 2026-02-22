@@ -1,6 +1,6 @@
 use crate::{
     ctx::Ctx,
-    geometry::{position::Position, rect::Rect, sides::Sides},
+    geometry::{position::Position, rect::Rect, sides::Sides, visual_position::VisualPosition},
     input::action::action_name,
     platform::gfx::Gfx,
     pool::STRING_POOL,
@@ -34,8 +34,8 @@ pub struct Popup {
 }
 
 impl Popup {
-    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
-        let widget_id = ui.new_widget(
+    pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
+        let widget_id = ctx.ui.new_widget(
             parent_id,
             WidgetSettings {
                 is_shown: false,
@@ -45,51 +45,53 @@ impl Popup {
             },
         );
 
+        let mut tab = Tab::new(widget_id, SlotId::ZERO, ctx.ui);
+        tab.set_margin(Self::margin(ctx.gfx));
+
         Self {
-            tab: Tab::new(widget_id, SlotId::ZERO, ui),
+            tab,
             doc: Doc::new(None, None, DocFlags::RAW),
             widget_id,
             extension: String::new(),
         }
     }
 
-    // pub fn layout(&mut self, position: VisualPosition, alignment: PopupAlignment, ctx: &mut Ctx) {
-    //     let gfx = &mut ctx.gfx;
+    pub fn resize(&mut self, position: VisualPosition, alignment: PopupAlignment, ctx: &mut Ctx) {
+        let gfx = &mut ctx.gfx;
 
-    //     let mut bounds = Rect::ZERO;
-    //     bounds.height = self.doc.lines().len().min(MAX_LINES) as f32 * gfx.line_height();
+        let mut bounds = Rect::ZERO;
+        bounds.height = self.doc.lines().len().min(MAX_LINES) as f32 * gfx.line_height();
 
-    //     for line in self.doc.lines() {
-    //         let line_width = gfx.measure_text(line) as f32 * gfx.glyph_width()
-    //             + gfx.line_padding_x()
-    //             + Tab::cursor_width(gfx);
+        for line in self.doc.lines() {
+            let line_width = gfx.measure_text(line) as f32 * gfx.glyph_width()
+                + gfx.line_padding_x()
+                + Tab::cursor_width(gfx);
 
-    //         bounds.width = bounds.width.max(line_width);
-    //     }
+            bounds.width = bounds.width.max(line_width);
+        }
 
-    //     let margin = Self::margin(gfx);
-    //     bounds = bounds.add_margin(margin);
+        let margin = Self::margin(gfx);
+        bounds = bounds.add_margin(margin);
 
-    //     bounds.x = position.x;
-    //     bounds.y = position.y;
+        bounds.x = position.x;
+        bounds.y = position.y;
 
-    //     if alignment == PopupAlignment::Above {
-    //         bounds.x = (bounds.x - margin).max(margin);
-    //         bounds.y = (bounds.y - bounds.height).max(margin);
-    //     }
+        if alignment == PopupAlignment::Above {
+            bounds.x = (bounds.x - margin).max(margin);
+            bounds.y = (bounds.y - bounds.height).max(margin);
+        }
 
-    //     if bounds.right() > gfx.width() - margin {
-    //         bounds.width -= bounds.right() - (gfx.width() - margin);
-    //     }
+        if bounds.right() > gfx.width() - margin {
+            bounds.width -= bounds.right() - (gfx.width() - margin);
+        }
 
-    //     if bounds.bottom() > gfx.height() - margin {
-    //         bounds.height -= bounds.bottom() - (gfx.height() - margin);
-    //     }
+        if bounds.bottom() > gfx.height() - margin {
+            bounds.height -= bounds.bottom() - (gfx.height() - margin);
+        }
 
-    //     self.tab.layout(Rect::ZERO, bounds, margin, &self.doc, gfx);
-
-    //     ctx.ui.widget_mut(self.widget_id).bounds = bounds;
-    // }
+        self.tab.set_margin(margin);
+        ctx.ui.set_popup(self.widget_id, Some(bounds));
+    }
 
     pub fn is_animating(&self, ctx: &Ctx) -> bool {
         self.tab.is_animating(ctx)
@@ -100,6 +102,7 @@ impl Popup {
 
         while let Some(msg) = ctx.ui.msg(widget_id) {
             match msg {
+                Msg::FontChanged => self.tab.set_margin(Self::margin(ctx.gfx)),
                 Msg::Action(action_name!(Copy)) => self.tab.receive_msg(msg, &mut self.doc, ctx),
                 Msg::Action(..) => ctx.ui.skip(widget_id, msg),
                 Msg::Grapheme(..) => ctx.ui.skip(widget_id, msg),

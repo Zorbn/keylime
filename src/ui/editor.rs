@@ -80,9 +80,9 @@ impl Editor {
 
             hover_timer: 0.0,
 
-            examine_popup: ExaminePopup::new(widget_id, ctx.ui),
-            signature_help_popup: SignatureHelpPopup::new(widget_id, ctx.ui),
-            completion_list: CompletionList::new(widget_id, ctx.ui),
+            examine_popup: ExaminePopup::new(widget_id, ctx),
+            signature_help_popup: SignatureHelpPopup::new(widget_id, ctx),
+            completion_list: CompletionList::new(widget_id, ctx),
             widget_id,
         };
 

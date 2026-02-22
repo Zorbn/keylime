@@ -21,9 +21,9 @@ pub struct SignatureHelpPopup {
 }
 
 impl SignatureHelpPopup {
-    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
+    pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
         // TODO: Is it even useful to make there be a parent widget here?
-        let widget_id = ui.new_widget(
+        let widget_id = ctx.ui.new_widget(
             parent_id,
             WidgetSettings {
                 popup: Some(Rect::ZERO),
@@ -38,8 +38,8 @@ impl SignatureHelpPopup {
             help_position: Position::ZERO,
             help: None,
 
-            label_popup: Popup::new(widget_id, ui),
-            documentation_popup: Popup::new(widget_id, ui),
+            label_popup: Popup::new(widget_id, ctx),
+            documentation_popup: Popup::new(widget_id, ctx),
         }
     }
 

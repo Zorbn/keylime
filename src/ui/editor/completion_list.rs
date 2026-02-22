@@ -63,7 +63,7 @@ pub struct CompletionList {
 
     result_list: ResultList<CompletionResult>,
     // Prevents the result list from shrinking as it's being scrolled through.
-    min_width: f32,
+    longest_result_length: usize,
     prefix: String,
 
     lsp_expected_responses: HashMap<usize, usize>,
@@ -73,8 +73,8 @@ pub struct CompletionList {
 }
 
 impl CompletionList {
-    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
-        let widget_id = ui.new_widget(
+    pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
+        let widget_id = ctx.ui.new_widget(
             parent_id,
             WidgetSettings {
                 popup: Some(Rect::ZERO),
@@ -86,14 +86,14 @@ impl CompletionList {
         Self {
             widget_id,
 
-            result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS, false, widget_id, ui),
-            min_width: 0.0,
+            result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS, false, widget_id, ctx.ui),
+            longest_result_length: 0,
             prefix: String::new(),
 
             lsp_expected_responses: HashMap::new(),
 
-            detail_popup: Popup::new(widget_id, ui),
-            documentation_popup: Popup::new(widget_id, ui),
+            detail_popup: Popup::new(widget_id, ctx),
+            documentation_popup: Popup::new(widget_id, ctx),
         }
     }
 
@@ -186,24 +186,7 @@ impl CompletionList {
         completion_result
     }
 
-    // TODO:
     pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
-        // let result_input = self.result_list.update(ctx);
-
-        // let mut completion_result = None;
-
-        // match result_input {
-        //     ResultListInput::Complete
-        //     | ResultListInput::Submit {
-        //         kind: ResultListSubmitKind::Normal,
-        //     } => {
-        //         completion_result = self.perform_result_action(doc, ctx);
-        //         self.clear(ctx);
-        //     }
-        //     ResultListInput::Close => self.clear(ctx),
-        //     _ => {}
-        // }
-
         if let Some(CompletionResult::Completion {
             item,
             resolve_state: resolve_state @ CompletionResolveState::NeedsRequest,
@@ -219,12 +202,10 @@ impl CompletionList {
         }
 
         self.set_popups_shown(ctx);
+        self.resize_popups(ctx);
+
         self.detail_popup.update(ctx);
         self.documentation_popup.update(ctx);
-
-        // self.should_open = self.should_open(ctx);
-
-        // completion_result
     }
 
     fn set_popups_shown(&mut self, ctx: &mut Ctx) {
@@ -256,6 +237,60 @@ impl CompletionList {
         }
     }
 
+    fn resize_popups(&mut self, ctx: &mut Ctx) {
+        let min_y = self.result_list.min_visible_result_index(ctx.gfx);
+        let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
+        let mut longest_visible_result = 0;
+
+        for y in min_y..max_y {
+            let Some(result) = self.result_list.get(y) else {
+                continue;
+            };
+
+            let label = result.label();
+
+            longest_visible_result = longest_visible_result.max(ctx.gfx.measure_text(label));
+        }
+
+        self.longest_result_length = self.longest_result_length.max(longest_visible_result);
+
+        let gfx = &ctx.gfx;
+
+        let width = (self.longest_result_length as f32 + 2.0) * gfx.glyph_width();
+        let position = ctx.ui.bounds(self.widget_id).position();
+
+        let result_list_bounds = Rect::new(
+            position.x - (self.prefix.len() as f32 + 1.0) * gfx.glyph_width() + gfx.border_width(),
+            position.y + gfx.line_height(),
+            width,
+            ResultList::<CompletionResult>::result_height(gfx)
+                * self
+                    .result_list
+                    .results
+                    .len()
+                    .min(MAX_VISIBLE_COMPLETION_RESULTS) as f32,
+        );
+
+        ctx.ui
+            .set_popup(self.result_list.widget_id(), Some(result_list_bounds));
+
+        let mut position = VisualPosition::new(
+            result_list_bounds.right(),
+            result_list_bounds.y + gfx.border_width(),
+        );
+
+        self.detail_popup
+            .resize(position, PopupAlignment::TopLeft, ctx);
+
+        if ctx.ui.is_visible(self.detail_popup.widget_id()) {
+            let detail_popup_bounds = ctx.ui.bounds(self.detail_popup.widget_id());
+            position.y += detail_popup_bounds.height - ctx.gfx.border_width();
+        }
+
+        self.documentation_popup
+            .resize(position, PopupAlignment::TopLeft, ctx);
+    }
+
     fn set_results_shown(&self, ui: &mut Ui) {
         ui.set_shown(
             self.result_list.widget_id(),
@@ -280,29 +315,11 @@ impl CompletionList {
         Some(language_server.completion_item_resolve(item.clone(), doc))
     }
 
-    // TODO:
-    // fn should_open(&self, ctx: &mut Ctx) -> bool {
-    //     let mut grapheme_handler = ctx.ui.grapheme_handler(self.widget_id(), ctx.window);
-
-    //     if grapheme_handler.next(ctx.window).is_some() {
-    //         grapheme_handler.unprocessed(ctx.window);
-    //         return true;
-    //     }
-
-    //     let mut action_handler = ctx.ui.action_handler(self.widget_id(), ctx.window);
-
-    //     while let Some(action) = action_handler.next(ctx) {
-    //         action_handler.unprocessed(ctx.window, action);
-
-    //         if matches!(action, action_keybind!(key: Backspace)) {
-    //             return true;
-    //         }
-    //     }
-
-    //     false
-    // }
-
     pub fn draw(&mut self, ctx: &mut Ctx) {
+        if !ctx.ui.is_visible(self.widget_id) {
+            return;
+        }
+
         self.result_list
             .draw(ctx, |result, theme| (result.label(), theme.normal));
 
@@ -338,8 +355,6 @@ impl CompletionList {
 
         *existing_item = item;
         *resolve_state = CompletionResolveState::Resolved;
-
-        self.set_popups_shown(ctx);
     }
 
     pub fn lsp_update_completion_results(
@@ -380,7 +395,6 @@ impl CompletionList {
             });
         }
 
-        self.set_popups_shown(ctx);
         self.set_results_shown(ctx.ui);
     }
 
@@ -415,7 +429,12 @@ impl CompletionList {
         self.set_results_shown(ctx.ui);
     }
 
-    pub fn show(&mut self, visual_position: VisualPosition, doc: &mut Doc, ctx: &mut Ctx) {
+    pub fn show(&mut self, position: VisualPosition, doc: &mut Doc, ctx: &mut Ctx) {
+        ctx.ui.set_popup(
+            self.widget_id,
+            Some(Rect::new(position.x, position.y, 0.0, 0.0)),
+        );
+
         ctx.ui.hide(self.widget_id);
 
         self.update_results(doc, ctx);
@@ -426,43 +445,6 @@ impl CompletionList {
 
         ctx.ui.show(self.widget_id);
         ctx.ui.focus(self.result_list.widget_id());
-
-        let min_y = self.result_list.min_visible_result_index(ctx.gfx);
-        let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
-        let mut longest_visible_result = 0;
-
-        for y in min_y..max_y {
-            let Some(result) = self.result_list.get(y) else {
-                continue;
-            };
-
-            let label = result.label();
-
-            longest_visible_result = longest_visible_result.max(label.len());
-        }
-
-        let gfx = &ctx.gfx;
-
-        let width = (longest_visible_result as f32 + 2.0) * gfx.glyph_width();
-        let width = width.max(self.min_width);
-
-        self.min_width = width;
-
-        ctx.ui.set_popup(
-            self.result_list.widget_id(),
-            Some(Rect::new(
-                visual_position.x - (self.prefix.len() as f32 + 1.0) * gfx.glyph_width()
-                    + gfx.border_width(),
-                visual_position.y + gfx.line_height(),
-                width,
-                ResultList::<CompletionResult>::result_height(gfx)
-                    * self
-                        .result_list
-                        .results
-                        .len()
-                        .min(MAX_VISIBLE_COMPLETION_RESULTS) as f32,
-            )),
-        );
     }
 
     fn update_results(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
@@ -513,7 +495,7 @@ impl CompletionList {
     fn clear_results(&mut self, ui: &mut Ui) {
         self.result_list.drain();
         self.lsp_expected_responses.clear();
-        self.min_width = 0.0;
+        self.longest_result_length = 0;
         self.set_results_shown(ui);
     }
 
