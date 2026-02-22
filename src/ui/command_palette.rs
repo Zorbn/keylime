@@ -1,14 +1,14 @@
-mod all_actions_mode;
-mod all_diagnostics_mode;
-mod all_files_mode;
+pub mod all_actions_mode;
+pub mod all_diagnostics_mode;
+pub mod all_files_mode;
 pub mod file_explorer_mode;
 pub mod find_in_files_mode;
-mod go_to_line_mode;
+pub mod go_to_line_mode;
 mod incremental_results;
 mod mode;
 pub mod references_mode;
 pub mod rename_mode;
-mod search_mode;
+pub mod search_mode;
 
 use std::path::PathBuf;
 
@@ -27,11 +27,11 @@ use crate::{
     lsp::{position_encoding::PositionEncoding, types::EncodedPosition},
     pool::Pooled,
     text::doc::{Doc, DocFlags},
-    ui::msg::Msg,
+    ui::{msg::Msg, popup::Popup},
 };
 
 use super::{
-    core::{Ui, WidgetId, WidgetSettings},
+    core::{Ui, WidgetId, WidgetScale, WidgetSettings},
     editor::Editor,
     result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     slot_list::SlotId,
@@ -81,8 +81,7 @@ pub struct CommandPalette {
 
     result_list: ResultList<CommandPaletteResult>,
 
-    title_bounds: Rect,
-    input_bounds: Rect,
+    parent_bounds: Rect,
 
     widget_id: WidgetId,
 }
@@ -92,21 +91,23 @@ impl CommandPalette {
         let widget_id = ui.new_widget(
             parent_id,
             WidgetSettings {
-                is_shown: true,
+                is_shown: false,
+                popup: Some(Rect::ZERO),
                 ..Default::default()
             },
         );
 
+        let tab = Tab::new(widget_id, SlotId::ZERO, ui);
+        let result_list = ResultList::new(MAX_VISIBLE_RESULTS, true, widget_id, ui);
+
         Self {
             mode: None,
-            tab: Tab::new(widget_id, SlotId::ZERO, ui),
+            tab,
             doc: Doc::new(None, None, DocFlags::SINGLE_LINE),
             last_updated_version: None,
 
-            result_list: ResultList::new(MAX_VISIBLE_RESULTS, true, widget_id, ui),
-
-            title_bounds: Rect::ZERO,
-            input_bounds: Rect::ZERO,
+            result_list,
+            parent_bounds: Rect::ZERO,
 
             widget_id,
         }
@@ -172,10 +173,15 @@ impl CommandPalette {
     //     );
     // }
 
-    // TODO:
     pub fn receive_msgs(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
+                Msg::FontChanged => self.resize_popup(ctx),
+                Msg::PopupParentResized { bounds } => {
+                    println!("parent resized");
+                    self.parent_bounds = bounds;
+                    self.resize_popup(ctx);
+                }
                 Msg::Action(action) => {
                     let Some(mut mode) = self.mode.take() else {
                         continue;
@@ -191,59 +197,35 @@ impl CommandPalette {
             }
         }
 
-        // let result_input = self.result_list.update(ctx);
+        let result_input = self.result_list.receive_msgs(ctx);
 
-        // match result_input {
-        //     ResultListInput::None => {}
-        //     ResultListInput::Complete => self.complete_result(editor, ctx),
-        //     ResultListInput::Submit { kind } => {
-        //         self.submit(kind, editor, ctx);
-        //     }
-        //     ResultListInput::Close => self.close(ctx.ui),
-        // }
-
-        // let mut global_action_handler = ctx.window.action_handler();
-
-        // while let Some(action) = global_action_handler.next(ctx) {
-        //     match action {
-        //         action_name!(OpenAllActions) => {
-        //             self.open(Box::new(AllActionsMode), editor, ctx);
-        //         }
-        //         action_name!(OpenFileExplorer) => {
-        //             self.open(Box::new(FileExplorerMode::new(None)), editor, ctx);
-        //         }
-        //         action_name!(OpenConfig) => {
-        //             let config_dir = Config::dir(ctx.current_dir);
-
-        //             self.open(
-        //                 Box::new(FileExplorerMode::new(Some(config_dir))),
-        //                 editor,
-        //                 ctx,
-        //             );
-        //         }
-        //         action_name!(OpenSearch) => {
-        //             self.open(Box::new(SearchMode::new()), editor, ctx);
-        //         }
-        //         action_name!(OpenSearchAndReplace) => {
-        //             self.open(Box::new(SearchAndReplaceMode::new()), editor, ctx);
-        //         }
-        //         action_name!(OpenFindInFiles) => {
-        //             self.open(Box::new(FindInFilesMode::new()), editor, ctx);
-        //         }
-        //         action_name!(OpenAllFiles) => {
-        //             self.open(Box::new(AllFilesMode::new()), editor, ctx);
-        //         }
-        //         action_name!(OpenAllDiagnostics) => {
-        //             self.open(Box::new(AllDiagnosticsMode), editor, ctx);
-        //         }
-        //         action_name!(OpenGoToLine) => {
-        //             self.open(Box::new(GoToLineMode), editor, ctx);
-        //         }
-        //         _ => global_action_handler.unprocessed(ctx.window, action),
-        //     }
-        // }
+        match result_input {
+            ResultListInput::None => {}
+            ResultListInput::Complete => self.complete_result(editor, ctx),
+            ResultListInput::Submit { kind } => {
+                self.submit(kind, editor, ctx);
+            }
+            ResultListInput::Close => self.close(ctx.ui),
+        }
 
         self.tab.receive_msgs(&mut self.doc, ctx);
+    }
+
+    fn resize_popup(&mut self, ctx: &mut Ctx) {
+        let bounds = Rect::new(
+            0.0,
+            ctx.gfx.tab_height() * 2.0,
+            ctx.gfx.glyph_width() * 64.0,
+            ctx.gfx.line_height() * (MAX_VISIBLE_RESULTS + 1) as f32,
+        )
+        .center_x_in(self.parent_bounds);
+
+        println!("resize_popup");
+        ctx.ui.set_popup(self.widget_id, Some(bounds));
+        ctx.ui.set_scale(
+            self.tab.widget_id(),
+            WidgetScale::Fixed(ctx.gfx.line_height()),
+        );
     }
 
     pub fn update(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
@@ -316,52 +298,52 @@ impl CommandPalette {
             return;
         };
 
-        let bounds = ctx.ui.bounds(self.widget_id);
+        // let bounds = ctx.ui.bounds(self.widget_id);
 
-        let ui = &ctx.ui;
-        let gfx = &mut ctx.gfx;
-        let theme = &ctx.config.theme;
+        // let ui = &ctx.ui;
+        // let gfx = &mut ctx.gfx;
+        // let theme = &ctx.config.theme;
 
-        gfx.begin(Some(bounds));
+        // gfx.begin(Some(bounds));
 
-        gfx.add_bordered_rect(
-            self.input_bounds,
-            Sides::ALL,
-            theme.background,
-            theme.border,
-        );
+        // gfx.add_bordered_rect(
+        //     self.input_bounds,
+        //     Sides::ALL,
+        //     theme.background,
+        //     theme.border,
+        // );
 
-        gfx.add_bordered_rect(
-            self.title_bounds,
-            Sides::ALL.without(Side::Bottom),
-            theme.background,
-            theme.border,
-        );
+        // gfx.add_bordered_rect(
+        //     self.title_bounds,
+        //     Sides::ALL.without(Side::Bottom),
+        //     theme.background,
+        //     theme.border,
+        // );
 
-        gfx.add_rect(
-            self.title_bounds.top_border(gfx.border_width()),
-            theme.keyword,
-        );
+        // gfx.add_rect(
+        //     self.title_bounds.top_border(gfx.border_width()),
+        //     theme.keyword,
+        // );
 
-        gfx.add_text(
-            mode.title(),
-            gfx.glyph_width(),
-            gfx.border_width() + gfx.tab_padding_y(),
-            theme.normal,
-        );
+        // gfx.add_text(
+        //     mode.title(),
+        //     gfx.glyph_width(),
+        //     gfx.border_width() + gfx.tab_padding_y(),
+        //     theme.normal,
+        // );
 
-        let doc_bounds = self.tab.doc_bounds(ui);
+        // let doc_bounds = self.tab.doc_bounds(ui);
 
-        gfx.add_bordered_rect(
-            doc_bounds
-                .add_margin(gfx.border_width())
-                .unoffset_by(bounds),
-            Sides::ALL,
-            theme.background,
-            theme.border,
-        );
+        // gfx.add_bordered_rect(
+        //     doc_bounds
+        //         .add_margin(gfx.border_width())
+        //         .unoffset_by(bounds),
+        //     Sides::ALL,
+        //     theme.background,
+        //     theme.border,
+        // );
 
-        gfx.end();
+        // gfx.end();
 
         self.tab.draw(Default::default(), &mut self.doc, ctx);
 

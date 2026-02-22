@@ -164,6 +164,11 @@ impl CompletionList {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             ctx.ui.skip(self.widget_id, msg);
         }
+
+        self.detail_popup.receive_msgs(ctx);
+        self.documentation_popup.receive_msgs(ctx);
+
+        self.result_list.receive_msgs(ctx);
     }
 
     // TODO:

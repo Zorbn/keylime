@@ -70,13 +70,7 @@ impl<T> ResultList<T> {
             do_show_when_empty,
 
             result_bounds: Rect::ZERO,
-            widget_id: ui.new_widget(
-                parent_id,
-                WidgetSettings {
-                    wants_msgs: false,
-                    ..Default::default()
-                },
-            ),
+            widget_id: ui.new_widget(parent_id, Default::default()),
 
             camera: CameraAxis::new(),
         }
@@ -109,6 +103,12 @@ impl<T> ResultList<T> {
 
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
+                Msg::FontChanged | Msg::Resize { .. } => {
+                    let bounds = ctx.ui.bounds(self.widget_id);
+
+                    self.result_bounds =
+                        Rect::new(0.0, 0.0, bounds.width, ctx.gfx.line_height() * 1.25);
+                }
                 Msg::Mousebind(Mousebind {
                     button: button @ (None | Some(MouseButton::Left)),
                     x,

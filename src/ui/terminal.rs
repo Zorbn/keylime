@@ -7,7 +7,10 @@ use crate::{
     input::action::action_name,
     platform::process::Process,
     text::doc::{Doc, DocFlags},
-    ui::{core::WidgetSettings, msg::Msg},
+    ui::{
+        core::{WidgetScale, WidgetSettings},
+        msg::Msg,
+    },
 };
 
 use super::{core::WidgetId, pane_list::PaneList, slot_list::SlotList};
@@ -49,7 +52,13 @@ pub struct Terminal {
 
 impl Terminal {
     pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
-        let widget_id = ctx.ui.new_widget(parent_id, Default::default());
+        let widget_id = ctx.ui.new_widget(
+            parent_id,
+            WidgetSettings {
+                scale: WidgetScale::Fractional(0.5),
+                ..Default::default()
+            },
+        );
 
         let mut terminal = Self {
             panes: PaneList::new(widget_id, ctx.ui),

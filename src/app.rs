@@ -12,6 +12,7 @@ use crate::{
     pool::Pooled,
     ui::{
         command_palette::{file_explorer_mode::FileExplorerMode, CommandPalette},
+        controller::Controller,
         core::{Ui, WidgetId},
         editor::Editor,
         msg::Msg,
@@ -36,6 +37,7 @@ macro_rules! ctx_for_app {
 
 pub struct App {
     ui: Ui,
+    controller: Controller,
     command_palette: CommandPalette,
     editor: Editor,
     terminal: Terminal,
@@ -68,7 +70,7 @@ impl App {
         window.set_theme(&config.theme);
         gfx.set_font(&config.font, config.font_size);
 
-        let mut ui = Ui::new(gfx.width(), gfx.height());
+        let mut ui = Ui::new();
         let mut lsp = Lsp::new();
 
         let mut ctx = Ctx {
@@ -81,11 +83,14 @@ impl App {
             time,
         };
 
-        let mut command_palette = CommandPalette::new(WidgetId::ROOT, ctx.ui);
-        let mut editor = Editor::new(WidgetId::ROOT, &mut ctx);
+        let controller = Controller::new(WidgetId::ROOT, ctx.ui);
+        let controller_id = controller.widget_id();
+
+        let mut command_palette = CommandPalette::new(controller_id, ctx.ui);
+        let mut editor = Editor::new(controller_id, &mut ctx);
         // TODO: Use config's terminal_height again but still let terminal be resizable.
-        let terminal = Terminal::new(WidgetId::ROOT, &mut ctx);
-        let status_bar = StatusBar::new(WidgetId::ROOT, &mut ctx);
+        let terminal = Terminal::new(controller_id, &mut ctx);
+        let status_bar = StatusBar::new(controller_id, &mut ctx);
 
         let (pane, _) = editor.last_focused_pane_and_doc_list(ctx.ui);
         ctx.ui.focus(pane.widget_id());
@@ -93,11 +98,12 @@ impl App {
         handle_args(&mut editor, &mut command_palette, &mut ctx);
 
         Self {
+            ui,
+            controller,
             editor,
             command_palette,
             terminal,
             status_bar,
-            ui,
 
             current_dir,
             file_watcher: FileWatcher::new(),
@@ -155,6 +161,9 @@ impl App {
         while ctx.ui.has_msgs() {
             ctx.ui.receive_msgs(ctx.gfx);
 
+            self.controller
+                .receive_msgs(&mut self.editor, &mut self.command_palette, ctx);
+
             self.command_palette.receive_msgs(&mut self.editor, ctx);
             self.editor.receive_msgs(ctx);
             self.terminal.receive_msgs(ctx);
@@ -211,10 +220,10 @@ impl App {
 
         let ctx = ctx_for_app!(self, window, gfx, time);
 
-        self.command_palette.draw(ctx);
         self.editor.draw(ctx);
         self.status_bar.draw(&self.editor, ctx);
         self.terminal.draw(ctx);
+        self.command_palette.draw(ctx);
 
         ctx.ui.draw(ctx.config, ctx.gfx);
 

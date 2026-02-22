@@ -106,13 +106,12 @@ pub struct Ui {
     unused_widget_indices: Vec<usize>,
     grabbed_borders: Option<GrabbedBorders>,
     hovered_borders: HoveredBorders,
-    is_dragging: bool,
 }
 
 impl Ui {
-    pub fn new(width: f32, height: f32) -> Self {
+    pub fn new() -> Self {
         let root = Widget {
-            bounds: Rect::new(0.0, 0.0, width, height),
+            bounds: Rect::ZERO,
 
             settings: Default::default(),
             parent_id: None,
@@ -131,7 +130,6 @@ impl Ui {
             unused_widget_indices: Vec::new(),
             grabbed_borders: None,
             hovered_borders: Default::default(),
-            is_dragging: false,
         }
     }
 
@@ -212,6 +210,7 @@ impl Ui {
     }
 
     pub fn send(&mut self, to_widget_id: WidgetId, msg: Msg) {
+        println!("send: {:?}", msg);
         let widget = self.widget_mut(to_widget_id);
 
         if widget.settings.wants_msgs {
@@ -302,8 +301,6 @@ impl Ui {
                     kind: MousebindKind::Press,
                     ..
                 }) => {
-                    self.is_dragging = true;
-
                     let position = VisualPosition::new(x, y);
 
                     let Some(focused_widget_id) = self.get_widget_id_at(position, WidgetId::ROOT)
@@ -336,8 +333,6 @@ impl Ui {
                     kind: MousebindKind::Release,
                     ..
                 }) => {
-                    self.is_dragging = false;
-
                     let do_send_to_child = self
                         .grabbed_borders
                         .take()
@@ -370,9 +365,9 @@ impl Ui {
                         did_drag,
                     }) = &mut self.grabbed_borders
                     else {
-                        if self.is_dragging {
-                            self.send_to_focused_child(msg);
-                        } else if hit_id != WidgetId::ROOT {
+                        self.send_to_focused_child(msg.clone());
+
+                        if !self.is_focused(hit_id) {
                             self.send(hit_id, msg);
                         }
 
@@ -675,12 +670,17 @@ impl Ui {
         for i in 0..child_count {
             let widget = self.widget(widget_id);
             let child_id = widget.child_ids[i];
+            let child = self.widget(child_id);
 
             if !self.is_part_of_layout(child_id) {
+                if let Some(popup_bounds) = child.settings.popup {
+                    self.send(child_id, Msg::PopupParentResized { bounds });
+                    self.update_layout(child_id, popup_bounds);
+                }
+
                 continue;
             }
 
-            let child = self.widget(child_id);
             let child_x = next_child_x;
             let child_y = next_child_y;
 
@@ -855,6 +855,10 @@ impl Ui {
     }
 
     pub fn show(&mut self, widget_id: WidgetId) {
+        if let Some(parent_id) = self.widget(widget_id).parent_id {
+            self.show(parent_id);
+        }
+
         let widget = self.widget_mut(widget_id);
 
         if widget.settings.is_shown {
@@ -862,7 +866,10 @@ impl Ui {
         }
 
         widget.settings.is_shown = true;
-        self.update_parent_layout(widget_id);
+
+        if widget.settings.popup.is_none() {
+            self.update_parent_layout(widget_id);
+        }
     }
 
     pub fn hide(&mut self, widget_id: WidgetId) {
@@ -875,7 +882,10 @@ impl Ui {
         }
 
         widget.settings.is_shown = false;
-        self.update_parent_layout(widget_id);
+
+        if widget.settings.popup.is_none() {
+            self.update_parent_layout(widget_id);
+        }
     }
 
     pub fn set_shown(&mut self, widget_id: WidgetId, is_shown: bool) {
@@ -978,6 +988,20 @@ impl Ui {
     pub fn set_scale(&mut self, widget_id: WidgetId, scale: WidgetScale) {
         self.widget_mut(widget_id).settings.scale = scale;
         self.update_parent_layout(widget_id);
+    }
+
+    pub fn set_popup(&mut self, widget_id: WidgetId, popup: Option<Rect>) {
+        let widget = self.widget_mut(widget_id);
+        let previous_popup = widget.settings.popup;
+        let bounds = widget.bounds;
+
+        widget.settings.popup = popup;
+
+        if previous_popup.is_some() != popup.is_some() {
+            self.update_parent_layout(widget_id);
+        } else {
+            self.update_layout(widget_id, bounds);
+        }
     }
 
     fn update_parent_layout(&mut self, widget_id: WidgetId) {
