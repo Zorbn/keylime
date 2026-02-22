@@ -492,8 +492,6 @@ impl Ui {
 
         while widget_id != WidgetId::ROOT {
             let parent_id = self.widget(widget_id).parent_id.unwrap_or(WidgetId::ROOT);
-            let total_scale = self.widget_total_scale(parent_id);
-
             let parent = self.widget(parent_id);
 
             if parent.settings.layout != layout || !parent.settings.is_resizable {
@@ -510,7 +508,7 @@ impl Ui {
                 .iter()
                 .copied()
                 .enumerate()
-                .filter(|(_, child_id)| self.widget(*child_id).settings.popup.is_none())
+                .filter(|(_, child_id)| self.is_part_of_layout(*child_id))
                 .rev()
                 .skip(1);
 
@@ -644,12 +642,12 @@ impl Ui {
         for i in 0..child_count {
             let widget = self.widget(widget_id);
             let child_id = widget.child_ids[i];
-            let child = self.widget(child_id);
 
-            if child.settings.popup.is_some() {
+            if !self.is_part_of_layout(child_id) {
                 continue;
             }
 
+            let child = self.widget(child_id);
             let child_x = next_child_x;
             let child_y = next_child_y;
 
@@ -695,12 +693,11 @@ impl Ui {
         let mut total_scale = 0.0;
 
         for child_id in &self.widget(widget_id).child_ids {
-            let child = self.widget(*child_id);
-
-            if child.settings.popup.is_some() {
+            if !self.is_part_of_layout(*child_id) {
                 continue;
             }
 
+            let child = self.widget(*child_id);
             total_scale += child.settings.scale;
         }
 
@@ -728,6 +725,27 @@ impl Ui {
     }
 
     pub fn focus(&mut self, widget_id: WidgetId) {
+        let widget = self.widget(widget_id);
+
+        if let WidgetLayout::Tab { index } = widget.settings.layout {
+            if let Some(child_id) = widget
+                .child_ids
+                .get(index)
+                .copied()
+                .filter(|child_id| self.is_part_of_layout(*child_id))
+            {
+                self.focus(child_id);
+                return;
+            }
+        }
+
+        for child_id in &widget.child_ids {
+            if self.is_part_of_layout(*child_id) {
+                self.focus(*child_id);
+                return;
+            }
+        }
+
         if !self.is_focused(widget_id) {
             self.send(self.focused_widget_id(), Msg::LostFocus);
             self.send(widget_id, Msg::GainedFocus);
@@ -911,5 +929,11 @@ impl Ui {
         } else {
             true
         }
+    }
+
+    fn is_part_of_layout(&self, widget_id: WidgetId) -> bool {
+        let widget = self.widget(widget_id);
+
+        widget.settings.popup.is_none() && widget.settings.is_shown
     }
 }

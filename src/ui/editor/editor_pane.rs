@@ -129,7 +129,6 @@ impl PaneWrapper<Doc> for EditorPane {
     fn receive_msgs(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
-                Msg::GainedFocus => ctx.ui.focus(self.inner.widget_id()),
                 Msg::Action(action_name!(OpenFile)) => {
                     if let Ok(path) = find_file(FindFileKind::OpenFile) {
                         if let Err(err) = self.open_file(&path, doc_list, ctx) {

@@ -40,7 +40,6 @@ impl PaneWrapper<Term> for TerminalPane {
     fn receive_msgs(&mut self, term_list: &mut SlotList<Term>, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
-                Msg::GainedFocus => ctx.ui.focus(self.inner.widget_id()),
                 Msg::Action(action_name!(NewTab)) => {
                     let term = Self::new_term();
                     let term_index = term_list.add(term);

@@ -27,6 +27,7 @@ use crate::{
     lsp::{position_encoding::PositionEncoding, types::EncodedPosition},
     pool::Pooled,
     text::doc::{Doc, DocFlags},
+    ui::msg::Msg,
 };
 
 use super::{
@@ -172,19 +173,23 @@ impl CommandPalette {
     // }
 
     // TODO:
-    pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
-        // if let Some(mut mode) = self.mode.take() {
-        //     let mut action_handler = ctx.ui.action_handler(self.widget_id, ctx.window);
+    pub fn receive_msgs(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
+        while let Some(msg) = ctx.ui.msg(self.widget_id) {
+            match msg {
+                Msg::Action(action) => {
+                    let Some(mut mode) = self.mode.take() else {
+                        continue;
+                    };
 
-        //     while let Some(action) = action_handler.next(ctx) {
-        //         if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
-        //             action_handler.unprocessed(ctx.window, action);
-        //         }
-        //     }
+                    if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
+                        ctx.ui.skip(self.widget_id, msg);
+                    }
 
-        //     mode.on_update(self, CommandPaletteEventArgs::new(editor, ctx));
-        //     self.mode = Some(mode);
-        // }
+                    self.mode = Some(mode);
+                }
+                _ => ctx.ui.skip(self.widget_id, msg),
+            }
+        }
 
         // let result_input = self.result_list.update(ctx);
 
@@ -244,6 +249,11 @@ impl CommandPalette {
     pub fn update(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
         if ctx.ui.is_visible(self.widget_id) && !ctx.ui.is_in_focused_hierarchy(self.widget_id) {
             self.close(ctx.ui);
+        }
+
+        if let Some(mut mode) = self.mode.take() {
+            mode.on_update(self, CommandPaletteEventArgs::new(editor, ctx));
+            self.mode = Some(mode);
         }
 
         self.tab.update(&mut self.doc, ctx);

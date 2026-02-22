@@ -54,11 +54,6 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
     pub fn receive_msgs(&mut self, data_list: &mut SlotList<TData>, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
-                Msg::GainedFocus => {
-                    if let Some(last_focused) = self.panes.get_last_focused(ctx.ui) {
-                        ctx.ui.focus(last_focused.widget_id());
-                    }
-                }
                 Msg::Action(action_name!(PreviousPane)) => self.panes.focus_previous(ctx.ui),
                 Msg::Action(action_name!(NextPane)) => self.panes.focus_next(ctx.ui),
                 Msg::Action(action_name!(PreviousTab)) => self.panes.focus_previous(ctx.ui),
