@@ -513,6 +513,7 @@ impl<T> Pane<T> {
             WidgetSettings {
                 layout: WidgetLayout::Vertical,
                 is_resizable: false,
+                main_child_index: Some(1),
                 ..Default::default()
             },
         );
@@ -665,8 +666,6 @@ impl<T> Pane<T> {
             .expect("tried to add a tab referencing a non-existent data")
             .add_usage();
 
-        let tab_id = tab.widget_id();
-
         let index = (self.focused_tab_index(ctx.ui) + 1).min(self.tabs.len());
 
         self.tabs.insert(index, tab);
@@ -677,8 +676,8 @@ impl<T> Pane<T> {
                 x: self
                     .tab_bar
                     .tab_animation_states
-                    .last()
-                    .map(|last| last.x)
+                    .get(index.saturating_sub(1))
+                    .map(|previous| previous.x)
                     .unwrap_or_default(),
             },
         );

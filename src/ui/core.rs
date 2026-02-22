@@ -41,6 +41,7 @@ pub struct WidgetSettings {
     pub scale: f32,
     pub layout: WidgetLayout,
     pub popup: Option<Rect>,
+    pub main_child_index: Option<usize>,
 }
 
 impl Default for WidgetSettings {
@@ -52,6 +53,7 @@ impl Default for WidgetSettings {
             scale: 1.0,
             layout: WidgetLayout::Vertical,
             popup: None,
+            main_child_index: None,
         }
     }
 }
@@ -589,11 +591,7 @@ impl Ui {
 
         let rect = match parent.settings.layout {
             WidgetLayout::Horizontal => {
-                let x = parent.bounds.x
-                    + parent.child_ids[..=border.index]
-                        .iter()
-                        .map(|child_id| self.bounds(*child_id).width)
-                        .sum::<f32>();
+                let x = self.bounds(parent.child_ids[border.index]).right();
 
                 Rect::new(
                     x - Self::border_radius(gfx),
@@ -603,11 +601,7 @@ impl Ui {
                 )
             }
             WidgetLayout::Vertical => {
-                let y = parent.bounds.y
-                    + parent.child_ids[..=border.index]
-                        .iter()
-                        .map(|child_id| self.bounds(*child_id).height)
-                        .sum::<f32>();
+                let y = self.bounds(parent.child_ids[border.index]).bottom();
 
                 Rect::new(
                     parent.bounds.x,
@@ -739,6 +733,17 @@ impl Ui {
             }
         }
 
+        if let Some(child_id) = widget.settings.main_child_index.and_then(|index| {
+            widget
+                .child_ids
+                .get(index)
+                .copied()
+                .filter(|child_id| self.is_part_of_layout(*child_id))
+        }) {
+            self.focus(child_id);
+            return;
+        }
+
         for child_id in &widget.child_ids {
             if self.is_part_of_layout(*child_id) {
                 self.focus(*child_id);
@@ -789,12 +794,27 @@ impl Ui {
     }
 
     pub fn show(&mut self, widget_id: WidgetId) {
-        self.widget_mut(widget_id).settings.is_shown = true;
+        let widget = self.widget_mut(widget_id);
+
+        if widget.settings.is_shown {
+            return;
+        }
+
+        widget.settings.is_shown = true;
+        self.update_parent_layout(widget_id);
     }
 
     pub fn hide(&mut self, widget_id: WidgetId) {
         self.remove_from_focused(widget_id);
-        self.widget_mut(widget_id).settings.is_shown = false;
+
+        let widget = self.widget_mut(widget_id);
+
+        if !widget.settings.is_shown {
+            return;
+        }
+
+        widget.settings.is_shown = false;
+        self.update_parent_layout(widget_id);
     }
 
     pub fn set_shown(&mut self, widget_id: WidgetId, is_shown: bool) {
