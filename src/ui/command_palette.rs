@@ -21,6 +21,7 @@ use crate::{
     },
     input::{action::ActionName, editing_actions::handle_select_all},
     lsp::{position_encoding::PositionEncoding, types::EncodedPosition},
+    platform::gfx::Gfx,
     pool::Pooled,
     text::doc::{Doc, DocFlags},
     ui::msg::Msg,
@@ -108,60 +109,6 @@ impl CommandPalette {
             || self.mode.as_ref().is_some_and(|mode| mode.is_animating())
     }
 
-    // pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
-    //     let Some(mode) = &self.mode else {
-    //         return;
-    //     };
-
-    //     let gfx = &mut ctx.gfx;
-
-    //     let title = mode.title();
-    //     let title_padding_x = gfx.glyph_width();
-    //     let title_width =
-    //         gfx.measure_text(title) as f32 * gfx.glyph_width() + title_padding_x * 2.0;
-
-    //     self.title_bounds = Rect::new(0.0, 0.0, title_width, gfx.tab_height()).floor();
-
-    //     self.input_bounds = Rect::new(0.0, 0.0, gfx.glyph_width() * 64.0, gfx.line_height() * 2.0)
-    //         .below(self.title_bounds)
-    //         .shift_y(-gfx.border_width())
-    //         .floor();
-
-    //     self.result_list.layout(
-    //         Rect::new(0.0, 0.0, self.input_bounds.width, 0.0)
-    //             .below(self.input_bounds)
-    //             .shift_y(-gfx.border_width()),
-    //         ctx.ui,
-    //         gfx,
-    //     );
-
-    //     let result_list_bounds = ctx.ui.bounds(self.result_list.widget_id()).bounds;
-
-    //     ctx.ui.widget_mut(self.widget_id).bounds = self
-    //         .title_bounds
-    //         .expand_to_include(self.input_bounds)
-    //         .expand_to_include(result_list_bounds)
-    //         .center_x_in(bounds)
-    //         .offset_by(Rect::new(0.0, gfx.tab_height() * 2.0, 0.0, 0.0))
-    //         .floor();
-
-    //     let bounds = ctx.ui.widget(self.widget_id).bounds;
-
-    //     self.result_list.offset_by(bounds, ctx.ui);
-
-    //     self.tab.layout(
-    //         Rect::ZERO,
-    //         Rect::new(0.0, 0.0, gfx.glyph_width() * 10.0, gfx.line_height())
-    //             .center_in(self.input_bounds)
-    //             .expand_width_in(self.input_bounds)
-    //             .offset_by(bounds)
-    //             .floor(),
-    //         0.0,
-    //         &self.doc,
-    //         gfx,
-    //     );
-    // }
-
     pub fn receive_msgs(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
@@ -204,15 +151,14 @@ impl CommandPalette {
     }
 
     fn resize_popup(&mut self, ctx: &mut Ctx) {
-        let title_height = ctx.gfx.tab_height();
+        let title_height = Self::title_height(ctx.gfx);
         let input_height = ctx.gfx.line_height() * 2.0;
         let results_height = ctx.gfx.line_height() * MAX_VISIBLE_RESULTS as f32;
 
-        // TODO: Stop using magic numbers like 64 here.
         let bounds = Rect::new(
             0.0,
             ctx.gfx.tab_height() * 2.0,
-            ctx.gfx.glyph_width() * 64.0,
+            Self::width(ctx.gfx),
             title_height + input_height + results_height - ctx.gfx.border_width() * 2.0,
         )
         .center_x_in(self.parent_bounds);
@@ -234,7 +180,7 @@ impl CommandPalette {
             Some(
                 bounds
                     .shrink_top_by(title_height + input_height)
-                    .shift_y(-ctx.gfx.border_width() * 3.0),
+                    .shift_y(-ctx.gfx.border_width() * 2.0),
             ),
         )
     }
@@ -309,30 +255,29 @@ impl CommandPalette {
             return;
         };
 
+        self.result_list
+            .draw(ctx, |result, theme| mode.on_display_result(result, theme));
+
         let bounds = ctx.ui.bounds(self.widget_id);
 
         let ui = &ctx.ui;
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
-        // TODO: Copied from resize_popups, make this a function.
-        let title_height = gfx.tab_height();
-        let results_height = gfx.line_height() * MAX_VISIBLE_RESULTS as f32;
-
-        let input_bounds = bounds
-            .shrink_top_by(title_height)
-            .shrink_bottom_by(results_height)
-            .shift_y(-gfx.border_width())
-            .unoffset_by(bounds);
-
         let title = mode.title();
         let title_padding_x = gfx.glyph_width();
         let title_width =
             gfx.measure_text(title) as f32 * gfx.glyph_width() + title_padding_x * 2.0;
-
-        let title_bounds = Rect::new(0.0, 0.0, title_width, gfx.tab_height());
+        let title_height = Self::title_height(gfx);
 
         gfx.begin(Some(bounds));
+
+        let input_bounds = Rect::new(
+            0.0,
+            title_height - gfx.border_width(),
+            bounds.width,
+            gfx.line_height() * 2.0,
+        );
 
         gfx.add_bordered_rect(
             input_bounds,
@@ -340,6 +285,8 @@ impl CommandPalette {
             theme.background,
             theme.border,
         );
+
+        let title_bounds = Rect::new(0.0, 0.0, title_width, title_height);
 
         gfx.add_bordered_rect(
             title_bounds,
@@ -371,9 +318,6 @@ impl CommandPalette {
         gfx.end();
 
         self.tab.draw(Default::default(), &mut self.doc, ctx);
-
-        self.result_list
-            .draw(ctx, |result, theme| mode.on_display_result(result, theme));
     }
 
     pub fn open(
@@ -413,5 +357,13 @@ impl CommandPalette {
 
     pub fn input(&self) -> &str {
         self.doc.get_line(0).unwrap_or_default()
+    }
+
+    fn title_height(gfx: &Gfx) -> f32 {
+        gfx.tab_height()
+    }
+
+    fn width(gfx: &Gfx) -> f32 {
+        gfx.glyph_width() * 64.0
     }
 }
