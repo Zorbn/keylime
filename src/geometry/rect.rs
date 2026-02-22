@@ -29,32 +29,23 @@ impl Rect {
         }
     }
 
-    pub fn shrink_left_by(&self, other: Self) -> Self {
-        let subtracted_width = (other.right() - self.x).max(0.0);
+    // pub fn shrink_left_by(&self, other: Self) -> Self {
+    //     let subtracted_width = (other.right() - self.x).max(0.0);
 
-        Self::new(
-            self.x + subtracted_width,
-            self.y,
-            self.width - subtracted_width,
-            self.height,
-        )
+    //     Self::new(
+    //         self.x + subtracted_width,
+    //         self.y,
+    //         self.width - subtracted_width,
+    //         self.height,
+    //     )
+    // }
+
+    pub fn shrink_top_by(&self, size: f32) -> Self {
+        Self::new(self.x, self.y + size, self.width, self.height - size)
     }
 
-    pub fn shrink_top_by(&self, other: Self) -> Self {
-        let subtracted_height = (other.bottom() - self.y).max(0.0);
-
-        Self::new(
-            self.x,
-            self.y + subtracted_height,
-            self.width,
-            self.height - subtracted_height,
-        )
-    }
-
-    pub fn shrink_bottom_by(&self, other: Self) -> Self {
-        let height = (self.bottom().min(other.top()) - self.y).max(0.0);
-
-        Self::new(self.x, self.y, self.width, height)
+    pub fn shrink_bottom_by(&self, size: f32) -> Self {
+        Self::new(self.x, self.y, self.width, self.height - size)
     }
 
     pub fn scale(&self, scale: f32) -> Self {

@@ -854,7 +854,7 @@ impl Tab {
             self.draw_selection(selection, doc, camera_position, visible_lines, ctx);
         }
 
-        let is_focused = ctx.ui.is_focused(self.widget_id);
+        let is_focused = ctx.ui.is_child_focused(self.widget_id);
 
         if !self.do_show_cursors(is_focused, ctx) {
             return;

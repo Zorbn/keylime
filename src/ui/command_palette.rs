@@ -13,39 +13,28 @@ pub mod search_mode;
 use std::path::PathBuf;
 
 use crate::{
-    config::Config,
     ctx::Ctx,
     geometry::{
         position::Position,
         rect::Rect,
         sides::{Side, Sides},
     },
-    input::{
-        action::{action_name, ActionName},
-        editing_actions::handle_select_all,
-    },
+    input::{action::ActionName, editing_actions::handle_select_all},
     lsp::{position_encoding::PositionEncoding, types::EncodedPosition},
     pool::Pooled,
     text::doc::{Doc, DocFlags},
-    ui::{msg::Msg, popup::Popup},
+    ui::msg::Msg,
 };
 
 use super::{
-    core::{Ui, WidgetId, WidgetScale, WidgetSettings},
+    core::{Ui, WidgetId, WidgetSettings},
     editor::Editor,
     result_list::{ResultList, ResultListInput, ResultListSubmitKind},
     slot_list::SlotId,
     tab::Tab,
 };
 
-use all_actions_mode::AllActionsMode;
-use all_diagnostics_mode::AllDiagnosticsMode;
-use all_files_mode::AllFilesMode;
-use file_explorer_mode::FileExplorerMode;
-use find_in_files_mode::FindInFilesMode;
-use go_to_line_mode::GoToLineMode;
 use mode::{CommandPaletteEventArgs, CommandPaletteMode};
-use search_mode::{SearchAndReplaceMode, SearchMode};
 
 pub struct CommandPaletteResult {
     pub text: Pooled<String>,
@@ -98,7 +87,7 @@ impl CommandPalette {
         );
 
         let tab = Tab::new(widget_id, SlotId::ZERO, ui);
-        let result_list = ResultList::new(MAX_VISIBLE_RESULTS, true, widget_id, ui);
+        let result_list = ResultList::new(MAX_VISIBLE_RESULTS, true, tab.widget_id(), ui);
 
         Self {
             mode: None,
@@ -178,10 +167,10 @@ impl CommandPalette {
             match msg {
                 Msg::FontChanged => self.resize_popup(ctx),
                 Msg::PopupParentResized { bounds } => {
-                    println!("parent resized");
                     self.parent_bounds = bounds;
                     self.resize_popup(ctx);
                 }
+                Msg::GainedFocus => ctx.ui.focus(self.result_list.widget_id()),
                 Msg::Action(action) => {
                     let Some(mut mode) = self.mode.take() else {
                         continue;
@@ -202,34 +191,56 @@ impl CommandPalette {
         match result_input {
             ResultListInput::None => {}
             ResultListInput::Complete => self.complete_result(editor, ctx),
-            ResultListInput::Submit { kind } => {
-                self.submit(kind, editor, ctx);
-            }
+            ResultListInput::Submit { kind } => self.submit(kind, editor, ctx),
             ResultListInput::Close => self.close(ctx.ui),
         }
 
-        self.tab.receive_msgs(&mut self.doc, ctx);
+        while let Some(msg) = ctx.ui.msg(self.tab.widget_id()) {
+            match msg {
+                Msg::GainedFocus => ctx.ui.focus(self.result_list.widget_id()),
+                _ => self.tab.receive_msg(msg, &mut self.doc, ctx),
+            }
+        }
     }
 
     fn resize_popup(&mut self, ctx: &mut Ctx) {
+        let title_height = ctx.gfx.tab_height();
+        let input_height = ctx.gfx.line_height() * 2.0;
+        let results_height = ctx.gfx.line_height() * MAX_VISIBLE_RESULTS as f32;
+
+        // TODO: Stop using magic numbers like 64 here.
         let bounds = Rect::new(
             0.0,
             ctx.gfx.tab_height() * 2.0,
             ctx.gfx.glyph_width() * 64.0,
-            ctx.gfx.line_height() * (MAX_VISIBLE_RESULTS + 1) as f32,
+            title_height + input_height + results_height - ctx.gfx.border_width() * 2.0,
         )
         .center_x_in(self.parent_bounds);
 
-        println!("resize_popup");
         ctx.ui.set_popup(self.widget_id, Some(bounds));
-        ctx.ui.set_scale(
+
+        ctx.ui.set_popup(
             self.tab.widget_id(),
-            WidgetScale::Fixed(ctx.gfx.line_height()),
+            Some(Rect::new(
+                bounds.x + ctx.gfx.glyph_width(),
+                bounds.y + title_height - ctx.gfx.border_width() + ctx.gfx.line_height() / 2.0,
+                bounds.width - ctx.gfx.glyph_width() * 2.0,
+                ctx.gfx.line_height(),
+            )),
         );
+
+        ctx.ui.set_popup(
+            self.result_list.widget_id(),
+            Some(
+                bounds
+                    .shrink_top_by(title_height + input_height)
+                    .shift_y(-ctx.gfx.border_width() * 3.0),
+            ),
+        )
     }
 
     pub fn update(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
-        if ctx.ui.is_visible(self.widget_id) && !ctx.ui.is_in_focused_hierarchy(self.widget_id) {
+        if ctx.ui.is_visible(self.widget_id) && !ctx.ui.is_child_focused(self.widget_id) {
             self.close(ctx.ui);
         }
 
@@ -298,52 +309,66 @@ impl CommandPalette {
             return;
         };
 
-        // let bounds = ctx.ui.bounds(self.widget_id);
+        let bounds = ctx.ui.bounds(self.widget_id);
 
-        // let ui = &ctx.ui;
-        // let gfx = &mut ctx.gfx;
-        // let theme = &ctx.config.theme;
+        let ui = &ctx.ui;
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
 
-        // gfx.begin(Some(bounds));
+        // TODO: Copied from resize_popups, make this a function.
+        let title_height = gfx.tab_height();
+        let results_height = gfx.line_height() * MAX_VISIBLE_RESULTS as f32;
 
-        // gfx.add_bordered_rect(
-        //     self.input_bounds,
-        //     Sides::ALL,
-        //     theme.background,
-        //     theme.border,
-        // );
+        let input_bounds = bounds
+            .shrink_top_by(title_height)
+            .shrink_bottom_by(results_height)
+            .shift_y(-gfx.border_width())
+            .unoffset_by(bounds);
 
-        // gfx.add_bordered_rect(
-        //     self.title_bounds,
-        //     Sides::ALL.without(Side::Bottom),
-        //     theme.background,
-        //     theme.border,
-        // );
+        let title = mode.title();
+        let title_padding_x = gfx.glyph_width();
+        let title_width =
+            gfx.measure_text(title) as f32 * gfx.glyph_width() + title_padding_x * 2.0;
 
-        // gfx.add_rect(
-        //     self.title_bounds.top_border(gfx.border_width()),
-        //     theme.keyword,
-        // );
+        let title_bounds = Rect::new(0.0, 0.0, title_width, gfx.tab_height());
 
-        // gfx.add_text(
-        //     mode.title(),
-        //     gfx.glyph_width(),
-        //     gfx.border_width() + gfx.tab_padding_y(),
-        //     theme.normal,
-        // );
+        gfx.begin(Some(bounds));
 
-        // let doc_bounds = self.tab.doc_bounds(ui);
+        gfx.add_bordered_rect(
+            input_bounds,
+            Sides::ALL.without(Side::Bottom),
+            theme.background,
+            theme.border,
+        );
 
-        // gfx.add_bordered_rect(
-        //     doc_bounds
-        //         .add_margin(gfx.border_width())
-        //         .unoffset_by(bounds),
-        //     Sides::ALL,
-        //     theme.background,
-        //     theme.border,
-        // );
+        gfx.add_bordered_rect(
+            title_bounds,
+            Sides::ALL.without(Side::Bottom),
+            theme.background,
+            theme.border,
+        );
 
-        // gfx.end();
+        gfx.add_rect(title_bounds.top_border(gfx.border_width()), theme.keyword);
+
+        gfx.add_text(
+            mode.title(),
+            gfx.glyph_width(),
+            gfx.border_width() + gfx.tab_padding_y(),
+            theme.normal,
+        );
+
+        let doc_bounds = self.tab.doc_bounds(ui);
+
+        gfx.add_bordered_rect(
+            doc_bounds
+                .add_margin(gfx.border_width())
+                .unoffset_by(bounds),
+            Sides::ALL,
+            theme.background,
+            theme.border,
+        );
+
+        gfx.end();
 
         self.tab.draw(Default::default(), &mut self.doc, ctx);
 

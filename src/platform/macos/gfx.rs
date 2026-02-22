@@ -427,21 +427,23 @@ impl Gfx {
 
         let scene_properties_bytes = NonNull::from(scene_properties_data);
 
-        let buffer_index = self.next_buffer_index;
-        self.next_buffer_index += 1;
+        let index_buffer = Self::get_buffer_for_vec(
+            &self.indices,
+            &self.device,
+            &mut self.buffers,
+            self.next_buffer_index,
+        )?;
 
-        let index_buffer =
-            Self::get_buffer_for_vec(&self.indices, &self.device, &mut self.buffers, buffer_index)?;
-
-        let buffer_index = self.next_buffer_index;
         self.next_buffer_index += 1;
 
         let vertex_buffer = Self::get_buffer_for_vec(
             &self.vertices,
             &self.device,
             &mut self.buffers,
-            buffer_index,
+            self.next_buffer_index,
         )?;
+
+        self.next_buffer_index += 1;
 
         unsafe {
             encoder.setVertexBytes_length_atIndex(

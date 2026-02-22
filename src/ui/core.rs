@@ -210,14 +210,14 @@ impl Ui {
     }
 
     pub fn send(&mut self, to_widget_id: WidgetId, msg: Msg) {
-        println!("send: {:?}", msg);
         let widget = self.widget_mut(to_widget_id);
 
-        if widget.settings.wants_msgs {
-            widget.msgs.push_back(msg);
-        } else {
+        if !widget.settings.wants_msgs {
             self.skip(to_widget_id, msg);
+            return;
         }
+
+        widget.msgs.push_back(msg);
     }
 
     fn send_to_focused_child(&mut self, msg: Msg) {
@@ -240,7 +240,10 @@ impl Ui {
     }
 
     pub fn skip(&mut self, widget_id: WidgetId, msg: Msg) {
-        if matches!(msg, Msg::Resize { .. } | Msg::GainedFocus | Msg::LostFocus) {
+        if matches!(
+            msg,
+            Msg::Resize { .. } | Msg::PopupParentResized { .. } | Msg::GainedFocus | Msg::LostFocus
+        ) {
             return;
         }
 
@@ -367,7 +370,7 @@ impl Ui {
                     else {
                         self.send_to_focused_child(msg.clone());
 
-                        if !self.is_focused(hit_id) {
+                        if hit_id != WidgetId::ROOT && !self.is_focused(hit_id) {
                             self.send(hit_id, msg);
                         }
 
@@ -659,6 +662,11 @@ impl Ui {
 
     fn update_layout(&mut self, widget_id: WidgetId, bounds: Rect) {
         let widget = self.widget_mut(widget_id);
+
+        if widget.bounds == Rect::ZERO && bounds == Rect::ZERO {
+            return;
+        }
+
         widget.bounds = bounds;
 
         let child_count = widget.child_ids.len();
@@ -834,7 +842,7 @@ impl Ui {
     }
 
     pub fn unfocus_hierarchy(&mut self, widget_id: WidgetId) {
-        while !self.focus_history.is_empty() && self.is_in_focused_hierarchy(widget_id) {
+        while !self.focus_history.is_empty() && self.is_child_focused(widget_id) {
             self.focus_history.pop();
         }
     }
@@ -900,7 +908,7 @@ impl Ui {
         self.focused_widget_id() == widget_id
     }
 
-    pub fn is_in_focused_hierarchy(&self, widget_id: WidgetId) -> bool {
+    pub fn is_child_focused(&self, widget_id: WidgetId) -> bool {
         // let widget = self.widget(widget_id);
 
         // TODO:
@@ -993,7 +1001,7 @@ impl Ui {
     pub fn set_popup(&mut self, widget_id: WidgetId, popup: Option<Rect>) {
         let widget = self.widget_mut(widget_id);
         let previous_popup = widget.settings.popup;
-        let bounds = widget.bounds;
+        let bounds = popup.unwrap_or(widget.bounds);
 
         widget.settings.popup = popup;
 
