@@ -3,7 +3,7 @@ use crate::{
     pool::Pooled,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Msg {
     Resize { width: f32, height: f32 },
     FontChanged,

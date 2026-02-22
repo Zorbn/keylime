@@ -231,6 +231,15 @@ impl Ui {
         self.send(focused_widget_id, msg);
     }
 
+    pub fn broadcast(&mut self, to_widget_id: WidgetId, msg: Msg) {
+        for i in 0..self.widget(to_widget_id).child_ids.len() {
+            let child_id = self.widget(to_widget_id).child_ids[i];
+            self.broadcast(child_id, msg.clone());
+        }
+
+        self.send(to_widget_id, msg);
+    }
+
     pub fn skip(&mut self, widget_id: WidgetId, msg: Msg) {
         if matches!(msg, Msg::Resize { .. } | Msg::GainedFocus | Msg::LostFocus) {
             return;

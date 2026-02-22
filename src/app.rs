@@ -83,6 +83,7 @@ impl App {
 
         let mut command_palette = CommandPalette::new(WidgetId::ROOT, ctx.ui);
         let mut editor = Editor::new(WidgetId::ROOT, &mut ctx);
+        // TODO: Use config's terminal_height again but still let terminal be resizable.
         let terminal = Terminal::new(WidgetId::ROOT, &mut ctx);
         let status_bar = StatusBar::new(WidgetId::ROOT, &mut ctx);
 
@@ -123,8 +124,6 @@ impl App {
                     height: gfx.height(),
                 },
             );
-
-            println!("resized to: {:?}", gfx.height());
         }
 
         let mut grapheme_handler = window.todo_grapheme_handler();
@@ -179,7 +178,7 @@ impl App {
             gfx.set_font(&self.config.font, self.config.font_size);
 
             self.editor.clear_doc_highlights();
-            // TODO: Since font size could have changed we probably need to send a resize event or something.
+            self.ui.broadcast(WidgetId::ROOT, Msg::FontChanged);
         }
 
         if let Some(err) = window
