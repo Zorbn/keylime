@@ -56,7 +56,6 @@ struct PaneTabBar<T> {
     tab_animation_states: Vec<TabAnimationState>,
     handled_focused_index: Option<usize>,
     dragged_tab_offset: Option<f32>,
-    tab_bar_width: f32,
     camera: CameraAxis,
 
     widget_id: WidgetId,
@@ -70,7 +69,6 @@ impl<T> PaneTabBar<T> {
             tab_animation_states: Vec::new(),
             handled_focused_index: None,
             dragged_tab_offset: None,
-            tab_bar_width: 0.0,
             camera: CameraAxis::new(),
 
             widget_id: ctx.ui.new_widget(
@@ -205,7 +203,7 @@ impl<T> PaneTabBar<T> {
         self.handled_focused_index = Some(focused_index);
 
         let view_size = ctx.ui.bounds(self.widget_id).width;
-        let max_position = (self.tab_bar_width - view_size).max(0.0);
+        let max_position = (tab_x - view_size).max(0.0);
 
         self.camera
             .animate(recenter_request, max_position, view_size, dt);
@@ -232,7 +230,11 @@ impl<T> PaneTabBar<T> {
 
     fn recenter_request_on_tab(&self, view: &PaneView, ui: &Ui) -> CameraRecenterRequest {
         let focused_index = view.focused_index(ui);
-        let tab_bounds = self.tab_animation_states[focused_index].visual_bounds();
+        let tab_bounds = self
+            .tab_animation_states
+            .get(focused_index)
+            .map(TabAnimationState::bounds)
+            .unwrap_or(Rect::ZERO);
 
         CameraRecenterRequest {
             can_start: Some(focused_index) != self.handled_focused_index,
@@ -399,11 +401,9 @@ impl<T> PaneTabBar<T> {
         ctx: &mut Ctx,
     ) -> Rect {
         let theme = &ctx.config.theme;
-
         let text_color = Self::tab_color(doc, theme, ctx);
 
         let camera_x = self.camera.position().floor();
-
         let bounds = bounds.shift_x(-camera_x);
 
         let background = if is_focused {
