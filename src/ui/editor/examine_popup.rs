@@ -1,7 +1,7 @@
 use crate::{
     ctx::Ctx,
     geometry::position::Position,
-    lsp::types::{DecodedDiagnostic, DecodedHover, DecodedRange, HoverContents},
+    lsp::types::{DecodedDiagnostic, DecodedHover, DecodedRange, HoverContents, MarkedString},
     text::doc::Doc,
     ui::{
         core::{Ui, WidgetId},
@@ -28,7 +28,7 @@ pub struct ExaminePopup {
     popup: Popup,
     kind: ExaminePopupKind,
     position: Position,
-    open_position: Position,
+    desired_position: Position,
 }
 
 impl ExaminePopup {
@@ -37,7 +37,7 @@ impl ExaminePopup {
             popup: Popup::new(parent_id, ctx),
             kind: ExaminePopupKind::None,
             position: Position::ZERO,
-            open_position: Position::ZERO,
+            desired_position: Position::ZERO,
         }
     }
 
@@ -65,7 +65,10 @@ impl ExaminePopup {
 
     pub fn update(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
         if matches!(self.kind, ExaminePopupKind::Diagnostic)
-            && ctx.lsp.get_diagnostic_at(self.open_position, doc).is_none()
+            && ctx
+                .lsp
+                .get_diagnostic_at(self.desired_position, doc)
+                .is_none()
         {
             self.hide(ctx.ui);
         }
@@ -93,8 +96,17 @@ impl ExaminePopup {
         self.popup.draw(None, ctx);
     }
 
-    pub fn open(&mut self, position: Position, do_toggle: bool, doc: &mut Doc, ctx: &mut Ctx) {
-        self.open_position = position;
+    pub fn show(
+        &mut self,
+        position: Position,
+        parent_id: WidgetId,
+        do_toggle: bool,
+        doc: &mut Doc,
+        ctx: &mut Ctx,
+    ) {
+        ctx.ui.reparent_widget(self.popup.widget_id(), parent_id);
+
+        self.desired_position = position;
 
         let can_open_diagnostic = !do_toggle || self.kind != ExaminePopupKind::Diagnostic;
 
@@ -140,7 +152,9 @@ impl ExaminePopup {
             }
             ExaminePopupData::Hover(contents, range) => {
                 self.popup.show(&contents.text(), contents.extension(), ctx);
-                self.position = range.map(|range| range.start).unwrap_or(self.open_position);
+                self.position = range
+                    .map(|range| range.start)
+                    .unwrap_or(self.desired_position);
                 self.kind = ExaminePopupKind::Hover;
             }
         }

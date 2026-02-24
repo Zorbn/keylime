@@ -106,6 +106,7 @@ pub struct Ui {
     unused_widget_indices: Vec<usize>,
     grabbed_borders: Option<GrabbedBorders>,
     hovered_borders: HoveredBorders,
+    is_dragging: bool,
 }
 
 impl Ui {
@@ -130,6 +131,7 @@ impl Ui {
             unused_widget_indices: Vec::new(),
             grabbed_borders: None,
             hovered_borders: Default::default(),
+            is_dragging: false,
         }
     }
 
@@ -211,8 +213,9 @@ impl Ui {
         self.remove_widget_from_parent(widget_id);
         self.update_layout_from_parent(widget_id);
 
+        self.widget_mut(parent_id).child_ids.push(widget_id);
         self.widget_mut(widget_id).parent_id = Some(parent_id);
-        self.update_layout_from_parent(widget_id);
+        self.update_layout_from(widget_id);
     }
 
     fn remove_widget_from_parent(&mut self, widget_id: WidgetId) {
@@ -331,6 +334,8 @@ impl Ui {
                     kind: MousebindKind::Press,
                     ..
                 }) => {
+                    self.is_dragging = true;
+
                     let position = VisualPosition::new(x, y);
 
                     let Some(focused_widget_id) = self.get_widget_id_at(position, WidgetId::ROOT)
@@ -359,10 +364,11 @@ impl Ui {
                 }
                 Msg::Mousebind(Mousebind {
                     button: Some(MouseButton::Left),
-                    mods: Mods::NONE,
                     kind: MousebindKind::Release,
                     ..
                 }) => {
+                    self.is_dragging = false;
+
                     let do_send_to_child = self
                         .grabbed_borders
                         .take()
@@ -395,10 +401,16 @@ impl Ui {
                         did_drag,
                     }) = &mut self.grabbed_borders
                     else {
-                        self.send_to_focused_child(msg.clone());
+                        self.hover(hit_id);
 
-                        if hit_id != WidgetId::ROOT && !self.is_focused_id(hit_id) {
-                            self.send(hit_id, msg);
+                        let target_id = if self.is_dragging {
+                            self.focused_widget_id()
+                        } else {
+                            self.hovered_widget_id
+                        };
+
+                        if target_id != WidgetId::ROOT {
+                            self.send(target_id, msg);
                         }
 
                         continue;
@@ -798,15 +810,39 @@ impl Ui {
             return None;
         }
 
+        if let Some(widget_id) = self
+            .get_child_widget_at(position, widget_id, true)
+            .or_else(|| self.get_child_widget_at(position, widget_id, false))
+        {
+            return Some(widget_id);
+        }
+
+        if !self.widget(widget_id).bounds.contains_position(position) {
+            return None;
+        }
+
+        Some(widget_id)
+    }
+
+    fn get_child_widget_at(
+        &self,
+        position: VisualPosition,
+        widget_id: WidgetId,
+        wants_popups: bool,
+    ) -> Option<WidgetId> {
         let widget = self.widget(widget_id);
 
         for child_id in widget.child_ids.iter() {
+            if self.widget(*child_id).settings.popup.is_some() != wants_popups {
+                continue;
+            }
+
             if let Some(widget_id) = self.get_widget_id_at(position, *child_id) {
                 return Some(widget_id);
             }
         }
 
-        (widget.bounds.contains_position(position)).then_some(widget_id)
+        None
     }
 
     fn focused_widget_id(&self) -> WidgetId {
@@ -814,7 +850,7 @@ impl Ui {
     }
 
     pub fn focus(&mut self, widget_id: WidgetId) {
-        if self.is_focused_id(widget_id) {
+        if self.is_main_focused(widget_id) {
             return;
         }
 
@@ -861,7 +897,7 @@ impl Ui {
     }
 
     pub fn unfocus(&mut self, widget_id: WidgetId) {
-        if !self.is_focused_id(widget_id) {
+        if !self.is_main_focused(widget_id) {
             return;
         }
 
@@ -906,6 +942,7 @@ impl Ui {
     }
 
     pub fn unfocus_hierarchy(&mut self, widget_id: WidgetId) {
+        // TODO: Doesn't track focus gained/lost.
         while !self.focus_history.is_empty() && self.is_focused(widget_id) {
             self.focus_history.pop();
         }
@@ -968,29 +1005,22 @@ impl Ui {
         }
     }
 
-    fn is_focused_id(&self, widget_id: WidgetId) -> bool {
+    fn is_main_focused(&self, widget_id: WidgetId) -> bool {
         self.focused_widget_id() == widget_id
     }
 
     pub fn is_focused(&self, widget_id: WidgetId) -> bool {
-        // let widget = self.widget(widget_id);
+        self.is_parent_of(widget_id, self.focused_widget_id())
+    }
 
-        // TODO:
-        // if widget.settings.is_component && widget.settings.is_shown {
-        //     if let Some(parent_id) = widget.parent_id {
-        //         return self.is_in_focused_hierarchy(parent_id);
-        //     }
-        // }
-
-        let mut focused_id = self.focused_widget_id();
-
+    fn is_parent_of(&self, widget_id: WidgetId, mut other_id: WidgetId) -> bool {
         loop {
-            if focused_id == widget_id {
+            if other_id == widget_id {
                 return true;
             }
 
-            if let Some(parent_id) = self.widget(focused_id).parent_id {
-                focused_id = parent_id;
+            if let Some(parent_id) = self.widget(other_id).parent_id {
+                other_id = parent_id;
             } else {
                 return false;
             }
@@ -1105,7 +1135,7 @@ impl Ui {
     }
 
     pub fn is_hovered(&self, widget_id: WidgetId) -> bool {
-        self.hovered_widget_id == widget_id
+        self.is_parent_of(widget_id, self.hovered_widget_id)
     }
 
     pub fn is_visible(&self, widget_id: WidgetId) -> bool {

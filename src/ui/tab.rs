@@ -153,33 +153,13 @@ impl Tab {
         match msg {
             Msg::Grapheme(grapheme) => {
                 handle_grapheme(&grapheme, doc, ctx);
-                self.set_show_completions(true, ctx.ui);
 
-                if let Some((language_server, c)) = doc
-                    .get_language_server_mut(ctx)
-                    .zip(grapheme.chars().next())
-                {
-                    let is_retrigger = if language_server.is_trigger_char(c) {
-                        false
-                    } else if language_server.is_retrigger_char(c) {
-                        true
-                    } else {
-                        return;
-                    };
-
-                    ctx.ui.send_to_parent(
-                        self.widget_id,
-                        Msg::TriggerSignatureHelp {
-                            trigger_char: c,
-                            is_retrigger,
-                        },
-                    );
-                }
+                self.send_show_completions(true, doc, ctx.ui);
+                self.send_trigger_signature_help(&grapheme, doc, ctx);
             }
             Msg::LostFocus => {
                 self.mouse_drag = None;
-                self.set_show_completions(false, ctx.ui);
-                ctx.ui.send_to_parent(self.widget_id, Msg::HideEditorPopups);
+                self.send_hide_editor_popups(doc, ctx.ui);
             }
             Msg::Mousebind(Mousebind {
                 button: Some(MouseButton::Left),
@@ -218,13 +198,12 @@ impl Tab {
                     doc.lsp_definition(position, ctx);
                 }
             }
+            Msg::Mousebind(Mousebind {
+                kind: MousebindKind::Move,
+                ..
+            }) => self.send_tab_hover_changed(doc, ctx.ui),
             Msg::MouseScroll(mouse_scroll) => {
-                let position = VisualPosition::new(mouse_scroll.x, mouse_scroll.y);
-
-                if !ctx.ui.bounds(self.widget_id).contains_position(position) {
-                    ctx.ui.skip(self.widget_id, msg);
-                    return;
-                }
+                self.send_tab_hover_changed(doc, ctx.ui);
 
                 let delta = mouse_scroll.delta * ctx.gfx.line_height();
 
@@ -246,16 +225,56 @@ impl Tab {
                 }
 
                 if matches!(action, action_name!(DeleteBackward)) {
-                    self.set_show_completions(true, ctx.ui);
+                    self.send_show_completions(true, doc, ctx.ui);
                 } else if doc.cursor(CursorIndex::Main).position != previous_position {
-                    self.set_show_completions(false, ctx.ui);
+                    self.send_show_completions(false, doc, ctx.ui);
                 }
             }
             _ => ctx.ui.skip(self.widget_id, msg),
         }
     }
 
-    fn set_show_completions(&mut self, value: bool, ui: &mut Ui) {
+    fn send_trigger_signature_help(&mut self, grapheme: &str, doc: &Doc, ctx: &mut Ctx) {
+        if !doc.flags().contains(DocFlag::AllowLanguageServer) {
+            return;
+        }
+
+        if let Some((language_server, c)) = doc
+            .get_language_server_mut(ctx)
+            .zip(grapheme.chars().next())
+        {
+            let is_retrigger = if language_server.is_trigger_char(c) {
+                false
+            } else if language_server.is_retrigger_char(c) {
+                true
+            } else {
+                return;
+            };
+
+            ctx.ui.send_to_parent(
+                self.widget_id,
+                Msg::TriggerSignatureHelp {
+                    trigger_char: c,
+                    is_retrigger,
+                },
+            );
+        }
+    }
+
+    fn send_hide_editor_popups(&mut self, doc: &Doc, ui: &mut Ui) {
+        if !doc.flags().contains(DocFlag::AllowLanguageServer) {
+            return;
+        }
+
+        ui.send_to_parent(self.widget_id, Msg::HideEditorPopups);
+        self.send_show_completions(false, doc, ui);
+    }
+
+    fn send_show_completions(&mut self, value: bool, doc: &Doc, ui: &mut Ui) {
+        if !doc.flags().contains(DocFlag::AllowLanguageServer) {
+            return;
+        }
+
         if !self.do_show_completions && !value {
             return;
         }
@@ -267,6 +286,14 @@ impl Tab {
         } else {
             ui.send_to_parent(self.widget_id, Msg::HideCompletions);
         }
+    }
+
+    fn send_tab_hover_changed(&self, doc: &Doc, ui: &mut Ui) {
+        if !doc.flags().contains(DocFlag::AllowLanguageServer) {
+            return;
+        }
+
+        ui.send_to_parent(self.widget_id, Msg::TabHoverChanged);
     }
 
     pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) {

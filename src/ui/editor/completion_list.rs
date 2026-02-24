@@ -371,7 +371,15 @@ impl CompletionList {
         self.show_results(ctx.ui);
     }
 
-    pub fn show(&mut self, position: VisualPosition, doc: &mut Doc, ctx: &mut Ctx) {
+    pub fn show(
+        &mut self,
+        position: VisualPosition,
+        parent_id: WidgetId,
+        doc: &mut Doc,
+        ctx: &mut Ctx,
+    ) {
+        ctx.ui.reparent_widget(self.widget_id, parent_id);
+
         ctx.ui.set_popup(
             self.widget_id,
             Some(Rect::new(position.x, position.y, 0.0, 0.0)),

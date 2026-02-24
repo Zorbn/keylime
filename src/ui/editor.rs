@@ -136,9 +136,6 @@ impl Editor {
                     if let Some((tab, doc)) =
                         pane.get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui)
                     {
-                        ctx.ui
-                            .reparent_widget(self.completion_list.widget_id(), tab.widget_id());
-
                         let cursor_position = doc.cursor(CursorIndex::Main).position;
                         let cursor_visual_position = doc
                             .position_to_visual(
@@ -149,7 +146,13 @@ impl Editor {
                             .offset_by(tab.doc_bounds(ctx.ui));
 
                         doc.update_tokens(); // TODO: We could now be doing this multiple times per frame. Is that a good idea?
-                        self.completion_list.show(cursor_visual_position, doc, ctx);
+
+                        self.completion_list.show(
+                            cursor_visual_position,
+                            tab.widget_id(),
+                            doc,
+                            ctx,
+                        );
                     }
                 }
                 Msg::HideCompletions => self.completion_list.hide(ctx),
@@ -170,6 +173,7 @@ impl Editor {
                     self.signature_help_popup.hide(ctx.ui);
                     self.examine_popup.hide(ctx.ui);
                 }
+                Msg::TabHoverChanged => self.hover_timer = HOVER_TIME,
                 Msg::Action(action_name!(OpenFolder)) => {
                     if let Ok(path) = find_file(FindFileKind::OpenFolder) {
                         if let Err(err) = Self::open_folder(&path, ctx) {
@@ -193,11 +197,12 @@ impl Editor {
 
                     let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
 
-                    if let Some((_, doc)) =
+                    if let Some((tab, doc)) =
                         pane.get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui)
                     {
                         let position = doc.cursor(CursorIndex::Main).position;
-                        self.examine_popup.open(position, true, doc, ctx);
+                        self.examine_popup
+                            .show(position, tab.widget_id(), true, doc, ctx);
                     }
                 }
                 Msg::Action(action_name!(UndoCursorPosition)) => {
@@ -245,27 +250,6 @@ impl Editor {
         self.post_pane_update(ctx);
     }
 
-    // TODO:
-    // fn handle_mousebinds(&mut self, ctx: &mut Ctx) -> Option<()> {
-    //     let mut global_mousebind_handler = ctx.window.mousebind_handler();
-
-    //     if let Some(mousebind) = global_mousebind_handler.next(ctx.window) {
-    //         self.hover_timer = HOVER_TIME;
-
-    //         global_mousebind_handler.unprocessed(ctx.window, mousebind);
-    //     }
-
-    //     let mut global_mouse_scroll_handler = ctx.window.mouse_scroll_handler();
-
-    //     if let Some(mouse_scroll) = global_mouse_scroll_handler.next(ctx.window) {
-    //         self.hover_timer = HOVER_TIME;
-
-    //         global_mouse_scroll_handler.unprocessed(ctx.window, mouse_scroll);
-    //     }
-
-    //     Some(())
-    // }
-
     fn update_hover(&mut self, ctx: &mut Ctx, dt: f32) {
         let last_hover_timer = self.hover_timer;
         self.hover_timer = (self.hover_timer - dt).max(0.0);
@@ -289,7 +273,8 @@ impl Editor {
         if let Some(position) =
             tab.visual_to_position_unclamped(ctx.window.mouse_position(), doc, ctx.ui, ctx.gfx)
         {
-            self.examine_popup.open(position, false, doc, ctx);
+            self.examine_popup
+                .show(position, tab.widget_id(), false, doc, ctx);
         } else {
             self.examine_popup.hide(ctx.ui);
         }

@@ -27,4 +27,5 @@ pub enum Msg {
         is_retrigger: bool,
     },
     HideEditorPopups,
+    TabHoverChanged,
 }
