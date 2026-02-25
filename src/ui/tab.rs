@@ -35,7 +35,7 @@ use crate::{
 use super::{
     camera::{Camera, RECENTER_DISTANCE},
     color::Color,
-    core::WidgetId,
+    core::{WidgetId, WidgetLayout, WidgetScale},
     slot_list::SlotId,
 };
 
@@ -65,6 +65,9 @@ struct CursorAnimationState {
 
 pub struct Tab {
     widget_id: WidgetId,
+    gutter_widget_id: WidgetId,
+    doc_widget_id: WidgetId,
+
     data_id: SlotId,
 
     pub camera: Camera,
@@ -74,14 +77,36 @@ pub struct Tab {
     cursor_animation_states: Vec<CursorAnimationState>,
     do_show_completions: bool,
 
-    gutter_bounds: Rect,
     margin: f32,
 }
 
 impl Tab {
     pub fn new(parent_id: WidgetId, data_id: SlotId, ui: &mut Ui) -> Self {
+        let widget_id = ui.new_widget(
+            parent_id,
+            WidgetSettings {
+                layout: WidgetLayout::Horizontal,
+                ..Default::default()
+            },
+        );
+
         Self {
-            widget_id: ui.new_widget(parent_id, WidgetSettings::default()),
+            widget_id,
+            gutter_widget_id: ui.new_widget(
+                widget_id,
+                WidgetSettings {
+                    wants_msgs: false,
+                    ..Default::default()
+                },
+            ),
+            doc_widget_id: ui.new_widget(
+                widget_id,
+                WidgetSettings {
+                    wants_msgs: false,
+                    ..Default::default()
+                },
+            ),
+
             data_id,
 
             camera: Camera::new(),
@@ -91,7 +116,6 @@ impl Tab {
             cursor_animation_states: Vec::new(),
             do_show_completions: false,
 
-            gutter_bounds: Rect::ZERO,
             margin: 0.0,
         }
     }
@@ -110,34 +134,6 @@ impl Tab {
                 self.cursor_animation_progress(ctx.time, animation_state.last_time) < 1.0
             })
     }
-
-    // pub fn layout(
-    //     &mut self,
-    //     tab_bounds: Rect,
-    //     doc_bounds: Rect,
-    //     margin: f32,
-    //     doc: &Doc,
-    //     gfx: &Gfx,
-    // ) {
-    //     if self.tab_bounds == Rect::ZERO {
-    //         self.tab_animation_state.x = tab_bounds.x;
-    //     }
-
-    //     self.tab_bounds = tab_bounds;
-
-    //     let gutter_width = if doc.flags().contains(DocFlag::ShowGutter) {
-    //         let max_gutter_digits = (doc.lines().len() as f32).log10().floor() + 1.0;
-
-    //         (max_gutter_digits + GUTTER_PADDING_WIDTH * 2.0 + GUTTER_BORDER_WIDTH)
-    //             * gfx.glyph_width()
-    //     } else {
-    //         0.0
-    //     };
-
-    //     self.gutter_bounds = Rect::new(doc_bounds.x, doc_bounds.y, gutter_width, doc_bounds.height);
-    //     self.doc_bounds = doc_bounds.shrink_left_by(self.gutter_bounds);
-    //     self.margin = margin;
-    // }
 
     pub fn set_margin(&mut self, margin: f32) {
         self.margin = margin;
@@ -170,33 +166,31 @@ impl Tab {
                 button: Some(MouseButton::Left),
                 x,
                 y,
-                mods: mods @ (Mods::NONE | Mods::SHIFT),
+                mods,
                 count,
                 kind: MousebindKind::Press,
                 ..
             }) => {
+                self.send_hide_editor_popups(doc, ctx.ui);
+
+                if mods.contains(Mod::Ctrl) || mods.contains(Mod::Cmd) {
+                    let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.gfx);
+
+                    if mods.contains(Mod::Alt) {
+                        doc.add_cursor_at(position, ctx.gfx);
+                    } else {
+                        doc.lsp_definition(position, ctx);
+                    }
+
+                    return;
+                }
+
                 let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.gfx);
 
                 handle_left_click(doc, position, mods, count, false, ctx.gfx);
 
                 self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
                 self.mouse_drag = Some(count);
-            }
-            Msg::Mousebind(Mousebind {
-                button: Some(MouseButton::Left),
-                x,
-                y,
-                mods,
-                kind: MousebindKind::Press,
-                ..
-            }) if mods.contains(Mod::Ctrl) || mods.contains(Mod::Cmd) => {
-                let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.gfx);
-
-                if mods.contains(Mod::Alt) {
-                    doc.add_cursor_at(position, ctx.gfx);
-                } else {
-                    doc.lsp_definition(position, ctx);
-                }
             }
             Msg::Mousebind(Mousebind {
                 kind: MousebindKind::Move,
@@ -337,6 +331,18 @@ impl Tab {
     pub fn animate(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
         self.animate_cursors(doc, ctx);
         self.animate_camera(doc, ctx, dt);
+
+        let gutter_width = if doc.flags().contains(DocFlag::ShowGutter) {
+            let max_gutter_digits = (doc.lines().len() as f32).log10().floor() + 1.0;
+
+            (max_gutter_digits + GUTTER_PADDING_WIDTH * 2.0 + GUTTER_BORDER_WIDTH)
+                * ctx.gfx.glyph_width()
+        } else {
+            0.0
+        };
+
+        ctx.ui
+            .set_scale(self.gutter_widget_id, WidgetScale::Fixed(gutter_width));
     }
 
     fn animate_cursors(&mut self, doc: &Doc, ctx: &mut Ctx) {
@@ -380,7 +386,7 @@ impl Tab {
     pub fn skip_camera_animations(&mut self, doc: &Doc, ctx: &mut Ctx) {
         let recenter_request = self.recenter_request_vertical(doc, ctx);
         let max_y = self.camera_max_y(doc, ctx.ui, ctx.gfx);
-        let bounds = ctx.ui.bounds(self.widget_id);
+        let bounds = ctx.ui.bounds(self.doc_widget_id);
 
         self.camera
             .vertical
@@ -396,7 +402,7 @@ impl Tab {
     fn animate_camera_vertical(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
         let recenter_request = self.recenter_request_vertical(doc, ctx);
         let max_y = self.camera_max_y(doc, ctx.ui, ctx.gfx);
-        let bounds = ctx.ui.bounds(self.widget_id);
+        let bounds = ctx.ui.bounds(self.doc_widget_id);
 
         self.camera
             .vertical
@@ -430,7 +436,7 @@ impl Tab {
     }
 
     fn recenter_request_dragging_vertical(&self, ctx: &Ctx) -> CameraRecenterRequest {
-        let bounds = ctx.ui.bounds(self.widget_id);
+        let bounds = ctx.ui.bounds(self.doc_widget_id);
         let mouse_position = ctx.window.mouse_position().unoffset_by(bounds);
 
         CameraRecenterRequest {
@@ -473,7 +479,7 @@ impl Tab {
 
     fn animate_camera_horizontal(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
         let recenter_request = self.recenter_request_horizontal(doc, ctx);
-        let bounds = ctx.ui.bounds(self.widget_id);
+        let bounds = ctx.ui.bounds(self.doc_widget_id);
 
         self.camera
             .horizontal
@@ -489,7 +495,7 @@ impl Tab {
     }
 
     fn recenter_request_dragging_horizontal(&self, ctx: &Ctx) -> CameraRecenterRequest {
-        let bounds = ctx.ui.bounds(self.widget_id);
+        let bounds = ctx.ui.bounds(self.doc_widget_id);
         let mouse_position = ctx.window.mouse_position().unoffset_by(bounds);
 
         CameraRecenterRequest {
@@ -535,7 +541,7 @@ impl Tab {
         ui: &Ui,
         gfx: &mut Gfx,
     ) -> Option<Position> {
-        if !ui.bounds(self.widget_id).contains_position(visual) {
+        if !ui.bounds(self.doc_widget_id).contains_position(visual) {
             return None;
         }
 
@@ -556,7 +562,7 @@ impl Tab {
     }
 
     fn visual_position_in_doc(&self, visual: VisualPosition, ui: &Ui) -> VisualPosition {
-        let bounds = ui.bounds(self.widget_id);
+        let bounds = ui.bounds(self.doc_widget_id);
         let visual = visual.unoffset_by(bounds);
 
         VisualPosition::new(visual.x - self.margin, visual.y - self.margin)
@@ -568,11 +574,11 @@ impl Tab {
 
     // TODO:
     pub fn doc_bounds(&self, ui: &Ui) -> Rect {
-        ui.bounds(self.widget_id)
+        ui.bounds(self.doc_widget_id)
     }
 
     pub fn doc_height_lines(&self, ui: &Ui, gfx: &Gfx) -> usize {
-        (ui.bounds(self.widget_id).height / gfx.line_height()) as usize
+        (ui.bounds(self.doc_widget_id).height / gfx.line_height()) as usize
     }
 
     pub fn cursor_width(gfx: &Gfx) -> f32 {
@@ -589,7 +595,7 @@ impl Tab {
 
     pub fn update_highlights(&self, language: &Language, doc: &mut Doc, ctx: &mut Ctx) {
         if let Some(syntax) = language.syntax.as_ref() {
-            let bounds = ctx.ui.bounds(self.widget_id);
+            let bounds = ctx.ui.bounds(self.doc_widget_id);
             doc.update_highlights(self.camera.position(), bounds, syntax, ctx.gfx);
         }
     }
@@ -610,7 +616,7 @@ impl Tab {
             self.update_highlights(language, doc, ctx);
         }
 
-        let bounds = ctx.ui.bounds(self.widget_id);
+        let bounds = ctx.ui.bounds(self.doc_widget_id);
         let camera_position = self.camera.position().floor();
 
         let min_y = (camera_position.y / ctx.gfx.line_height()) as usize;
@@ -626,11 +632,7 @@ impl Tab {
         };
 
         if doc.flags().contains(DocFlag::ShowGutter) {
-            ctx.gfx.begin(Some(self.gutter_bounds));
-
             self.draw_gutter(doc, visible_lines, ctx);
-
-            ctx.gfx.end();
         }
 
         ctx.gfx.begin(Some(bounds));
@@ -650,6 +652,10 @@ impl Tab {
     }
 
     fn draw_gutter(&self, doc: &Doc, visible_lines: VisibleLines, ctx: &mut Ctx) {
+        let gutter_bounds = ctx.ui.bounds(self.gutter_widget_id);
+
+        ctx.gfx.begin(Some(gutter_bounds));
+
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
 
@@ -660,7 +666,7 @@ impl Tab {
             let visual_y = self.line_foreground_visual_y(i, visible_lines.offset, gfx);
 
             let width = line_number.len() as f32 * gfx.glyph_width();
-            let visual_x = self.gutter_bounds.width
+            let visual_x = gutter_bounds.width
                 - width
                 - (GUTTER_PADDING_WIDTH + GUTTER_BORDER_WIDTH) * gfx.glyph_width();
 
@@ -674,11 +680,13 @@ impl Tab {
         }
 
         gfx.add_rect(
-            self.gutter_bounds
-                .unoffset_by(self.gutter_bounds)
+            gutter_bounds
+                .unoffset_by(gutter_bounds)
                 .right_border(gfx.border_width()),
             theme.border,
         );
+
+        ctx.gfx.end();
     }
 
     fn update_indent_guide_x(
@@ -1081,7 +1089,7 @@ impl Tab {
     }
 
     fn draw_scroll_bar(&self, doc: &Doc, camera_position: VisualPosition, ctx: &mut Ctx) {
-        let bounds = ctx.ui.bounds(self.widget_id);
+        let bounds = ctx.ui.bounds(self.doc_widget_id);
 
         if !doc.flags().contains(DocFlag::AllowScrollingPastBottom)
             && doc.lines().len() as f32 * ctx.gfx.line_height() + self.margin * 2.0 <= bounds.height
@@ -1146,7 +1154,7 @@ impl Tab {
         let doc_len = doc.lines().len().max(doc_height_lines) as f32
             + (self.margin * 2.0 / gfx.line_height());
 
-        let bounds = ui.bounds(self.widget_id);
+        let bounds = ui.bounds(self.doc_widget_id);
         let width = gfx.glyph_width() / 2.0;
         let x = bounds.width - width;
 

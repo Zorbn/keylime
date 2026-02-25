@@ -752,7 +752,6 @@ impl<T> Pane<T> {
         self.tabs.iter_mut()
     }
 
-    // TODO: This shouldn't be an Option since panes should always have > 0 tabs. Or the tab bar code that assumes > 0 tabs needs to be updated.
     pub fn get_focused_tab(&self, ui: &Ui) -> Option<&Tab> {
         let focused_index = self.focused_tab_index(ui);
         self.tabs.get(focused_index)
