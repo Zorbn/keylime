@@ -1077,6 +1077,7 @@ impl Ui {
 
         parent.child_ids.remove(from_index);
         parent.child_ids.insert(to_index, child_id);
+        self.update_layout_from(child_id);
     }
 
     pub fn layout(&self, widget_id: WidgetId) -> WidgetLayout {

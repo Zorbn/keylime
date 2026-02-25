@@ -129,6 +129,10 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
     }
 
     pub fn add(&mut self, pane: TPane, ui: &mut Ui) {
+        if self.last_focused_child_index + 1 < self.panes.len() {
+            ui.move_child(pane.widget_id(), self.last_focused_child_index + 1);
+        }
+
         ui.focus(pane.widget_id());
         self.panes.push(pane);
     }
