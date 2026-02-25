@@ -16,6 +16,7 @@ pub enum Msg {
     FontChanged,
     GainedFocus,
     LostFocus,
+    FocusedChildChanged,
     Mousebind(Mousebind),
     MouseScroll(MouseScroll),
     Grapheme(Pooled<String>),

@@ -1,4 +1,4 @@
-use crate::{config::Config, ctx::Ctx, platform::window::Window, text::grapheme::GraphemeCursor};
+use crate::{config::Config, platform::window::Window, text::grapheme::GraphemeCursor};
 
 use super::{action::Action, mouse_scroll::MouseScroll, mousebind::Mousebind};
 

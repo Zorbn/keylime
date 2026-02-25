@@ -1,7 +1,7 @@
 use crate::{
     ctx::Ctx,
     geometry::position::Position,
-    lsp::types::{DecodedDiagnostic, DecodedHover, DecodedRange, HoverContents, MarkedString},
+    lsp::types::{DecodedDiagnostic, DecodedHover, DecodedRange, HoverContents},
     text::doc::Doc,
     ui::{
         core::{Ui, WidgetId},

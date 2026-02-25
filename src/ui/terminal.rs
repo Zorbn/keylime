@@ -98,8 +98,6 @@ impl Terminal {
     pub fn update(&mut self, ctx: &mut Ctx) {
         self.panes.update(&mut self.term_list, ctx);
 
-        let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
-
         // TODO:
         // let mut global_action_handler = ctx.window.action_handler();
 
@@ -115,22 +113,6 @@ impl Terminal {
         //         _ => global_action_handler.unprocessed(ctx.window, action),
         //     }
         // }
-
-        if let Some((tab, (docs, emulator))) =
-            pane.get_focused_tab_with_data_mut(&mut self.term_list, ctx.ui)
-        {
-            emulator.update_input(docs, tab, ctx);
-        }
-
-        for tab in pane.iter_tabs_mut() {
-            let term_id = tab.data_id();
-
-            let Some((docs, emulator)) = self.term_list.get_mut(term_id) else {
-                continue;
-            };
-
-            emulator.update_output(docs, tab, ctx);
-        }
 
         self.panes.remove_excess(ctx.ui, |pane| !pane.has_tabs());
     }
@@ -157,7 +139,7 @@ impl Terminal {
             return;
         }
 
-        self.panes.remove(ctx.ui);
+        self.panes.remove_focused(ctx.ui);
     }
 
     pub fn ptys(&mut self) -> impl Iterator<Item = &mut Process> {

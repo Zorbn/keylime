@@ -4,8 +4,8 @@ use crate::{
     text::{cursor_index::CursorIndex, doc::Doc},
     ui::{
         core::Ui,
+        pane_list::PaneList,
         slot_list::{SlotId, SlotList},
-        widget_list::WidgetList,
     },
 };
 
@@ -69,7 +69,7 @@ impl CursorHistory {
 
     pub fn undo(
         &mut self,
-        panes: &mut WidgetList<EditorPane>,
+        panes: &mut PaneList<EditorPane, Doc>,
         doc_list: &mut SlotList<Doc>,
         ctx: &mut Ctx,
     ) {
@@ -86,7 +86,7 @@ impl CursorHistory {
 
     pub fn redo(
         &mut self,
-        panes: &mut WidgetList<EditorPane>,
+        panes: &mut PaneList<EditorPane, Doc>,
         doc_list: &mut SlotList<Doc>,
         ctx: &mut Ctx,
     ) {
@@ -104,7 +104,7 @@ impl CursorHistory {
     fn pop_item(
         pop_history: &mut Vec<CursorHistoryItem>,
         push_history: &mut Vec<CursorHistoryItem>,
-        panes: &mut WidgetList<EditorPane>,
+        panes: &mut PaneList<EditorPane, Doc>,
         doc_list: &mut SlotList<Doc>,
         ctx: &mut Ctx,
     ) -> Option<()> {
@@ -124,7 +124,7 @@ impl CursorHistory {
     }
 
     fn get_item(
-        panes: &WidgetList<EditorPane>,
+        panes: &PaneList<EditorPane, Doc>,
         doc_list: &SlotList<Doc>,
         ui: &Ui,
     ) -> Option<CursorHistoryItem> {
@@ -139,7 +139,7 @@ impl CursorHistory {
 
     fn jump_to_item(
         item: CursorHistoryItem,
-        panes: &mut WidgetList<EditorPane>,
+        panes: &mut PaneList<EditorPane, Doc>,
         doc_list: &mut SlotList<Doc>,
         ctx: &mut Ctx,
     ) -> bool {
@@ -150,7 +150,7 @@ impl CursorHistory {
         let focused_pane = panes.get_last_focused_mut(ctx.ui).unwrap();
 
         if !Self::focus_tab_for_doc_id(focused_pane, item.doc_id, ctx.ui) {
-            for pane in panes.iter_mut() {
+            for pane in panes.iter() {
                 if !Self::focus_tab_for_doc_id(pane, item.doc_id, ctx.ui) {
                     continue;
                 }
@@ -164,7 +164,7 @@ impl CursorHistory {
         true
     }
 
-    fn focus_tab_for_doc_id(pane: &mut EditorPane, doc_id: SlotId, ui: &mut Ui) -> bool {
+    fn focus_tab_for_doc_id(pane: &EditorPane, doc_id: SlotId, ui: &mut Ui) -> bool {
         let Some(index) = pane.iter_tabs().position(|tab| tab.data_id() == doc_id) else {
             return false;
         };

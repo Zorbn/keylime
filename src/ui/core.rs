@@ -909,7 +909,9 @@ impl Ui {
 
         self.notify_focus_gained(new_focused_id);
 
-        self.focus_history.pop();
+        while !self.focus_history.is_empty() && self.is_focused(widget_id) {
+            self.focus_history.pop();
+        }
 
         self.send(widget_id, Msg::LostFocus);
         self.send(self.focused_widget_id(), Msg::GainedFocus);
@@ -931,6 +933,7 @@ impl Ui {
 
     fn notify_focus_gained(&mut self, widget_id: WidgetId) {
         if self.is_focused(widget_id) {
+            self.notify_focused_child_changed(widget_id);
             return;
         }
 
@@ -941,10 +944,11 @@ impl Ui {
         }
     }
 
-    pub fn unfocus_hierarchy(&mut self, widget_id: WidgetId) {
-        // TODO: Doesn't track focus gained/lost.
-        while !self.focus_history.is_empty() && self.is_focused(widget_id) {
-            self.focus_history.pop();
+    fn notify_focused_child_changed(&mut self, widget_id: WidgetId) {
+        self.send(widget_id, Msg::FocusedChildChanged);
+
+        if let Some(parent_id) = self.widget(widget_id).parent_id {
+            self.notify_focused_child_changed(parent_id);
         }
     }
 

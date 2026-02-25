@@ -3,10 +3,7 @@ use std::{cmp::Ordering, fmt::Write, path::Path};
 use crate::{
     config::Config,
     ctx::Ctx,
-    geometry::{
-        rect::Rect,
-        sides::{Side, Sides},
-    },
+    geometry::sides::{Side, Sides},
     lsp::{types::DecodedDiagnostic, Lsp},
     pool::{format_pooled, Pooled, STRING_POOL},
     text::{cursor_index::CursorIndex, doc::LineEnding},

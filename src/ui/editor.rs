@@ -280,6 +280,7 @@ impl Editor {
         }
     }
 
+    // TODO: Combine pre/post pane update.
     fn pre_pane_update(&mut self, ctx: &mut Ctx) {
         let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
 
@@ -504,7 +505,7 @@ impl Editor {
             return;
         }
 
-        self.panes.remove(ctx.ui);
+        self.panes.remove_focused(ctx.ui);
     }
 
     pub fn on_close(&mut self, ctx: &mut Ctx) {

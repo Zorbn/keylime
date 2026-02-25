@@ -17,7 +17,6 @@ use super::{
     core::{WidgetId, WidgetLayout},
     pane::Pane,
     slot_list::SlotList,
-    widget_list::WidgetList,
 };
 
 pub trait PaneWrapper<T>: Deref<Target = Pane<T>> + DerefMut<Target = Pane<T>> {
@@ -28,7 +27,8 @@ pub trait PaneWrapper<T>: Deref<Target = Pane<T>> + DerefMut<Target = Pane<T>> {
 
 pub struct PaneList<TPane: PaneWrapper<TData>, TData> {
     widget_id: WidgetId,
-    panes: WidgetList<TPane>,
+    panes: Vec<TPane>,
+    last_focused_child_index: usize,
     _phantom: PhantomData<TData>,
 }
 
@@ -42,7 +42,8 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
                     ..Default::default()
                 },
             ),
-            panes: WidgetList::new(PaneWrapper::widget_id),
+            panes: Vec::new(),
+            last_focused_child_index: 0,
             _phantom: PhantomData,
         }
     }
@@ -54,10 +55,20 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
     pub fn receive_msgs(&mut self, data_list: &mut SlotList<TData>, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
-                Msg::Action(action_name!(PreviousPane)) => self.panes.focus_previous(ctx.ui),
-                Msg::Action(action_name!(NextPane)) => self.panes.focus_next(ctx.ui),
-                Msg::Action(action_name!(PreviousTab)) => self.panes.focus_previous(ctx.ui),
-                Msg::Action(action_name!(NextTab)) => self.panes.focus_next(ctx.ui),
+                Msg::FocusedChildChanged | Msg::GainedFocus => {
+                    if let Some(focused_child_index) = ctx
+                        .ui
+                        .child_ids(self.widget_id)
+                        .iter()
+                        .position(|child_id| ctx.ui.is_focused(*child_id))
+                    {
+                        self.last_focused_child_index = focused_child_index;
+                    }
+                }
+                Msg::Action(action_name!(PreviousPane)) => self.focus_previous(ctx.ui),
+                Msg::Action(action_name!(NextPane)) => self.focus_next(ctx.ui),
+                Msg::Action(action_name!(PreviousTab)) => self.focus_previous(ctx.ui),
+                Msg::Action(action_name!(NextTab)) => self.focus_next(ctx.ui),
                 _ => ctx.ui.skip(self.widget_id, msg),
             }
         }
@@ -71,8 +82,6 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
         for pane in self.panes.iter_mut() {
             pane.update(data_list, ctx);
         }
-
-        self.panes.update(ctx.ui);
     }
 
     pub fn animate(&mut self, data_list: &mut SlotList<TData>, ctx: &mut Ctx, dt: f32) {
@@ -92,21 +101,114 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
         }
     }
 
+    pub fn get_last_focused(&self, ui: &Ui) -> Option<&TPane> {
+        self.get_last_focused_index(ui)
+            .and_then(|index| self.panes.get(index))
+    }
+
+    pub fn get_last_focused_mut(&mut self, ui: &Ui) -> Option<&mut TPane> {
+        self.get_last_focused_index(ui)
+            .and_then(|index| self.panes.get_mut(index))
+    }
+
+    fn get_last_focused_index(&self, ui: &Ui) -> Option<usize> {
+        ui.child_ids(self.widget_id)
+            .get(self.last_focused_child_index)
+            .and_then(|child_id| {
+                self.panes
+                    .iter()
+                    .position(|pane| pane.widget_id() == *child_id)
+            })
+    }
+
+    pub fn get_hovered_mut(&mut self, ui: &Ui) -> Option<&mut TPane> {
+        self.panes
+            .iter()
+            .position(|pane| ui.is_hovered(pane.widget_id()))
+            .and_then(|index| self.panes.get_mut(index))
+    }
+
+    pub fn add(&mut self, pane: TPane, ui: &mut Ui) {
+        ui.focus(pane.widget_id());
+        self.panes.push(pane);
+    }
+
+    pub fn remove_focused(&mut self, ui: &mut Ui) {
+        let Some(focused_id) = ui
+            .child_ids(self.widget_id)
+            .get(self.last_focused_child_index)
+            .copied()
+        else {
+            return;
+        };
+
+        self.remove(focused_id, ui);
+    }
+
+    pub fn remove(&mut self, widget_id: WidgetId, ui: &mut Ui) {
+        ui.remove_widget(widget_id);
+
+        if let Some(index) = self
+            .panes
+            .iter()
+            .position(|pane| pane.widget_id() == widget_id)
+        {
+            self.panes.remove(index);
+        }
+
+        let child_ids = ui.child_ids(self.widget_id);
+
+        if child_ids.is_empty() {
+            ui.focus(self.widget_id);
+            return;
+        }
+
+        let index = self.last_focused_child_index.min(child_ids.len() - 1);
+        ui.focus(child_ids[index]);
+    }
+
+    pub fn remove_excess(&mut self, ui: &mut Ui, predicate: impl Fn(&TPane) -> bool) {
+        for i in (0..self.panes.len()).rev() {
+            if self.panes.len() == 1 {
+                break;
+            }
+
+            if predicate(&self.panes[i]) {
+                self.remove(self.panes[i].widget_id(), ui);
+            }
+        }
+
+        self.last_focused_child_index = self
+            .last_focused_child_index
+            .min(self.panes.len().saturating_sub(1))
+    }
+
+    fn focus_next(&self, ui: &mut Ui) {
+        let child_ids = ui.child_ids(self.widget_id);
+        let index = self.last_focused_child_index + 1;
+
+        if index < child_ids.len() {
+            ui.focus(child_ids[index]);
+        }
+    }
+
+    fn focus_previous(&self, ui: &mut Ui) {
+        let child_ids = ui.child_ids(self.widget_id);
+
+        if self.last_focused_child_index > 0 {
+            ui.focus(child_ids[self.last_focused_child_index - 1]);
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &TPane> {
+        self.panes.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.panes.len()
+    }
+
     pub fn widget_id(&self) -> WidgetId {
         self.widget_id
-    }
-}
-
-impl<TPane: PaneWrapper<TData>, TData> Deref for PaneList<TPane, TData> {
-    type Target = WidgetList<TPane>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.panes
-    }
-}
-
-impl<TPane: PaneWrapper<TData>, TData> DerefMut for PaneList<TPane, TData> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.panes
     }
 }
