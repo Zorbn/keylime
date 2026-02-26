@@ -187,6 +187,7 @@ impl Ui {
         let widget = self.widget(widget_id);
         let popup = widget.settings.popup;
 
+        self.remove_from_hovered(widget_id);
         self.remove_widget_from_parent(widget_id);
 
         if popup.is_none() {
@@ -916,7 +917,7 @@ impl Ui {
     }
 
     pub fn unfocus(&mut self, widget_id: WidgetId) {
-        if !self.is_main_focused(widget_id) {
+        if !self.is_focused(widget_id) {
             return;
         }
 
@@ -982,6 +983,12 @@ impl Ui {
         }
     }
 
+    fn remove_from_hovered(&mut self, widget_id: WidgetId) {
+        if self.is_hovered(widget_id) {
+            self.hovered_widget_id = self.widget(widget_id).parent_id.unwrap_or(WidgetId::ROOT);
+        }
+    }
+
     fn hover(&mut self, widget_id: WidgetId) {
         self.hovered_widget_id = widget_id;
     }
@@ -1005,14 +1012,14 @@ impl Ui {
     }
 
     pub fn hide(&mut self, widget_id: WidgetId) {
-        self.remove_from_focused(widget_id);
-
-        let widget = self.widget_mut(widget_id);
-
-        if !widget.settings.is_shown {
+        if !self.widget(widget_id).settings.is_shown {
             return;
         }
 
+        self.remove_from_hovered(widget_id);
+        self.unfocus(widget_id);
+
+        let widget = self.widget_mut(widget_id);
         widget.settings.is_shown = false;
 
         if widget.settings.popup.is_none() {
