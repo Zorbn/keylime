@@ -150,6 +150,11 @@ impl Editor {
                     self.signature_help_popup.hide(ctx.ui);
                     self.examine_popup.hide(ctx.ui);
                 }
+                Msg::Resize { .. } => {
+                    self.signature_help_popup.hide(ctx.ui);
+                    self.examine_popup.hide(ctx.ui);
+                    self.completion_list.hide(ctx);
+                }
                 Msg::TabHoverChanged => self.hover_timer = HOVER_TIME,
                 Msg::Action(action_name!(OpenFolder)) => {
                     if let Ok(path) = find_file(FindFileKind::OpenFolder) {

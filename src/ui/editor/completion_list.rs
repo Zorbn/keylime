@@ -240,9 +240,6 @@ impl CompletionList {
         }
 
         ui.show(self.result_list.widget_id());
-        ui.show(self.detail_popup.widget_id());
-        ui.show(self.documentation_popup.widget_id());
-
         ui.focus(self.result_list.widget_id());
     }
 
