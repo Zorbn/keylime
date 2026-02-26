@@ -77,6 +77,7 @@ impl CompletionList {
             WidgetSettings {
                 popup: Some(Rect::ZERO),
                 wants_msgs: false,
+                is_owned_by_parent: false,
                 ..Default::default()
             },
         );

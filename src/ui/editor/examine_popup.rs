@@ -1,10 +1,10 @@
 use crate::{
     ctx::Ctx,
-    geometry::position::Position,
+    geometry::{position::Position, rect::Rect},
     lsp::types::{DecodedDiagnostic, DecodedHover, DecodedRange, HoverContents},
     text::doc::Doc,
     ui::{
-        core::{Ui, WidgetId},
+        core::{Ui, WidgetId, WidgetSettings},
         popup::{Popup, PopupAlignment},
         tab::Tab,
     },
@@ -25,6 +25,7 @@ enum ExaminePopupKind {
 }
 
 pub struct ExaminePopup {
+    widget_id: WidgetId,
     popup: Popup,
     kind: ExaminePopupKind,
     position: Position,
@@ -33,8 +34,19 @@ pub struct ExaminePopup {
 
 impl ExaminePopup {
     pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
+        let widget_id = ctx.ui.new_widget(
+            parent_id,
+            WidgetSettings {
+                popup: Some(Rect::ZERO),
+                wants_msgs: false,
+                is_owned_by_parent: false,
+                ..Default::default()
+            },
+        );
+
         Self {
-            popup: Popup::new(parent_id, ctx),
+            widget_id,
+            popup: Popup::new(widget_id, ctx),
             kind: ExaminePopupKind::None,
             position: Position::ZERO,
             desired_position: Position::ZERO,
@@ -44,20 +56,6 @@ impl ExaminePopup {
     pub fn is_animating(&self, ctx: &Ctx) -> bool {
         self.popup.is_animating(ctx)
     }
-
-    // pub fn layout(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
-    //     let mut position = doc.position_to_visual(self.position, tab.camera.position(), ctx.gfx);
-    //     position = position.offset_by(tab.doc_bounds());
-
-    //     let is_position_visible = tab.doc_bounds().contains_position(position);
-
-    //     ctx.ui.set_shown(
-    //         self.popup.widget_id(),
-    //         self.kind != ExaminePopupKind::None && is_position_visible,
-    //     );
-
-    //     self.popup.layout(position, PopupAlignment::Above, ctx);
-    // }
 
     pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
         self.popup.receive_msgs(ctx);
@@ -81,7 +79,7 @@ impl ExaminePopup {
         let is_position_visible = tab_bounds.contains_position(position);
 
         ctx.ui.set_shown(
-            self.popup.widget_id(),
+            self.widget_id,
             self.kind != ExaminePopupKind::None && is_position_visible,
         );
 
@@ -104,7 +102,7 @@ impl ExaminePopup {
         doc: &mut Doc,
         ctx: &mut Ctx,
     ) {
-        ctx.ui.reparent_widget(self.popup.widget_id(), parent_id);
+        ctx.ui.reparent_widget(self.widget_id, parent_id);
 
         self.desired_position = position;
 
@@ -161,6 +159,6 @@ impl ExaminePopup {
     }
 
     pub fn widget_id(&self) -> WidgetId {
-        self.popup.widget_id()
+        self.widget_id
     }
 }

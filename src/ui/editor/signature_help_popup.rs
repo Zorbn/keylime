@@ -27,6 +27,7 @@ impl SignatureHelpPopup {
             WidgetSettings {
                 popup: Some(Rect::ZERO),
                 wants_msgs: false,
+                is_owned_by_parent: false,
                 ..Default::default()
             },
         );
@@ -51,9 +52,10 @@ impl SignatureHelpPopup {
         self.documentation_popup.receive_msgs(ctx);
     }
 
-    pub fn trigger(
+    pub fn show(
         &mut self,
         doc: &mut Doc,
+        parent_id: WidgetId,
         trigger_char: char,
         is_retrigger: bool,
         ctx: &mut Ctx,
@@ -65,6 +67,8 @@ impl SignatureHelpPopup {
         let position = doc.cursor(CursorIndex::Main).position;
 
         doc.lsp_signature_help(Some(trigger_char), is_retrigger, ctx);
+
+        ctx.ui.reparent_widget(self.widget_id, parent_id);
 
         self.help_position = position;
     }

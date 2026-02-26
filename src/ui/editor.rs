@@ -99,34 +99,6 @@ impl Editor {
             || self.hover_timer > 0.0
     }
 
-    // pub fn layout(&mut self, bounds: Rect, ctx: &mut Ctx) {
-    //     ctx.ui.widget_mut(self.widget_id).bounds = bounds;
-
-    //     self.panes.layout(bounds, &mut self.doc_list, ctx);
-
-    //     let focused_pane = self.panes.get_last_focused(ctx.ui).unwrap();
-
-    //     let Some((tab, doc)) = focused_pane.get_focused_tab_with_data(&self.doc_list) else {
-    //         return;
-    //     };
-
-    //     let cursor_position = doc.cursor(CursorIndex::Main).position;
-    //     let cursor_visual_position = doc
-    //         .position_to_visual(cursor_position, tab.camera.position().floor(), ctx.gfx)
-    //         .offset_by(tab.doc_bounds());
-
-    //     self.completion_list.layout(cursor_visual_position, ctx);
-    //     self.examine_popup.layout(tab, doc, ctx);
-    //     self.signature_help_popup.layout(tab, doc, ctx);
-
-    //     let is_cursor_visible = self.is_cursor_visible(ctx);
-
-    //     ctx.ui
-    //         .set_shown(self.completion_list.widget_id(), is_cursor_visible);
-    //     ctx.ui
-    //         .set_shown(self.signature_help_popup.widget_id(), is_cursor_visible);
-    // }
-
     pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
@@ -162,11 +134,16 @@ impl Editor {
                 } => {
                     let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
 
-                    if let Some((_, doc)) =
+                    if let Some((tab, doc)) =
                         pane.get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui)
                     {
-                        self.signature_help_popup
-                            .trigger(doc, trigger_char, is_retrigger, ctx)
+                        self.signature_help_popup.show(
+                            doc,
+                            tab.widget_id(),
+                            trigger_char,
+                            is_retrigger,
+                            ctx,
+                        )
                     }
                 }
                 Msg::HideEditorPopups => {

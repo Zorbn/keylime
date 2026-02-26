@@ -47,6 +47,7 @@ pub struct WidgetSettings {
     pub layout: WidgetLayout,
     pub popup: Option<Rect>,
     pub main_child_index: Option<usize>,
+    pub is_owned_by_parent: bool,
 }
 
 impl Default for WidgetSettings {
@@ -58,6 +59,7 @@ impl Default for WidgetSettings {
             layout: WidgetLayout::Vertical,
             popup: None,
             main_child_index: None,
+            is_owned_by_parent: true,
         }
     }
 }
@@ -182,7 +184,8 @@ impl Ui {
             return;
         }
 
-        let popup = self.widget(widget_id).settings.popup;
+        let widget = self.widget(widget_id);
+        let popup = widget.settings.popup;
 
         self.remove_widget_from_parent(widget_id);
 
@@ -196,6 +199,14 @@ impl Ui {
     fn remove_widgets_downward(&mut self, widget_id: WidgetId) {
         for i in 0..self.widget(widget_id).child_ids.len() {
             let child_id = self.widget(widget_id).child_ids[i];
+
+            let child = self.widget_mut(child_id);
+
+            if !child.settings.is_owned_by_parent {
+                child.parent_id = None;
+                child.msgs.clear();
+                continue;
+            }
 
             self.remove_widgets_downward(child_id);
         }
@@ -219,7 +230,10 @@ impl Ui {
     }
 
     fn remove_widget_from_parent(&mut self, widget_id: WidgetId) {
-        let parent_id = self.widget(widget_id).parent_id.unwrap_or(WidgetId::ROOT);
+        let Some(parent_id) = self.widget(widget_id).parent_id else {
+            return;
+        };
+
         let parent = self.widget_mut(parent_id);
 
         if let Some(index) = parent
@@ -277,7 +291,9 @@ impl Ui {
             return;
         }
 
-        let parent_id = self.widget(widget_id).parent_id.unwrap_or(WidgetId::ROOT);
+        let Some(parent_id) = self.widget(widget_id).parent_id else {
+            return;
+        };
 
         if parent_id != WidgetId::ROOT {
             self.send(parent_id, msg);
@@ -560,7 +576,10 @@ impl Ui {
         let mut precedence = 0;
 
         while widget_id != WidgetId::ROOT {
-            let parent_id = self.widget(widget_id).parent_id.unwrap_or(WidgetId::ROOT);
+            let Some(parent_id) = self.widget(widget_id).parent_id else {
+                break;
+            };
+
             let parent = self.widget(parent_id);
 
             if parent.settings.layout != layout {
@@ -1038,6 +1057,13 @@ impl Ui {
             .map(|slot| &slot.widget)
     }
 
+    fn get_widget_mut(&mut self, widget_id: WidgetId) -> Option<&mut Widget> {
+        self.widget_slots
+            .get_mut(widget_id.index)
+            .filter(|slot| slot.generation == widget_id.generation)
+            .map(|slot| &mut slot.widget)
+    }
+
     fn widget(&self, widget_id: WidgetId) -> &Widget {
         let slot = &self.widget_slots[widget_id.index];
         assert!(slot.generation == widget_id.generation);
@@ -1132,7 +1158,10 @@ impl Ui {
     }
 
     fn update_layout_from_parent(&mut self, widget_id: WidgetId) {
-        let parent_id = self.widget(widget_id).parent_id.unwrap_or(WidgetId::ROOT);
+        let Some(parent_id) = self.widget(widget_id).parent_id else {
+            return;
+        };
+
         let parent = self.widget(parent_id);
         let parent_bounds = parent.bounds;
 
