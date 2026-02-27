@@ -147,7 +147,6 @@ impl TerminalEmulator {
         }
     }
 
-    // TODO: This is a hack.
     pub fn receive_msgs(&mut self, tab: &mut Tab, docs: &mut TerminalDocs, ctx: &mut Ctx) {
         let widget_id = tab.widget_id();
 

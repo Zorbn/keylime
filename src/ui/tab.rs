@@ -570,7 +570,6 @@ impl Tab {
         VisualPosition::new(visual.x + self.margin, visual.y + self.margin)
     }
 
-    // TODO:
     pub fn doc_bounds(&self, ui: &Ui) -> Rect {
         ui.bounds(self.doc_widget_id)
     }

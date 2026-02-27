@@ -2,7 +2,7 @@ use crate::{
     input::action::{Action, ActionName},
     pool::format_pooled,
     text::grapheme::{self, CharCursor},
-    ui::result_list::ResultListSubmitKind,
+    ui::{core::WidgetId, msg::Msg, result_list::ResultListSubmitKind},
 };
 
 use super::{
@@ -63,9 +63,8 @@ impl CommandPaletteMode for AllActionsMode {
         };
 
         args.ctx
-            .window
-            .actions_typed()
-            .push(Action::from_name(*action_name));
+            .ui
+            .send(WidgetId::ROOT, Msg::Action(Action::from_name(*action_name)));
 
         CommandPaletteAction::Close
     }

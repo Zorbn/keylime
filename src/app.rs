@@ -49,10 +49,6 @@ pub struct App {
     config_dir: Pooled<PathBuf>,
     config: Config,
     config_error: Option<ConfigError>,
-
-    // TODO: Hack
-    last_width: f32,
-    last_height: f32,
 }
 
 impl App {
@@ -110,49 +106,11 @@ impl App {
             config_dir,
             config,
             config_error,
-
-            last_width: gfx.width(),
-            last_height: gfx.height(),
         }
     }
 
     fn receive_msgs(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64) {
-        if gfx.width() != self.last_width || gfx.height() != self.last_height {
-            self.last_width = gfx.width();
-            self.last_height = gfx.height();
-
-            self.ui.send(
-                WidgetId::ROOT,
-                Msg::Resize {
-                    width: gfx.width(),
-                    height: gfx.height(),
-                },
-            );
-        }
-
-        let mut grapheme_handler = window.todo_grapheme_handler();
-
-        while let Some(grapheme) = grapheme_handler.next(window) {
-            self.ui.send(WidgetId::ROOT, Msg::Grapheme(grapheme.into()));
-        }
-
-        let mut action_handler = window.todo_action_handler();
-
-        while let Some(action) = action_handler.next(&self.config, window) {
-            self.ui.send(WidgetId::ROOT, Msg::Action(action));
-        }
-
-        let mut mousebind_handler = window.todo_mousebind_handler();
-
-        while let Some(mousebind) = mousebind_handler.next(window) {
-            self.ui.send(WidgetId::ROOT, Msg::Mousebind(mousebind));
-        }
-
-        let mut mouse_scroll_handler = window.todo_mouse_scroll_handler();
-
-        while let Some(mouse_scroll) = mouse_scroll_handler.next(window) {
-            self.ui.send(WidgetId::ROOT, Msg::MouseScroll(mouse_scroll));
-        }
+        self.ui.send_window_msgs(&self.config, window);
 
         let ctx = ctx_for_app!(self, window, gfx, time);
 

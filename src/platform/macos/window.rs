@@ -1,4 +1,4 @@
-use std::{path::Path, ptr::NonNull};
+use std::{path::Path, ptr::NonNull, vec::Drain};
 
 use objc2::{
     rc::{Retained, Weak},
@@ -12,7 +12,6 @@ use crate::{
     geometry::visual_position::VisualPosition,
     input::{
         action::Action,
-        input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
         key::Key,
         keybind::Keybind,
         mods::{Mod, Mods},
@@ -21,8 +20,9 @@ use crate::{
         mousebind::{MouseClickCount, Mousebind, MousebindKind},
     },
     platform::aliases::{AnyFileWatcher, AnyProcess, AnyWindow},
-    pool::UTF16_POOL,
-    text::grapheme::GraphemeCursor,
+    pool::{STRING_POOL, UTF16_POOL},
+    text::grapheme::GraphemeIterator,
+    ui::msg::Msg,
 };
 
 use super::{result::Result, view::View};
@@ -48,11 +48,7 @@ pub struct Window {
     pub time: f64,
     last_queried_time: Option<f64>,
 
-    pub graphemes_typed: String,
-    pub grapheme_cursor: GraphemeCursor,
-    pub actions_typed: Vec<Action>,
-    pub mousebinds_pressed: Vec<Mousebind>,
-    pub mouse_scrolls: Vec<MouseScroll>,
+    pub msgs: Vec<Msg>,
 
     was_last_scroll_horizontal: bool,
     current_pressed_button: Option<RecordedMouseClick>,
@@ -101,11 +97,7 @@ impl Window {
 
             scale,
 
-            graphemes_typed: String::new(),
-            grapheme_cursor: GraphemeCursor::new(0, 0),
-            actions_typed: Vec::new(),
-            mousebinds_pressed: Vec::new(),
-            mouse_scrolls: Vec::new(),
+            msgs: Vec::new(),
 
             was_last_scroll_horizontal: false,
             current_pressed_button: None,
@@ -147,6 +139,11 @@ impl Window {
         self.scale = scale;
         self.width = width * scale;
         self.height = height * scale;
+
+        self.msgs.push(Msg::Resize {
+            width: self.width as f32,
+            height: self.height as f32,
+        });
     }
 
     pub fn time(&mut self, is_animating: bool) -> (f64, f32) {
@@ -172,21 +169,11 @@ impl Window {
         files: impl Iterator<Item = &'a Path>,
         processes: impl Iterator<Item = &'a mut AnyProcess>,
     ) {
-        self.clear_inputs();
-
         for process in processes {
             process.inner.try_start(&self.view);
         }
 
         file_watcher.inner.update(files, &self.view);
-    }
-
-    fn clear_inputs(&mut self) {
-        self.graphemes_typed.clear();
-        self.grapheme_cursor = GraphemeCursor::new(0, 0);
-        self.actions_typed.clear();
-        self.mousebinds_pressed.clear();
-        self.mouse_scrolls.clear();
     }
 
     pub fn handle_key_down(&mut self, event: &NSEvent) {
@@ -210,8 +197,8 @@ impl Window {
 
         if let Some(key) = Self::key_from_keycode(key_code) {
             let mods = Self::modifier_flags_to_mods(modifier_flags);
-            self.actions_typed
-                .push(Action::from_keybind(Keybind::new(key, mods)));
+            self.msgs
+                .push(Msg::Action(Action::from_keybind(Keybind::new(key, mods))));
         }
     }
 
@@ -244,8 +231,9 @@ impl Window {
             (button, count, MousebindKind::Press)
         };
 
-        self.mousebinds_pressed
-            .push(Mousebind::new(button, x, y, mods, count, kind));
+        self.msgs.push(Msg::Mousebind(Mousebind::new(
+            button, x, y, mods, count, kind,
+        )));
     }
 
     pub fn handle_mouse_up(&mut self, event: &NSEvent) {
@@ -260,14 +248,14 @@ impl Window {
             self.current_pressed_button = None;
         }
 
-        self.mousebinds_pressed.push(Mousebind::new(
+        self.msgs.push(Msg::Mousebind(Mousebind::new(
             button,
             x,
             y,
             mods,
             MouseClickCount::Single,
             MousebindKind::Release,
-        ));
+        )));
     }
 
     fn modifier_flags_to_mods(modifier_flags: NSEventModifierFlags) -> Mods {
@@ -334,13 +322,13 @@ impl Window {
 
         self.was_last_scroll_horizontal = is_horizontal;
 
-        self.mouse_scrolls.push(MouseScroll {
+        self.msgs.push(Msg::MouseScroll(MouseScroll {
             delta,
             is_horizontal,
             kind,
             x,
             y,
-        });
+        }));
     }
 
     fn event_location_to_xy(&self, event: &NSEvent) -> (f32, f32) {
@@ -378,6 +366,8 @@ impl Window {
             wide_text.push(wide_char);
         }
 
+        let mut text = STRING_POOL.new_item();
+
         for c in char::decode_utf16(wide_text.iter().copied()) {
             let Ok(c) = c else {
                 continue;
@@ -387,31 +377,20 @@ impl Window {
                 continue;
             }
 
-            self.graphemes_typed.push(c);
+            text.push(c);
         }
 
-        self.grapheme_cursor =
-            GraphemeCursor::new(self.grapheme_cursor.index(), self.graphemes_typed.len());
+        for grapheme in GraphemeIterator::new(&text) {
+            self.msgs.push(Msg::Grapheme(grapheme.into()));
+        }
     }
 
     pub fn is_focused(&self) -> bool {
         self.is_focused
     }
 
-    pub fn grapheme_handler(&self) -> GraphemeHandler {
-        GraphemeHandler::new(self.grapheme_cursor.clone())
-    }
-
-    pub fn action_handler(&self) -> ActionHandler {
-        ActionHandler::new(self.actions_typed.len())
-    }
-
-    pub fn mousebind_handler(&self) -> MousebindHandler {
-        MousebindHandler::new(self.mousebinds_pressed.len())
-    }
-
-    pub fn mouse_scroll_handler(&self) -> MouseScrollHandler {
-        MouseScrollHandler::new(self.mouse_scrolls.len())
+    pub fn msgs(&mut self) -> Drain<'_, Msg> {
+        self.msgs.drain(..)
     }
 
     pub fn mouse_position(&self) -> VisualPosition {

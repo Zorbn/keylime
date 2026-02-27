@@ -9,7 +9,7 @@ use crate::{
         mouse_scroll::MouseScroll,
         mousebind::{Mousebind, MousebindKind},
     },
-    platform::gfx::Gfx,
+    platform::{gfx::Gfx, window::Window},
     ui::msg::Msg,
 };
 
@@ -243,6 +243,17 @@ impl Ui {
             .position(|child_id| *child_id == widget_id)
         {
             parent.child_ids.remove(index);
+        }
+    }
+
+    pub fn send_window_msgs(&mut self, config: &Config, window: &mut Window) {
+        for msg in window.msgs() {
+            let msg = match msg {
+                Msg::Action(action) => Msg::Action(action.translate(&config.keymaps)),
+                _ => msg,
+            };
+
+            self.send(WidgetId::ROOT, msg);
         }
     }
 

@@ -1,6 +1,5 @@
 pub mod action;
 pub mod editing_actions;
-pub mod input_handlers;
 pub mod key;
 pub mod keybind;
 pub mod mods;

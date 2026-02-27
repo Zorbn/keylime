@@ -1,14 +1,8 @@
+use std::vec::Drain;
+
 use crate::{
-    config::theme::Theme,
-    geometry::visual_position::VisualPosition,
-    input::{
-        action::Action,
-        input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
-        mods::Mods,
-        mouse_scroll::MouseScroll,
-        mousebind::Mousebind,
-    },
-    text::grapheme::GraphemeCursor,
+    config::theme::Theme, geometry::visual_position::VisualPosition, input::mods::Mods,
+    ui::msg::Msg,
 };
 
 use super::{platform_impl, result::Result};
@@ -41,36 +35,8 @@ impl Window {
         self.inner.was_shown
     }
 
-    pub fn todo_grapheme_handler(&self) -> GraphemeHandler {
-        self.inner.grapheme_handler()
-    }
-
-    pub fn todo_action_handler(&self) -> ActionHandler {
-        self.inner.action_handler()
-    }
-
-    pub fn todo_mousebind_handler(&self) -> MousebindHandler {
-        self.inner.mousebind_handler()
-    }
-
-    pub fn todo_mouse_scroll_handler(&self) -> MouseScrollHandler {
-        self.inner.mouse_scroll_handler()
-    }
-
-    pub fn graphemes_typed(&mut self) -> (&str, &mut GraphemeCursor) {
-        (&self.inner.graphemes_typed, &mut self.inner.grapheme_cursor)
-    }
-
-    pub fn actions_typed(&mut self) -> &mut Vec<Action> {
-        &mut self.inner.actions_typed
-    }
-
-    pub fn mousebinds_pressed(&mut self) -> &mut Vec<Mousebind> {
-        &mut self.inner.mousebinds_pressed
-    }
-
-    pub fn mouse_scrolls(&mut self) -> &mut Vec<MouseScroll> {
-        &mut self.inner.mouse_scrolls
+    pub fn msgs(&mut self) -> Drain<'_, Msg> {
+        self.inner.msgs()
     }
 
     pub fn mouse_position(&self) -> VisualPosition {
