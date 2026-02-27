@@ -553,6 +553,25 @@ impl<T> Pane<T> {
     }
 
     pub fn draw(&mut self, background: Option<Color>, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
+        let get_doc_mut = self.get_doc_mut;
+
+        if let Some((tab, data)) =
+            self.get_tab_with_data_mut(self.focused_tab_index(ctx.ui), data_list)
+        {
+            tab.draw((None, background), get_doc_mut(data), ctx);
+        }
+
+        let bounds = ctx.ui.bounds(self.widget_id);
+        let gfx = &mut ctx.gfx;
+        let theme = &ctx.config.theme;
+
+        gfx.begin(Some(bounds));
+        gfx.add_rect(
+            bounds.relative_to(bounds).left_border(gfx.border_width()),
+            theme.border,
+        );
+        gfx.end();
+
         self.tab_bar.draw(
             self.focused_tab_index(ctx.ui),
             background,
@@ -561,14 +580,6 @@ impl<T> Pane<T> {
             self.get_doc,
             ctx,
         );
-
-        let get_doc_mut = self.get_doc_mut;
-
-        if let Some((tab, data)) =
-            self.get_tab_with_data_mut(self.focused_tab_index(ctx.ui), data_list)
-        {
-            tab.draw((None, background), get_doc_mut(data), ctx);
-        }
     }
 
     fn get_tab_with_data_mut<'a>(

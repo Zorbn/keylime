@@ -100,6 +100,10 @@ impl Rect {
         Self::new(self.x, self.y, self.width, border_width)
     }
 
+    pub fn left_border(&self, border_width: f32) -> Self {
+        Self::new(self.x, self.y, border_width, self.height)
+    }
+
     pub fn right_border(&self, border_width: f32) -> Self {
         Self::new(
             self.x + self.width - border_width,
