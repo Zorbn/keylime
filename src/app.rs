@@ -159,8 +159,12 @@ impl App {
         while ctx.ui.has_msgs() {
             ctx.ui.receive_msgs(ctx.gfx);
 
-            self.controller
-                .receive_msgs(&mut self.editor, &mut self.command_palette, ctx);
+            self.controller.receive_msgs(
+                &mut self.editor,
+                &self.terminal,
+                &mut self.command_palette,
+                ctx,
+            );
 
             self.command_palette.receive_msgs(&mut self.editor, ctx);
             self.editor.receive_msgs(ctx);

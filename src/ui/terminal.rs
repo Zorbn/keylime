@@ -84,35 +84,11 @@ impl Terminal {
             }
         }
 
-        let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
-
-        if let Some((tab, (docs, emulator))) =
-            pane.get_focused_tab_with_data_mut(&mut self.term_list, ctx.ui)
-        {
-            emulator.receive_msgs(tab, docs, ctx);
-        }
-
         self.panes.receive_msgs(&mut self.term_list, ctx);
     }
 
     pub fn update(&mut self, ctx: &mut Ctx) {
         self.panes.update(&mut self.term_list, ctx);
-
-        // TODO:
-        // let mut global_action_handler = ctx.window.action_handler();
-
-        // while let Some(action) = global_action_handler.next(ctx) {
-        //     match action {
-        //         action_name!(FocusTerminal) => {
-        //             if ctx.ui.is_in_focused_hierarchy(self.widget_id) {
-        //                 ctx.ui.unfocus_hierarchy(self.widget_id);
-        //             } else {
-        //                 ctx.ui.focus(pane_widget_id);
-        //             }
-        //         }
-        //         _ => global_action_handler.unprocessed(ctx.window, action),
-        //     }
-        // }
 
         self.panes.remove_excess(ctx.ui, |pane| !pane.has_tabs());
     }

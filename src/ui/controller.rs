@@ -16,6 +16,7 @@ use crate::{
         core::{Ui, WidgetId, WidgetSettings},
         editor::Editor,
         msg::Msg,
+        terminal::Terminal,
     },
 };
 
@@ -41,11 +42,21 @@ impl Controller {
     pub fn receive_msgs(
         &mut self,
         editor: &mut Editor,
+        terminal: &Terminal,
         command_palette: &mut CommandPalette,
         ctx: &mut Ctx,
     ) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
+                Msg::Action(action_name!(FocusTerminal)) => {
+                    let terminal_id = terminal.widget_id();
+
+                    if ctx.ui.is_focused(terminal_id) {
+                        ctx.ui.unfocus(terminal_id);
+                    } else {
+                        ctx.ui.focus(terminal_id);
+                    }
+                }
                 Msg::Action(action_name!(OpenAllActions)) => {
                     command_palette.open(Box::new(AllActionsMode), editor, ctx);
                 }

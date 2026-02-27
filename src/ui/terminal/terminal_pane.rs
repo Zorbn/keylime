@@ -38,6 +38,16 @@ impl TerminalPane {
 
 impl PaneWrapper<Term> for TerminalPane {
     fn receive_msgs(&mut self, term_list: &mut SlotList<Term>, ctx: &mut Ctx) {
+        for tab in self.iter_tabs_mut() {
+            let term_id = tab.data_id();
+
+            let Some((docs, emulator)) = term_list.get_mut(term_id) else {
+                continue;
+            };
+
+            emulator.receive_msgs(tab, docs, ctx);
+        }
+
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
                 Msg::Action(action_name!(NewTab)) => {

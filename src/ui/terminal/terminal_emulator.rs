@@ -232,6 +232,8 @@ impl TerminalEmulator {
 
                     if matches!(key, KEY_A..=KEY_Z) {
                         pty.input().push(key & 0x1F);
+                    } else {
+                        ctx.ui.skip(widget_id, msg);
                     }
                 }
                 _ => tab.receive_msg(msg, doc, ctx),
