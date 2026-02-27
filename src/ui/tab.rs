@@ -290,7 +290,7 @@ impl Tab {
         ui.send_to_parent(self.widget_id, Msg::TabHoverChanged);
     }
 
-    pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+    pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx, dt: f32) {
         if let Some(count) = self.mouse_drag {
             let visual_position = ctx.window.mouse_position();
             let position =
@@ -303,6 +303,21 @@ impl Tab {
 
         doc.combine_overlapping_cursors();
         doc.update_tokens();
+
+        self.animate_cursors(doc, ctx);
+        self.animate_camera(doc, ctx, dt);
+
+        let gutter_width = if doc.flags().contains(DocFlag::ShowGutter) {
+            let max_gutter_digits = (doc.lines().len() as f32).log10().floor() + 1.0;
+
+            (max_gutter_digits + GUTTER_PADDING_WIDTH * 2.0 + GUTTER_BORDER_WIDTH)
+                * ctx.gfx.glyph_width()
+        } else {
+            0.0
+        };
+
+        ctx.ui
+            .set_scale(self.gutter_widget_id, WidgetScale::Fixed(gutter_width));
     }
 
     fn mouse_to_position(&self, x: f32, y: f32, doc: &Doc, ui: &Ui, gfx: &mut Gfx) -> Position {
@@ -326,23 +341,6 @@ impl Tab {
                 position: cursor_position,
             });
         }
-    }
-
-    pub fn animate(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
-        self.animate_cursors(doc, ctx);
-        self.animate_camera(doc, ctx, dt);
-
-        let gutter_width = if doc.flags().contains(DocFlag::ShowGutter) {
-            let max_gutter_digits = (doc.lines().len() as f32).log10().floor() + 1.0;
-
-            (max_gutter_digits + GUTTER_PADDING_WIDTH * 2.0 + GUTTER_BORDER_WIDTH)
-                * ctx.gfx.glyph_width()
-        } else {
-            0.0
-        };
-
-        ctx.ui
-            .set_scale(self.gutter_widget_id, WidgetScale::Fixed(gutter_width));
     }
 
     fn animate_cursors(&mut self, doc: &Doc, ctx: &mut Ctx) {
@@ -638,7 +636,7 @@ impl Tab {
         ctx.gfx.begin(Some(bounds));
 
         if let Some(background) = background {
-            ctx.gfx.add_rect(bounds.unoffset_by(bounds), background);
+            ctx.gfx.add_rect(bounds.relative_to(bounds), background);
         }
 
         self.draw_indent_guides(doc, camera_position, visible_lines, ctx);
@@ -681,7 +679,7 @@ impl Tab {
 
         gfx.add_rect(
             gutter_bounds
-                .unoffset_by(gutter_bounds)
+                .relative_to(gutter_bounds)
                 .right_border(gfx.border_width()),
             theme.border,
         );

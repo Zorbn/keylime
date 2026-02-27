@@ -206,13 +206,9 @@ impl App {
 
         Lsp::update(&mut self.editor, &mut self.command_palette, ctx);
 
-        self.command_palette.update(&mut self.editor, ctx);
+        self.command_palette.update(&mut self.editor, ctx, dt);
         self.editor.update(&mut self.file_watcher, ctx, dt);
-        self.terminal.update(ctx);
-
-        self.command_palette.animate(ctx, dt);
-        self.editor.animate(ctx, dt);
-        self.terminal.animate(ctx, dt);
+        self.terminal.update(ctx, dt);
     }
 
     pub fn draw(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64) {

@@ -92,7 +92,7 @@ impl CompletionList {
             position: Position::ZERO,
 
             needs_results: false,
-            result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS, false, widget_id, ctx.ui),
+            result_list: ResultList::new(widget_id, ctx.ui),
             longest_result_length: 0,
             prefix: String::new(),
 
@@ -140,7 +140,7 @@ impl CompletionList {
         completion_result
     }
 
-    pub fn update(&mut self, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) {
+    pub fn update(&mut self, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx, dt: f32) {
         if self.needs_results {
             self.needs_results = false;
             self.update_results(doc, ctx);
@@ -160,7 +160,7 @@ impl CompletionList {
             }
         }
 
-        self.update_popups(tab, doc, ctx);
+        self.update_popups(tab, doc, ctx, dt);
     }
 
     fn set_popups_shown(&mut self, ctx: &mut Ctx) {
@@ -192,7 +192,7 @@ impl CompletionList {
         }
     }
 
-    fn update_popups(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
+    fn update_popups(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx, dt: f32) {
         let visual_position = doc
             .position_to_visual(self.position, tab.camera.position().floor(), ctx.gfx)
             .offset_by(tab.doc_bounds(ctx.ui));
@@ -201,6 +201,8 @@ impl CompletionList {
             self.widget_id,
             Some(Rect::new(visual_position.x, visual_position.y, 0.0, 0.0)),
         );
+
+        self.result_list.update(ctx, dt);
 
         let min_y = self.result_list.min_visible_result_index(ctx.gfx);
         let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
@@ -240,7 +242,7 @@ impl CompletionList {
         );
 
         self.detail_popup
-            .update(position, PopupAlignment::TopLeft, ctx);
+            .update(position, PopupAlignment::TopLeft, ctx, dt);
 
         if ctx.ui.is_visible(self.detail_popup.widget_id()) {
             let detail_popup_bounds = ctx.ui.bounds(self.detail_popup.widget_id());
@@ -248,7 +250,7 @@ impl CompletionList {
         }
 
         self.documentation_popup
-            .update(position, PopupAlignment::TopLeft, ctx);
+            .update(position, PopupAlignment::TopLeft, ctx, dt);
     }
 
     fn show_results(&mut self, ctx: &mut Ctx) {
@@ -259,13 +261,6 @@ impl CompletionList {
         ctx.ui.show(self.result_list.widget_id());
         ctx.ui.focus(self.result_list.widget_id());
         self.set_popups_shown(ctx);
-    }
-
-    pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.result_list.animate(ctx, dt);
-
-        self.detail_popup.animate(ctx, dt);
-        self.documentation_popup.animate(ctx, dt);
     }
 
     fn lsp_completion_item_resolve(

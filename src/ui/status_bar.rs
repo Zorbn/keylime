@@ -55,7 +55,7 @@ impl StatusBar {
         gfx.begin(Some(bounds));
 
         gfx.add_bordered_rect(
-            bounds.unoffset_by(bounds),
+            bounds.relative_to(bounds),
             Sides::from(Side::Top),
             theme.background,
             theme.border,
@@ -157,9 +157,5 @@ impl StatusBar {
         .ok()?;
 
         Some(doc_text)
-    }
-
-    pub fn widget_id(&self) -> WidgetId {
-        self.widget_id
     }
 }

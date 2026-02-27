@@ -165,12 +165,8 @@ impl PaneWrapper<Doc> for EditorPane {
         self.inner.receive_msgs(doc_list, ctx);
     }
 
-    fn update(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) {
-        self.inner.update(ctx);
-
-        if let Some((tab, doc)) = self.get_focused_tab_with_data_mut(doc_list, ctx.ui) {
-            tab.update(doc, ctx);
-        }
+    fn update(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx, dt: f32) {
+        self.inner.update(doc_list, ctx, dt);
     }
 
     fn widget_id(&self) -> WidgetId {

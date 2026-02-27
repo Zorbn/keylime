@@ -73,7 +73,7 @@ impl SignatureHelpPopup {
         self.help_position = position;
     }
 
-    pub fn update(&mut self, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) {
+    pub fn update(&mut self, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx, dt: f32) {
         if self.help.is_some() && doc.cursor(CursorIndex::Main).position != self.help_position {
             doc.lsp_signature_help(None, true, ctx);
         }
@@ -84,7 +84,7 @@ impl SignatureHelpPopup {
 
         if ctx.ui.is_visible(self.documentation_popup.widget_id()) {
             self.documentation_popup
-                .update(position, PopupAlignment::Above, ctx);
+                .update(position, PopupAlignment::Above, ctx, dt);
 
             let documentation_bounds = ctx.ui.bounds(self.documentation_popup.widget_id());
 
@@ -93,12 +93,7 @@ impl SignatureHelpPopup {
         }
 
         self.label_popup
-            .update(position, PopupAlignment::Above, ctx);
-    }
-
-    pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.label_popup.animate(ctx, dt);
-        self.documentation_popup.animate(ctx, dt);
+            .update(position, PopupAlignment::Above, ctx, dt);
     }
 
     pub fn draw(&mut self, ctx: &mut Ctx) -> Option<()> {

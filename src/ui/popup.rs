@@ -73,9 +73,15 @@ impl Popup {
         }
     }
 
-    pub fn update(&mut self, position: VisualPosition, alignment: PopupAlignment, ctx: &mut Ctx) {
+    pub fn update(
+        &mut self,
+        position: VisualPosition,
+        alignment: PopupAlignment,
+        ctx: &mut Ctx,
+        dt: f32,
+    ) {
         self.resize(position, alignment, ctx);
-        self.tab.update(&mut self.doc, ctx);
+        self.tab.update(&mut self.doc, ctx, dt);
     }
 
     fn resize(&mut self, position: VisualPosition, alignment: PopupAlignment, ctx: &mut Ctx) {
@@ -115,10 +121,6 @@ impl Popup {
         ctx.ui.set_popup(self.widget_id, Some(bounds));
     }
 
-    pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.tab.animate(&self.doc, ctx, dt);
-    }
-
     pub fn draw(&mut self, foreground: Option<Color>, ctx: &mut Ctx) {
         if !ctx.ui.is_visible(self.widget_id) {
             return;
@@ -133,7 +135,7 @@ impl Popup {
         gfx.begin(Some(border_bounds));
 
         gfx.add_bordered_rect(
-            border_bounds.unoffset_by(border_bounds),
+            border_bounds.relative_to(border_bounds),
             Sides::ALL,
             theme.background,
             theme.border,

@@ -88,7 +88,7 @@ impl CommandPalette {
         );
 
         let tab = Tab::new(widget_id, SlotId::ZERO, ui);
-        let result_list = ResultList::new(MAX_VISIBLE_RESULTS, true, tab.widget_id(), ui);
+        let result_list = ResultList::new(tab.widget_id(), ui);
 
         Self {
             mode: None,
@@ -183,7 +183,7 @@ impl CommandPalette {
         )
     }
 
-    pub fn update(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
+    pub fn update(&mut self, editor: &mut Editor, ctx: &mut Ctx, dt: f32) {
         if ctx.ui.is_visible(self.widget_id) && !ctx.ui.is_focused(self.widget_id) {
             self.close(ctx.ui);
         }
@@ -193,14 +193,10 @@ impl CommandPalette {
             self.mode = Some(mode);
         }
 
-        self.tab.update(&mut self.doc, ctx);
+        self.tab.update(&mut self.doc, ctx, dt);
+        self.result_list.update(ctx, dt);
         self.update_results(editor, ctx);
         self.update_popups(ctx);
-    }
-
-    pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.tab.animate(&self.doc, ctx, dt);
-        self.result_list.animate(ctx, dt);
     }
 
     fn submit(&mut self, kind: ResultListSubmitKind, editor: &mut Editor, ctx: &mut Ctx) {
@@ -303,7 +299,7 @@ impl CommandPalette {
         gfx.add_bordered_rect(
             doc_bounds
                 .add_margin(gfx.border_width())
-                .unoffset_by(bounds),
+                .relative_to(bounds),
             Sides::ALL,
             theme.background,
             theme.border,

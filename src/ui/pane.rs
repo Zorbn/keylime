@@ -158,15 +158,17 @@ impl<T> PaneTabBar<T> {
         }
     }
 
-    pub fn animate(
+    pub fn update(
         &mut self,
-        tabs: &[Tab],
+        tabs: &mut [Tab],
         data_list: &SlotList<T>,
         get_doc: fn(&T) -> &Doc,
         view: &PaneView,
         ctx: &mut Ctx,
         dt: f32,
     ) {
+        self.handle_dragged_tab(tabs, view, ctx.ui);
+
         let gfx = &mut ctx.gfx;
 
         let mut tab_x = 0.0;
@@ -243,10 +245,6 @@ impl<T> PaneTabBar<T> {
         }
     }
 
-    pub fn update(&mut self, tabs: &mut [Tab], view: &PaneView, ui: &mut Ui) {
-        self.handle_dragged_tab(tabs, view, ui);
-    }
-
     // TODO: This should possibly be part of the mouse move move event instead of update.
     fn handle_dragged_tab(&mut self, tabs: &mut [Tab], view: &PaneView, ui: &mut Ui) {
         if self.dragged_tab_offset.is_none() {
@@ -303,7 +301,7 @@ impl<T> PaneTabBar<T> {
         gfx.begin(Some(bounds));
 
         gfx.add_bordered_rect(
-            bounds.unoffset_by(bounds),
+            bounds.relative_to(bounds),
             [Side::Top, Side::Left].into(),
             theme.background,
             theme.border,
@@ -570,22 +568,18 @@ impl<T> Pane<T> {
         }
     }
 
-    pub fn update(&mut self, ctx: &mut Ctx) {
-        self.tab_bar.update(&mut self.tabs, &self.view, ctx.ui);
-    }
-
-    pub fn animate(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx, dt: f32) {
+    pub fn update(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx, dt: f32) {
         self.tab_bar
-            .animate(&self.tabs, data_list, self.get_doc, &self.view, ctx, dt);
+            .update(&mut self.tabs, data_list, self.get_doc, &self.view, ctx, dt);
 
-        let get_doc = self.get_doc;
+        let get_doc_mut = self.get_doc_mut;
 
         for tab in self.tabs.iter_mut() {
             let Some(data) = data_list.get_mut(tab.data_id()) else {
                 continue;
             };
 
-            tab.animate(get_doc(data), ctx, dt);
+            tab.update(get_doc_mut(data), ctx, dt);
         }
     }
 

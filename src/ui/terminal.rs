@@ -87,14 +87,9 @@ impl Terminal {
         self.panes.receive_msgs(&mut self.term_list, ctx);
     }
 
-    pub fn update(&mut self, ctx: &mut Ctx) {
-        self.panes.update(&mut self.term_list, ctx);
-
+    pub fn update(&mut self, ctx: &mut Ctx, dt: f32) {
+        self.panes.update(&mut self.term_list, ctx, dt);
         self.panes.remove_excess(ctx.ui, |pane| !pane.has_tabs());
-    }
-
-    pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.panes.animate(&mut self.term_list, ctx, dt);
     }
 
     pub fn draw(&mut self, ctx: &mut Ctx) {

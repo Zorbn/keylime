@@ -74,7 +74,7 @@ impl PaneWrapper<Term> for TerminalPane {
         self.inner.receive_msgs(term_list, ctx);
     }
 
-    fn update(&mut self, term_list: &mut SlotList<Term>, ctx: &mut Ctx) {
+    fn update(&mut self, term_list: &mut SlotList<Term>, ctx: &mut Ctx, dt: f32) {
         for tab in self.iter_tabs_mut() {
             let term_id = tab.data_id();
 
@@ -82,12 +82,10 @@ impl PaneWrapper<Term> for TerminalPane {
                 continue;
             };
 
-            // TODO: Combine these into one public update fn?
-            emulator.update_input(docs, tab, ctx);
-            emulator.update_output(docs, tab, ctx);
+            emulator.update(docs, tab, ctx);
         }
 
-        self.inner.update(ctx);
+        self.inner.update(term_list, ctx, dt);
     }
 
     fn widget_id(&self) -> WidgetId {

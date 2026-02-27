@@ -43,32 +43,21 @@ pub enum ResultListInput {
 }
 
 pub struct ResultList<T> {
+    widget_id: WidgetId,
+
     pub results: FocusList<T>,
     handled_focused_index: Option<usize>,
-
-    max_visible_results: usize,
-    do_show_when_empty: bool,
-
-    widget_id: WidgetId,
 
     camera: CameraAxis,
 }
 
 impl<T> ResultList<T> {
-    pub fn new(
-        max_visible_results: usize,
-        do_show_when_empty: bool,
-        parent_id: WidgetId,
-        ui: &mut Ui,
-    ) -> Self {
+    pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
         Self {
+            widget_id: ui.new_widget(parent_id, Default::default()),
+
             results: FocusList::new(),
             handled_focused_index: None,
-
-            max_visible_results,
-            do_show_when_empty,
-
-            widget_id: ui.new_widget(parent_id, Default::default()),
 
             camera: CameraAxis::new(),
         }
@@ -173,7 +162,7 @@ impl<T> ResultList<T> {
         true
     }
 
-    pub fn animate(&mut self, ctx: &Ctx, dt: f32) {
+    pub fn update(&mut self, ctx: &Ctx, dt: f32) {
         let focused_index = self.focused_index();
         let bounds = ctx.ui.bounds(self.widget_id);
         let result_height = Self::result_height(ctx.gfx);
@@ -212,7 +201,7 @@ impl<T> ResultList<T> {
         gfx.begin(Some(bounds));
 
         gfx.add_bordered_rect(
-            bounds.unoffset_by(bounds),
+            bounds.relative_to(bounds),
             Sides::ALL,
             theme.background,
             theme.border,

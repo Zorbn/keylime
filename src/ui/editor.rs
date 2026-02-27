@@ -196,7 +196,7 @@ impl Editor {
     }
 
     pub fn update(&mut self, file_watcher: &mut FileWatcher, ctx: &mut Ctx, dt: f32) {
-        self.panes.update(&mut self.doc_list, ctx);
+        self.panes.update(&mut self.doc_list, ctx, dt);
         self.reload_changed_files(file_watcher, ctx);
 
         self.update_hover(ctx, dt);
@@ -220,7 +220,7 @@ impl Editor {
             return;
         };
 
-        self.completion_list.update(tab, doc, ctx);
+        self.completion_list.update(tab, doc, ctx, dt);
 
         let doc_id = tab.data_id();
         let position = doc.cursor(CursorIndex::Main).position;
@@ -228,8 +228,8 @@ impl Editor {
         self.cursor_history
             .update(self.handled_doc_id, doc_id, self.handled_position, position);
 
-        self.signature_help_popup.update(tab, doc, ctx);
-        self.examine_popup.update(tab, doc, ctx);
+        self.signature_help_popup.update(tab, doc, ctx, dt);
+        self.examine_popup.update(tab, doc, ctx, dt);
 
         self.handled_position = Some(position);
         self.handled_doc_id = Some(doc_id);
@@ -263,14 +263,6 @@ impl Editor {
         } else {
             self.examine_popup.hide(ctx.ui);
         }
-    }
-
-    pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
-        self.panes.animate(&mut self.doc_list, ctx, dt);
-
-        self.signature_help_popup.animate(ctx, dt);
-        self.completion_list.animate(ctx, dt);
-        self.examine_popup.animate(ctx, dt);
     }
 
     pub fn lsp_handle_completion_list_result(

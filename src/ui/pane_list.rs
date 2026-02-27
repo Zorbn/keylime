@@ -21,7 +21,7 @@ use super::{
 
 pub trait PaneWrapper<T>: Deref<Target = Pane<T>> + DerefMut<Target = Pane<T>> {
     fn receive_msgs(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx);
-    fn update(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx);
+    fn update(&mut self, data_list: &mut SlotList<T>, ctx: &mut Ctx, dt: f32);
     fn widget_id(&self) -> WidgetId;
 }
 
@@ -78,15 +78,9 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
         }
     }
 
-    pub fn update(&mut self, data_list: &mut SlotList<TData>, ctx: &mut Ctx) {
+    pub fn update(&mut self, data_list: &mut SlotList<TData>, ctx: &mut Ctx, dt: f32) {
         for pane in self.panes.iter_mut() {
-            pane.update(data_list, ctx);
-        }
-    }
-
-    pub fn animate(&mut self, data_list: &mut SlotList<TData>, ctx: &mut Ctx, dt: f32) {
-        for pane in self.panes.iter_mut() {
-            pane.animate(data_list, ctx, dt);
+            pane.update(data_list, ctx, dt);
         }
     }
 

@@ -245,13 +245,7 @@ impl TerminalEmulator {
         self.pty = Some(pty);
     }
 
-    pub fn update_input(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
-        let doc = self.doc_mut(docs);
-
-        tab.update(doc, ctx);
-    }
-
-    pub fn update_output(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
+    pub fn update(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
         let last_grid_height = self.grid_height;
         self.resize_grid(tab, ctx);
 

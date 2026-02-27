@@ -29,23 +29,8 @@ impl Rect {
         }
     }
 
-    // pub fn shrink_left_by(&self, other: Self) -> Self {
-    //     let subtracted_width = (other.right() - self.x).max(0.0);
-
-    //     Self::new(
-    //         self.x + subtracted_width,
-    //         self.y,
-    //         self.width - subtracted_width,
-    //         self.height,
-    //     )
-    // }
-
     pub fn shrink_top_by(&self, size: f32) -> Self {
         Self::new(self.x, self.y + size, self.width, self.height - size)
-    }
-
-    pub fn shrink_bottom_by(&self, size: f32) -> Self {
-        Self::new(self.x, self.y, self.width, self.height - size)
     }
 
     pub fn scale(&self, scale: f32) -> Self {
@@ -82,19 +67,6 @@ impl Rect {
         Self::new(self.x, self.y + delta, self.width, self.height)
     }
 
-    pub fn below(&self, other: Self) -> Self {
-        Self::new(self.x, other.y + other.height, self.width, self.height)
-    }
-
-    pub fn at_bottom_of(&self, other: Self) -> Self {
-        Self::new(
-            self.x,
-            other.bottom() - self.height,
-            self.width,
-            self.height,
-        )
-    }
-
     pub fn add_margin(&self, margin: f32) -> Self {
         Self::new(
             self.x - margin,
@@ -102,10 +74,6 @@ impl Rect {
             self.width + margin * 2.0,
             self.height + margin * 2.0,
         )
-    }
-
-    pub fn center_in(&self, other: Self) -> Self {
-        self.center_x_in(other).center_y_in(other)
     }
 
     pub fn center_x_in(&self, other: Self) -> Self {
@@ -117,41 +85,8 @@ impl Rect {
         )
     }
 
-    pub fn center_y_in(&self, other: Self) -> Self {
-        Self::new(
-            self.x,
-            other.y + (other.height - self.height) / 2.0,
-            self.width,
-            self.height,
-        )
-    }
-
-    pub fn unoffset_by(&self, other: Self) -> Self {
+    pub fn relative_to(&self, other: Self) -> Self {
         Self::new(self.x - other.x, self.y - other.y, self.width, self.height)
-    }
-
-    pub fn offset_by(&self, other: Self) -> Self {
-        Self::new(self.x + other.x, self.y + other.y, self.width, self.height)
-    }
-
-    pub fn expand_width_in(&self, other: Self) -> Self {
-        let padding = (other.height - self.height) / 2.0;
-
-        Self::new(
-            other.x + padding,
-            self.y,
-            other.width - padding * 2.0,
-            self.height,
-        )
-    }
-
-    pub fn expand_to_include(&self, other: Self) -> Self {
-        let left = self.left().min(other.left());
-        let top = self.top().min(other.top());
-        let right = self.right().max(other.right());
-        let bottom = self.bottom().max(other.bottom());
-
-        Self::new(left, top, right, bottom)
     }
 
     pub fn contains_position(&self, position: VisualPosition) -> bool {
@@ -161,21 +96,8 @@ impl Rect {
             && position.y <= self.y + self.height
     }
 
-    pub fn floor(&self) -> Self {
-        Self::new(
-            self.x.floor(),
-            self.y.floor(),
-            self.width.floor(),
-            self.height.floor(),
-        )
-    }
-
     pub fn top_border(&self, border_width: f32) -> Self {
         Self::new(self.x, self.y, self.width, border_width)
-    }
-
-    pub fn left_border(&self, border_width: f32) -> Self {
-        Self::new(self.x, self.y, border_width, self.height)
     }
 
     pub fn right_border(&self, border_width: f32) -> Self {
