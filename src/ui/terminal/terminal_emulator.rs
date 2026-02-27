@@ -554,13 +554,25 @@ impl TerminalEmulator {
             &mut self.saved_colored_grid_lines,
         );
 
-        self.expand_doc_to_grid_size(&mut docs.normal, last_grid_height, ctx);
-        self.expand_doc_to_grid_size(&mut docs.alternate, last_grid_height, ctx);
+        let (normal_y, alternate_y) = if self.is_in_alternate_buffer {
+            (self.saved_grid_cursor.y, self.grid_cursor.y)
+        } else {
+            (self.grid_cursor.y, self.saved_grid_cursor.y)
+        };
+
+        self.expand_doc_to_grid_size(&mut docs.normal, last_grid_height, normal_y, ctx);
+        self.expand_doc_to_grid_size(&mut docs.alternate, last_grid_height, alternate_y, ctx);
     }
 
-    fn expand_doc_to_grid_size(&mut self, doc: &mut Doc, last_grid_height: usize, ctx: &mut Ctx) {
+    fn expand_doc_to_grid_size(
+        &mut self,
+        doc: &mut Doc,
+        last_grid_height: usize,
+        cursor_y: usize,
+        ctx: &mut Ctx,
+    ) {
         if self.grid_height < last_grid_height {
-            let start_y = doc.lines().len().saturating_sub(last_grid_height) + self.grid_cursor.y;
+            let start_y = doc.lines().len().saturating_sub(last_grid_height) + cursor_y;
             let start_y = start_y.max(self.grid_height - 1);
             let start = doc.line_end(start_y);
 

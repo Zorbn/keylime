@@ -9,7 +9,6 @@ macro_rules! define_handler {
             len: usize,
         }
 
-        #[allow(dead_code)]
         impl $name {
             pub fn new(len: usize) -> Self {
                 Self { i: 0, len }
@@ -22,16 +21,6 @@ macro_rules! define_handler {
 
                     result
                 })
-            }
-
-            pub fn unprocessed(&mut self, window: &mut Window, t: $t) {
-                window.$buffer().insert(self.i, t);
-                self.i += 1;
-                self.len += 1;
-            }
-
-            pub fn drain(&mut self, window: &mut Window) {
-                while self.next(window).is_some() {}
             }
         }
     };
@@ -57,14 +46,6 @@ impl ActionHandler {
             .next(window)
             .map(|action| action.translate(&config.keymaps))
     }
-
-    pub fn unprocessed(&mut self, window: &mut Window, action: Action) {
-        self.raw.unprocessed(window, action);
-    }
-
-    pub fn drain(&mut self, window: &mut Window) {
-        self.raw.drain(window);
-    }
 }
 
 pub struct GraphemeHandler {
@@ -84,14 +65,5 @@ impl GraphemeHandler {
         grapheme_cursor.next_boundary(graphemes_typed);
 
         Some(&graphemes_typed[start..end])
-    }
-
-    pub fn unprocessed(&self, window: &mut Window) {
-        let (graphemes_typed, grapheme_cursor) = window.graphemes_typed();
-        grapheme_cursor.previous_boundary(graphemes_typed);
-    }
-
-    pub fn drain(&mut self, window: &mut Window) {
-        while self.next(window).is_some() {}
     }
 }
