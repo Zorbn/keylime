@@ -183,8 +183,7 @@ impl Window {
             .intersection(
                 NSEventModifierFlags::Command
                     | NSEventModifierFlags::Control
-                    | NSEventModifierFlags::Function
-                    | NSEventModifierFlags::Option,
+                    | NSEventModifierFlags::Function,
             )
             .is_empty()
         {

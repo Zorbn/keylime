@@ -106,12 +106,6 @@ impl<T> PaneTabBar<T> {
                 }
                 Msg::Mousebind(Mousebind {
                     button: Some(MouseButton::Left),
-                    mods: Mods::NONE,
-                    kind: MousebindKind::Move,
-                    ..
-                }) => {}
-                Msg::Mousebind(Mousebind {
-                    button: Some(MouseButton::Left),
                     x,
                     y,
                     mods: Mods::NONE,
@@ -245,7 +239,6 @@ impl<T> PaneTabBar<T> {
         }
     }
 
-    // TODO: This should possibly be part of the mouse move move event instead of update.
     fn handle_dragged_tab(&mut self, tabs: &mut [Tab], view: &PaneView, ui: &mut Ui) {
         if self.dragged_tab_offset.is_none() {
             return;
