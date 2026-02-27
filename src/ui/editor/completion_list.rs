@@ -254,7 +254,7 @@ impl CompletionList {
     }
 
     fn show_results(&mut self, ctx: &mut Ctx) {
-        if self.result_list.results.is_empty() {
+        if self.result_list.is_empty() {
             return;
         }
 
@@ -368,9 +368,7 @@ impl CompletionList {
         for result in results {
             match result {
                 DecodedCodeActionResult::Command(command) => {
-                    self.result_list
-                        .results
-                        .push(CompletionResult::Command(command));
+                    self.result_list.push(CompletionResult::Command(command));
                 }
                 DecodedCodeActionResult::CodeAction(code_action) => {
                     let index = if code_action.is_preferred {
@@ -380,7 +378,6 @@ impl CompletionList {
                     };
 
                     self.result_list
-                        .results
                         .insert(index, CompletionResult::CodeAction(code_action));
                 }
             }
@@ -434,7 +431,6 @@ impl CompletionList {
 
         doc.tokens().traverse(&self.prefix, |result| {
             self.result_list
-                .results
                 .push(CompletionResult::SimpleCompletion(result));
         });
 

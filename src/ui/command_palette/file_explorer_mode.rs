@@ -80,7 +80,6 @@ impl FileExplorerMode {
             Position::ZERO,
             command_palette
                 .result_list
-                .results
                 .get_focused()
                 .map(|result| result.text.as_str())
                 .unwrap_or_default(),
@@ -167,13 +166,10 @@ impl FileExplorerMode {
 
                     let entry_path = Pooled::new(entry_path, &PATH_POOL);
 
-                    command_palette
-                        .result_list
-                        .results
-                        .push(CommandPaletteResult {
-                            text,
-                            meta_data: CommandPaletteMetaData::Path(entry_path),
-                        });
+                    command_palette.result_list.push(CommandPaletteResult {
+                        text,
+                        meta_data: CommandPaletteMetaData::Path(entry_path),
+                    });
                 }
             }
         }
@@ -192,7 +188,6 @@ impl FileExplorerMode {
         if let Some(focused_result_index) = focused_result_index.or(self.renaming_result_index) {
             command_palette
                 .result_list
-                .results
                 .set_focused_index(focused_result_index);
         }
     }

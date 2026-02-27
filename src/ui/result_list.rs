@@ -1,7 +1,4 @@
-use std::{
-    ops::{Deref, DerefMut},
-    vec::Drain,
-};
+use std::{cmp::Ordering, vec::Drain};
 
 use crate::{
     config::theme::Theme,
@@ -25,7 +22,6 @@ use super::{
     camera::RECENTER_DISTANCE,
     color::Color,
     core::{Ui, WidgetId},
-    focus_list::FocusList,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -45,7 +41,8 @@ pub enum ResultListInput {
 pub struct ResultList<T> {
     widget_id: WidgetId,
 
-    pub results: FocusList<T>,
+    items: Vec<T>,
+    focused_index: usize,
     handled_focused_index: Option<usize>,
 
     camera: CameraAxis,
@@ -56,7 +53,8 @@ impl<T> ResultList<T> {
         Self {
             widget_id: ui.new_widget(parent_id, Default::default()),
 
-            results: FocusList::new(),
+            items: Vec::new(),
+            focused_index: 0,
             handled_focused_index: None,
 
             camera: CameraAxis::new(),
@@ -239,9 +237,91 @@ impl<T> ResultList<T> {
         gfx.end();
     }
 
+    pub fn focus_next(&mut self) {
+        if self.focused_index < self.items.len().saturating_sub(1) {
+            self.focused_index += 1;
+        } else {
+            self.focused_index = 0;
+        }
+    }
+
+    pub fn focus_previous(&mut self) {
+        if self.focused_index > 0 {
+            self.focused_index -= 1;
+        } else {
+            self.focused_index = self.items.len().saturating_sub(1);
+        }
+    }
+
+    fn clamp_focused(&mut self) {
+        self.focused_index = self.focused_index.min(self.items.len().saturating_sub(1));
+    }
+
+    pub fn insert(&mut self, index: usize, item: T) {
+        if index < self.items.len() && self.focused_index >= index {
+            self.focused_index += 1;
+        }
+
+        self.items.insert(index, item);
+    }
+
+    pub fn push(&mut self, item: T) {
+        self.items.push(item);
+    }
+
+    pub fn append(&mut self, other: &mut Vec<T>) {
+        self.items.append(other);
+    }
+
+    pub fn remove(&mut self) -> Option<T> {
+        let item =
+            (self.focused_index < self.items.len()).then(|| self.items.remove(self.focused_index));
+
+        self.clamp_focused();
+
+        item
+    }
+
+    pub fn sort_by(&mut self, compare: impl FnMut(&T, &T) -> Ordering) {
+        self.items.sort_by(compare);
+    }
+
+    pub fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn get_focused(&self) -> Option<&T> {
+        self.items.get(self.focused_index)
+    }
+
+    pub fn get_focused_mut(&mut self) -> Option<&mut T> {
+        self.items.get_mut(self.focused_index)
+    }
+
+    pub fn get(&self, index: usize) -> Option<&T> {
+        self.items.get(index)
+    }
+
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+        self.items.get_mut(index)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    pub fn set_focused_index(&mut self, index: usize) {
+        self.focused_index = index;
+        self.clamp_focused();
+    }
+
+    pub fn focused_index(&self) -> usize {
+        self.focused_index
+    }
+
     pub fn drain(&mut self) -> Drain<'_, T> {
-        self.set_focused_index(0);
-        self.results.drain()
+        self.focused_index = 0;
+        self.items.drain(..)
     }
 
     pub fn reset(&mut self) {
@@ -274,24 +354,10 @@ impl<T> ResultList<T> {
     }
 
     pub fn desired_height(&self, max_visible_results: usize, gfx: &Gfx) -> f32 {
-        Self::result_height(gfx) * self.results.len().min(max_visible_results) as f32
+        Self::result_height(gfx) * self.items.len().min(max_visible_results) as f32
     }
 
     pub fn result_height(gfx: &Gfx) -> f32 {
         gfx.line_height() * 1.25
-    }
-}
-
-impl<T> Deref for ResultList<T> {
-    type Target = FocusList<T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.results
-    }
-}
-
-impl<T> DerefMut for ResultList<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.results
     }
 }

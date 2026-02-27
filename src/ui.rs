@@ -4,7 +4,6 @@ pub mod command_palette;
 pub mod controller;
 pub mod core;
 pub mod editor;
-mod focus_list;
 pub mod msg;
 mod pane;
 mod pane_list;

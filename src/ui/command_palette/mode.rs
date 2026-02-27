@@ -51,7 +51,6 @@ pub trait CommandPaletteMode {
         if command_palette.input().is_empty() {
             command_palette
                 .result_list
-                .results
                 .sort_by(|a, b| compare_ignore_ascii_case(&a.text, &b.text));
 
             return;

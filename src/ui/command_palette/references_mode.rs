@@ -22,10 +22,7 @@ impl CommandPaletteMode for ReferencesMode {
     }
 
     fn on_open(&mut self, command_palette: &mut CommandPalette, _: CommandPaletteEventArgs) {
-        command_palette
-            .result_list
-            .results
-            .append(&mut self.results);
+        command_palette.result_list.append(&mut self.results);
     }
 
     fn on_submit(

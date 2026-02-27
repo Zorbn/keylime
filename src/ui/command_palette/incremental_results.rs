@@ -77,7 +77,6 @@ impl IncrementalResults {
 
         command_palette
             .result_list
-            .results
             .append(&mut self.pending_results);
     }
 

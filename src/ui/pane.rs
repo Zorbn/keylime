@@ -730,10 +730,6 @@ impl<T> Pane<T> {
         true
     }
 
-    pub fn tab_count(&self) -> usize {
-        self.tabs.len()
-    }
-
     pub fn has_tabs(&self) -> bool {
         !self.tabs.is_empty()
     }
