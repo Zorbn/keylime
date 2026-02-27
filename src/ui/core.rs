@@ -1064,13 +1064,6 @@ impl Ui {
             .map(|slot| &slot.widget)
     }
 
-    fn get_widget_mut(&mut self, widget_id: WidgetId) -> Option<&mut Widget> {
-        self.widget_slots
-            .get_mut(widget_id.index)
-            .filter(|slot| slot.generation == widget_id.generation)
-            .map(|slot| &mut slot.widget)
-    }
-
     fn widget(&self, widget_id: WidgetId) -> &Widget {
         let slot = &self.widget_slots[widget_id.index];
         assert!(slot.generation == widget_id.generation);
@@ -1087,6 +1080,10 @@ impl Ui {
 
     pub fn bounds(&self, widget_id: WidgetId) -> Rect {
         self.widget(widget_id).bounds
+    }
+
+    pub fn parent_id(&self, widget_id: WidgetId) -> Option<WidgetId> {
+        self.widget(widget_id).parent_id
     }
 
     pub fn child_ids(&self, widget_id: WidgetId) -> &[WidgetId] {

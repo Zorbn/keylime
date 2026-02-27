@@ -287,7 +287,6 @@ impl<T> PaneTabBar<T> {
     fn draw(
         &self,
         focused_index: usize,
-        is_pane_focused: bool,
         background: Option<Color>,
         tabs: &[Tab],
         data_list: &SlotList<T>,
@@ -312,28 +311,16 @@ impl<T> PaneTabBar<T> {
                 continue;
             }
 
-            self.draw_tab_from_index(
-                i,
-                false,
-                is_pane_focused,
-                background,
-                tabs,
-                data_list,
-                get_doc,
-                ctx,
-            );
+            let Some(doc) = Self::get_tab_doc(i, tabs, data_list, get_doc) else {
+                continue;
+            };
+
+            self.draw_tab(i, false, background, doc, ctx);
         }
 
-        let focused_tab_bounds = self.draw_tab_from_index(
-            focused_index,
-            true,
-            is_pane_focused,
-            background,
-            tabs,
-            data_list,
-            get_doc,
-            ctx,
-        );
+        let focused_tab_bounds = Self::get_tab_doc(focused_index, tabs, data_list, get_doc)
+            .map(|doc| self.draw_tab(focused_index, true, background, doc, ctx))
+            .unwrap_or_default();
 
         let gfx = &mut ctx.gfx;
         let theme = &ctx.config.theme;
@@ -362,39 +349,11 @@ impl<T> PaneTabBar<T> {
         gfx.end();
     }
 
-    fn draw_tab_from_index(
+    fn draw_tab(
         &self,
         index: usize,
         is_focused: bool,
-        is_pane_focused: bool,
         background: Option<Color>,
-        tabs: &[Tab],
-        data_list: &SlotList<T>,
-        get_doc: fn(&T) -> &Doc,
-        ctx: &mut Ctx,
-    ) -> Rect {
-        let Some(data) = tabs.get(index).and_then(|tab| data_list.get(tab.data_id())) else {
-            return Rect::ZERO;
-        };
-
-        let bounds = self.tab_animation_states[index].visual_bounds();
-
-        self.draw_tab(
-            is_focused,
-            is_pane_focused,
-            background,
-            bounds,
-            get_doc(data),
-            ctx,
-        )
-    }
-
-    fn draw_tab(
-        &self,
-        is_focused: bool,
-        is_pane_focused: bool,
-        background: Option<Color>,
-        bounds: Rect,
         doc: &Doc,
         ctx: &mut Ctx,
     ) -> Rect {
@@ -402,7 +361,9 @@ impl<T> PaneTabBar<T> {
         let text_color = Self::tab_color(doc, theme, ctx);
 
         let camera_x = self.camera.position().floor();
-        let bounds = bounds.shift_x(-camera_x);
+        let bounds = self.tab_animation_states[index]
+            .visual_bounds()
+            .shift_x(-camera_x);
 
         let background = if is_focused {
             background.unwrap_or(theme.background)
@@ -428,7 +389,11 @@ impl<T> PaneTabBar<T> {
         }
 
         if is_focused {
-            let foreground = if is_pane_focused {
+            let foreground = if ctx
+                .ui
+                .parent_id(self.widget_id)
+                .is_some_and(|parent_id| ctx.ui.is_focused(parent_id))
+            {
                 theme.keyword
             } else {
                 theme.emphasized
@@ -438,6 +403,17 @@ impl<T> PaneTabBar<T> {
         }
 
         bounds
+    }
+
+    fn get_tab_doc<'a>(
+        index: usize,
+        tabs: &[Tab],
+        data_list: &'a SlotList<T>,
+        get_doc: fn(&T) -> &Doc,
+    ) -> Option<&'a Doc> {
+        tabs.get(index)
+            .and_then(|tab| data_list.get(tab.data_id()))
+            .map(get_doc)
     }
 
     fn tab_color(doc: &Doc, theme: &Theme, ctx: &mut Ctx) -> Color {
@@ -586,7 +562,6 @@ impl<T> Pane<T> {
     pub fn draw(&mut self, background: Option<Color>, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
         self.tab_bar.draw(
             self.focused_tab_index(ctx.ui),
-            ctx.ui.is_focused(self.widget_id),
             background,
             &self.tabs,
             data_list,
