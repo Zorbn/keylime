@@ -3,10 +3,12 @@ use std::{
     mem::transmute,
     path::Path,
     ptr::{copy_nonoverlapping, null_mut},
+    vec::Drain,
 };
 
 use windows::{
     core::Result,
+    Data::Text::UnicodeCharacters,
     Win32::{
         Foundation::{
             GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_OBJECT_0, WPARAM,
@@ -38,7 +40,6 @@ use crate::{
     geometry::visual_position::VisualPosition,
     input::{
         action::Action,
-        input_handlers::{ActionHandler, GraphemeHandler, MouseScrollHandler, MousebindHandler},
         key::Key,
         keybind::Keybind,
         mods::{Mod, Mods},
@@ -47,8 +48,9 @@ use crate::{
         mousebind::{MouseClickCount, Mousebind, MousebindKind},
     },
     platform::aliases::{AnyFileWatcher, AnyProcess, AnyWindow},
-    pool::UTF16_POOL,
+    pool::{Pooled, STRING_POOL, UTF16_POOL},
     text::grapheme::GraphemeCursor,
+    ui::msg::Msg,
 };
 
 use super::deferred_call::defer;
@@ -87,8 +89,8 @@ pub struct Window {
 
     x: i32,
     y: i32,
-    pub(super) width: i32,
-    pub(super) height: i32,
+    width: i32,
+    height: i32,
 
     // Keep track of which mouse buttons have been pressed since the window was
     // last focused, so that we can skip stray mouse drag events that may happen
@@ -98,11 +100,9 @@ pub struct Window {
     last_click: Option<RecordedMouseClick>,
     double_click_time: f64,
 
-    pub graphemes_typed: String,
-    pub grapheme_cursor: GraphemeCursor,
-    pub actions_typed: Vec<Action>,
-    pub mousebinds_pressed: Vec<Mousebind>,
-    pub mouse_scrolls: Vec<MouseScroll>,
+    high_surrogate: u32,
+    last_grapheme_msg_index: Option<usize>,
+    msgs: Vec<Msg>,
     mods: Mods,
 
     was_copy_implicit: bool,
@@ -141,11 +141,9 @@ impl Window {
             last_click: None,
             double_click_time,
 
-            graphemes_typed: String::new(),
-            grapheme_cursor: GraphemeCursor::new(0, 0),
-            actions_typed: Vec::new(),
-            mousebinds_pressed: Vec::new(),
-            mouse_scrolls: Vec::new(),
+            high_surrogate: 0,
+            last_grapheme_msg_index: None,
+            msgs: Vec::new(),
             mods: Mods::NONE,
 
             was_copy_implicit: false,
@@ -166,12 +164,14 @@ impl Window {
         }
     }
 
-    fn clear_inputs(&mut self) {
-        self.graphemes_typed.clear();
-        self.grapheme_cursor = GraphemeCursor::new(0, 0);
-        self.actions_typed.clear();
-        self.mousebinds_pressed.clear();
-        self.mouse_scrolls.clear();
+    pub fn resize(&mut self, width: i32, height: i32) {
+        self.width = width;
+        self.height = height;
+
+        self.msgs.push(Msg::Resize {
+            width: width as f32,
+            height: height as f32,
+        });
     }
 
     pub fn time(&mut self, is_animating: bool) -> (f64, f32) {
@@ -204,7 +204,6 @@ impl Window {
         files: impl Iterator<Item = &'a Path>,
         processes: impl Iterator<Item = &'a mut AnyProcess>,
     ) {
-        self.clear_inputs();
         file_watcher.inner.update(files).unwrap();
 
         unsafe {
@@ -266,22 +265,6 @@ impl Window {
         self.hwnd
     }
 
-    pub fn grapheme_handler(&self) -> GraphemeHandler {
-        GraphemeHandler::new(self.grapheme_cursor.clone())
-    }
-
-    pub fn action_handler(&self) -> ActionHandler {
-        ActionHandler::new(self.actions_typed.len())
-    }
-
-    pub fn mousebind_handler(&self) -> MousebindHandler {
-        MousebindHandler::new(self.mousebinds_pressed.len())
-    }
-
-    pub fn mouse_scroll_handler(&self) -> MouseScrollHandler {
-        MouseScrollHandler::new(self.mouse_scrolls.len())
-    }
-
     pub fn mouse_position(&self) -> VisualPosition {
         let mut point = POINT::default();
 
@@ -291,6 +274,11 @@ impl Window {
         }
 
         VisualPosition::new(point.x as f32, point.y as f32)
+    }
+
+    pub fn msgs(&mut self) -> Drain<'_, Msg> {
+        self.last_grapheme_msg_index = None;
+        self.msgs.drain(..)
     }
 
     pub fn mods(&self) -> Mods {
@@ -476,15 +464,45 @@ impl Window {
                 let _ = PostMessageW(Some(self.hwnd), WM_PAINT, WPARAM(0), LPARAM(0));
             }
             WM_CHAR => {
-                if let Some(c) = char::from_u32(wparam.0 as u32) {
-                    if !c.is_control() {
-                        self.graphemes_typed.push(c);
+                let surrogate = wparam.0 as u32;
 
-                        self.grapheme_cursor = GraphemeCursor::new(
-                            self.grapheme_cursor.index(),
-                            self.graphemes_typed.len(),
-                        );
+                if UnicodeCharacters::IsHighSurrogate(surrogate) == Ok(true) {
+                    self.high_surrogate = wparam.0 as u32;
+                    return DefWindowProcW(hwnd, msg, wparam, lparam);
+                }
+
+                let c = if UnicodeCharacters::IsLowSurrogate(surrogate) == Ok(true) {
+                    ((self.high_surrogate - 0xD800) << 10) + (surrogate - 0xDC00) + 0x10000
+                } else {
+                    surrogate
+                };
+
+                let Some(c) = char::from_u32(c).filter(|c| !c.is_control()) else {
+                    return DefWindowProcW(hwnd, msg, wparam, lparam);
+                };
+
+                let mut next_grapheme: Option<Pooled<String>> = None;
+
+                if let Some(Msg::Grapheme(grapheme)) = self
+                    .last_grapheme_msg_index
+                    .map(|index| &mut self.msgs[index])
+                {
+                    grapheme.push(c);
+
+                    if let Some(index) = GraphemeCursor::new(0, grapheme.len())
+                        .next_boundary(grapheme)
+                        .filter(|index| *index < grapheme.len())
+                    {
+                        next_grapheme = Some(grapheme[index..].into());
+                        grapheme.truncate(index);
                     }
+                } else {
+                    next_grapheme = Some(STRING_POOL.init_item(|grapheme| grapheme.push(c)));
+                }
+
+                if let Some(next_grapheme) = next_grapheme {
+                    self.last_grapheme_msg_index = Some(self.msgs.len());
+                    self.msgs.push(Msg::Grapheme(next_grapheme));
                 }
             }
             WM_KEYDOWN | WM_SYSKEYDOWN => {
@@ -494,8 +512,10 @@ impl Window {
                     return DefWindowProcW(hwnd, msg, wparam, lparam);
                 };
 
-                self.actions_typed
-                    .push(Action::from_keybind(Keybind::new(key, self.mods)));
+                self.msgs
+                    .push(Msg::Action(Action::from_keybind(Keybind::new(
+                        key, self.mods,
+                    ))));
 
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
@@ -524,14 +544,14 @@ impl Window {
                 let mods = Self::wparam_to_mods(wparam);
                 let (x, y) = Self::lparam_to_xy(lparam);
 
-                self.mousebinds_pressed.push(Mousebind::new(
+                self.msgs.push(Msg::Mousebind(Mousebind::new(
                     button,
                     x,
                     y,
                     mods,
                     MouseClickCount::Single,
                     MousebindKind::Release,
-                ));
+                )));
             }
             WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_MOUSEMOVE => {
                 let button = if msg == WM_MOUSEMOVE {
@@ -615,8 +635,9 @@ impl Window {
                 };
 
                 if !do_ignore {
-                    self.mousebinds_pressed
-                        .push(Mousebind::new(button, x, y, mods, count, kind));
+                    self.msgs.push(Msg::Mousebind(Mousebind::new(
+                        button, x, y, mods, count, kind,
+                    )));
                 }
             }
             WM_MOUSEWHEEL | WM_MOUSEHWHEEL => {
@@ -629,13 +650,13 @@ impl Window {
 
                 let (x, y) = Self::lparam_to_xy(lparam);
 
-                self.mouse_scrolls.push(MouseScroll {
+                self.msgs.push(Msg::MouseScroll(MouseScroll {
                     delta,
                     is_horizontal,
                     kind: MouseScrollKind::Instant,
                     x: x - self.x as f32,
                     y: y - self.y as f32,
-                });
+                }));
             }
             WM_CLIPBOARDUPDATE => {
                 if !self.did_just_copy {

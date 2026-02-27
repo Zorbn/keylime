@@ -186,9 +186,7 @@ impl AppRunner {
                 let height = ((lparam.0 >> 16) & 0xFFFF) as i32;
 
                 let app_runner = &mut *app_runner;
-
-                app_runner.window.inner.width = width;
-                app_runner.window.inner.height = height;
+                app_runner.window.inner.resize(width, height);
 
                 if let Self {
                     window,
