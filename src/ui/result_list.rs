@@ -73,28 +73,6 @@ impl<T> ResultList<T> {
         }
     }
 
-    // pub fn layout(&mut self, bounds: Rect, ui: &mut Ui, gfx: &Gfx) {
-    //     ui.set_shown(
-    //         self.widget_id,
-    //         self.do_show_when_empty || !self.results.is_empty(),
-    //     );
-
-    //     self.result_bounds = Rect::new(0.0, 0.0, bounds.width, gfx.line_height() * 1.25);
-
-    //     ui.widget_mut(self.widget_id).bounds = Rect::new(
-    //         bounds.x,
-    //         bounds.y,
-    //         bounds.width,
-    //         self.result_bounds.height * self.len().min(self.max_visible_results) as f32,
-    //     )
-    //     .floor();
-    // }
-
-    // pub fn offset_by(&self, bounds: Rect, ui: &mut Ui) {
-    //     let widget = ui.widget_mut(self.widget_id);
-    //     widget.bounds = widget.bounds.offset_by(bounds);
-    // }
-
     pub fn receive_msgs(&mut self, ctx: &mut Ctx) -> ResultListInput {
         let mut input = ResultListInput::None;
 
@@ -297,6 +275,10 @@ impl<T> ResultList<T> {
         let max_y = ((self.camera.position().floor() + bounds.height) / result_height) as usize + 1;
 
         max_y.min(self.len())
+    }
+
+    pub fn desired_height(&self, max_visible_results: usize, gfx: &Gfx) -> f32 {
+        Self::result_height(gfx) * self.results.len().min(max_visible_results) as f32
     }
 
     pub fn result_height(gfx: &Gfx) -> f32 {

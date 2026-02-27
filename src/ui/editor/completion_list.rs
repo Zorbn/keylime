@@ -227,12 +227,8 @@ impl CompletionList {
             position.x - (self.prefix.len() as f32 + 1.0) * gfx.glyph_width() + gfx.border_width(),
             position.y + gfx.line_height(),
             width,
-            ResultList::<CompletionResult>::result_height(gfx)
-                * self
-                    .result_list
-                    .results
-                    .len()
-                    .min(MAX_VISIBLE_COMPLETION_RESULTS) as f32,
+            self.result_list
+                .desired_height(MAX_VISIBLE_COMPLETION_RESULTS, gfx),
         );
 
         ctx.ui

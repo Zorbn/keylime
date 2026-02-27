@@ -112,11 +112,7 @@ impl CommandPalette {
     pub fn receive_msgs(&mut self, editor: &mut Editor, ctx: &mut Ctx) {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
-                Msg::FontChanged => self.resize_popups(ctx),
-                Msg::PopupParentResized { bounds } => {
-                    self.parent_bounds = bounds;
-                    self.resize_popups(ctx);
-                }
+                Msg::PopupParentResized { bounds } => self.parent_bounds = bounds,
                 Msg::GainedFocus => ctx.ui.focus(self.result_list.widget_id()),
                 Msg::Action(action) => {
                     let Some(mut mode) = self.mode.take() else {
@@ -150,16 +146,18 @@ impl CommandPalette {
         }
     }
 
-    fn resize_popups(&mut self, ctx: &mut Ctx) {
+    fn update_popups(&mut self, ctx: &mut Ctx) {
         let title_height = Self::title_height(ctx.gfx);
         let input_height = ctx.gfx.line_height() * 2.0;
-        let results_height = ctx.gfx.line_height() * MAX_VISIBLE_RESULTS as f32;
+        let results_height = self
+            .result_list
+            .desired_height(MAX_VISIBLE_RESULTS, ctx.gfx);
 
         let bounds = Rect::new(
             0.0,
             ctx.gfx.tab_height() * 2.0,
             Self::width(ctx.gfx),
-            title_height + input_height + results_height - ctx.gfx.border_width() * 2.0,
+            title_height + input_height + results_height - ctx.gfx.border_width(),
         )
         .center_x_in(self.parent_bounds);
 
@@ -197,6 +195,7 @@ impl CommandPalette {
 
         self.tab.update(&mut self.doc, ctx);
         self.update_results(editor, ctx);
+        self.update_popups(ctx);
     }
 
     pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
@@ -279,12 +278,7 @@ impl CommandPalette {
             gfx.line_height() * 2.0,
         );
 
-        gfx.add_bordered_rect(
-            input_bounds,
-            Sides::ALL.without(Side::Bottom),
-            theme.background,
-            theme.border,
-        );
+        gfx.add_bordered_rect(input_bounds, Sides::ALL, theme.background, theme.border);
 
         let title_bounds = Rect::new(0.0, 0.0, title_width, title_height);
 
