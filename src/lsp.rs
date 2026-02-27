@@ -111,7 +111,7 @@ impl Lsp {
 
                 editor
                     .completion_list
-                    .lsp_resolve_completion_item(message.id, item);
+                    .lsp_resolve_completion_item(message.id, item, ctx);
             }
             MessageResult::CodeAction(results) => {
                 let results = results

@@ -13,7 +13,7 @@ use crate::{
     pool::Pooled,
     text::{compare::score_fuzzy_match, cursor_index::CursorIndex, doc::Doc},
     ui::{
-        core::{Ui, WidgetId, WidgetSettings},
+        core::{WidgetId, WidgetSettings},
         popup::{Popup, PopupAlignment},
         result_list::{ResultList, ResultListInput, ResultListSubmitKind},
         tab::Tab,
@@ -130,6 +130,7 @@ impl CompletionList {
                 self.hide(ctx);
             }
             ResultListInput::Close => self.hide(ctx),
+            ResultListInput::FocusChanged => self.set_popups_shown(ctx),
             _ => {}
         }
 
@@ -159,7 +160,6 @@ impl CompletionList {
             }
         }
 
-        self.set_popups_shown(ctx);
         self.update_popups(tab, doc, ctx);
     }
 
@@ -251,13 +251,14 @@ impl CompletionList {
             .update(position, PopupAlignment::TopLeft, ctx);
     }
 
-    fn show_results(&self, ui: &mut Ui) {
+    fn show_results(&mut self, ctx: &mut Ctx) {
         if self.result_list.results.is_empty() {
             return;
         }
 
-        ui.show(self.result_list.widget_id());
-        ui.focus(self.result_list.widget_id());
+        ctx.ui.show(self.result_list.widget_id());
+        ctx.ui.focus(self.result_list.widget_id());
+        self.set_popups_shown(ctx);
     }
 
     pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {
@@ -291,7 +292,12 @@ impl CompletionList {
         self.documentation_popup.draw(None, ctx);
     }
 
-    pub fn lsp_resolve_completion_item(&mut self, id: Option<usize>, item: DecodedCompletionItem) {
+    pub fn lsp_resolve_completion_item(
+        &mut self,
+        id: Option<usize>,
+        item: DecodedCompletionItem,
+        ctx: &mut Ctx,
+    ) {
         let Some(id) = id else {
             return;
         };
@@ -312,6 +318,8 @@ impl CompletionList {
 
         *existing_item = item;
         *resolve_state = CompletionResolveState::Resolved;
+
+        self.set_popups_shown(ctx);
     }
 
     pub fn lsp_update_completion_results(
@@ -330,7 +338,7 @@ impl CompletionList {
         };
 
         if items.is_empty() {
-            self.add_token_results(doc, ctx.ui);
+            self.add_token_results(doc, ctx);
         }
 
         items.sort_by(|a, b| a.sort_text().cmp(b.sort_text()));
@@ -352,7 +360,7 @@ impl CompletionList {
             });
         }
 
-        self.show_results(ctx.ui);
+        self.show_results(ctx);
     }
 
     pub fn lsp_update_code_action_results(
@@ -383,7 +391,7 @@ impl CompletionList {
             }
         }
 
-        self.show_results(ctx.ui);
+        self.show_results(ctx);
     }
 
     pub fn show(&mut self, position: Position, parent_id: WidgetId, ctx: &mut Ctx) {
@@ -412,7 +420,7 @@ impl CompletionList {
         }
 
         self.hide(ctx);
-        self.add_token_results(doc, ctx.ui);
+        self.add_token_results(doc, ctx);
     }
 
     pub fn hide(&mut self, ctx: &mut Ctx) {
@@ -424,7 +432,7 @@ impl CompletionList {
         self.set_popups_shown(ctx);
     }
 
-    fn add_token_results(&mut self, doc: &Doc, ui: &mut Ui) {
+    fn add_token_results(&mut self, doc: &Doc, ctx: &mut Ctx) {
         if self.prefix.is_empty() {
             return;
         }
@@ -435,7 +443,7 @@ impl CompletionList {
                 .push(CompletionResult::SimpleCompletion(result));
         });
 
-        self.show_results(ui);
+        self.show_results(ctx);
     }
 
     fn clear_results(&mut self) {

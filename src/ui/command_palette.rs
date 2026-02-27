@@ -132,10 +132,10 @@ impl CommandPalette {
         let result_input = self.result_list.receive_msgs(ctx);
 
         match result_input {
-            ResultListInput::None => {}
             ResultListInput::Complete => self.complete_result(editor, ctx),
             ResultListInput::Submit { kind } => self.submit(kind, editor, ctx),
             ResultListInput::Close => self.close(ctx.ui),
+            _ => {}
         }
 
         while let Some(msg) = ctx.ui.msg(self.tab.widget_id()) {

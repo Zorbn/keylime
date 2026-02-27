@@ -36,6 +36,7 @@ pub enum ResultListSubmitKind {
 
 pub enum ResultListInput {
     None,
+    FocusChanged,
     Complete,
     Submit { kind: ResultListSubmitKind },
     Close,
@@ -141,6 +142,12 @@ impl<T> ResultList<T> {
                 Msg::Action(action_keybind!(key: Down, mods: Mods::NONE)) => self.focus_next(),
                 _ => ctx.ui.skip(self.widget_id, msg),
             }
+        }
+
+        if matches!(input, ResultListInput::None)
+            && Some(self.focused_index()) != self.handled_focused_index
+        {
+            input = ResultListInput::FocusChanged;
         }
 
         input

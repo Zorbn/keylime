@@ -3,7 +3,6 @@ use crate::{
     geometry::{position::Position, rect::Rect, sides::Sides, visual_position::VisualPosition},
     input::action::action_name,
     platform::gfx::Gfx,
-    pool::STRING_POOL,
     text::{
         doc::{Doc, DocFlags},
         grapheme::{self, CharCursor},
@@ -174,16 +173,6 @@ impl Popup {
         if text.is_empty() {
             self.hide(ctx.ui);
             return;
-        }
-
-        if ctx.ui.is_visible(self.widget_id) {
-            let mut current_text = STRING_POOL.new_item();
-            self.doc
-                .collect_string(Position::ZERO, self.doc.end(), &mut current_text);
-
-            if current_text.as_str() == text {
-                return;
-            }
         }
 
         self.doc.clear(ctx);
