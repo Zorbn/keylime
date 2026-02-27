@@ -16,6 +16,7 @@ use crate::{
         core::{Ui, WidgetId, WidgetSettings},
         popup::{Popup, PopupAlignment},
         result_list::{ResultList, ResultListInput, ResultListSubmitKind},
+        tab::Tab,
     },
 };
 
@@ -59,6 +60,9 @@ pub struct CompletionListResult {
 pub struct CompletionList {
     widget_id: WidgetId,
 
+    position: Position,
+
+    needs_results: bool,
     result_list: ResultList<CompletionResult>,
     // Prevents the result list from shrinking as it's being scrolled through.
     longest_result_length: usize,
@@ -85,6 +89,9 @@ impl CompletionList {
         Self {
             widget_id,
 
+            position: Position::ZERO,
+
+            needs_results: false,
             result_list: ResultList::new(MAX_VISIBLE_COMPLETION_RESULTS, false, widget_id, ctx.ui),
             longest_result_length: 0,
             prefix: String::new(),
@@ -132,7 +139,12 @@ impl CompletionList {
         completion_result
     }
 
-    pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+    pub fn update(&mut self, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) {
+        if self.needs_results {
+            self.needs_results = false;
+            self.update_results(doc, ctx);
+        }
+
         if let Some(CompletionResult::Completion {
             item,
             resolve_state: resolve_state @ CompletionResolveState::NeedsRequest,
@@ -148,7 +160,7 @@ impl CompletionList {
         }
 
         self.set_popups_shown(ctx);
-        self.update_popups(ctx);
+        self.update_popups(tab, doc, ctx);
     }
 
     fn set_popups_shown(&mut self, ctx: &mut Ctx) {
@@ -180,7 +192,16 @@ impl CompletionList {
         }
     }
 
-    fn update_popups(&mut self, ctx: &mut Ctx) {
+    fn update_popups(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx) {
+        let visual_position = doc
+            .position_to_visual(self.position, tab.camera.position().floor(), ctx.gfx)
+            .offset_by(tab.doc_bounds(ctx.ui));
+
+        ctx.ui.set_popup(
+            self.widget_id,
+            Some(Rect::new(visual_position.x, visual_position.y, 0.0, 0.0)),
+        );
+
         let min_y = self.result_list.min_visible_result_index(ctx.gfx);
         let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
         let mut longest_visible_result = 0;
@@ -369,21 +390,12 @@ impl CompletionList {
         self.show_results(ctx.ui);
     }
 
-    pub fn show(
-        &mut self,
-        position: VisualPosition,
-        parent_id: WidgetId,
-        doc: &mut Doc,
-        ctx: &mut Ctx,
-    ) {
+    pub fn show(&mut self, position: Position, parent_id: WidgetId, ctx: &mut Ctx) {
+        self.position = position;
+
         ctx.ui.reparent_widget(self.widget_id, parent_id);
 
-        ctx.ui.set_popup(
-            self.widget_id,
-            Some(Rect::new(position.x, position.y, 0.0, 0.0)),
-        );
-
-        self.update_results(doc, ctx);
+        self.needs_results = true;
     }
 
     fn update_results(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
@@ -431,6 +443,7 @@ impl CompletionList {
     }
 
     fn clear_results(&mut self) {
+        self.needs_results = false;
         self.result_list.drain();
         self.lsp_expected_responses.clear();
         self.longest_result_length = 0;

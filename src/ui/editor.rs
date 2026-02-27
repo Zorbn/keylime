@@ -109,22 +109,9 @@ impl Editor {
                         pane.get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui)
                     {
                         let cursor_position = doc.cursor(CursorIndex::Main).position;
-                        let cursor_visual_position = doc
-                            .position_to_visual(
-                                cursor_position,
-                                tab.camera.position().floor(),
-                                ctx.gfx,
-                            )
-                            .offset_by(tab.doc_bounds(ctx.ui));
 
-                        doc.update_tokens(); // TODO: We could now be doing this multiple times per frame. Is that a good idea?
-
-                        self.completion_list.show(
-                            cursor_visual_position,
-                            tab.widget_id(),
-                            doc,
-                            ctx,
-                        );
+                        self.completion_list
+                            .show(cursor_position, tab.widget_id(), ctx);
                     }
                 }
                 Msg::HideCompletions => self.completion_list.hide(ctx),
@@ -149,11 +136,6 @@ impl Editor {
                 Msg::HideEditorPopups => {
                     self.signature_help_popup.hide(ctx.ui);
                     self.examine_popup.hide(ctx.ui);
-                }
-                Msg::Resize { .. } => {
-                    self.signature_help_popup.hide(ctx.ui);
-                    self.examine_popup.hide(ctx.ui);
-                    self.completion_list.hide(ctx);
                 }
                 Msg::TabHoverChanged => self.hover_timer = HOVER_TIME,
                 Msg::Action(action_name!(OpenFolder)) => {
@@ -218,7 +200,6 @@ impl Editor {
         self.reload_changed_files(file_watcher, ctx);
 
         self.update_hover(ctx, dt);
-        self.pre_pane_update(ctx);
 
         self.panes.remove_excess(ctx.ui, |pane| !pane.has_tabs());
 
@@ -229,7 +210,29 @@ impl Editor {
         ctx.ui
             .set_shown(self.signature_help_popup.widget_id(), is_cursor_visible);
 
-        self.post_pane_update(ctx);
+        let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
+
+        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui)
+        else {
+            self.signature_help_popup.hide(ctx.ui);
+            self.completion_list.hide(ctx);
+
+            return;
+        };
+
+        self.completion_list.update(tab, doc, ctx);
+
+        let doc_id = tab.data_id();
+        let position = doc.cursor(CursorIndex::Main).position;
+
+        self.cursor_history
+            .update(self.handled_doc_id, doc_id, self.handled_position, position);
+
+        self.signature_help_popup.update(tab, doc, ctx);
+        self.examine_popup.update(tab, doc, ctx);
+
+        self.handled_position = Some(position);
+        self.handled_doc_id = Some(doc_id);
     }
 
     fn update_hover(&mut self, ctx: &mut Ctx, dt: f32) {
@@ -260,41 +263,6 @@ impl Editor {
         } else {
             self.examine_popup.hide(ctx.ui);
         }
-    }
-
-    // TODO: Combine pre/post pane update.
-    fn pre_pane_update(&mut self, ctx: &mut Ctx) {
-        let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
-
-        let Some((_, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui) else {
-            return;
-        };
-
-        self.completion_list.update(doc, ctx);
-    }
-
-    fn post_pane_update(&mut self, ctx: &mut Ctx) {
-        let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
-
-        let Some((tab, doc)) = pane.get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui)
-        else {
-            self.signature_help_popup.hide(ctx.ui);
-            self.completion_list.hide(ctx);
-
-            return;
-        };
-
-        let doc_id = tab.data_id();
-        let position = doc.cursor(CursorIndex::Main).position;
-
-        self.cursor_history
-            .update(self.handled_doc_id, doc_id, self.handled_position, position);
-
-        self.signature_help_popup.update(tab, doc, ctx);
-        self.examine_popup.update(tab, doc, ctx);
-
-        self.handled_position = Some(position);
-        self.handled_doc_id = Some(doc_id);
     }
 
     pub fn animate(&mut self, ctx: &mut Ctx, dt: f32) {

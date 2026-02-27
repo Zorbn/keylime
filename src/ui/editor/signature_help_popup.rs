@@ -74,6 +74,10 @@ impl SignatureHelpPopup {
     }
 
     pub fn update(&mut self, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) {
+        if self.help.is_some() && doc.cursor(CursorIndex::Main).position != self.help_position {
+            doc.lsp_signature_help(None, true, ctx);
+        }
+
         let mut position = doc
             .position_to_visual(self.help_position, tab.camera.position(), ctx.gfx)
             .offset_by(tab.doc_bounds(ctx.ui));
