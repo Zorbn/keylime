@@ -573,8 +573,13 @@ impl TerminalEmulator {
         ctx: &mut Ctx,
     ) {
         if self.grid_height < last_grid_height {
-            let start_y = doc.lines().len().saturating_sub(last_grid_height) + cursor_y;
-            let start_y = start_y.max(self.grid_height - 1);
+            let removable_distance = last_grid_height - self.grid_height;
+            let doc_len = doc.lines().len();
+
+            let removable_start_y = doc_len.saturating_sub(1 + removable_distance);
+            let cursor_start_y = doc_len.saturating_sub(last_grid_height) + cursor_y;
+
+            let start_y = removable_start_y.max(cursor_start_y);
             let start = doc.line_end(start_y);
 
             doc.delete(start, doc.end(), ctx);
