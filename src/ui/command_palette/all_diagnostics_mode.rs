@@ -1,8 +1,10 @@
 use std::path::Path;
 
 use crate::{
+    config::theme::Theme,
+    lsp::types::DecodedDiagnostic,
     pool::{format_pooled, Pooled},
-    ui::result_list::ResultListSubmitKind,
+    ui::{color::Color, result_list::ResultListSubmitKind},
 };
 
 use super::{
@@ -55,10 +57,11 @@ impl CommandPaletteMode for AllDiagnosticsMode {
 
                     command_palette.result_list.push(CommandPaletteResult {
                         text,
-                        meta_data: CommandPaletteMetaData::PathWithEncodedPosition {
+                        meta_data: CommandPaletteMetaData::DiagnosticWithEncodedPosition {
                             path: path.clone(),
                             encoding,
                             position: diagnostic.range.start,
+                            severity: diagnostic.severity,
                         },
                     });
                 }
@@ -75,9 +78,10 @@ impl CommandPaletteMode for AllDiagnosticsMode {
 
                     command_palette.result_list.push(CommandPaletteResult {
                         text,
-                        meta_data: CommandPaletteMetaData::PathWithPosition {
+                        meta_data: CommandPaletteMetaData::DiagnosticWithPosition {
                             path: path.clone(),
                             position: diagnostic.range.start,
+                            severity: diagnostic.severity,
                         },
                     });
                 }
@@ -92,5 +96,23 @@ impl CommandPaletteMode for AllDiagnosticsMode {
         kind: ResultListSubmitKind,
     ) -> CommandPaletteAction {
         FindInFilesMode::jump_to_path_with_position(command_palette, args, kind)
+    }
+
+    fn on_display_result<'a>(
+        &self,
+        result: &'a CommandPaletteResult,
+        theme: &Theme,
+    ) -> (&'a str, Color) {
+        let color = if let CommandPaletteMetaData::DiagnosticWithPosition { severity, .. }
+        | CommandPaletteMetaData::DiagnosticWithEncodedPosition {
+            severity, ..
+        } = &result.meta_data
+        {
+            DecodedDiagnostic::severity_color(*severity, theme)
+        } else {
+            theme.normal
+        };
+
+        (result.text.as_str(), color)
     }
 }

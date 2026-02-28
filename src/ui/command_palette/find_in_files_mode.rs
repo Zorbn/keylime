@@ -78,7 +78,8 @@ impl FindInFilesMode {
         let Some(CommandPaletteResult {
             meta_data:
                 meta_data @ (CommandPaletteMetaData::PathWithPosition { path, .. }
-                | CommandPaletteMetaData::PathWithEncodedPosition { path, .. }),
+                | CommandPaletteMetaData::DiagnosticWithPosition { path, .. }
+                | CommandPaletteMetaData::DiagnosticWithEncodedPosition { path, .. }),
             ..
         }) = command_palette.result_list.get_focused()
         else {
@@ -97,7 +98,8 @@ impl FindInFilesMode {
 
         let position = match meta_data {
             CommandPaletteMetaData::PathWithPosition { position, .. } => *position,
-            CommandPaletteMetaData::PathWithEncodedPosition {
+            CommandPaletteMetaData::DiagnosticWithPosition { position, .. } => *position,
+            CommandPaletteMetaData::DiagnosticWithEncodedPosition {
                 encoding, position, ..
             } => position.decode(*encoding, doc),
             _ => return CommandPaletteAction::Close,

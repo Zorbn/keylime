@@ -49,10 +49,16 @@ pub enum CommandPaletteMetaData {
         path: Pooled<PathBuf>,
         position: Position,
     },
-    PathWithEncodedPosition {
+    DiagnosticWithPosition {
+        path: Pooled<PathBuf>,
+        position: Position,
+        severity: usize,
+    },
+    DiagnosticWithEncodedPosition {
         path: Pooled<PathBuf>,
         encoding: PositionEncoding,
         position: EncodedPosition,
+        severity: usize,
     },
 }
 
@@ -175,11 +181,12 @@ impl CommandPalette {
 
         ctx.ui.set_popup(
             self.result_list.widget_id(),
-            Some(
-                bounds
-                    .shrink_top_by(title_height + input_height)
-                    .shift_y(-ctx.gfx.border_width() * 2.0),
-            ),
+            Some(Rect::new(
+                bounds.x,
+                bounds.y + title_height + input_height - ctx.gfx.border_width() * 2.0,
+                bounds.width,
+                results_height,
+            )),
         )
     }
 
