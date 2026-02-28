@@ -562,8 +562,7 @@ impl EscapeParser {
                 parameters,
                 parameter_index,
             } => {
-                // TODO: This skips the last parameter if you actually have 16.
-                if *parameter_index == 15 || byte == b';' {
+                if *parameter_index == 16 || byte == b';' {
                     self.state = EscapeParserState::OscString {
                         parameters: *parameters,
                         parameter_count: *parameter_index,
