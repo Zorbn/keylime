@@ -121,18 +121,9 @@ pub struct TerminalEmulator {
 
 impl TerminalEmulator {
     pub fn new() -> Self {
-        // TODO:
-        let mut parser = EscapeParser::new();
-
-        // for byte in b"Hello\r\nWorld" {
-        //     parser.next(*byte);
-        // }
-
-        // parser.flush();
-
         Self {
             pty: None,
-            parser,
+            parser: EscapeParser::new(),
 
             grid_cursor: Position::ZERO,
             grid_width: MIN_GRID_WIDTH,
@@ -322,12 +313,9 @@ impl TerminalEmulator {
     ) {
         let doc = self.doc_mut(docs);
 
-        println!("sequence: {:?}", sequence);
-
         match sequence {
             EscapeSequence::Plain { len } => {
                 let text = STRING_POOL.init_item(|text| text.push_str(self.parser.next_text(len)));
-                println!("sequence text: {:?}", text);
                 self.insert_at_cursor(&text, doc, ctx);
             }
             EscapeSequence::Backspace => self.move_cursor(-1, 0, doc, ctx.gfx),
