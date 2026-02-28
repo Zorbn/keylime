@@ -702,5 +702,9 @@ fn parse_color_from_parameters<'a>(
 }
 
 fn parameter(parameters: &[usize], index: usize, default: usize) -> usize {
-    parameters.get(index).copied().unwrap_or(default)
+    parameters
+        .get(index)
+        .copied()
+        .filter(|parameter| *parameter != 0)
+        .unwrap_or(default)
 }
