@@ -27,7 +27,7 @@ use crate::{
     platform::aliases::{AnyGfx, AnyWindow},
 };
 
-use super::gfx::PIXEL_FORMAT;
+use super::gfx::Gfx;
 
 macro_rules! handle_event {
     ($handler:ident, $self:expr, $event:expr $(, $args:expr)*) => {
@@ -75,7 +75,7 @@ define_class!(
             let metal_layer = unsafe { CAMetalLayer::new() };
 
             unsafe {
-                metal_layer.setPixelFormat(PIXEL_FORMAT);
+                metal_layer.setPixelFormat(Gfx::PIXEL_FORMAT);
                 metal_layer.setDevice(Some(&self.ivars().device));
 
                 let protocol_object = ProtocolObject::from_ref(self);

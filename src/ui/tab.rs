@@ -26,23 +26,18 @@ use crate::{
         syntax_highlighter::HighlightedLine,
     },
     ui::{
-        camera::CameraRecenterRequest,
+        camera::{CameraAxis, CameraRecenterRequest},
         core::{Ui, WidgetSettings},
         msg::Msg,
     },
 };
 
 use super::{
-    camera::{Camera, RECENTER_DISTANCE},
+    camera::Camera,
     color::Color,
     core::{WidgetId, WidgetLayout, WidgetScale},
     slot_list::SlotId,
 };
-
-const GUTTER_PADDING_WIDTH: f32 = 1.0;
-const GUTTER_BORDER_WIDTH: f32 = 0.5;
-
-const CURSOR_ANIMATION_SPEED: f64 = 8.0;
 
 #[derive(Debug, Clone, Copy)]
 struct VisibleLines {
@@ -81,6 +76,11 @@ pub struct Tab {
 }
 
 impl Tab {
+    const GUTTER_PADDING_WIDTH: f32 = 1.0;
+    const GUTTER_BORDER_WIDTH: f32 = 0.5;
+
+    const CURSOR_ANIMATION_SPEED: f64 = 8.0;
+
     pub fn new(parent_id: WidgetId, data_id: SlotId, ui: &mut Ui) -> Self {
         let widget_id = ui.new_widget(
             parent_id,
@@ -310,7 +310,7 @@ impl Tab {
         let gutter_width = if doc.flags().contains(DocFlag::ShowGutter) {
             let max_gutter_digits = (doc.lines().len() as f32).log10().floor() + 1.0;
 
-            (max_gutter_digits + GUTTER_PADDING_WIDTH * 2.0 + GUTTER_BORDER_WIDTH)
+            (max_gutter_digits + Self::GUTTER_PADDING_WIDTH * 2.0 + Self::GUTTER_BORDER_WIDTH)
                 * ctx.gfx.glyph_width()
         } else {
             0.0
@@ -471,7 +471,7 @@ impl Tab {
         CameraRecenterRequest {
             can_start: self.handled_cursor_position != new_cursor_position,
             target_position: new_cursor_visual_position.y + gfx.line_height() / 2.0,
-            scroll_border: gfx.line_height() * RECENTER_DISTANCE as f32,
+            scroll_border: gfx.line_height() * CameraAxis::RECENTER_DISTANCE as f32,
         }
     }
 
@@ -517,7 +517,7 @@ impl Tab {
         CameraRecenterRequest {
             can_start: self.handled_cursor_position != new_cursor_position,
             target_position: new_cursor_visual_position.x + gfx.glyph_width() / 2.0,
-            scroll_border: gfx.glyph_width() * RECENTER_DISTANCE as f32,
+            scroll_border: gfx.glyph_width() * CameraAxis::RECENTER_DISTANCE as f32,
         }
     }
 
@@ -665,7 +665,7 @@ impl Tab {
             let width = line_number.len() as f32 * gfx.glyph_width();
             let visual_x = gutter_bounds.width
                 - width
-                - (GUTTER_PADDING_WIDTH + GUTTER_BORDER_WIDTH) * gfx.glyph_width();
+                - (Self::GUTTER_PADDING_WIDTH + Self::GUTTER_BORDER_WIDTH) * gfx.glyph_width();
 
             let color = if y == cursor_y {
                 theme.normal
@@ -1082,7 +1082,7 @@ impl Tab {
     }
 
     fn cursor_animation_progress(&self, time: f64, last_time: f64) -> f32 {
-        ((time - last_time) * CURSOR_ANIMATION_SPEED) as f32
+        ((time - last_time) * Self::CURSOR_ANIMATION_SPEED) as f32
     }
 
     fn draw_scroll_bar(&self, doc: &Doc, camera_position: VisualPosition, ctx: &mut Ctx) {

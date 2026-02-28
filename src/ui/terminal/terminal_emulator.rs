@@ -27,24 +27,11 @@ use crate::{
         camera::CameraRecenterKind,
         msg::Msg,
         tab::Tab,
-        terminal::{
-            escape_parser::{EscapeParser, EscapeSequence},
-            TERMINAL_DISPLAY_NAME,
-        },
+        terminal::escape_parser::{EscapeParser, EscapeSequence},
     },
 };
 
 use super::TerminalDocs;
-
-const MAX_SCROLLBACK_LINES: usize = 100;
-const MIN_GRID_WIDTH: usize = 1;
-const MIN_GRID_HEIGHT: usize = 1;
-
-#[cfg(target_os = "windows")]
-const SHELLS: &[&str] = &["pwsh.exe", "powershell.exe", "cmd.exe"];
-
-#[cfg(target_os = "macos")]
-const SHELLS: &[&str] = &["zsh", "bash", "sh"];
 
 struct ColoredGridLine {
     is_dirty: bool,
@@ -120,14 +107,24 @@ pub struct TerminalEmulator {
 }
 
 impl TerminalEmulator {
+    const MAX_SCROLLBACK_LINES: usize = 100;
+    const MIN_GRID_WIDTH: usize = 1;
+    const MIN_GRID_HEIGHT: usize = 1;
+
+    #[cfg(target_os = "windows")]
+    const SHELLS: &[&str] = &["pwsh.exe", "powershell.exe", "cmd.exe"];
+
+    #[cfg(target_os = "macos")]
+    const SHELLS: &[&str] = &["zsh", "bash", "sh"];
+
     pub fn new() -> Self {
         Self {
             pty: None,
             parser: EscapeParser::new(),
 
             grid_cursor: Position::ZERO,
-            grid_width: MIN_GRID_WIDTH,
-            grid_height: MIN_GRID_HEIGHT,
+            grid_width: Self::MIN_GRID_WIDTH,
+            grid_height: Self::MIN_GRID_HEIGHT,
             colored_grid_lines: Vec::new(),
             empty_line_text: String::new(),
             did_doc_cursors_move: false,
@@ -507,7 +504,9 @@ impl TerminalEmulator {
                 let title = self.parser.next_text(len);
                 doc.set_display_name(Some(title.into()));
             }
-            EscapeSequence::ResetTitle => doc.set_display_name(Some(TERMINAL_DISPLAY_NAME.into())),
+            EscapeSequence::ResetTitle => {
+                doc.set_display_name(Some(TerminalDocs::DISPLAY_NAME.into()));
+            }
             EscapeSequence::QueryForegroundColor | EscapeSequence::QueryBackgroundColor => {
                 let (color, kind) = if matches!(sequence, EscapeSequence::QueryForegroundColor) {
                     (self.foreground_color, 10)
@@ -636,7 +635,7 @@ impl TerminalEmulator {
             pty.resize(grid_width, grid_height);
         } else {
             self.pty = Process::new(
-                SHELLS,
+                Self::SHELLS,
                 ProcessKind::Pty {
                     width: grid_width,
                     height: grid_height,
@@ -660,16 +659,16 @@ impl TerminalEmulator {
         } = tab.doc_bounds(ctx.ui);
 
         let grid_width = (doc_width / ctx.gfx.glyph_width()).floor() as usize;
-        let grid_width = grid_width.max(MIN_GRID_WIDTH);
+        let grid_width = grid_width.max(Self::MIN_GRID_WIDTH);
 
         let grid_height = (doc_height / ctx.gfx.line_height()).floor() as usize;
-        let grid_height = grid_height.max(MIN_GRID_HEIGHT);
+        let grid_height = grid_height.max(Self::MIN_GRID_HEIGHT);
 
         (grid_width, grid_height)
     }
 
     fn trim_scrollback_lines(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
-        self.trim_excess_lines(MAX_SCROLLBACK_LINES, doc, ctx);
+        self.trim_excess_lines(Self::MAX_SCROLLBACK_LINES, doc, ctx);
     }
 
     fn clear_scrollback_lines(&mut self, doc: &mut Doc, ctx: &mut Ctx) {

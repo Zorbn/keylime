@@ -67,8 +67,6 @@ pub enum CommandPaletteAction {
     Close,
 }
 
-const MAX_VISIBLE_RESULTS: usize = 20;
-
 pub struct CommandPalette {
     mode: Option<Box<dyn CommandPaletteMode>>,
     tab: Tab,
@@ -83,6 +81,8 @@ pub struct CommandPalette {
 }
 
 impl CommandPalette {
+    const MAX_VISIBLE_RESULTS: usize = 20;
+
     pub fn new(parent_id: WidgetId, ui: &mut Ui) -> Self {
         let widget_id = ui.new_widget(
             parent_id,
@@ -157,7 +157,7 @@ impl CommandPalette {
         let input_height = ctx.gfx.line_height() * 2.0;
         let results_height = self
             .result_list
-            .desired_height(MAX_VISIBLE_RESULTS, ctx.gfx);
+            .desired_height(Self::MAX_VISIBLE_RESULTS, ctx.gfx);
 
         let bounds = Rect::new(
             0.0,

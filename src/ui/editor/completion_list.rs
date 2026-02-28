@@ -20,8 +20,6 @@ use crate::{
     },
 };
 
-const MAX_VISIBLE_COMPLETION_RESULTS: usize = 10;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CompletionResolveState {
     NeedsRequest,
@@ -75,6 +73,8 @@ pub struct CompletionList {
 }
 
 impl CompletionList {
+    const MAX_VISIBLE_RESULTS: usize = 10;
+
     pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
         let widget_id = ctx.ui.new_widget(
             parent_id,
@@ -205,7 +205,7 @@ impl CompletionList {
         self.result_list.update(ctx, dt);
 
         let min_y = self.result_list.min_visible_result_index(ctx.gfx);
-        let max_y = (min_y + MAX_VISIBLE_COMPLETION_RESULTS).min(self.result_list.len());
+        let max_y = (min_y + Self::MAX_VISIBLE_RESULTS).min(self.result_list.len());
         let mut longest_visible_result = 0;
 
         for y in min_y..max_y {
@@ -230,7 +230,7 @@ impl CompletionList {
             position.y + gfx.line_height(),
             width,
             self.result_list
-                .desired_height(MAX_VISIBLE_COMPLETION_RESULTS, gfx),
+                .desired_height(Self::MAX_VISIBLE_RESULTS, gfx),
         );
 
         ctx.ui

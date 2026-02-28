@@ -15,15 +15,15 @@ pub struct Text {
     pub cache: TextCache,
 }
 
-#[cfg(target_os = "windows")]
-const BACKUP_FONT_NAME: &str = "Consolas";
-
-#[cfg(target_os = "macos")]
-const BACKUP_FONT_NAME: &str = "Menlo";
-
 impl Text {
+    #[cfg(target_os = "windows")]
+    const BACKUP_FONT_NAME: &str = "Consolas";
+
+    #[cfg(target_os = "macos")]
+    const BACKUP_FONT_NAME: &str = "Menlo";
+
     pub fn new(font_name: &str, new_inner: impl Fn(&str) -> Result<PlatformText>) -> Result<Self> {
-        let inner = new_inner(font_name).or(new_inner(BACKUP_FONT_NAME))?;
+        let inner = new_inner(font_name).or(new_inner(Self::BACKUP_FONT_NAME))?;
 
         let mut text = Self {
             inner,

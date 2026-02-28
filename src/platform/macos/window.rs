@@ -27,9 +27,6 @@ use crate::{
 
 use super::{result::Result, view::View};
 
-const DEFAULT_WIDTH: f64 = 768.0;
-const DEFAULT_HEIGHT: f64 = 768.0;
-
 #[derive(Clone, Copy, Debug)]
 struct RecordedMouseClick {
     button: MouseButton,
@@ -57,10 +54,13 @@ pub struct Window {
 }
 
 impl Window {
+    const DEFAULT_WIDTH: f64 = 768.0;
+    const DEFAULT_HEIGHT: f64 = 768.0;
+
     pub fn new(mtm: MainThreadMarker) -> Self {
         let content_rect = NSRect::new(
             NSPoint::new(0.0, 0.0),
-            NSSize::new(DEFAULT_WIDTH, DEFAULT_HEIGHT),
+            NSSize::new(Self::DEFAULT_WIDTH, Self::DEFAULT_HEIGHT),
         );
 
         let style = NSWindowStyleMask::Closable
@@ -87,8 +87,8 @@ impl Window {
         Self {
             ns_window,
             view: Weak::default(),
-            width: DEFAULT_WIDTH,
-            height: DEFAULT_HEIGHT,
+            width: Self::DEFAULT_WIDTH,
+            height: Self::DEFAULT_HEIGHT,
 
             was_shown: false,
             is_focused: true,

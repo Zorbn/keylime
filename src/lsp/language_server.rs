@@ -18,7 +18,7 @@ use crate::{
         uri::uri_to_path,
     },
     platform::{
-        gfx::TAB_WIDTH,
+        gfx::Gfx,
         process::{Process, ProcessKind},
     },
     pool::{format_pooled, Pooled},
@@ -729,7 +729,7 @@ impl LanguageServer {
                     "uri": path_to_uri(path),
                 },
                 "options": {
-                    "tabSize": TAB_WIDTH,
+                    "tabSize": Gfx::TAB_WIDTH,
                     "insertSpaces": matches!(indent_width, IndentWidth::Spaces(..)),
                 },
             }),

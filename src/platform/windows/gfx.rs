@@ -110,9 +110,6 @@ struct Vertex {
     a: f32,
 }
 
-const SAMPLE_COUNT: u32 = 4;
-const PIXEL_FORMAT: DXGI_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
-
 pub struct Gfx {
     device: ID3D11Device,
     context: ID3D11DeviceContext,
@@ -145,6 +142,9 @@ pub struct Gfx {
 }
 
 impl Gfx {
+    const SAMPLE_COUNT: u32 = 4;
+    const PIXEL_FORMAT: DXGI_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
+
     pub unsafe fn new(scale: f32, hwnd: HWND) -> Result<Self> {
         let (device, context) = {
             let mut device_result = None;
@@ -175,7 +175,7 @@ impl Gfx {
             let factory: IDXGIFactory2 = CreateDXGIFactory2(DXGI_CREATE_FACTORY_FLAGS::default())?;
 
             let desc = DXGI_SWAP_CHAIN_DESC1 {
-                Format: PIXEL_FORMAT,
+                Format: Self::PIXEL_FORMAT,
                 SampleDesc: DXGI_SAMPLE_DESC {
                     Count: 1,
                     ..Default::default()
@@ -431,7 +431,7 @@ impl Gfx {
                 Height: height,
                 MipLevels: 1,
                 ArraySize: 1,
-                Format: PIXEL_FORMAT,
+                Format: Self::PIXEL_FORMAT,
                 SampleDesc: DXGI_SAMPLE_DESC {
                     Count: 1,
                     ..Default::default()
@@ -500,16 +500,16 @@ impl Gfx {
 
         let quality = self
             .device
-            .CheckMultisampleQualityLevels(PIXEL_FORMAT, SAMPLE_COUNT)?;
+            .CheckMultisampleQualityLevels(Self::PIXEL_FORMAT, Self::SAMPLE_COUNT)?;
 
         let desc = D3D11_TEXTURE2D_DESC {
             Width: width as u32,
             Height: height as u32,
             MipLevels: 1,
             ArraySize: 1,
-            Format: PIXEL_FORMAT,
+            Format: Self::PIXEL_FORMAT,
             SampleDesc: DXGI_SAMPLE_DESC {
-                Count: SAMPLE_COUNT,
+                Count: Self::SAMPLE_COUNT,
                 Quality: quality - 1,
             },
             Usage: D3D11_USAGE_DEFAULT,
@@ -821,7 +821,7 @@ impl Gfx {
                 0,
                 self.msaa_color_texture.as_ref().unwrap(),
                 0,
-                PIXEL_FORMAT,
+                Self::PIXEL_FORMAT,
             );
         }
     }

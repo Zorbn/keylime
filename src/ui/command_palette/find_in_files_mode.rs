@@ -22,8 +22,6 @@ use super::{
     CommandPalette, CommandPaletteAction, CommandPaletteMetaData, CommandPaletteResult,
 };
 
-const MAX_RESULTS_LEN: usize = 100;
-
 pub struct FindInFilesMode {
     root: PathBuf,
     incremental_results: IncrementalResults,
@@ -32,10 +30,12 @@ pub struct FindInFilesMode {
 }
 
 impl FindInFilesMode {
+    const MAX_RESULTS_LEN: usize = 100;
+
     pub fn new() -> Self {
         Self {
             root: PathBuf::new(),
-            incremental_results: IncrementalResults::new(Some(MAX_RESULTS_LEN)),
+            incremental_results: IncrementalResults::new(Some(Self::MAX_RESULTS_LEN)),
             pending_doc: None,
             pending_dir_entries: VecDeque::new(),
         }

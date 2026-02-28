@@ -130,13 +130,6 @@ impl DocPath {
     }
 }
 
-// One change for File::create, and one change for writing.
-#[cfg(target_os = "windows")]
-const EXPECTED_CHANGE_COUNT_ON_SAVE: usize = 2;
-
-#[cfg(target_os = "macos")]
-const EXPECTED_CHANGE_COUNT_ON_SAVE: usize = 1;
-
 pub struct Doc {
     display_name: Option<Pooled<String>>,
     path: DocPath,
@@ -164,6 +157,13 @@ pub struct Doc {
 }
 
 impl Doc {
+    // One change for File::create, and one change for writing.
+    #[cfg(target_os = "windows")]
+    const EXPECTED_CHANGE_COUNT_ON_SAVE: usize = 2;
+
+    #[cfg(target_os = "macos")]
+    const EXPECTED_CHANGE_COUNT_ON_SAVE: usize = 1;
+
     pub fn new(
         path: Option<Pooled<PathBuf>>,
         display_name: Option<Pooled<String>>,
@@ -1638,7 +1638,7 @@ impl Doc {
             DocPath::None => DocPath::None,
             DocPath::InMemory(path) => DocPath::OnDrive(path),
             DocPath::OnDrive(path) => {
-                self.expected_change_count = EXPECTED_CHANGE_COUNT_ON_SAVE;
+                self.expected_change_count = Self::EXPECTED_CHANGE_COUNT_ON_SAVE;
 
                 DocPath::OnDrive(path)
             }

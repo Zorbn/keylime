@@ -19,7 +19,6 @@ use crate::{
 };
 
 use super::{
-    camera::RECENTER_DISTANCE,
     color::Color,
     core::{Ui, WidgetId},
 };
@@ -171,7 +170,7 @@ impl<T> ResultList<T> {
         let recenter_request = CameraRecenterRequest {
             can_start: Some(focused_index) != self.handled_focused_index,
             target_position: target_y,
-            scroll_border: result_height * RECENTER_DISTANCE as f32,
+            scroll_border: result_height * CameraAxis::RECENTER_DISTANCE as f32,
         };
 
         self.mark_focused_handled();

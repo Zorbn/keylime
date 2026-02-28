@@ -12,7 +12,7 @@ use crate::{
 };
 
 use super::{
-    incremental_results::TARGET_STEP_TIME,
+    incremental_results::IncrementalResults,
     mode::{CommandPaletteEventArgs, CommandPaletteMode},
     CommandPalette, CommandPaletteAction, CommandPaletteMetaData, CommandPaletteResult,
 };
@@ -129,7 +129,7 @@ impl CommandPaletteMode for AllFilesMode {
 
                 self.handle_entry(entry, args.ctx);
 
-                if start_time.elapsed().as_secs_f32() > TARGET_STEP_TIME {
+                if start_time.elapsed().as_secs_f32() > IncrementalResults::TARGET_STEP_TIME {
                     self.pending_dir_entries.push_front(entries);
                     return;
                 }

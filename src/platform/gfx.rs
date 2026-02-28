@@ -22,13 +22,13 @@ pub(super) enum SpriteKind {
     Rect = 2,
 }
 
-pub const TAB_WIDTH: usize = 4;
-
 pub struct Gfx {
     pub(super) inner: platform_impl::gfx::Gfx,
 }
 
 impl Gfx {
+    pub const TAB_WIDTH: usize = 4;
+
     #[cfg(test)]
     pub fn new() -> Self {
         Self {
@@ -104,7 +104,7 @@ impl Gfx {
 
             offset += match span {
                 GlyphSpan::Space => 1,
-                GlyphSpan::Tab => TAB_WIDTH,
+                GlyphSpan::Tab => Self::TAB_WIDTH,
                 GlyphSpan::Glyph {
                     origin_x,
                     origin_y,
@@ -169,7 +169,7 @@ impl Gfx {
 
             width += match span {
                 GlyphSpan::Space => 1,
-                GlyphSpan::Tab => TAB_WIDTH,
+                GlyphSpan::Tab => Self::TAB_WIDTH,
                 GlyphSpan::Glyph { advance, .. } => self.round_glyph_advance(advance),
             };
         }

@@ -11,8 +11,6 @@ use crate::{
 
 use super::editor_pane::EditorPane;
 
-const CURSOR_POSITION_HISTORY_THRESHOLD: usize = 10;
-
 struct CursorHistoryItem {
     position: Position,
     doc_id: SlotId,
@@ -31,6 +29,8 @@ pub struct CursorHistory {
 }
 
 impl CursorHistory {
+    const CURSOR_DISTANCE_THRESHOLD: usize = 10;
+
     pub fn new() -> Self {
         Self {
             undo_history: Vec::new(),
@@ -55,7 +55,7 @@ impl CursorHistory {
         let last_doc_id = last_doc_id?;
 
         if doc_id == last_doc_id
-            && position.y.abs_diff(last_position.y) < CURSOR_POSITION_HISTORY_THRESHOLD
+            && position.y.abs_diff(last_position.y) < Self::CURSOR_DISTANCE_THRESHOLD
         {
             return None;
         }

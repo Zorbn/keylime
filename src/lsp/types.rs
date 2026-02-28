@@ -13,8 +13,6 @@ use crate::{
 
 use super::position_encoding::PositionEncoding;
 
-const DEFAULT_SEVERITY: fn() -> usize = || 1;
-
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct EncodedPosition {
     pub line: usize,
@@ -88,11 +86,13 @@ impl EncodedRange {
 pub struct EncodedDiagnostic {
     pub message: Pooled<String>,
     pub range: EncodedRange,
-    #[serde(default = "DEFAULT_SEVERITY")]
+    #[serde(default = "EncodedDiagnostic::DEFAULT_SEVERITY")]
     pub severity: usize,
 }
 
 impl EncodedDiagnostic {
+    const DEFAULT_SEVERITY: fn() -> usize = || 1;
+
     pub fn is_problem(&self) -> bool {
         DecodedDiagnostic::is_severity_problem(self.severity)
     }

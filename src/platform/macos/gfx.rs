@@ -91,9 +91,6 @@ struct VertexInput {
     uv: [f32; 3],
 }
 
-pub const PIXEL_FORMAT: MTLPixelFormat = MTLPixelFormat::BGRA8Unorm;
-const SAMPLE_COUNT: usize = 4;
-
 pub struct Gfx {
     device: Retained<ProtocolObject<dyn MTLDevice>>,
     command_queue: Retained<ProtocolObject<dyn MTLCommandQueue>>,
@@ -125,6 +122,9 @@ pub struct Gfx {
 }
 
 impl Gfx {
+    pub const PIXEL_FORMAT: MTLPixelFormat = MTLPixelFormat::BGRA8Unorm;
+    const SAMPLE_COUNT: usize = 4;
+
     pub fn new(
         window: &AnyWindow,
         device: Retained<ProtocolObject<dyn MTLDevice>>,
@@ -139,10 +139,10 @@ impl Gfx {
             pipeline_descriptor
                 .colorAttachments()
                 .objectAtIndexedSubscript(0)
-                .setPixelFormat(PIXEL_FORMAT);
+                .setPixelFormat(Self::PIXEL_FORMAT);
         }
 
-        pipeline_descriptor.setRasterSampleCount(SAMPLE_COUNT);
+        pipeline_descriptor.setRasterSampleCount(Self::SAMPLE_COUNT);
 
         let library = device.newLibraryWithSource_options_error(ns_string!(SHADER_CODE), None);
 
@@ -168,7 +168,7 @@ impl Gfx {
         color_attachment.setSourceAlphaBlendFactor(MTLBlendFactor::SourceAlpha);
         color_attachment.setDestinationRGBBlendFactor(MTLBlendFactor::OneMinusSourceAlpha);
         color_attachment.setDestinationAlphaBlendFactor(MTLBlendFactor::OneMinusSourceAlpha);
-        color_attachment.setPixelFormat(PIXEL_FORMAT);
+        color_attachment.setPixelFormat(Self::PIXEL_FORMAT);
 
         unsafe {
             pipeline_descriptor
@@ -221,7 +221,7 @@ impl Gfx {
 
         let render_target_descriptor = unsafe {
             MTLTextureDescriptor::texture2DDescriptorWithPixelFormat_width_height_mipmapped(
-                PIXEL_FORMAT,
+                Self::PIXEL_FORMAT,
                 width as usize,
                 height as usize,
                 false,
@@ -233,7 +233,7 @@ impl Gfx {
         render_target_descriptor.setUsage(MTLTextureUsage::RenderTarget);
 
         unsafe {
-            render_target_descriptor.setSampleCount(SAMPLE_COUNT);
+            render_target_descriptor.setSampleCount(Self::SAMPLE_COUNT);
         }
 
         self.render_target = self

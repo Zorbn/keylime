@@ -32,9 +32,6 @@ use crate::{
     pool::UTF16_POOL,
 };
 
-const LOCALE: PCWSTR = w!("en-us");
-const ATLAS_PADDING: f32 = 2.0;
-
 #[derive(Debug, Clone, Copy)]
 pub struct Glyph<'a> {
     pub index: u16,
@@ -65,6 +62,9 @@ pub struct Text {
 }
 
 impl Text {
+    const LOCALE: PCWSTR = w!("en-us");
+    const ATLAS_PADDING: f32 = 2.0;
+
     pub unsafe fn new(
         font_name: &str,
         font_size: f32,
@@ -101,7 +101,7 @@ impl Text {
             DWRITE_FONT_STYLE_NORMAL,
             DWRITE_FONT_STRETCH_NORMAL,
             font_size,
-            LOCALE,
+            Self::LOCALE,
         )?;
 
         let font_collection = text_format.GetFontCollection()?;
@@ -188,8 +188,8 @@ impl Text {
         let right = bounds.right;
         let bottom = bounds.bottom;
 
-        let width = (right.ceil() - left.ceil() + ATLAS_PADDING) as u32;
-        let height = (bottom.ceil() - top.ceil() + ATLAS_PADDING) as u32;
+        let width = (right.ceil() - left.ceil() + Self::ATLAS_PADDING) as u32;
+        let height = (bottom.ceil() - top.ceil() + Self::ATLAS_PADDING) as u32;
 
         if width == 0 || height == 0 {
             return Ok(Atlas {
@@ -209,7 +209,7 @@ impl Text {
 
         let origin = Vector2 {
             X: -left,
-            Y: -top + ATLAS_PADDING,
+            Y: -top + Self::ATLAS_PADDING,
         };
 
         let translated_runs = self.dwrite_factory.TranslateColorGlyphRun(
@@ -368,7 +368,7 @@ impl Text {
                 width: width as usize,
                 height: height as usize,
                 glyph_width: self.glyph_width as usize,
-                glyph_height: (height as f32 - ATLAS_PADDING) as usize,
+                glyph_height: (height as f32 - Self::ATLAS_PADDING) as usize,
                 line_height: self.line_height as usize,
             },
             has_color_glyphs,

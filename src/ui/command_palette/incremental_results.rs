@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use super::{CommandPalette, CommandPaletteResult, MAX_VISIBLE_RESULTS};
+use super::{CommandPalette, CommandPaletteResult};
 
 #[derive(Debug, PartialEq, Eq)]
 enum IncrementalResultsState {
@@ -8,8 +8,6 @@ enum IncrementalResultsState {
     Partial,
     All,
 }
-
-pub const TARGET_STEP_TIME: f32 = 0.005;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum IncrementalStepState {
@@ -25,6 +23,8 @@ pub struct IncrementalResults {
 }
 
 impl IncrementalResults {
+    pub const TARGET_STEP_TIME: f32 = 0.005;
+
     pub fn new(max_results_len: Option<usize>) -> Self {
         Self {
             max_result_len: max_results_len.unwrap_or(usize::MAX),
@@ -58,11 +58,11 @@ impl IncrementalResults {
             return IncrementalStepState::DoneWithAllSteps;
         }
 
-        if self.pending_results.len() >= MAX_VISIBLE_RESULTS {
+        if self.pending_results.len() >= CommandPalette::MAX_VISIBLE_RESULTS {
             self.flush_pending_results(command_palette);
         }
 
-        if start_time.elapsed().as_secs_f32() > TARGET_STEP_TIME {
+        if start_time.elapsed().as_secs_f32() > Self::TARGET_STEP_TIME {
             IncrementalStepState::DoneWithStep
         } else {
             IncrementalStepState::InProgress

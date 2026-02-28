@@ -33,8 +33,6 @@ pub enum Action {
     },
 }
 
-const COMBINE_ACTION_TIME: f64 = 0.3;
-
 #[derive(Debug)]
 pub struct TimedAction {
     pub action: Action,
@@ -47,6 +45,8 @@ pub struct ActionHistory {
 }
 
 impl ActionHistory {
+    const COMBINE_ACTION_TIME: f64 = 0.3;
+
     pub fn new() -> Self {
         Self {
             actions: Vec::new(),
@@ -96,7 +96,9 @@ impl ActionHistory {
         }
 
         if let Some(last_popped_time) = last_popped_time {
-            if (self.actions.last().unwrap().time - last_popped_time).abs() > COMBINE_ACTION_TIME {
+            if (self.actions.last().unwrap().time - last_popped_time).abs()
+                > Self::COMBINE_ACTION_TIME
+            {
                 return None;
             }
         }

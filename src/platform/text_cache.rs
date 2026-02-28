@@ -20,6 +20,8 @@ pub struct AtlasDimensions {
 }
 
 impl AtlasDimensions {
+    const MAX_WIDTH: usize = 4096;
+
     pub const ZERO: Self = Self {
         origin_x: 0.0,
         origin_y: 0.0,
@@ -169,8 +171,6 @@ impl GlyphCacheResult {
     }
 }
 
-const MAX_ATLAS_WIDTH: usize = 4096;
-
 pub struct TextCache {
     glyph_cache: HashMap<u16, GlyphSpan>,
 
@@ -233,7 +233,7 @@ impl TextCache {
         let width = sub_atlas.dimensions.width;
         let height = sub_atlas.dimensions.height;
 
-        if self.atlas_used_width + width > MAX_ATLAS_WIDTH {
+        if self.atlas_used_width + width > AtlasDimensions::MAX_WIDTH {
             self.atlas_used_height += self.atlas_current_row_height;
             self.atlas_used_width = 0;
             self.atlas_current_row_height = 0;

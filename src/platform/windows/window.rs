@@ -55,17 +55,6 @@ use crate::{
 
 use super::deferred_call::defer;
 
-const DEFAULT_WIDTH: i32 = 640;
-const DEFAULT_HEIGHT: i32 = 480;
-
-const MK_LBUTTON: usize = 0x01;
-const MK_RBUTTON: usize = 0x02;
-const MK_MBUTTON: usize = 0x10;
-const MK_XBUTTON1: usize = 0x20;
-const MK_XBUTTON2: usize = 0x40;
-const MK_SHIFT: usize = 0x04;
-const MK_CONTROL: usize = 0x08;
-
 #[derive(Clone, Copy, Debug)]
 struct RecordedMouseClick {
     button: MouseButton,
@@ -110,6 +99,9 @@ pub struct Window {
 }
 
 impl Window {
+    const DEFAULT_WIDTH: i32 = 640;
+    const DEFAULT_HEIGHT: i32 = 480;
+
     pub(super) fn new() -> Result<Self> {
         let mut timer_frequency = 0i64;
         let double_click_time;
@@ -133,8 +125,8 @@ impl Window {
 
             x: 0,
             y: 0,
-            width: DEFAULT_WIDTH,
-            height: DEFAULT_HEIGHT,
+            width: Self::DEFAULT_WIDTH,
+            height: Self::DEFAULT_HEIGHT,
 
             draggable_buttons: HashSet::new(),
             current_click: None,
@@ -554,6 +546,12 @@ impl Window {
                 )));
             }
             WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN | WM_MOUSEMOVE => {
+                const MK_LBUTTON: usize = 0x01;
+                const MK_RBUTTON: usize = 0x02;
+                const MK_MBUTTON: usize = 0x10;
+                const MK_XBUTTON1: usize = 0x20;
+                const MK_XBUTTON2: usize = 0x40;
+
                 let button = if msg == WM_MOUSEMOVE {
                     self.current_click.map(|click| click.button)
                 } else if wparam.0 & MK_LBUTTON != 0 {
@@ -706,6 +704,9 @@ impl Window {
     }
 
     fn wparam_to_mods(wparam: WPARAM) -> Mods {
+        const MK_SHIFT: usize = 0x04;
+        const MK_CONTROL: usize = 0x08;
+
         let mut mods = Mods::NONE;
 
         if wparam.0 & MK_SHIFT != 0 {

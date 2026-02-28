@@ -48,8 +48,6 @@ impl TabAnimationState {
     }
 }
 
-const TAB_ANIMATION_SPEED: f32 = 10.0;
-
 struct PaneTabBar<T> {
     _phantom: PhantomData<T>,
 
@@ -62,6 +60,8 @@ struct PaneTabBar<T> {
 }
 
 impl<T> PaneTabBar<T> {
+    const TAB_ANIMATION_SPEED: f32 = 10.0;
+
     pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
         Self {
             _phantom: PhantomData,
@@ -182,7 +182,7 @@ impl<T> PaneTabBar<T> {
             let animation_state = &mut self.tab_animation_states[index];
 
             animation_state.target = target;
-            animation_state.x += (target.x - animation_state.x) * TAB_ANIMATION_SPEED * dt;
+            animation_state.x += (target.x - animation_state.x) * Self::TAB_ANIMATION_SPEED * dt;
 
             tab_x += tab_width - gfx.border_width();
         }

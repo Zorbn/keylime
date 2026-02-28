@@ -23,8 +23,6 @@ pub enum PopupAlignment {
     Above,
 }
 
-const MAX_LINES: usize = 10;
-
 pub struct Popup {
     tab: Tab,
     doc: Doc,
@@ -33,6 +31,8 @@ pub struct Popup {
 }
 
 impl Popup {
+    const MAX_LINES: usize = 10;
+
     pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
         let widget_id = ctx.ui.new_widget(
             parent_id,
@@ -88,7 +88,7 @@ impl Popup {
         let gfx = &mut ctx.gfx;
 
         let mut bounds = Rect::ZERO;
-        bounds.height = self.doc.lines().len().min(MAX_LINES) as f32 * gfx.line_height();
+        bounds.height = self.doc.lines().len().min(Self::MAX_LINES) as f32 * gfx.line_height();
 
         for line in self.doc.lines() {
             let line_width = gfx.measure_text(line) as f32 * gfx.glyph_width()

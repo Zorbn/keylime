@@ -48,8 +48,6 @@ pub mod editor_pane;
 mod examine_popup;
 mod signature_help_popup;
 
-const HOVER_TIME: f32 = 0.5;
-
 pub struct Editor {
     doc_list: SlotList<Doc>,
     panes: PaneList<EditorPane, Doc>,
@@ -67,6 +65,8 @@ pub struct Editor {
 }
 
 impl Editor {
+    const HOVER_TIME: f32 = 0.5;
+
     pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
         let widget_id = ctx.ui.new_widget(parent_id, Default::default());
 
@@ -137,7 +137,7 @@ impl Editor {
                     self.signature_help_popup.hide(ctx.ui);
                     self.examine_popup.hide(ctx.ui);
                 }
-                Msg::TabHoverChanged => self.hover_timer = HOVER_TIME,
+                Msg::TabHoverChanged => self.hover_timer = Self::HOVER_TIME,
                 Msg::Action(action_name!(OpenFolder)) => {
                     if let Ok(path) = find_file(FindFileKind::OpenFolder) {
                         if let Err(err) = Self::open_folder(&path, ctx) {

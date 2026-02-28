@@ -19,18 +19,18 @@ mod escape_parser;
 mod terminal_emulator;
 mod terminal_pane;
 
-pub const TERMINAL_DISPLAY_NAME: &str = "Terminal";
-
 pub struct TerminalDocs {
     normal: Doc,
     alternate: Doc,
 }
 
 impl TerminalDocs {
+    pub const DISPLAY_NAME: &str = "Terminal";
+
     pub fn new() -> Self {
         Self {
-            normal: Doc::new(None, Some(TERMINAL_DISPLAY_NAME.into()), DocFlags::TERMINAL),
-            alternate: Doc::new(None, Some(TERMINAL_DISPLAY_NAME.into()), DocFlags::TERMINAL),
+            normal: Doc::new(None, Some(Self::DISPLAY_NAME.into()), DocFlags::TERMINAL),
+            alternate: Doc::new(None, Some(Self::DISPLAY_NAME.into()), DocFlags::TERMINAL),
         }
     }
 

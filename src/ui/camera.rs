@@ -40,12 +40,6 @@ enum CameraState {
     },
 }
 
-pub const RECENTER_DISTANCE: usize = 4;
-const SCROLL_SPEED: f32 = 30.0;
-const PRECISE_SCROLL_SCALE: f32 = 0.1;
-const PRECISE_SCROLL_SPEED: f32 = 50.0;
-const SCROLL_FRICTION: f32 = 0.0001;
-
 pub struct CameraAxis {
     position: f32,
     max_position: f32,
@@ -54,6 +48,12 @@ pub struct CameraAxis {
 }
 
 impl CameraAxis {
+    pub const RECENTER_DISTANCE: usize = 4;
+    const SCROLL_SPEED: f32 = 30.0;
+    const PRECISE_SCROLL_SCALE: f32 = 0.1;
+    const PRECISE_SCROLL_SPEED: f32 = 50.0;
+    const SCROLL_FRICTION: f32 = 0.0001;
+
     pub fn new() -> Self {
         Self {
             position: 0.0,
@@ -91,7 +91,7 @@ impl CameraAxis {
         } = self.state
         {
             self.velocity = 0.0;
-            self.position += (target_position - self.position) * dt * PRECISE_SCROLL_SPEED;
+            self.position += (target_position - self.position) * dt * Self::PRECISE_SCROLL_SPEED;
 
             let is_at_target = (self.position - target_position).abs() < 0.5
                 || (target_position < 0.0 && self.position < 0.0)
@@ -101,7 +101,7 @@ impl CameraAxis {
                 self.state = CameraState::MovingWithVelocity;
             }
         } else {
-            self.velocity *= SCROLL_FRICTION.powf(dt);
+            self.velocity *= Self::SCROLL_FRICTION.powf(dt);
             self.position += self.velocity * dt;
 
             // We want the velocity to eventually be exactly zero so that we can stop animating.
@@ -220,7 +220,7 @@ impl CameraAxis {
     }
 
     pub fn scroll_visual_distance(&mut self, visual_distance: f32) {
-        let f = SCROLL_FRICTION;
+        let f = Self::SCROLL_FRICTION;
 
         // Velocity of the camera is (v = starting velocity, f = friction factor): v * f^t
         // Integrate to get position: y = (v * f^t) / ln(f)
@@ -242,7 +242,7 @@ impl CameraAxis {
                 self.velocity = 0.0;
 
                 CameraState::MovingWithLerp {
-                    target_position: self.position - delta * PRECISE_SCROLL_SCALE,
+                    target_position: self.position - delta * Self::PRECISE_SCROLL_SCALE,
                     is_end_expected: true,
                 }
             }
@@ -261,13 +261,13 @@ impl CameraAxis {
                     };
 
                 CameraState::MovingWithLerp {
-                    target_position: previous_target_position - delta * PRECISE_SCROLL_SCALE,
+                    target_position: previous_target_position - delta * Self::PRECISE_SCROLL_SCALE,
                     is_end_expected,
                 }
             }
             MouseScrollKind::Stop => CameraState::MovingWithVelocity,
             MouseScrollKind::Instant => {
-                self.velocity -= delta * SCROLL_SPEED;
+                self.velocity -= delta * Self::SCROLL_SPEED;
 
                 CameraState::MovingWithVelocity
             }

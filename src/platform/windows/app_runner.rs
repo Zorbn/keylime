@@ -23,8 +23,6 @@ use crate::{
 
 use super::{gfx::Gfx, window::Window};
 
-const DEFAULT_DPI: f32 = 96.0;
-
 pub struct AppRunner {
     window: ManuallyDrop<AnyWindow>,
     gfx: Option<AnyGfx>,
@@ -32,6 +30,8 @@ pub struct AppRunner {
 }
 
 impl AppRunner {
+    const DEFAULT_DPI: f32 = 96.0;
+
     fn new() -> Result<Self> {
         Ok(Self {
             window: ManuallyDrop::new(AnyWindow {
@@ -144,7 +144,7 @@ impl AppRunner {
             WM_CREATE => {
                 let app_runner = &mut *app_runner;
 
-                let scale = GetDpiForWindow(hwnd) as f32 / DEFAULT_DPI;
+                let scale = GetDpiForWindow(hwnd) as f32 / Self::DEFAULT_DPI;
 
                 app_runner.window.inner.on_create(scale, hwnd);
 
@@ -160,7 +160,7 @@ impl AppRunner {
             WM_DPICHANGED => {
                 let app_runner = &mut *app_runner;
 
-                let scale = (wparam.0 & 0xFFFF) as f32 / DEFAULT_DPI;
+                let scale = (wparam.0 & 0xFFFF) as f32 / Self::DEFAULT_DPI;
                 let rect = *(lparam.0 as *const RECT);
 
                 if let Self {

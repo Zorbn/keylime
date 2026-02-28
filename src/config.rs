@@ -29,48 +29,9 @@ use crate::{
     },
 };
 
-const CONFIG_FILE: &str = "config.json";
-const CONFIG_DIR: &str = "config";
-
-#[cfg(target_os = "windows")]
-const KEYMAPS_FILE: &str = "windows.json";
-
-#[cfg(target_os = "macos")]
-const KEYMAPS_FILE: &str = "macos.json";
-
-const KEYMAPS_DIR: &str = "keymaps";
-
-const DEFAULT_COMMENT: fn() -> Pooled<String> = || "//".into();
-const DEFAULT_HAS_IDENTIFIERS: fn() -> bool = || true;
-const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
-const DEFAULT_FORMAT_ON_SAVE: fn() -> bool = || true;
-const DEFAULT_IGNORED_FILES: fn() -> Vec<Pooled<String>> = || {
-    ["target", "build", "out", ".git", "node_modules"]
-        .iter()
-        .copied()
-        .map(Into::into)
-        .collect()
-};
-const DEFAULT_IGNORED_EXTENSIONS: fn() -> Vec<Pooled<String>> =
-    || ["exe", "app"].iter().copied().map(Into::into).collect();
-const DEFAULT_KEYMAPS: fn() -> HashMap<Keybind, ActionName> = || {
-    [
-        (
-            Keybind::new(Key::Backspace, Mods::NONE),
-            ActionName::DeleteBackward,
-        ),
-        (Keybind::new(Key::Up, Mods::NONE), ActionName::MoveUp),
-        (Keybind::new(Key::Down, Mods::NONE), ActionName::MoveDown),
-        (Keybind::new(Key::Left, Mods::NONE), ActionName::MoveLeft),
-        (Keybind::new(Key::Right, Mods::NONE), ActionName::MoveRight),
-    ]
-    .into_iter()
-    .collect()
-};
-
 #[derive(Deserialize, Debug)]
 struct SyntaxDesc<'a> {
-    #[serde(default = "DEFAULT_HAS_IDENTIFIERS")]
+    #[serde(default = "SyntaxDesc::DEFAULT_HAS_IDENTIFIERS")]
     has_identifiers: bool,
     #[serde(default, borrow)]
     keywords: Vec<&'a str>,
@@ -81,6 +42,8 @@ struct SyntaxDesc<'a> {
 }
 
 impl SyntaxDesc<'_> {
+    const DEFAULT_HAS_IDENTIFIERS: fn() -> bool = || true;
+
     pub fn syntax(self) -> Syntax {
         let mut keywords = HashSet::new();
 
@@ -112,7 +75,7 @@ struct LanguageDesc<'a> {
     indent_width: IndentWidth,
     #[serde(default)]
     blocks: LanguageBlocks,
-    #[serde(default = "DEFAULT_COMMENT")]
+    #[serde(default = "LanguageDesc::DEFAULT_COMMENT")]
     comment: Pooled<String>,
     #[serde(default)]
     lsp: LanguageLsp,
@@ -120,19 +83,39 @@ struct LanguageDesc<'a> {
     syntax: Option<SyntaxDesc<'a>>,
 }
 
+impl LanguageDesc<'_> {
+    const DEFAULT_COMMENT: fn() -> Pooled<String> = || "//".into();
+}
+
 #[derive(Deserialize, Debug)]
 struct ConfigDesc<'a> {
     font: Pooled<String>,
     font_size: f32,
-    #[serde(default = "DEFAULT_TRIM_TRAILING_WHITESPACE")]
+    #[serde(default = "ConfigDesc::DEFAULT_TRIM_TRAILING_WHITESPACE")]
     trim_trailing_whitespace: bool,
-    #[serde(default = "DEFAULT_FORMAT_ON_SAVE")]
+    #[serde(default = "ConfigDesc::DEFAULT_FORMAT_ON_SAVE")]
     format_on_save: bool,
     theme: &'a str,
-    #[serde(default = "DEFAULT_IGNORED_FILES")]
+    #[serde(default = "ConfigDesc::DEFAULT_IGNORED_FILES")]
     ignored_files: Vec<Pooled<String>>,
-    #[serde(default = "DEFAULT_IGNORED_EXTENSIONS")]
+    #[serde(default = "ConfigDesc::DEFAULT_IGNORED_EXTENSIONS")]
     ignored_extensions: Vec<Pooled<String>>,
+}
+
+impl ConfigDesc<'_> {
+    const DEFAULT_TRIM_TRAILING_WHITESPACE: fn() -> bool = || true;
+    const DEFAULT_FORMAT_ON_SAVE: fn() -> bool = || true;
+
+    const DEFAULT_IGNORED_FILES: fn() -> Vec<Pooled<String>> = || {
+        ["target", "build", "out", ".git", "node_modules"]
+            .iter()
+            .copied()
+            .map(Into::into)
+            .collect()
+    };
+
+    const DEFAULT_IGNORED_EXTENSIONS: fn() -> Vec<Pooled<String>> =
+        || ["exe", "app"].iter().copied().map(Into::into).collect();
 }
 
 pub struct ConfigError {
@@ -164,13 +147,39 @@ pub struct Config {
 }
 
 impl Config {
+    const CONFIG_FILE: &str = "config.json";
+    const CONFIG_DIR: &str = "config";
+
+    const DEFAULT_KEYMAPS: fn() -> HashMap<Keybind, ActionName> = || {
+        [
+            (
+                Keybind::new(Key::Backspace, Mods::NONE),
+                ActionName::DeleteBackward,
+            ),
+            (Keybind::new(Key::Up, Mods::NONE), ActionName::MoveUp),
+            (Keybind::new(Key::Down, Mods::NONE), ActionName::MoveDown),
+            (Keybind::new(Key::Left, Mods::NONE), ActionName::MoveLeft),
+            (Keybind::new(Key::Right, Mods::NONE), ActionName::MoveRight),
+        ]
+        .into_iter()
+        .collect()
+    };
+
+    #[cfg(target_os = "windows")]
+    const KEYMAPS_FILE: &str = "windows.json";
+
+    #[cfg(target_os = "macos")]
+    const KEYMAPS_FILE: &str = "macos.json";
+
+    const KEYMAPS_DIR: &str = "keymaps";
+
     pub fn load(dir: &Path) -> Result<Self, ConfigError> {
         let mut path = PATH_POOL.new_item();
 
         path.clear();
         path.push(dir);
-        path.push(KEYMAPS_DIR);
-        path.push(KEYMAPS_FILE);
+        path.push(Self::KEYMAPS_DIR);
+        path.push(Self::KEYMAPS_FILE);
 
         let mut keymaps = HashMap::new();
 
@@ -211,7 +220,7 @@ impl Config {
 
         path.clear();
         path.push(dir);
-        path.push(CONFIG_FILE);
+        path.push(Self::CONFIG_FILE);
 
         let config_desc_string = Self::load_file_string(&path)?;
         let config_desc = Self::load_file_data::<ConfigDesc>(&path, &config_desc_string)?;
@@ -322,7 +331,7 @@ impl Config {
             let mut config_path: Pooled<PathBuf> = exe_dir.into();
 
             loop {
-                config_path.push(CONFIG_DIR);
+                config_path.push(Self::CONFIG_DIR);
 
                 if config_path.exists() {
                     return config_path;
@@ -338,7 +347,7 @@ impl Config {
             }
         }
 
-        CONFIG_DIR.normalized(current_dir).unwrap()
+        Self::CONFIG_DIR.normalized(current_dir).unwrap()
     }
 }
 
@@ -347,14 +356,14 @@ impl Default for Config {
         Self {
             font: STRING_POOL.new_item(),
             font_size: 13.0,
-            trim_trailing_whitespace: DEFAULT_TRIM_TRAILING_WHITESPACE(),
-            format_on_save: DEFAULT_FORMAT_ON_SAVE(),
+            trim_trailing_whitespace: ConfigDesc::DEFAULT_TRIM_TRAILING_WHITESPACE(),
+            format_on_save: ConfigDesc::DEFAULT_FORMAT_ON_SAVE(),
             theme: Theme::default(),
-            keymaps: DEFAULT_KEYMAPS(),
+            keymaps: Self::DEFAULT_KEYMAPS(),
             languages: Vec::new(),
             extension_languages: HashMap::new(),
-            ignored_files: HashSet::from_iter(DEFAULT_IGNORED_FILES()),
-            ignored_extensions: HashSet::from_iter(DEFAULT_IGNORED_EXTENSIONS()),
+            ignored_files: HashSet::from_iter(ConfigDesc::DEFAULT_IGNORED_FILES()),
+            ignored_extensions: HashSet::from_iter(ConfigDesc::DEFAULT_IGNORED_EXTENSIONS()),
         }
     }
 }
