@@ -60,22 +60,29 @@ impl SignatureHelpPopup {
         is_retrigger: bool,
         ctx: &mut Ctx,
     ) {
+        ctx.ui.reparent_widget(self.widget_id, parent_id);
+        self.trigger(doc, Some(trigger_char), is_retrigger, ctx);
+    }
+
+    fn trigger(
+        &mut self,
+        doc: &mut Doc,
+        trigger_char: Option<char>,
+        is_retrigger: bool,
+        ctx: &mut Ctx,
+    ) {
         if is_retrigger && self.help.is_none() {
             return;
         }
 
-        let position = doc.cursor(CursorIndex::Main).position;
+        doc.lsp_signature_help(trigger_char, is_retrigger, ctx);
 
-        doc.lsp_signature_help(Some(trigger_char), is_retrigger, ctx);
-
-        ctx.ui.reparent_widget(self.widget_id, parent_id);
-
-        self.help_position = position;
+        self.help_position = doc.cursor(CursorIndex::Main).position;
     }
 
     pub fn update(&mut self, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx, dt: f32) {
         if self.help.is_some() && doc.cursor(CursorIndex::Main).position != self.help_position {
-            doc.lsp_signature_help(None, true, ctx);
+            self.trigger(doc, None, true, ctx);
         }
 
         let mut position = doc
