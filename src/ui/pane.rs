@@ -639,6 +639,7 @@ impl<T> Pane<T> {
             .expect("tried to add a tab referencing a non-existent data")
             .add_usage();
 
+        let tab_id = tab.widget_id();
         let index = (self.focused_tab_index(ctx.ui) + 1).min(self.tabs.len());
 
         self.tabs.insert(index, tab);
@@ -655,6 +656,7 @@ impl<T> Pane<T> {
             },
         );
 
+        ctx.ui.move_child(tab_id, index);
         self.view.set_focused_index(index, ctx.ui);
         self.view.focus(ctx.ui);
     }
