@@ -29,10 +29,6 @@ impl Rect {
         }
     }
 
-    pub fn shrink_top_by(&self, size: f32) -> Self {
-        Self::new(self.x, self.y + size, self.width, self.height - size)
-    }
-
     pub fn scale(&self, scale: f32) -> Self {
         self.scale_x(scale).scale_y(scale)
     }
@@ -61,10 +57,6 @@ impl Rect {
 
     pub fn shift_x(&self, delta: f32) -> Self {
         Self::new(self.x + delta, self.y, self.width, self.height)
-    }
-
-    pub fn shift_y(&self, delta: f32) -> Self {
-        Self::new(self.x, self.y + delta, self.width, self.height)
     }
 
     pub fn add_margin(&self, margin: f32) -> Self {

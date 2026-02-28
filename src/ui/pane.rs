@@ -726,6 +726,11 @@ impl<T> Pane<T> {
         self.tabs.get(focused_index)
     }
 
+    pub fn get_focused_tab_mut(&mut self, ui: &Ui) -> Option<&mut Tab> {
+        let focused_index = self.focused_tab_index(ui);
+        self.tabs.get_mut(focused_index)
+    }
+
     pub fn set_focused_tab_index(&self, index: usize, ui: &mut Ui) {
         self.view.set_focused_index(index, ui);
     }
