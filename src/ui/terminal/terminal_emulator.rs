@@ -28,7 +28,7 @@ use crate::{
         msg::Msg,
         tab::Tab,
         terminal::{
-            escape_sequences::{parse_escape_sequences, EscapeSequence},
+            escape_parser::{EscapeParser, EscapeSequence},
             TERMINAL_DISPLAY_NAME,
         },
     },
@@ -91,7 +91,7 @@ impl ColoredGridLine {
 
 pub struct TerminalEmulator {
     pty: Option<Process>,
-    pending_escape_sequences: Option<Vec<EscapeSequence<'static>>>,
+    parser: EscapeParser,
 
     // The position of the terminal's cursor, which follows different rules
     // compared to the document's cursor for compatibility reasons, and may be
@@ -121,9 +121,18 @@ pub struct TerminalEmulator {
 
 impl TerminalEmulator {
     pub fn new() -> Self {
+        // TODO:
+        let mut parser = EscapeParser::new();
+
+        // for byte in b"Hello\r\nWorld" {
+        //     parser.next(*byte);
+        // }
+
+        // parser.flush();
+
         Self {
             pty: None,
-            pending_escape_sequences: Some(Vec::new()),
+            parser,
 
             grid_cursor: Position::ZERO,
             grid_width: MIN_GRID_WIDTH,
@@ -288,22 +297,19 @@ impl TerminalEmulator {
         output: &[u8],
         ctx: &mut Ctx,
     ) {
-        let Some(mut result) = self.pending_escape_sequences.take() else {
-            return;
-        };
+        for byte in output {
+            self.parser.next(*byte);
+        }
 
-        parse_escape_sequences(output, &mut result);
+        self.parser.flush();
 
-        for sequence in result.drain(..) {
+        while let Some(sequence) = self.parser.next_sequence() {
             self.handle_escape_sequence(docs, tab, input, sequence, ctx);
         }
 
         let doc = self.doc_mut(docs);
 
         self.highlight_lines(doc);
-
-        // In-place collect:
-        self.pending_escape_sequences = Some(result.into_iter().map(|_| unreachable!()).collect());
     }
 
     fn handle_escape_sequence(
@@ -316,8 +322,14 @@ impl TerminalEmulator {
     ) {
         let doc = self.doc_mut(docs);
 
+        println!("sequence: {:?}", sequence);
+
         match sequence {
-            EscapeSequence::Plain(text) => self.insert_at_cursor(text, doc, ctx),
+            EscapeSequence::Plain { len } => {
+                let text = STRING_POOL.init_item(|text| text.push_str(self.parser.next_text(len)));
+                println!("sequence text: {:?}", text);
+                self.insert_at_cursor(&text, doc, ctx);
+            }
             EscapeSequence::Backspace => self.move_cursor(-1, 0, doc, ctx.gfx),
             EscapeSequence::Tab => {
                 let next_tab_stop = (self.grid_cursor.x / 8 + 1) * 8;
@@ -503,7 +515,10 @@ impl TerminalEmulator {
                 // Claim to be a "VT101 with no options".
                 input.extend("\x1B[?1;0c".bytes());
             }
-            EscapeSequence::SetTitle(title) => doc.set_display_name(Some(title.into())),
+            EscapeSequence::SetTitle { len } => {
+                let title = self.parser.next_text(len);
+                doc.set_display_name(Some(title.into()));
+            }
             EscapeSequence::ResetTitle => doc.set_display_name(Some(TERMINAL_DISPLAY_NAME.into())),
             EscapeSequence::QueryForegroundColor | EscapeSequence::QueryBackgroundColor => {
                 let (color, kind) = if matches!(sequence, EscapeSequence::QueryForegroundColor) {

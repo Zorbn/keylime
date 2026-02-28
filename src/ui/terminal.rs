@@ -15,7 +15,7 @@ use crate::{
 use super::{core::WidgetId, pane_list::PaneList, slot_list::SlotList};
 
 mod color_table;
-mod escape_sequences;
+mod escape_parser;
 mod terminal_emulator;
 mod terminal_pane;
 
