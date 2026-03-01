@@ -86,11 +86,17 @@ enum EscapeParserState {
     CursorShape,
 }
 
+enum Charset {
+    Default,
+    SpecialGraphics,
+}
+
 pub struct EscapeParser {
     pending_text: Vec<u8>,
     used_pending_text: usize,
     pending_sequences: VecDeque<EscapeSequence>,
     state: EscapeParserState,
+    charset: Charset,
 }
 
 impl EscapeParser {
@@ -100,6 +106,7 @@ impl EscapeParser {
             used_pending_text: 0,
             pending_sequences: VecDeque::new(),
             state: EscapeParserState::Plain { len: 0 },
+            charset: Charset::Default,
         }
     }
 
@@ -131,10 +138,51 @@ impl EscapeParser {
                     self.flush();
                     self.pending_sequences.push_back(EscapeSequence::Newline);
                 }
-                _ => {
-                    self.pending_text.push(byte);
-                    *len += 1;
-                }
+                _ => match self.charset {
+                    Charset::SpecialGraphics if matches!(byte, 0x5F..0x7E) => {
+                        let text = match byte {
+                            0x60 => "◆",
+                            0x61 => "▒",
+                            0x62 => "␉",
+                            0x63 => "␌",
+                            0x64 => "␍",
+                            0x65 => "␊",
+                            0x66 => "°",
+                            0x67 => "±",
+                            0x68 => "␤",
+                            0x69 => "␋",
+                            0x6A => "┘",
+                            0x6B => "┐",
+                            0x6C => "┌",
+                            0x6D => "└",
+                            0x6E => "┼",
+                            0x6F => "⎺",
+                            0x70 => "⎻",
+                            0x71 => "─",
+                            0x72 => "⎼",
+                            0x73 => "⎽",
+                            0x74 => "├",
+                            0x75 => "┤",
+                            0x76 => "┴",
+                            0x77 => "┬",
+                            0x78 => "│",
+                            0x79 => "≤",
+                            0x7A => "≥",
+                            0x7B => "π",
+                            0x7C => "≠",
+                            0x7D => "£",
+                            0x7E => "·",
+                            _ => " ",
+                        };
+
+                        self.pending_text.extend_from_slice(text.as_bytes());
+                        *len += text.len();
+                    }
+                    _ => {
+                        self.pending_text.push(byte);
+                        *len += 1;
+                    }
+                },
             },
             EscapeParserState::Escape => {
                 match byte {
@@ -632,9 +680,16 @@ impl EscapeParser {
                     self.next(byte);
                 }
             }
-            EscapeParserState::Charset | EscapeParserState::CursorShape => {
-                self.state = EscapeParserState::Plain { len: 0 }
+            EscapeParserState::Charset => {
+                self.charset = if byte == b'0' {
+                    Charset::SpecialGraphics
+                } else {
+                    Charset::Default
+                };
+
+                self.state = EscapeParserState::Plain { len: 0 };
             }
+            EscapeParserState::CursorShape => self.state = EscapeParserState::Plain { len: 0 },
         }
     }
 
