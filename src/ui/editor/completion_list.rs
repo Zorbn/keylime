@@ -193,6 +193,10 @@ impl CompletionList {
     }
 
     fn update_popups(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx, dt: f32) {
+        if !ctx.ui.is_visible(self.result_list.widget_id()) {
+            return;
+        }
+
         let visual_position = doc
             .position_to_visual(self.position, tab.camera.position().floor(), ctx.gfx)
             .offset_by(tab.doc_bounds(ctx.ui));
