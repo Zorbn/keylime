@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use objc2::rc::Retained;
 use objc2_app_kit::{
     NSAlert, NSAlertFirstButtonReturn, NSAlertSecondButtonReturn, NSAlertStyle, NSBackingStoreType,
-    NSModalResponseOK, NSOpenPanel, NSRunningApplication, NSSavePanel, NSWindowStyleMask,
+    NSModalResponseOK, NSOpenPanel, NSSavePanel, NSWindowStyleMask,
 };
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{ns_string, MainThreadMarker, NSRect, NSString, NSURL};
@@ -19,8 +19,6 @@ use crate::{
 use super::result::Result;
 
 pub fn find_file(kind: FindFileKind, window: &mut AnyWindow) -> Result<Pooled<PathBuf>> {
-    assert_app_launched();
-
     let mtm = MainThreadMarker::new().unwrap();
 
     let content_rect = CGRect::new(CGPoint::ZERO, CGSize::new(500.0, 500.0));
@@ -96,8 +94,6 @@ pub fn message(
     kind: MessageKind,
     window: &mut AnyWindow,
 ) -> MessageResponse {
-    assert_app_launched();
-
     let mtm = MainThreadMarker::new().unwrap();
 
     let response = unsafe {
@@ -127,11 +123,4 @@ pub fn message(
     } else {
         MessageResponse::Cancel
     }
-}
-
-fn assert_app_launched() {
-    let current_application = unsafe { NSRunningApplication::currentApplication() };
-    let is_finished_launching = unsafe { current_application.isFinishedLaunching() };
-
-    assert!(is_finished_launching);
 }
