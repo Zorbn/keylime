@@ -193,10 +193,10 @@ impl Ui {
             self.update_layout_from_parent(widget_id);
         }
 
-        self.remove_widgets_downward(widget_id);
+        self.remove_subtree(widget_id);
     }
 
-    fn remove_widgets_downward(&mut self, widget_id: WidgetId) {
+    fn remove_subtree(&mut self, widget_id: WidgetId) {
         for i in 0..self.widget(widget_id).child_ids.len() {
             let child_id = self.widget(widget_id).child_ids[i];
 
@@ -208,7 +208,7 @@ impl Ui {
                 continue;
             }
 
-            self.remove_widgets_downward(child_id);
+            self.remove_subtree(child_id);
         }
 
         self.remove_from_focused(widget_id);
@@ -1025,8 +1025,7 @@ impl Ui {
             return;
         }
 
-        self.remove_from_hovered(widget_id);
-        self.unfocus(widget_id);
+        self.hide_subtree(widget_id);
 
         let widget = self.widget_mut(widget_id);
         widget.settings.is_shown = false;
@@ -1034,6 +1033,17 @@ impl Ui {
         if widget.settings.popup.is_none() {
             self.update_layout_from_parent(widget_id);
         }
+    }
+
+    fn hide_subtree(&mut self, widget_id: WidgetId) {
+        for i in 0..self.widget(widget_id).child_ids.len() {
+            let child_id = self.widget(widget_id).child_ids[i];
+
+            self.hide_subtree(child_id);
+        }
+
+        self.remove_from_focused(widget_id);
+        self.remove_from_hovered(widget_id);
     }
 
     pub fn set_shown(&mut self, widget_id: WidgetId, is_shown: bool) {

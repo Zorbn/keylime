@@ -176,9 +176,9 @@ impl App {
 
         let ctx = ctx_for_app!(self, window, gfx, time);
 
-        self.editor.draw(ctx);
         self.status_bar.draw(&self.editor, ctx);
         self.terminal.draw(ctx);
+        self.editor.draw(ctx);
         self.command_palette.draw(ctx);
 
         ctx.ui.draw(ctx.config, ctx.gfx);
