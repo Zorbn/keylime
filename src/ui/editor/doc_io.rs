@@ -25,7 +25,7 @@ pub fn confirm_close(doc: &mut Doc, reason: &str, is_cancelable: bool, ctx: &mut
             MessageKind::YesNo
         };
 
-        match message("Unsaved Changes", &text, message_kind) {
+        match message("Unsaved Changes", &text, message_kind, ctx.window) {
             MessageResponse::Yes => try_save(doc, ctx),
             MessageResponse::No => true,
             MessageResponse::Cancel => false,
@@ -35,7 +35,7 @@ pub fn confirm_close(doc: &mut Doc, reason: &str, is_cancelable: bool, ctx: &mut
 
 pub fn try_save(doc: &mut Doc, ctx: &mut Ctx) -> bool {
     let path = if doc.path().is_none() {
-        let Ok(path) = find_file(FindFileKind::Save) else {
+        let Ok(path) = find_file(FindFileKind::Save, ctx.window) else {
             return false;
         };
 
@@ -53,7 +53,12 @@ pub fn try_save(doc: &mut Doc, ctx: &mut Ctx) -> bool {
     }
 
     if let Err(err) = doc.save(path, ctx) {
-        message("Failed to Save File", &err.to_string(), MessageKind::Ok);
+        message(
+            "Failed to Save File",
+            &err.to_string(),
+            MessageKind::Ok,
+            ctx.window,
+        );
         false
     } else {
         true

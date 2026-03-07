@@ -155,7 +155,7 @@ impl App {
             .then(|| self.config_error.take())
             .flatten()
         {
-            err.show_message();
+            err.show_message(window);
         }
 
         self.receive_msgs(window, gfx, time);

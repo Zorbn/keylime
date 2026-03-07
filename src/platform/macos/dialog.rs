@@ -9,13 +9,16 @@ use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{ns_string, MainThreadMarker, NSRect, NSString, NSURL};
 
 use crate::{
-    platform::dialog::{FindFileKind, MessageKind, MessageResponse},
+    platform::{
+        aliases::AnyWindow,
+        dialog::{FindFileKind, MessageKind, MessageResponse},
+    },
     pool::{Pooled, PATH_POOL},
 };
 
 use super::result::Result;
 
-pub fn find_file(kind: FindFileKind) -> Result<Pooled<PathBuf>> {
+pub fn find_file(kind: FindFileKind, window: &mut AnyWindow) -> Result<Pooled<PathBuf>> {
     assert_app_launched();
 
     let mtm = MainThreadMarker::new().unwrap();
@@ -29,6 +32,8 @@ pub fn find_file(kind: FindFileKind) -> Result<Pooled<PathBuf>> {
         } else {
             find_file_open(kind, mtm, content_rect, style)
         };
+
+        window.inner.time(false);
 
         let path = url
             .ok_or("Dialog is missing a URL")?
@@ -85,7 +90,12 @@ unsafe fn find_file_save(
     save_panel.URL()
 }
 
-pub fn message(title: &str, text: &str, kind: MessageKind) -> MessageResponse {
+pub fn message(
+    title: &str,
+    text: &str,
+    kind: MessageKind,
+    window: &mut AnyWindow,
+) -> MessageResponse {
     assert_app_launched();
 
     let mtm = MainThreadMarker::new().unwrap();
@@ -107,6 +117,8 @@ pub fn message(title: &str, text: &str, kind: MessageKind) -> MessageResponse {
 
         alert.runModal()
     };
+
+    window.inner.time(false);
 
     if response == NSAlertFirstButtonReturn {
         MessageResponse::Yes

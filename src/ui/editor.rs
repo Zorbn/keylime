@@ -137,9 +137,14 @@ impl Editor {
                 }
                 Msg::TabHoverChanged => self.hover_timer = Self::HOVER_TIME,
                 Msg::Action(action_name!(OpenFolder)) => {
-                    if let Ok(path) = find_file(FindFileKind::OpenFolder) {
+                    if let Ok(path) = find_file(FindFileKind::OpenFolder, ctx.window) {
                         if let Err(err) = Self::open_folder(&path, ctx) {
-                            message("Error Opening Folder", &err.to_string(), MessageKind::Ok);
+                            message(
+                                "Error Opening Folder",
+                                &err.to_string(),
+                                MessageKind::Ok,
+                                ctx.window,
+                            );
                         }
                     }
                 }

@@ -21,7 +21,10 @@ use crate::{
         mods::{Mod, Mods},
     },
     normalizable::Normalizable,
-    platform::dialog::{message, MessageKind},
+    platform::{
+        dialog::{message, MessageKind},
+        window::Window,
+    },
     pool::{format_pooled, Pooled, PATH_POOL, STRING_POOL},
     text::{
         doc::Doc,
@@ -128,8 +131,8 @@ impl ConfigError {
         Self { title, text }
     }
 
-    pub fn show_message(&self) {
-        message(self.title, &self.text, MessageKind::Ok);
+    pub fn show_message(&self, window: &mut Window) {
+        message(self.title, &self.text, MessageKind::Ok, window);
     }
 }
 
