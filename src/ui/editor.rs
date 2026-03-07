@@ -105,13 +105,10 @@ impl Editor {
                 Msg::ShowCompletions => {
                     let pane = self.panes.get_last_focused_mut(ctx.ui).unwrap();
 
-                    if let Some((tab, doc)) =
+                    if let Some((tab, _)) =
                         pane.get_focused_tab_with_data_mut(&mut self.doc_list, ctx.ui)
                     {
-                        let cursor_position = doc.cursor(CursorIndex::Main).position;
-
-                        self.completion_list
-                            .show(cursor_position, tab.widget_id(), ctx);
+                        self.completion_list.show(tab.widget_id(), ctx);
                     }
                 }
                 Msg::HideCompletions => self.completion_list.hide(ctx),

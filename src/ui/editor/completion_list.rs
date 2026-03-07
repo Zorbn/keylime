@@ -58,8 +58,6 @@ pub struct CompletionListResult {
 pub struct CompletionList {
     widget_id: WidgetId,
 
-    position: Position,
-
     needs_results: bool,
     result_list: ResultList<CompletionResult>,
     // Prevents the result list from shrinking as it's being scrolled through.
@@ -88,8 +86,6 @@ impl CompletionList {
 
         Self {
             widget_id,
-
-            position: Position::ZERO,
 
             needs_results: false,
             result_list: ResultList::new(widget_id, ctx.ui),
@@ -197,8 +193,10 @@ impl CompletionList {
             return;
         }
 
+        let position = doc.cursor(CursorIndex::Main).position;
+
         let visual_position = doc
-            .position_to_visual(self.position, tab.camera.position().floor(), ctx.gfx)
+            .position_to_visual(position, tab.camera.position().floor(), ctx.gfx)
             .offset_by(tab.doc_bounds(ctx.ui));
 
         ctx.ui.set_popup(
@@ -390,9 +388,7 @@ impl CompletionList {
         self.show_results(ctx);
     }
 
-    pub fn show(&mut self, position: Position, parent_id: WidgetId, ctx: &mut Ctx) {
-        self.position = position;
-
+    pub fn show(&mut self, parent_id: WidgetId, ctx: &mut Ctx) {
         ctx.ui.reparent_widget(self.widget_id, parent_id);
 
         self.needs_results = true;
