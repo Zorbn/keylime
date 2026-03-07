@@ -146,11 +146,8 @@ pub fn handle_action(action: Action, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) ->
         }
         action_name!(SelectAll) => handle_select_all(doc, ctx.gfx),
         action_keybind!(key: Escape, mods: Mods::NONE) => {
-            if doc.cursors_len() > 1 {
-                doc.clear_extra_cursors(CursorIndex::Some(0));
-            } else {
-                doc.end_cursor_selection(CursorIndex::Main);
-            }
+            return doc.clear_extra_cursors(CursorIndex::Some(0))
+                || doc.clear_cursor_selection(CursorIndex::Main);
         }
         action_name!(Undo) => doc.undo(ActionKind::Done, ctx),
         action_name!(Redo) => doc.undo(ActionKind::Undone, ctx),
@@ -318,7 +315,7 @@ pub fn handle_delete_backward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
         };
 
         doc.delete(start, end, ctx);
-        doc.end_cursor_selection(index);
+        doc.clear_cursor_selection(index);
     }
 }
 
@@ -341,7 +338,7 @@ fn handle_delete_forward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
         };
 
         doc.delete(start, end, ctx);
-        doc.end_cursor_selection(index);
+        doc.clear_cursor_selection(index);
     }
 }
 
@@ -460,7 +457,7 @@ fn handle_cut(doc: &mut Doc, ctx: &mut Ctx) {
             .unwrap_or(doc.select_current_line_at_position(cursor.position, ctx.gfx));
 
         doc.delete(selection.start, selection.end, ctx);
-        doc.end_cursor_selection(index);
+        doc.clear_cursor_selection(index);
     }
 }
 

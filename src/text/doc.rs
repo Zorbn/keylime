@@ -848,8 +848,9 @@ impl Doc {
         self.cursor_mut(index).selection_anchor = Some(position);
     }
 
-    pub fn end_cursor_selection(&mut self, index: CursorIndex) {
-        self.cursor_mut(index).selection_anchor = None;
+    pub fn clear_cursor_selection(&mut self, index: CursorIndex) -> bool {
+        let cursor = self.cursor_mut(index);
+        cursor.selection_anchor.take().is_some()
     }
 
     pub fn update_cursor_selection(&mut self, index: CursorIndex, should_select: bool) {
@@ -858,7 +859,7 @@ impl Doc {
         if should_select && cursor.selection_anchor.is_none() {
             self.start_cursor_selection(index);
         } else if !should_select && cursor.selection_anchor.is_some() {
-            self.end_cursor_selection(index);
+            self.clear_cursor_selection(index);
         }
     }
 
@@ -1290,7 +1291,7 @@ impl Doc {
     pub fn insert_at_cursor(&mut self, index: CursorIndex, text: &str, ctx: &mut Ctx) {
         if let Some(selection) = self.cursor(index).get_selection() {
             self.delete(selection.start, selection.end, ctx);
-            self.end_cursor_selection(index);
+            self.clear_cursor_selection(index);
         }
 
         let start = self.cursor(index).position;
@@ -1574,11 +1575,17 @@ impl Doc {
         self.cursors.push(Cursor::new(Position::ZERO, 0));
     }
 
-    pub fn clear_extra_cursors(&mut self, kept_index: CursorIndex) {
+    pub fn clear_extra_cursors(&mut self, kept_index: CursorIndex) -> bool {
+        if self.cursors.len() == 1 {
+            return false;
+        }
+
         let kept_index = self.unwrap_cursor_index(kept_index);
 
         self.cursors.swap(0, kept_index);
         self.cursors.truncate(1);
+
+        true
     }
 
     fn reset_edit_state(&mut self) {
@@ -1847,7 +1854,7 @@ impl Doc {
 
         if let Some(selection) = self.cursor(index).get_selection() {
             self.delete(selection.start, selection.end, ctx);
-            self.end_cursor_selection(index);
+            self.clear_cursor_selection(index);
 
             start = selection.start;
         } else if was_copy_implicit {
