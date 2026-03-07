@@ -4,7 +4,6 @@ use crate::{
     config::Config,
     geometry::{rect::Rect, visual_position::VisualPosition},
     input::{
-        mods::Mods,
         mouse_button::MouseButton,
         mouse_scroll::MouseScroll,
         mousebind::{Mousebind, MousebindKind},
@@ -358,7 +357,6 @@ impl Ui {
                     button: Some(MouseButton::Left),
                     x,
                     y,
-                    mods: Mods::NONE,
                     kind: MousebindKind::Press,
                     ..
                 }) => {
