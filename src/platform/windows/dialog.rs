@@ -16,13 +16,16 @@ use windows::{
 };
 
 use crate::{
-    platform::dialog::{FindFileKind, MessageKind, MessageResponse},
+    platform::{
+        aliases::AnyWindow,
+        dialog::{FindFileKind, MessageKind, MessageResponse},
+    },
     pool::{Pooled, PATH_POOL},
 };
 
 use super::deferred_call::defer;
 
-pub fn find_file(kind: FindFileKind) -> Result<Pooled<PathBuf>> {
+pub fn find_file(kind: FindFileKind, window: &mut AnyWindow) -> Result<Pooled<PathBuf>> {
     let dialog_id = match kind {
         FindFileKind::OpenFile | FindFileKind::OpenFolder => FileOpenDialog,
         FindFileKind::Save => FileSaveDialog,
@@ -37,6 +40,8 @@ pub fn find_file(kind: FindFileKind) -> Result<Pooled<PathBuf>> {
 
         dialog.Show(None)?;
 
+        window.inner.time(false);
+
         let result = dialog.GetResult()?;
         let wide_path = result.GetDisplayName(SIGDN_FILESYSPATH)?;
 
@@ -48,7 +53,12 @@ pub fn find_file(kind: FindFileKind) -> Result<Pooled<PathBuf>> {
     }
 }
 
-pub fn message(title: &str, text: &str, kind: MessageKind) -> MessageResponse {
+pub fn message(
+    title: &str,
+    text: &str,
+    kind: MessageKind,
+    window: &mut AnyWindow,
+) -> MessageResponse {
     let style = match kind {
         MessageKind::Ok => MB_OK,
         MessageKind::YesNo => MB_YESNO,
@@ -59,7 +69,11 @@ pub fn message(title: &str, text: &str, kind: MessageKind) -> MessageResponse {
         let wide_title = HSTRING::from(title);
         let wide_text = HSTRING::from(text);
 
-        match MessageBoxW(None, &wide_text, &wide_title, style) {
+        let response = MessageBoxW(None, &wide_text, &wide_title, style);
+
+        window.inner.time(false);
+
+        match response {
             IDYES => MessageResponse::Yes,
             IDNO => MessageResponse::No,
             _ => MessageResponse::Cancel,
