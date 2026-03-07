@@ -74,7 +74,7 @@ impl EditorPane {
 
     pub fn add_tab(&mut self, doc_id: SlotId, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) {
         if let Some(tab_index) = self.get_existing_tab_for_data(doc_id) {
-            self.set_focused_tab_index(tab_index, ctx.ui);
+            self.focus_tab_at_index(tab_index, ctx.ui);
 
             return;
         }

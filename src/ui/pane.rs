@@ -657,8 +657,7 @@ impl<T> Pane<T> {
         );
 
         ctx.ui.move_child(tab_id, index);
-        self.view.set_focused_index(index, ctx.ui);
-        self.view.focus(ctx.ui);
+        self.focus_tab_at_index(index, ctx.ui);
     }
 
     pub fn remove_tab(&mut self, data_list: &mut SlotList<T>, ui: &mut Ui) {
@@ -681,8 +680,7 @@ impl<T> Pane<T> {
         self.tab_bar.tab_animation_states.remove(index);
 
         let focused_index = index.min(self.tabs.len());
-        self.view.set_focused_index(focused_index, ui);
-        self.view.focus(ui);
+        self.focus_tab_at_index(focused_index, ui);
     }
 
     fn focus_next_tab(&self, ui: &mut Ui) -> bool {
@@ -692,8 +690,7 @@ impl<T> Pane<T> {
             return false;
         }
 
-        self.view.set_focused_index(focused_index + 1, ui);
-        self.view.focus(ui);
+        self.focus_tab_at_index(focused_index + 1, ui);
 
         true
     }
@@ -705,8 +702,7 @@ impl<T> Pane<T> {
             return false;
         }
 
-        self.view.set_focused_index(focused_index - 1, ui);
-        self.view.focus(ui);
+        self.focus_tab_at_index(focused_index - 1, ui);
 
         true
     }
@@ -733,8 +729,9 @@ impl<T> Pane<T> {
         self.tabs.get_mut(focused_index)
     }
 
-    pub fn set_focused_tab_index(&self, index: usize, ui: &mut Ui) {
+    pub fn focus_tab_at_index(&self, index: usize, ui: &mut Ui) {
         self.view.set_focused_index(index, ui);
+        self.view.focus(ui);
     }
 
     pub fn focused_tab_index(&self, ui: &Ui) -> usize {

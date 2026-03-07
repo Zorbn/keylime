@@ -177,7 +177,7 @@ impl CursorHistory {
             return false;
         };
 
-        pane.set_focused_tab_index(index, ui);
+        pane.focus_tab_at_index(index, ui);
         true
     }
 }
