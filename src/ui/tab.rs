@@ -261,7 +261,6 @@ impl Tab {
         }
 
         ui.send_to_parent(self.widget_id, Msg::HideEditorPopups);
-        self.send_show_completions(false, doc, ui);
     }
 
     fn send_show_completions(&mut self, value: bool, doc: &Doc, ui: &mut Ui) {

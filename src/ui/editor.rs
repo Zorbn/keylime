@@ -133,6 +133,7 @@ impl Editor {
                 Msg::HideEditorPopups => {
                     self.signature_help_popup.hide(ctx.ui);
                     self.examine_popup.hide(ctx.ui);
+                    self.completion_list.hide(ctx)
                 }
                 Msg::TabHoverChanged => self.hover_timer = Self::HOVER_TIME,
                 Msg::Action(action_name!(OpenFolder)) => {
