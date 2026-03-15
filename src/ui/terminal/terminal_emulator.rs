@@ -86,7 +86,6 @@ pub struct TerminalEmulator {
     grid_cursor: Position,
     grid_width: usize,
     grid_height: usize,
-    used_doc_height: usize,
     colored_grid_lines: Vec<ColoredGridLine>,
     empty_line_text: String,
     did_doc_cursors_move: bool,
@@ -94,7 +93,6 @@ pub struct TerminalEmulator {
     // Data for either the normal buffer or the alternate buffer,
     // depending on which one isn't currently being used.
     saved_grid_cursor: Position,
-    saved_used_doc_height: usize,
     saved_colored_grid_lines: Vec<ColoredGridLine>,
 
     is_cursor_visible: bool,
@@ -127,13 +125,11 @@ impl TerminalEmulator {
             grid_cursor: Position::ZERO,
             grid_width: Self::MIN_GRID_WIDTH,
             grid_height: Self::MIN_GRID_HEIGHT,
-            used_doc_height: 0,
             colored_grid_lines: Vec::new(),
             empty_line_text: String::new(),
             did_doc_cursors_move: false,
 
             saved_grid_cursor: Position::ZERO,
-            saved_used_doc_height: 0,
             saved_colored_grid_lines: Vec::new(),
 
             is_cursor_visible: true,
@@ -564,33 +560,17 @@ impl TerminalEmulator {
             self.grid_cursor.y += reused_scrollback_count;
         }
 
-        let (normal_cursor_y, alternate_cursor_y, normal_used_doc_height) =
-            if self.is_in_alternate_buffer {
-                (
-                    self.saved_grid_cursor.y,
-                    self.grid_cursor.y,
-                    self.saved_used_doc_height,
-                )
-            } else {
-                (
-                    self.grid_cursor.y,
-                    self.saved_grid_cursor.y,
-                    self.used_doc_height,
-                )
-            };
+        let (normal_cursor_y, alternate_cursor_y) = if self.is_in_alternate_buffer {
+            (self.saved_grid_cursor.y, self.grid_cursor.y)
+        } else {
+            (self.grid_cursor.y, self.saved_grid_cursor.y)
+        };
 
-        self.expand_doc_to_grid_size(
-            &mut docs.normal,
-            normal_cursor_y,
-            normal_used_doc_height,
-            last_grid_height,
-            ctx,
-        );
+        self.expand_doc_to_grid_size(&mut docs.normal, normal_cursor_y, last_grid_height, ctx);
 
         self.expand_doc_to_grid_size(
             &mut docs.alternate,
             alternate_cursor_y,
-            0,
             last_grid_height,
             ctx,
         );
@@ -600,7 +580,6 @@ impl TerminalEmulator {
         &mut self,
         doc: &mut Doc,
         cursor_y: usize,
-        used_doc_height: usize,
         last_grid_height: usize,
         ctx: &mut Ctx,
     ) {
@@ -611,7 +590,7 @@ impl TerminalEmulator {
             let removable_start_y = doc_len.saturating_sub(1 + removable_distance);
             let cursor_start_y = doc_len.saturating_sub(last_grid_height) + cursor_y;
 
-            let start_y = removable_start_y.max(cursor_start_y); // .max(cursor_start_y).max(used_doc_height);
+            let start_y = removable_start_y.max(cursor_start_y);
             let start = doc.line_end(start_y);
 
             doc.delete(start, doc.end(), ctx);
@@ -854,7 +833,6 @@ impl TerminalEmulator {
         self.highlight_lines(doc);
 
         swap(&mut self.grid_cursor, &mut self.saved_grid_cursor);
-        swap(&mut self.used_doc_height, &mut self.saved_used_doc_height);
         swap(
             &mut self.colored_grid_lines,
             &mut self.saved_colored_grid_lines,
@@ -1021,10 +999,6 @@ impl TerminalEmulator {
 
             self.grid_cursor = self.raw_insert_char(self.grid_cursor, c, doc, ctx);
         }
-
-        self.used_doc_height = self
-            .grid_y_to_doc_y(self.grid_cursor.y, doc)
-            .max(self.used_doc_height);
 
         self.jump_doc_cursors_to_grid_cursor(doc, ctx.gfx);
     }
