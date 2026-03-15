@@ -670,8 +670,8 @@ impl Window {
     }
 
     unsafe fn lparam_to_xy(lparam: LPARAM) -> (f32, f32) {
-        let x = transmute::<u32, i32>((lparam.0 & 0xFFFF) as u32) as f32;
-        let y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xFFFF) as u32) as f32;
+        let x = lparam.0 as i16 as f32;
+        let y = (lparam.0 >> 16) as i16 as f32;
 
         (x, y)
     }
