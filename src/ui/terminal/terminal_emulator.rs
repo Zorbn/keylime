@@ -246,24 +246,21 @@ impl TerminalEmulator {
     }
 
     pub fn update(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
-        let last_grid_height = self.grid_height;
-        self.resize_grid(tab, ctx);
+        if let Some(mut pty) = self.pty.take() {
+            let (input, output) = pty.input_output();
 
-        let Some(mut pty) = self.pty.take() else {
-            return;
+            if let Ok(mut output) = output.lock() {
+                self.handle_escape_sequences(docs, tab, input, &output, ctx);
+
+                output.clear();
+            }
+
+            self.pty = Some(pty);
         };
 
+        let last_grid_height = self.grid_height;
+        self.resize_grid(tab, ctx);
         self.expand_to_grid_size(docs, last_grid_height, ctx);
-
-        let (input, output) = pty.input_output();
-
-        if let Ok(mut output) = output.lock() {
-            self.handle_escape_sequences(docs, tab, input, &output, ctx);
-
-            output.clear();
-        }
-
-        self.pty = Some(pty);
 
         tab.camera
             .vertical
@@ -614,8 +611,7 @@ impl TerminalEmulator {
             let removable_start_y = doc_len.saturating_sub(1 + removable_distance);
             let cursor_start_y = doc_len.saturating_sub(last_grid_height) + cursor_y;
 
-            let start_y = removable_start_y.max(cursor_start_y).max(used_doc_height);
-
+            let start_y = removable_start_y.max(cursor_start_y); // .max(cursor_start_y).max(used_doc_height);
             let start = doc.line_end(start_y);
 
             doc.delete(start, doc.end(), ctx);
