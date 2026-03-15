@@ -45,7 +45,11 @@ impl Gfx {
     }
 
     pub fn begin(&mut self, bounds: Option<Rect>) {
-        self.inner.begin(bounds);
+        self.inner.begin(bounds.map(|bounds| Rect {
+            width: bounds.width.max(0.0),
+            height: bounds.height.max(0.0),
+            ..bounds
+        }));
     }
 
     pub fn end(&mut self) {
