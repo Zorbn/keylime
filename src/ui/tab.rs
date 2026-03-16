@@ -147,6 +147,7 @@ impl Tab {
 
     pub fn receive_msg(&mut self, msg: Msg, doc: &mut Doc, ctx: &mut Ctx) {
         match msg {
+            Msg::Resize { .. } => self.animate_camera(doc, ctx, 0.0),
             Msg::Grapheme(grapheme) => {
                 handle_grapheme(&grapheme, doc, ctx);
 

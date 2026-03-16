@@ -254,9 +254,7 @@ impl TerminalEmulator {
             self.pty = Some(pty);
         };
 
-        let last_grid_height = self.grid_height;
-        self.resize_grid(tab, ctx);
-        self.expand_to_grid_size(docs, last_grid_height, ctx);
+        self.resize(docs, tab, ctx);
 
         tab.camera
             .vertical
@@ -527,7 +525,13 @@ impl TerminalEmulator {
         }
     }
 
-    fn expand_to_grid_size(
+    fn resize(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
+        let last_grid_height = self.grid_height;
+        self.resize_grid(tab, ctx);
+        self.resize_to_grid_size(docs, last_grid_height, ctx);
+    }
+
+    fn resize_to_grid_size(
         &mut self,
         docs: &mut TerminalDocs,
         last_grid_height: usize,
@@ -539,14 +543,14 @@ impl TerminalEmulator {
             self.empty_line_text.push(' ');
         }
 
-        Self::expand_colored_grid_lines_to_grid_size(
+        Self::resize_colored_grid_lines_to_grid_size(
             self.grid_width,
             self.grid_height,
             last_grid_height,
             &mut self.colored_grid_lines,
         );
 
-        Self::expand_colored_grid_lines_to_grid_size(
+        Self::resize_colored_grid_lines_to_grid_size(
             self.grid_width,
             self.grid_height,
             last_grid_height,
@@ -566,9 +570,9 @@ impl TerminalEmulator {
             (self.grid_cursor.y, self.saved_grid_cursor.y)
         };
 
-        self.expand_doc_to_grid_size(&mut docs.normal, normal_cursor_y, last_grid_height, ctx);
+        self.resize_doc_to_grid_size(&mut docs.normal, normal_cursor_y, last_grid_height, ctx);
 
-        self.expand_doc_to_grid_size(
+        self.resize_doc_to_grid_size(
             &mut docs.alternate,
             alternate_cursor_y,
             last_grid_height,
@@ -576,7 +580,7 @@ impl TerminalEmulator {
         );
     }
 
-    fn expand_doc_to_grid_size(
+    fn resize_doc_to_grid_size(
         &mut self,
         doc: &mut Doc,
         cursor_y: usize,
@@ -622,7 +626,7 @@ impl TerminalEmulator {
         }
     }
 
-    fn expand_colored_grid_lines_to_grid_size(
+    fn resize_colored_grid_lines_to_grid_size(
         grid_width: usize,
         grid_height: usize,
         last_grid_height: usize,
