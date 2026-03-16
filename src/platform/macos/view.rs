@@ -120,7 +120,6 @@ define_class!(
 
             unsafe {
                 metal_layer.setPresentsWithTransaction(false);
-                self.update();
             }
         }
 

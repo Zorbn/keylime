@@ -88,7 +88,6 @@ pub struct TerminalEmulator {
     grid_height: usize,
     colored_grid_lines: Vec<ColoredGridLine>,
     empty_line_text: String,
-    did_doc_cursors_move: bool,
 
     // Data for either the normal buffer or the alternate buffer,
     // depending on which one isn't currently being used.
@@ -127,7 +126,6 @@ impl TerminalEmulator {
             grid_height: Self::MIN_GRID_HEIGHT,
             colored_grid_lines: Vec::new(),
             empty_line_text: String::new(),
-            did_doc_cursors_move: false,
 
             saved_grid_cursor: Position::ZERO,
             saved_colored_grid_lines: Vec::new(),
@@ -156,25 +154,31 @@ impl TerminalEmulator {
         };
 
         let doc = self.doc_mut(docs);
+        let mut needs_recenter = false;
 
         while let Some(msg) = ctx.ui.msg(widget_id) {
             match msg {
                 Msg::Grapheme(grapheme) => {
                     pty.input().extend(grapheme.bytes());
+                    needs_recenter = true;
                 }
                 Msg::Action(action_keybind!(key: Enter)) => {
                     pty.input().push(b'\r');
+                    needs_recenter = true;
                 }
                 Msg::Action(action_keybind!(key: Escape)) => {
                     pty.input().push(0x1B);
+                    needs_recenter = true;
                 }
                 Msg::Action(action_keybind!(key: Tab)) => {
                     pty.input().push(b'\t');
+                    needs_recenter = true;
                 }
                 Msg::Action(action_keybind!(key: Backspace, mods)) => {
                     let key_byte = if mods.contains(Mod::Ctrl) { 0x8 } else { 0x7F };
 
                     pty.input().extend_from_slice(&[key_byte]);
+                    needs_recenter = true;
                 }
                 Msg::Action(
                     action_keybind!(keys: key @ (Key::Up | Key::Down | Key::Left | Key::Right | Key::Home | Key::End), mods),
@@ -208,6 +212,7 @@ impl TerminalEmulator {
                     }
 
                     pty.input().push(key_byte);
+                    needs_recenter = true;
                 }
                 Msg::Action(action_name!(names: Some(ActionName::Copy | ActionName::Cut)))
                     if doc.has_selection() =>
@@ -228,6 +233,7 @@ impl TerminalEmulator {
 
                     if matches!(key, KEY_A..=KEY_Z) {
                         pty.input().push(key & 0x1F);
+                        needs_recenter = true;
                     } else {
                         ctx.ui.skip(widget_id, msg);
                     }
@@ -239,6 +245,12 @@ impl TerminalEmulator {
         pty.flush();
 
         self.pty = Some(pty);
+
+        if needs_recenter {
+            tab.camera
+                .vertical
+                .recenter(CameraRecenterKind::OnScrollBorder);
+        }
     }
 
     pub fn update(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
@@ -260,14 +272,6 @@ impl TerminalEmulator {
             .vertical
             .jump_visual_distance(self.excess_lines_trimmed as f32 * -ctx.gfx.line_height());
         self.excess_lines_trimmed = 0;
-
-        if self.did_doc_cursors_move {
-            tab.camera
-                .vertical
-                .recenter(CameraRecenterKind::OnScrollBorder);
-
-            self.did_doc_cursors_move = false;
-        }
 
         tab.camera.horizontal.set_locked(true);
     }
@@ -527,6 +531,7 @@ impl TerminalEmulator {
 
     fn resize(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
         let last_grid_height = self.grid_height;
+
         self.resize_grid(tab, ctx);
         self.resize_to_grid_size(docs, last_grid_height, ctx);
     }
@@ -961,10 +966,9 @@ impl TerminalEmulator {
             return;
         }
 
-        self.did_doc_cursors_move = true;
-
         let doc_position =
             self.grid_position_to_doc_position(self.clamp_position(self.grid_cursor, doc), doc);
+
         doc.jump_cursors(doc_position, false, gfx);
     }
 
