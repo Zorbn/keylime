@@ -466,13 +466,9 @@ impl Ui {
                     let bounds = self.bounds(id_to_layout);
                     self.update_layout(id_to_layout, bounds);
                 }
-                Msg::MouseScroll(MouseScroll { x, y, .. }) => {
-                    let hit_id = self
-                        .get_widget_id_at(VisualPosition::new(x, y), WidgetId::ROOT)
-                        .unwrap_or(WidgetId::ROOT);
-
-                    if hit_id != WidgetId::ROOT {
-                        self.send(hit_id, msg);
+                Msg::MouseScroll(MouseScroll { .. }) => {
+                    if self.hovered_widget_id != WidgetId::ROOT {
+                        self.send(self.hovered_widget_id, msg);
                     }
                 }
                 _ => self.send_to_focused_child(msg),
