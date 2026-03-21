@@ -68,7 +68,6 @@ pub struct Tab {
     pub camera: Camera,
     handled_cursor_position: Position,
     mouse_drag: Option<MouseClickCount>,
-    handled_doc_len: usize,
     cursor_animation_states: Vec<CursorAnimationState>,
     do_show_completions: bool,
 
@@ -112,7 +111,6 @@ impl Tab {
             camera: Camera::new(),
             handled_cursor_position: Position::ZERO,
             mouse_drag: None,
-            handled_doc_len: 1,
             cursor_animation_states: Vec::new(),
             do_show_completions: false,
 
@@ -378,7 +376,6 @@ impl Tab {
         self.animate_camera_horizontal(doc, ctx, dt);
 
         self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
-        self.handled_doc_len = doc.lines().len();
     }
 
     pub fn skip_camera_animations(&mut self, doc: &Doc, ctx: &mut Ctx) {
@@ -446,14 +443,12 @@ impl Tab {
 
     fn recenter_request_on_bottom_vertical(&self, doc: &Doc, ctx: &Ctx) -> CameraRecenterRequest {
         let gfx = &ctx.gfx;
-
-        let doc_len = doc.lines().len();
         let last_line_y = self.last_line_y(doc, gfx);
 
         CameraRecenterRequest {
-            can_start: self.handled_doc_len != doc_len,
-            target_position: last_line_y - self.camera.y(),
-            scroll_border: gfx.line_height(),
+            can_start: false,
+            target_position: last_line_y - self.camera.y() + gfx.line_height(),
+            scroll_border: 0.0,
         }
     }
 

@@ -212,7 +212,10 @@ impl CameraAxis {
     }
 
     pub fn recenter(&mut self, kind: CameraRecenterKind) {
-        if matches!(self.state, CameraState::Locked) {
+        if matches!(
+            self.state,
+            CameraState::Locked | CameraState::MovingWithLerp { .. }
+        ) {
             return;
         }
 

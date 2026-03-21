@@ -102,7 +102,6 @@ pub struct TerminalEmulator {
     scroll_top: usize,
     scroll_bottom: usize,
     is_in_alternate_buffer: bool,
-    excess_lines_trimmed: usize,
 }
 
 impl TerminalEmulator {
@@ -138,7 +137,6 @@ impl TerminalEmulator {
             scroll_top: 0,
             scroll_bottom: 0,
             is_in_alternate_buffer: false,
-            excess_lines_trimmed: 0,
         }
     }
 
@@ -268,11 +266,6 @@ impl TerminalEmulator {
 
         self.resize(docs, tab, ctx);
 
-        tab.camera
-            .vertical
-            .jump_visual_distance(self.excess_lines_trimmed as f32 * -ctx.gfx.line_height());
-        self.excess_lines_trimmed = 0;
-
         tab.camera.horizontal.set_locked(true);
     }
 
@@ -312,20 +305,20 @@ impl TerminalEmulator {
         match sequence {
             EscapeSequence::Plain { len } => {
                 let text = STRING_POOL.init_item(|text| text.push_str(self.parser.next_text(len)));
-                self.insert_at_cursor(&text, doc, ctx);
+                self.insert_at_cursor(&text, doc, tab, ctx);
             }
             EscapeSequence::Backspace => self.move_cursor(-1, 0, doc, ctx.gfx),
             EscapeSequence::Tab => {
                 let next_tab_stop = (self.grid_cursor.x / 8 + 1) * 8;
 
                 for _ in 0..(next_tab_stop - self.grid_cursor.x) {
-                    self.insert_at_cursor(" ", doc, ctx);
+                    self.insert_at_cursor(" ", doc, tab, ctx);
                 }
             }
             EscapeSequence::CarriageReturn => {
                 self.jump_cursor(Position::new(0, self.grid_cursor.y), doc, ctx.gfx);
             }
-            EscapeSequence::Newline => self.newline_cursor(doc, ctx),
+            EscapeSequence::Newline => self.newline_cursor(doc, tab, ctx),
             EscapeSequence::ReverseNewline => self.reverse_newline_cursor(doc, ctx),
             EscapeSequence::HideCursor => self.is_cursor_visible = false,
             EscapeSequence::ShowCursor => {
@@ -407,9 +400,7 @@ impl TerminalEmulator {
 
                 self.delete(start, end, doc, ctx);
             }
-            EscapeSequence::ClearScrollbackLines => {
-                self.clear_scrollback_lines(doc, ctx);
-            }
+            EscapeSequence::ClearScrollbackLines => self.clear_scrollback_lines(doc, tab, ctx),
             EscapeSequence::ClearToLineEnd => {
                 let start = self.grid_cursor;
                 let end = self.line_end(start.y, doc);
@@ -449,12 +440,12 @@ impl TerminalEmulator {
                 }
 
                 for _ in 0..count {
-                    self.scroll_grid_region_up(scroll_top..=scroll_bottom, doc, ctx);
+                    self.scroll_grid_region_up(scroll_top..=scroll_bottom, doc, tab, ctx);
                 }
             }
             EscapeSequence::ScrollUp(distance) => {
                 for _ in 0..distance {
-                    self.scroll_grid_region_up(self.scroll_top..=self.scroll_bottom, doc, ctx);
+                    self.scroll_grid_region_up(self.scroll_top..=self.scroll_bottom, doc, tab, ctx);
                 }
             }
             EscapeSequence::ScrollDown(distance) => {
@@ -695,15 +686,21 @@ impl TerminalEmulator {
         (grid_width, grid_height)
     }
 
-    fn trim_scrollback_lines(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
-        self.trim_excess_lines(Self::MAX_SCROLLBACK_LINES, doc, ctx);
+    fn trim_scrollback_lines(&mut self, doc: &mut Doc, tab: &mut Tab, ctx: &mut Ctx) {
+        self.trim_excess_lines(Self::MAX_SCROLLBACK_LINES, doc, tab, ctx);
     }
 
-    fn clear_scrollback_lines(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
-        self.trim_excess_lines(0, doc, ctx);
+    fn clear_scrollback_lines(&mut self, doc: &mut Doc, tab: &mut Tab, ctx: &mut Ctx) {
+        self.trim_excess_lines(0, doc, tab, ctx);
     }
 
-    fn trim_excess_lines(&mut self, max_scrollback_lines: usize, doc: &mut Doc, ctx: &mut Ctx) {
+    fn trim_excess_lines(
+        &mut self,
+        max_scrollback_lines: usize,
+        doc: &mut Doc,
+        tab: &mut Tab,
+        ctx: &mut Ctx,
+    ) {
         let max_lines = self.grid_height + max_scrollback_lines;
 
         if doc.lines().len() <= max_lines {
@@ -711,13 +708,16 @@ impl TerminalEmulator {
         }
 
         let excess_lines = doc.lines().len() - max_lines;
-        self.excess_lines_trimmed += excess_lines;
 
         let start = Position::ZERO;
         let end = Position::new(0, excess_lines);
 
         doc.delete(start, end, ctx);
         doc.scroll_highlighted_lines(0..=doc.lines().len() - 1, excess_lines as isize);
+
+        tab.camera
+            .vertical
+            .jump_visual_distance(excess_lines as f32 * -ctx.gfx.line_height());
     }
 
     fn scroll_highlighted_lines(
@@ -776,6 +776,7 @@ impl TerminalEmulator {
         &mut self,
         region: RangeInclusive<usize>,
         doc: &mut Doc,
+        tab: &mut Tab,
         ctx: &mut Ctx,
     ) {
         self.highlight_lines(doc);
@@ -817,8 +818,14 @@ impl TerminalEmulator {
         self.grid_cursor = self.grid_position_char_to_byte(self.grid_cursor, doc);
         self.jump_doc_cursors_to_grid_cursor(doc, ctx.gfx);
 
-        self.trim_scrollback_lines(doc, ctx);
+        self.trim_scrollback_lines(doc, tab, ctx);
         self.highlight_lines(doc);
+
+        if should_use_scrollback {
+            tab.camera
+                .vertical
+                .recenter(CameraRecenterKind::OnScrollBorder);
+        }
     }
 
     fn switch_to_alternate_buffer(&mut self, doc: &mut Doc, tab: &mut Tab) {
@@ -982,9 +989,9 @@ impl TerminalEmulator {
         self.jump_doc_cursors_to_grid_cursor(doc, gfx);
     }
 
-    fn newline_cursor(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+    fn newline_cursor(&mut self, doc: &mut Doc, tab: &mut Tab, ctx: &mut Ctx) {
         if self.grid_cursor.y == self.scroll_bottom {
-            self.scroll_grid_region_up(self.scroll_top..=self.scroll_bottom, doc, ctx);
+            self.scroll_grid_region_up(self.scroll_top..=self.scroll_bottom, doc, tab, ctx);
         } else {
             self.move_cursor(0, 1, doc, ctx.gfx);
         }
@@ -998,11 +1005,11 @@ impl TerminalEmulator {
         }
     }
 
-    fn insert_at_cursor(&mut self, text: &str, doc: &mut Doc, ctx: &mut Ctx) {
+    fn insert_at_cursor(&mut self, text: &str, doc: &mut Doc, tab: &mut Tab, ctx: &mut Ctx) {
         for c in CharIterator::new(text) {
             if self.grid_position_byte_to_char(self.grid_cursor, doc) >= self.grid_width {
                 self.jump_cursor(Position::new(0, self.grid_cursor.y), doc, ctx.gfx);
-                self.newline_cursor(doc, ctx);
+                self.newline_cursor(doc, tab, ctx);
             }
 
             self.grid_cursor = self.raw_insert_char(self.grid_cursor, c, doc, ctx);
