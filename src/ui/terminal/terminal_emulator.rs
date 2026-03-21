@@ -842,6 +842,11 @@ impl TerminalEmulator {
         }
 
         self.switch_buffer(&mut docs.alternate, tab);
+
+        tab.camera
+            .vertical
+            .recenter(CameraRecenterKind::OnScrollBorder);
+
         tab.skip_camera_animations(&docs.normal, ctx);
     }
 
