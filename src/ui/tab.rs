@@ -569,8 +569,8 @@ impl Tab {
         ui.bounds(self.doc_widget_id)
     }
 
-    pub fn doc_height_lines(&self, ui: &Ui, gfx: &Gfx) -> usize {
-        (ui.bounds(self.doc_widget_id).height / gfx.line_height()) as usize
+    pub fn doc_height_lines(&self, ui: &Ui, gfx: &Gfx) -> f32 {
+        ui.bounds(self.doc_widget_id).height / gfx.line_height()
     }
 
     pub fn cursor_width(gfx: &Gfx) -> f32 {
@@ -1125,7 +1125,7 @@ impl Tab {
         gfx.add_rect(
             self.doc_range_to_scrollbar_rect(
                 camera_line_y,
-                camera_line_y + doc_height_lines as f32,
+                camera_line_y + doc_height_lines,
                 doc,
                 ui,
                 gfx,
@@ -1143,7 +1143,7 @@ impl Tab {
         gfx: &Gfx,
     ) -> Rect {
         let doc_height_lines = self.doc_height_lines(ui, gfx);
-        let doc_len = doc.lines().len().max(doc_height_lines) as f32
+        let doc_len = doc_height_lines.max(doc.lines().len() as f32)
             + (self.margin * 2.0 / gfx.line_height());
 
         let bounds = ui.bounds(self.doc_widget_id);
