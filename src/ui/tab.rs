@@ -13,6 +13,7 @@ use crate::{
         editing_actions::{handle_action, handle_grapheme, handle_left_click},
         mods::{Mod, Mods},
         mouse_button::MouseButton,
+        mouse_scroll::MouseScroll,
         mousebind::{MouseClickCount, Mousebind, MousebindKind},
     },
     lsp::types::DecodedRange,
@@ -195,18 +196,16 @@ impl Tab {
                 kind: MousebindKind::Move,
                 ..
             }) => self.send_tab_hover_changed(doc, ctx.ui),
-            Msg::MouseScroll(mouse_scroll) => {
+            Msg::MouseScroll(MouseScroll {
+                delta,
+                is_horizontal,
+                kind,
+                ..
+            }) => {
                 self.send_tab_hover_changed(doc, ctx.ui);
 
-                let delta = mouse_scroll.delta * ctx.gfx.line_height();
-
-                if mouse_scroll.is_horizontal {
-                    self.camera.vertical.reset_velocity();
-                    self.camera.horizontal.scroll(-delta, mouse_scroll.kind);
-                } else {
-                    self.camera.horizontal.reset_velocity();
-                    self.camera.vertical.scroll(delta, mouse_scroll.kind);
-                }
+                let delta = delta * ctx.gfx.line_height();
+                self.camera.scroll(delta, is_horizontal, kind);
             }
             Msg::Action(action) => {
                 let previous_position = doc.cursor(CursorIndex::Main).position;

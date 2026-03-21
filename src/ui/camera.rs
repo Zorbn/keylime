@@ -8,7 +8,7 @@ pub enum CameraRecenterKind {
     OnCursor,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CameraRecenterRequest {
     pub can_start: bool,
     pub target_position: f32,
@@ -329,6 +329,16 @@ impl Camera {
     pub fn recenter(&mut self) {
         self.vertical.recenter(CameraRecenterKind::OnCursor);
         self.horizontal.recenter(CameraRecenterKind::OnScrollBorder);
+    }
+
+    pub fn scroll(&mut self, delta: f32, is_horizontal: bool, kind: MouseScrollKind) {
+        if is_horizontal {
+            self.vertical.reset_velocity();
+            self.horizontal.scroll(-delta, kind);
+        } else {
+            self.horizontal.reset_velocity();
+            self.vertical.scroll(delta, kind);
+        }
     }
 
     pub fn reset(&mut self) {

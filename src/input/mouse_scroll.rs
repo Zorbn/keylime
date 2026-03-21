@@ -12,6 +12,4 @@ pub struct MouseScroll {
     pub delta: f32,
     pub is_horizontal: bool,
     pub kind: MouseScrollKind,
-    pub x: f32,
-    pub y: f32,
 }

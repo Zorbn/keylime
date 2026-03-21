@@ -1,3 +1,4 @@
+use core::f32;
 use std::{cmp::Ordering, vec::Drain};
 
 use crate::{
@@ -13,7 +14,7 @@ use crate::{
     },
     platform::gfx::Gfx,
     ui::{
-        camera::{CameraAxis, CameraRecenterRequest},
+        camera::{Camera, CameraAxis, CameraRecenterRequest},
         msg::Msg,
     },
 };
@@ -44,7 +45,7 @@ pub struct ResultList<T> {
     focused_index: usize,
     handled_focused_index: Option<usize>,
 
-    camera: CameraAxis,
+    camera: Camera,
 }
 
 impl<T> ResultList<T> {
@@ -56,7 +57,7 @@ impl<T> ResultList<T> {
             focused_index: 0,
             handled_focused_index: None,
 
-            camera: CameraAxis::new(),
+            camera: Camera::new(),
         }
     }
 
@@ -94,19 +95,10 @@ impl<T> ResultList<T> {
                     delta,
                     is_horizontal,
                     kind,
-                    x,
-                    y,
+                    ..
                 }) => {
-                    let bounds = ctx.ui.bounds(self.widget_id);
-                    let position = VisualPosition::new(x, y);
-
-                    if is_horizontal || !bounds.contains_position(position) {
-                        ctx.ui.skip(self.widget_id, msg);
-                        continue;
-                    }
-
                     let delta = delta * Self::result_height(ctx.gfx);
-                    self.camera.scroll(delta, kind);
+                    self.camera.scroll(delta, is_horizontal, kind);
                 }
                 Msg::Action(action_keybind!(key: Escape, mods: Mods::NONE)) => {
                     input = ResultListInput::Close
@@ -146,8 +138,8 @@ impl<T> ResultList<T> {
             return false;
         }
 
-        let clicked_result_index = ((position.y + self.camera.position() - bounds.y)
-            / Self::result_height(ctx.gfx)) as usize;
+        let clicked_result_index =
+            ((position.y + self.camera.y() - bounds.y) / Self::result_height(ctx.gfx)) as usize;
 
         if clicked_result_index >= self.len() {
             return false;
@@ -164,7 +156,7 @@ impl<T> ResultList<T> {
         let bounds = ctx.ui.bounds(self.widget_id);
         let result_height = Self::result_height(ctx.gfx);
 
-        let target_y = (focused_index as f32 + 0.5) * result_height - self.camera.position();
+        let target_y = (focused_index as f32 + 0.5) * result_height - self.camera.y();
         let max_y = (self.len() as f32 * result_height - bounds.height).max(0.0);
 
         let recenter_request = CameraRecenterRequest {
@@ -176,7 +168,15 @@ impl<T> ResultList<T> {
         self.mark_focused_handled();
 
         self.camera
+            .vertical
             .animate(recenter_request, max_y, bounds.height, dt);
+
+        self.camera.horizontal.animate(
+            CameraRecenterRequest::default(),
+            f32::MAX,
+            bounds.width,
+            dt,
+        );
     }
 
     pub fn draw<'a>(
@@ -204,10 +204,10 @@ impl<T> ResultList<T> {
             theme.border,
         );
 
-        let camera_y = self.camera.position().floor();
+        let camera_position = self.camera.position().floor();
 
         let min_y = self.min_visible_result_index(gfx);
-        let sub_line_offset_y = camera_y - min_y as f32 * result_height;
+        let sub_line_offset_y = camera_position.y - min_y as f32 * result_height;
         let max_y = self.max_visible_result_index(ui, gfx);
 
         for (i, y) in (min_y..max_y).enumerate() {
@@ -230,7 +230,12 @@ impl<T> ResultList<T> {
                 );
             }
 
-            gfx.add_text(text, gfx.glyph_width(), foreground_visual_y, color);
+            gfx.add_text(
+                text,
+                gfx.glyph_width() - camera_position.x,
+                foreground_visual_y,
+                color,
+            );
         }
 
         gfx.end();
@@ -341,13 +346,13 @@ impl<T> ResultList<T> {
     }
 
     pub fn min_visible_result_index(&self, gfx: &Gfx) -> usize {
-        (self.camera.position().floor() / Self::result_height(gfx)) as usize
+        (self.camera.y().floor() / Self::result_height(gfx)) as usize
     }
 
     pub fn max_visible_result_index(&self, ui: &Ui, gfx: &Gfx) -> usize {
         let bounds = ui.bounds(self.widget_id);
         let result_height = Self::result_height(gfx);
-        let max_y = ((self.camera.position().floor() + bounds.height) / result_height) as usize + 1;
+        let max_y = ((self.camera.y().floor() + bounds.height) / result_height) as usize + 1;
 
         max_y.min(self.len())
     }

@@ -76,8 +76,6 @@ pub struct Window {
     is_running: bool,
     is_focused: bool,
 
-    x: i32,
-    y: i32,
     width: i32,
     height: i32,
 
@@ -123,8 +121,6 @@ impl Window {
             is_running: true,
             is_focused: false,
 
-            x: 0,
-            y: 0,
             width: Self::DEFAULT_WIDTH,
             height: Self::DEFAULT_HEIGHT,
 
@@ -435,10 +431,6 @@ impl Window {
 
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
-            WM_MOVE => {
-                self.x = transmute::<u32, i32>((lparam.0 & 0xFFFF) as u32);
-                self.y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xFFFF) as u32);
-            }
             WM_CLOSE => {
                 self.is_running = false;
             }
@@ -646,14 +638,10 @@ impl Window {
 
                 let is_horizontal = msg == WM_MOUSEHWHEEL;
 
-                let (x, y) = Self::lparam_to_xy(lparam);
-
                 self.msgs.push(Msg::MouseScroll(MouseScroll {
                     delta,
                     is_horizontal,
                     kind: MouseScrollKind::Instant,
-                    x: x - self.x as f32,
-                    y: y - self.y as f32,
                 }));
             }
             WM_CLIPBOARDUPDATE => {
