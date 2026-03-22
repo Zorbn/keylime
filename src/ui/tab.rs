@@ -157,7 +157,7 @@ impl Tab {
             }
             Msg::LostFocus => {
                 self.mouse_drag = None;
-                self.send_hide_editor_popups(doc, ctx.ui);
+                self.send_lsp_msg(Msg::HideEditorPopups, doc, ctx.ui);
             }
             Msg::Mousebind(Mousebind {
                 button: Some(MouseButton::Left),
@@ -173,7 +173,7 @@ impl Tab {
                 kind: MousebindKind::Press,
                 ..
             }) => {
-                self.send_hide_editor_popups(doc, ctx.ui);
+                self.send_lsp_msg(Msg::HideEditorPopups, doc, ctx.ui);
 
                 if mods.contains(Mod::Ctrl) || mods.contains(Mod::Cmd) {
                     let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.gfx);
@@ -204,6 +204,7 @@ impl Tab {
                 kind,
                 ..
             }) => {
+                self.send_lsp_msg(Msg::HideExaminePopup, doc, ctx.ui);
                 self.send_tab_hover_changed(doc, ctx.ui);
 
                 let delta = delta * ctx.gfx.line_height();
@@ -255,12 +256,12 @@ impl Tab {
         }
     }
 
-    fn send_hide_editor_popups(&mut self, doc: &Doc, ui: &mut Ui) {
+    fn send_lsp_msg(&mut self, msg: Msg, doc: &Doc, ui: &mut Ui) {
         if !doc.flags().contains(DocFlag::AllowLanguageServer) {
             return;
         }
 
-        ui.send_to_parent(self.widget_id, Msg::HideEditorPopups);
+        ui.send_to_parent(self.widget_id, msg);
     }
 
     fn send_show_completions(&mut self, value: bool, doc: &Doc, ui: &mut Ui) {

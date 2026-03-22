@@ -130,6 +130,7 @@ impl Editor {
                         )
                     }
                 }
+                Msg::HideExaminePopup => self.examine_popup.hide(ctx.ui),
                 Msg::HideEditorPopups => {
                     self.signature_help_popup.hide(ctx.ui);
                     self.examine_popup.hide(ctx.ui);

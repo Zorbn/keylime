@@ -280,6 +280,8 @@ impl Window {
     }
 
     pub fn handle_scroll_wheel(&mut self, event: &NSEvent) {
+        let (x, y) = self.event_location_to_xy(event);
+
         let (is_precise, momentum_phase, phase) = unsafe {
             (
                 event.hasPreciseScrollingDeltas(),
@@ -323,6 +325,8 @@ impl Window {
             delta,
             is_horizontal,
             kind,
+            x,
+            y,
         }));
     }
 

@@ -27,6 +27,7 @@ pub enum Msg {
         trigger_char: char,
         is_retrigger: bool,
     },
+    HideExaminePopup,
     HideEditorPopups,
     TabHoverChanged,
 }
