@@ -44,6 +44,7 @@ pub struct ResultList<T> {
     items: Vec<T>,
     focused_index: usize,
     handled_focused_index: Option<usize>,
+    longest_result_length: usize,
 
     camera: Camera,
 }
@@ -56,6 +57,7 @@ impl<T> ResultList<T> {
             items: Vec::new(),
             focused_index: 0,
             handled_focused_index: None,
+            longest_result_length: 0,
 
             camera: Camera::new(),
         }
@@ -151,7 +153,7 @@ impl<T> ResultList<T> {
         true
     }
 
-    pub fn update(&mut self, ctx: &Ctx, dt: f32) {
+    pub fn update(&mut self, ctx: &mut Ctx, dt: f32, result_text: fn(t: &T) -> &str) {
         let focused_index = self.focused_index();
         let bounds = ctx.ui.bounds(self.widget_id);
         let result_height = Self::result_height(ctx.gfx);
@@ -171,12 +173,23 @@ impl<T> ResultList<T> {
             .vertical
             .animate(recenter_request, max_y, bounds.height, dt);
 
-        self.camera.horizontal.animate(
-            CameraRecenterRequest::default(),
-            f32::MAX,
-            bounds.width,
-            dt,
-        );
+        let min_y = self.min_visible_result_index(ctx.gfx);
+        let max_y = self.max_visible_result_index(ctx.ui, ctx.gfx);
+
+        let longest_visible_result = self.items[min_y..max_y]
+            .iter()
+            .map(|item| ctx.gfx.measure_text(result_text(item)))
+            .max()
+            .unwrap_or_default();
+
+        self.longest_result_length = self.longest_result_length.max(longest_visible_result);
+
+        let max_x = (self.longest_result_length + 1) as f32 * ctx.gfx.glyph_width() - bounds.width;
+        let max_x = max_x.max(0.0);
+
+        self.camera
+            .horizontal
+            .animate(CameraRecenterRequest::default(), max_x, bounds.width, dt);
     }
 
     pub fn draw<'a>(
@@ -325,6 +338,7 @@ impl<T> ResultList<T> {
 
     pub fn drain(&mut self) -> Drain<'_, T> {
         self.focused_index = 0;
+        self.longest_result_length = 0;
         self.items.drain(..)
     }
 
@@ -355,6 +369,10 @@ impl<T> ResultList<T> {
         let max_y = ((self.camera.y().floor() + bounds.height) / result_height) as usize + 1;
 
         max_y.min(self.len())
+    }
+
+    pub fn longest_result_length(&self) -> usize {
+        self.longest_result_length
     }
 
     pub fn desired_height(&self, max_visible_results: usize, gfx: &Gfx) -> f32 {

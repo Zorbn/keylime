@@ -83,7 +83,7 @@ impl CameraAxis {
         self.max_position = max_position;
 
         self.handle_recenter_request(recenter_request, view_size);
-        self.handle_recenter(max_position, view_size);
+        self.handle_recenter(view_size);
 
         if let CameraState::MovingWithLerp {
             target_position,
@@ -125,6 +125,8 @@ impl CameraAxis {
         max_position: f32,
         view_size: f32,
     ) {
+        self.max_position = max_position;
+
         self.handle_recenter_request(recenter_request, view_size);
 
         match self.state {
@@ -132,9 +134,7 @@ impl CameraAxis {
                 target_position, ..
             } => self.position = target_position,
             CameraState::Recentering { .. } => {
-                if let Some(visual_distance) =
-                    self.recenter_visual_distance(max_position, view_size)
-                {
+                if let Some(visual_distance) = self.recenter_visual_distance(view_size) {
                     self.velocity = 0.0;
                     self.position += visual_distance;
                 }
@@ -168,13 +168,13 @@ impl CameraAxis {
         };
     }
 
-    fn handle_recenter(&mut self, max_position: f32, view_size: f32) {
-        if let Some(visual_distance) = self.recenter_visual_distance(max_position, view_size) {
+    fn handle_recenter(&mut self, view_size: f32) {
+        if let Some(visual_distance) = self.recenter_visual_distance(view_size) {
             self.scroll_visual_distance(visual_distance);
         }
     }
 
-    fn recenter_visual_distance(&mut self, max_position: f32, view_size: f32) -> Option<f32> {
+    fn recenter_visual_distance(&mut self, view_size: f32) -> Option<f32> {
         let CameraState::Recentering {
             kind,
             target_position,
@@ -208,7 +208,7 @@ impl CameraAxis {
         // We can't move the camera past the top of the document,
         // (eg. if the cursor is on the first line, it might be too close to the edge of the
         // screen according to RECENTER_DISTANCE, but there's nothing we can do about it, so stop animating).
-        Some((visual_distance + self.position).clamp(0.0, max_position) - self.position)
+        Some((visual_distance + self.position).clamp(0.0, self.max_position) - self.position)
     }
 
     pub fn recenter(&mut self, kind: CameraRecenterKind) {

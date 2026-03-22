@@ -60,8 +60,6 @@ pub struct CompletionList {
 
     needs_results: bool,
     result_list: ResultList<CompletionResult>,
-    // Prevents the result list from shrinking as it's being scrolled through.
-    longest_result_length: usize,
     prefix: String,
 
     lsp_expected_responses: HashMap<usize, usize>,
@@ -89,7 +87,6 @@ impl CompletionList {
 
             needs_results: false,
             result_list: ResultList::new(widget_id, ctx.ui),
-            longest_result_length: 0,
             prefix: String::new(),
 
             lsp_expected_responses: HashMap::new(),
@@ -204,27 +201,11 @@ impl CompletionList {
             Some(Rect::new(visual_position.x, visual_position.y, 0.0, 0.0)),
         );
 
-        self.result_list.update(ctx, dt);
-
-        let min_y = self.result_list.min_visible_result_index(ctx.gfx);
-        let max_y = (min_y + Self::MAX_VISIBLE_RESULTS).min(self.result_list.len());
-        let mut longest_visible_result = 0;
-
-        for y in min_y..max_y {
-            let Some(result) = self.result_list.get(y) else {
-                continue;
-            };
-
-            let label = result.label();
-
-            longest_visible_result = longest_visible_result.max(ctx.gfx.measure_text(label));
-        }
-
-        self.longest_result_length = self.longest_result_length.max(longest_visible_result);
+        self.result_list.update(ctx, dt, |result| result.label());
 
         let gfx = &ctx.gfx;
 
-        let width = (self.longest_result_length as f32 + 2.0) * gfx.glyph_width();
+        let width = (self.result_list.longest_result_length() as f32 + 2.0) * gfx.glyph_width();
         let position = ctx.ui.bounds(self.widget_id).position();
 
         let result_list_bounds = Rect::new(
@@ -441,7 +422,6 @@ impl CompletionList {
         self.needs_results = false;
         self.result_list.drain();
         self.lsp_expected_responses.clear();
-        self.longest_result_length = 0;
     }
 
     fn perform_result_action(

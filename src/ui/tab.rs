@@ -68,6 +68,7 @@ pub struct Tab {
 
     pub camera: Camera,
     handled_cursor_position: Position,
+    longest_line_length: usize,
     mouse_drag: Option<MouseClickCount>,
     cursor_animation_states: Vec<CursorAnimationState>,
     do_show_completions: bool,
@@ -111,6 +112,7 @@ impl Tab {
 
             camera: Camera::new(),
             handled_cursor_position: Position::ZERO,
+            longest_line_length: 0,
             mouse_drag: None,
             cursor_animation_states: Vec::new(),
             do_show_completions: false,
@@ -472,10 +474,23 @@ impl Tab {
     fn animate_camera_horizontal(&mut self, doc: &Doc, ctx: &mut Ctx, dt: f32) {
         let recenter_request = self.recenter_request_horizontal(doc, ctx);
         let bounds = ctx.ui.bounds(self.doc_widget_id);
+        let camera_position = self.camera.position().floor();
+        let visible_lines = Self::visible_lines(bounds, camera_position, doc, ctx.gfx);
+
+        let longest_visible_line = doc.lines()[visible_lines.min_y..visible_lines.max_y]
+            .iter()
+            .map(|line| ctx.gfx.measure_text(line))
+            .max()
+            .unwrap_or_default();
+
+        self.longest_line_length = self.longest_line_length.max(longest_visible_line);
+
+        let max_x = self.longest_line_length as f32 * ctx.gfx.glyph_width() - bounds.width;
+        let max_x = max_x.max(0.0);
 
         self.camera
             .horizontal
-            .animate(recenter_request, f32::MAX, bounds.width, dt);
+            .animate(recenter_request, max_x, bounds.width, dt);
     }
 
     fn recenter_request_horizontal(&self, doc: &Doc, ctx: &mut Ctx) -> CameraRecenterRequest {
@@ -591,6 +606,25 @@ impl Tab {
         }
     }
 
+    fn visible_lines(
+        bounds: Rect,
+        camera_position: VisualPosition,
+        doc: &Doc,
+        gfx: &Gfx,
+    ) -> VisibleLines {
+        let min_y = (camera_position.y / gfx.line_height()) as usize;
+        let sub_line_offset_y = camera_position.y - min_y as f32 * gfx.line_height();
+
+        let max_y = ((camera_position.y + bounds.height) / gfx.line_height()) as usize + 1;
+        let max_y = max_y.min(doc.lines().len());
+
+        VisibleLines {
+            offset: sub_line_offset_y,
+            min_y,
+            max_y,
+        }
+    }
+
     pub fn draw(
         &self,
         colors @ (_, background): (Option<Color>, Option<Color>),
@@ -609,18 +643,7 @@ impl Tab {
 
         let bounds = ctx.ui.bounds(self.doc_widget_id);
         let camera_position = self.camera.position().floor();
-
-        let min_y = (camera_position.y / ctx.gfx.line_height()) as usize;
-        let sub_line_offset_y = camera_position.y - min_y as f32 * ctx.gfx.line_height();
-
-        let max_y = ((camera_position.y + bounds.height) / ctx.gfx.line_height()) as usize + 1;
-        let max_y = max_y.min(doc.lines().len());
-
-        let visible_lines = VisibleLines {
-            offset: sub_line_offset_y,
-            min_y,
-            max_y,
-        };
+        let visible_lines = Self::visible_lines(bounds, camera_position, doc, ctx.gfx);
 
         if doc.flags().contains(DocFlag::ShowGutter) {
             self.draw_gutter(doc, visible_lines, ctx);

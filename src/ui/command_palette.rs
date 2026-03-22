@@ -201,7 +201,7 @@ impl CommandPalette {
         }
 
         self.tab.update(&mut self.doc, ctx, dt);
-        self.result_list.update(ctx, dt);
+        self.result_list.update(ctx, dt, |result| &result.text);
         self.update_results(editor, ctx);
         self.update_popups(ctx);
     }
