@@ -204,12 +204,14 @@ impl AppRunner {
                 LRESULT(0)
             }
             _ => {
-                let app_runner = &mut *app_runner;
-
-                app_runner
-                    .window
-                    .inner
-                    .window_proc(hwnd, msg, wparam, lparam)
+                if let Some(app_runner) = app_runner.as_mut() {
+                    app_runner
+                        .window
+                        .inner
+                        .window_proc(hwnd, msg, wparam, lparam)
+                } else {
+                    DefWindowProcW(hwnd, msg, wparam, lparam)
+                }
             }
         }
     }
