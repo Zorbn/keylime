@@ -1,6 +1,5 @@
 use std::{
     collections::HashSet,
-    mem::transmute,
     path::Path,
     ptr::{copy_nonoverlapping, null_mut},
     vec::Drain,
@@ -436,8 +435,8 @@ impl Window {
                 return DefWindowProcW(hwnd, msg, wparam, lparam);
             }
             WM_MOVE => {
-                self.x = transmute::<u32, i32>((lparam.0 & 0xFFFF) as u32);
-                self.y = transmute::<u32, i32>(((lparam.0 >> 16) & 0xFFFF) as u32);
+                self.x = u32::cast_signed((lparam.0 & 0xFFFF) as u32);
+                self.y = u32::cast_signed(((lparam.0 >> 16) & 0xFFFF) as u32);
             }
             WM_CLOSE => {
                 self.is_running = false;
@@ -642,7 +641,7 @@ impl Window {
                 const WHEEL_DELTA: f32 = 120.0;
 
                 let delta =
-                    transmute::<u16, i16>(((wparam.0 >> 16) & 0xFFFF) as u16) as f32 / WHEEL_DELTA;
+                    u16::cast_signed(((wparam.0 >> 16) & 0xFFFF) as u16) as f32 / WHEEL_DELTA;
 
                 let is_horizontal = msg == WM_MOUSEHWHEEL;
 
