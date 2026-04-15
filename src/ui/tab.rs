@@ -865,7 +865,7 @@ impl Tab {
                         self.position_to_visual(start, camera_position, doc, gfx);
 
                     gfx.add_zig_zag_underline(
-                        highlight_position.x - gfx.glyph_width() / 2.0,
+                        highlight_position.x - gfx.glyph_width(),
                         highlight_position.y + gfx.line_height(),
                         gfx.glyph_width(),
                         color,
