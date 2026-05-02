@@ -237,12 +237,15 @@ impl CompletionList {
     }
 
     fn show_results(&mut self, ctx: &mut Ctx) {
+        let result_list_id = self.result_list.widget_id();
+
         if self.result_list.is_empty() {
+            ctx.ui.hide(result_list_id);
             return;
         }
 
-        ctx.ui.show(self.result_list.widget_id());
-        ctx.ui.focus(self.result_list.widget_id());
+        ctx.ui.show(result_list_id);
+        ctx.ui.focus(result_list_id);
         self.set_popups_shown(ctx);
     }
 
