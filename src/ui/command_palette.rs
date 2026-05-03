@@ -120,17 +120,6 @@ impl CommandPalette {
             match msg {
                 Msg::PopupParentResized { bounds } => self.parent_bounds = bounds,
                 Msg::GainedFocus => ctx.ui.focus(self.result_list.widget_id()),
-                Msg::Action(action) => {
-                    let Some(mut mode) = self.mode.take() else {
-                        continue;
-                    };
-
-                    if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
-                        ctx.ui.skip(self.widget_id, msg);
-                    }
-
-                    self.mode = Some(mode);
-                }
                 _ => ctx.ui.skip(self.widget_id, msg),
             }
         }
@@ -147,6 +136,17 @@ impl CommandPalette {
         while let Some(msg) = ctx.ui.msg(self.tab.widget_id()) {
             match msg {
                 Msg::GainedFocus => ctx.ui.focus(self.result_list.widget_id()),
+                Msg::Action(action) => {
+                    let Some(mut mode) = self.mode.take() else {
+                        continue;
+                    };
+
+                    if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
+                        ctx.ui.skip(self.widget_id, msg);
+                    }
+
+                    self.mode = Some(mode);
+                }
                 _ => self.tab.receive_msg(msg, &mut self.doc, ctx),
             }
         }
