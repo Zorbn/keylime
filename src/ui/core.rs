@@ -586,9 +586,15 @@ impl Ui {
         let mut precedence = 0;
 
         while widget_id != WidgetId::ROOT {
-            let Some(parent_id) = self.widget(widget_id).parent_id else {
+            let widget = self.widget(widget_id);
+
+            let Some(parent_id) = widget.parent_id else {
                 break;
             };
+
+            if widget.settings.popup.is_some() {
+                break;
+            }
 
             let parent = self.widget(parent_id);
 
