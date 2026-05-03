@@ -142,7 +142,7 @@ impl CommandPalette {
                     };
 
                     if !mode.on_action(self, CommandPaletteEventArgs::new(editor, ctx), action) {
-                        ctx.ui.skip(self.widget_id, msg);
+                        self.tab.receive_msg(msg, &mut self.doc, ctx);
                     }
 
                     self.mode = Some(mode);
