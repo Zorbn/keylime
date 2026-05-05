@@ -130,7 +130,10 @@ impl Editor {
                         )
                     }
                 }
-                Msg::HideExaminePopup => self.examine_popup.hide(ctx.ui),
+                Msg::HideExaminePopup => {
+                    self.examine_popup.hide(ctx.ui);
+                    self.hover_timer = 0.0;
+                }
                 Msg::HideEditorPopups => {
                     self.signature_help_popup.hide(ctx.ui);
                     self.examine_popup.hide(ctx.ui);

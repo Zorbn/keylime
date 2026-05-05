@@ -152,6 +152,7 @@ impl Tab {
             Msg::Grapheme(grapheme) => {
                 handle_grapheme(&grapheme, doc, ctx);
 
+                self.send_lsp_msg(Msg::HideExaminePopup, doc, ctx.ui);
                 self.send_show_completions(true, doc, ctx.ui);
                 self.send_trigger_signature_help(&grapheme, doc, ctx);
             }
@@ -205,7 +206,6 @@ impl Tab {
                 ..
             }) => {
                 self.send_lsp_msg(Msg::HideExaminePopup, doc, ctx.ui);
-                self.send_tab_hover_changed(doc, ctx.ui);
 
                 let delta = delta * ctx.gfx.line_height();
                 self.camera.scroll(delta, is_horizontal, kind);
@@ -218,6 +218,8 @@ impl Tab {
                     ctx.ui.skip(self.widget_id, msg);
                     return;
                 }
+
+                self.send_lsp_msg(Msg::HideExaminePopup, doc, ctx.ui);
 
                 if matches!(action, action_name!(DeleteBackward)) {
                     self.send_show_completions(true, doc, ctx.ui);
