@@ -69,6 +69,10 @@
             },
             {
                 "kind": "Number",
+                "pattern": "0x%x+"
+            },
+            {
+                "kind": "Number",
                 "pattern": "(%d[%d_]*.?[%d_]*)[^.]"
             },
             {

@@ -158,7 +158,7 @@
             },
             {
                 "kind": "Meta",
-                "pattern": "#%w*"
+                "pattern": "#[%w_]*"
             },
             {
                 "kind": "Meta",
