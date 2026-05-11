@@ -119,7 +119,9 @@ impl CommandPalette {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
                 Msg::PopupParentResized { bounds } => self.parent_bounds = bounds,
-                Msg::GainedFocus => ctx.ui.focus(self.result_list.widget_id()),
+                Msg::GainedFocus | Msg::FocusedChildChanged => {
+                    ctx.ui.focus(self.result_list.widget_id())
+                }
                 _ => ctx.ui.skip(self.widget_id, msg),
             }
         }
@@ -135,7 +137,9 @@ impl CommandPalette {
 
         while let Some(msg) = ctx.ui.msg(self.tab.widget_id()) {
             match msg {
-                Msg::GainedFocus => ctx.ui.focus(self.result_list.widget_id()),
+                Msg::GainedFocus | Msg::FocusedChildChanged => {
+                    ctx.ui.focus(self.result_list.widget_id())
+                }
                 Msg::Action(action) => {
                     let Some(mut mode) = self.mode.take() else {
                         continue;
