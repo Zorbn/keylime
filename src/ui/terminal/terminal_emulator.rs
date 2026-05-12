@@ -84,6 +84,7 @@ pub struct TerminalEmulator {
     // compared to the document's cursor for compatibility reasons, and may be
     // different from the document's cursor position is the user is selecting text.
     grid_cursor: Position,
+    saved_grid_cursor: Position,
     grid_width: usize,
     grid_height: usize,
     colored_grid_lines: Vec<ColoredGridLine>,
@@ -91,8 +92,9 @@ pub struct TerminalEmulator {
 
     // Data for either the normal buffer or the alternate buffer,
     // depending on which one isn't currently being used.
-    saved_grid_cursor: Position,
-    saved_colored_grid_lines: Vec<ColoredGridLine>,
+    other_grid_cursor: Position,
+    other_saved_grid_cursor: Position,
+    other_colored_grid_lines: Vec<ColoredGridLine>,
 
     is_cursor_visible: bool,
     foreground_color: TerminalHighlightKind,
@@ -121,13 +123,15 @@ impl TerminalEmulator {
             parser: EscapeParser::new(),
 
             grid_cursor: Position::ZERO,
+            saved_grid_cursor: Position::ZERO,
             grid_width: Self::MIN_GRID_WIDTH,
             grid_height: Self::MIN_GRID_HEIGHT,
             colored_grid_lines: Vec::new(),
             empty_line_text: String::new(),
 
-            saved_grid_cursor: Position::ZERO,
-            saved_colored_grid_lines: Vec::new(),
+            other_grid_cursor: Position::ZERO,
+            other_saved_grid_cursor: Position::ZERO,
+            other_colored_grid_lines: Vec::new(),
 
             is_cursor_visible: true,
             foreground_color: TerminalHighlightKind::Foreground,
@@ -382,6 +386,8 @@ impl TerminalEmulator {
 
                 self.jump_cursor(Position::new(0, y), doc, ctx.gfx);
             }
+            EscapeSequence::SaveCursor => self.saved_grid_cursor = self.grid_cursor,
+            EscapeSequence::RestoreCursor => self.jump_cursor(self.saved_grid_cursor, doc, ctx.gfx),
             EscapeSequence::ClearToScreenEnd => {
                 let start = self.grid_cursor;
                 let end = self.line_end(self.grid_height - 1, doc);
@@ -550,7 +556,7 @@ impl TerminalEmulator {
             self.grid_width,
             self.grid_height,
             last_grid_height,
-            &mut self.saved_colored_grid_lines,
+            &mut self.other_colored_grid_lines,
         );
 
         if self.grid_height > last_grid_height && !self.is_in_alternate_buffer {
@@ -561,9 +567,9 @@ impl TerminalEmulator {
         }
 
         let (normal_cursor_y, alternate_cursor_y) = if self.is_in_alternate_buffer {
-            (self.saved_grid_cursor.y, self.grid_cursor.y)
+            (self.other_grid_cursor.y, self.grid_cursor.y)
         } else {
-            (self.grid_cursor.y, self.saved_grid_cursor.y)
+            (self.grid_cursor.y, self.other_grid_cursor.y)
         };
 
         self.resize_doc_to_grid_size(&mut docs.normal, normal_cursor_y, last_grid_height, ctx);
@@ -853,10 +859,14 @@ impl TerminalEmulator {
     fn switch_buffer(&mut self, doc: &mut Doc, tab: &mut Tab) {
         self.highlight_lines(doc);
 
-        swap(&mut self.grid_cursor, &mut self.saved_grid_cursor);
+        swap(&mut self.grid_cursor, &mut self.other_grid_cursor);
+        swap(
+            &mut self.saved_grid_cursor,
+            &mut self.other_saved_grid_cursor,
+        );
         swap(
             &mut self.colored_grid_lines,
-            &mut self.saved_colored_grid_lines,
+            &mut self.other_colored_grid_lines,
         );
 
         self.is_in_alternate_buffer = !self.is_in_alternate_buffer;

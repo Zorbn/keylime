@@ -33,6 +33,8 @@ pub enum EscapeSequence {
     MoveCursorX(isize),
     MoveCursorY(isize),
     MoveCursorYAndResetX(isize),
+    SaveCursor,
+    RestoreCursor,
     ClearToScreenEnd,
     ClearToScreenStart,
     ClearScreen,
@@ -197,6 +199,15 @@ impl EscapeParser {
                     b'M' => {
                         self.pending_sequences
                             .push_back(EscapeSequence::ReverseNewline);
+                        self.state = EscapeParserState::Plain { len: 0 };
+                    }
+                    b'7' | b's' => {
+                        self.pending_sequences.push_back(EscapeSequence::SaveCursor);
+                        self.state = EscapeParserState::Plain { len: 0 };
+                    }
+                    b'8' | b'u' => {
+                        self.pending_sequences
+                            .push_back(EscapeSequence::RestoreCursor);
                         self.state = EscapeParserState::Plain { len: 0 };
                     }
                     _ => {
@@ -483,7 +494,7 @@ impl EscapeParser {
                             self.pending_sequences
                                 .push_back(EscapeSequence::SetCursorY(y));
                         }
-                        b'H' => {
+                        b'H' | b'f' => {
                             let y = parameter(parameters, 0, 1).saturating_sub(1);
                             let x = parameter(parameters, 1, 1).saturating_sub(1);
                             self.pending_sequences
@@ -599,8 +610,16 @@ impl EscapeParser {
                         b'c' => self
                             .pending_sequences
                             .push_back(EscapeSequence::QueryTerminalId),
+                        #[cfg(feature = "terminal_debug")]
+                        byte => {
+                            println!("Unhandled unprefixed CSI: {:?}", byte);
+                        }
                         _ => {}
                     },
+                    #[cfg(feature = "terminal_debug")]
+                    Some(prefix) => {
+                        println!("Unhandled CSI prefix: {:?}", prefix);
+                    }
                     _ => {}
                 }
 
