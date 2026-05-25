@@ -2024,14 +2024,9 @@ impl Doc {
     }
 
     pub fn select_current_line_at_position(&self, position: Position, gfx: &mut Gfx) -> Selection {
-        let mut start = Position::new(0, position.y);
-        let mut end = self.line_end(start.y);
-
-        if start.y == self.lines().len() - 1 {
-            start = self.move_position(start, -1, 0, gfx);
-        } else {
-            end = self.move_position(end, 1, 0, gfx);
-        }
+        let start = Position::new(0, position.y);
+        let end = self.line_end(start.y);
+        let end = self.move_position(end, 1, 0, gfx);
 
         Selection { start, end }
     }

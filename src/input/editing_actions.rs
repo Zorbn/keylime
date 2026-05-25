@@ -452,9 +452,15 @@ fn handle_cut(doc: &mut Doc, ctx: &mut Ctx) {
     for index in doc.cursor_indices() {
         let cursor = doc.cursor(index);
 
-        let selection = cursor
-            .get_selection()
-            .unwrap_or(doc.select_current_line_at_position(cursor.position, ctx.gfx));
+        let selection = cursor.get_selection().unwrap_or_else(|| {
+            let mut selection = doc.select_current_line_at_position(cursor.position, ctx.gfx);
+
+            if cursor.position.y == doc.lines().len() - 1 {
+                selection.start = doc.move_position(selection.start, -1, 0, ctx.gfx);
+            }
+
+            selection
+        });
 
         doc.delete(selection.start, selection.end, ctx);
         doc.clear_cursor_selection(index);
