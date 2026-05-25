@@ -616,10 +616,12 @@ impl Tab {
         gfx: &Gfx,
     ) -> VisibleLines {
         let min_y = (camera_position.y / gfx.line_height()) as usize;
+        let max_y = ((camera_position.y + bounds.height) / gfx.line_height()) as usize + 1;
+
         let sub_line_offset_y = camera_position.y - min_y as f32 * gfx.line_height();
 
-        let max_y = ((camera_position.y + bounds.height) / gfx.line_height()) as usize + 1;
         let max_y = max_y.min(doc.lines().len());
+        let min_y = min_y.min(max_y);
 
         VisibleLines {
             offset: sub_line_offset_y,
