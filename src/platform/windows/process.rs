@@ -1,7 +1,7 @@
 use core::str;
 use std::{
     ptr::copy_nonoverlapping,
-    sync::{Arc, Mutex},
+    sync::Arc,
     thread::{self, JoinHandle},
 };
 
@@ -23,10 +23,10 @@ use windows::{
 };
 use windows_core::BOOL;
 
-use crate::platform::process::ProcessKind;
+use crate::platform::process::{ProcessKind, ProcessOutput};
 
 pub struct Process {
-    pub output: Arc<Mutex<Vec<u8>>>,
+    pub output: Arc<ProcessOutput>,
     pub input: Vec<u8>,
 
     read_thread_join: Option<JoinHandle<()>>,
@@ -109,7 +109,7 @@ impl Process {
             event = CreateEventW(None, false, false, None)?;
         }
 
-        let output = Arc::new(Mutex::new(Vec::new()));
+        let output = Arc::new(ProcessOutput::new());
         let input = Vec::new();
 
         let read_thread_join = Self::run_read_thread(output.clone(), output_read, event);
@@ -267,7 +267,7 @@ impl Process {
     }
 
     fn run_read_thread(
-        output: Arc<Mutex<Vec<u8>>>,
+        output: Arc<ProcessOutput>,
         stdout: HANDLE,
         event: HANDLE,
     ) -> JoinHandle<()> {
@@ -288,10 +288,7 @@ impl Process {
                     }
                 }
 
-                {
-                    let mut output = output.lock().unwrap();
-                    output.extend_from_slice(&buffer[..bytes_read as usize]);
-                }
+                output.enqueue(&buffer[..bytes_read as usize]);
 
                 unsafe {
                     let _ = SetEvent(event);
@@ -314,6 +311,8 @@ impl Drop for Process {
 
             let _ = CloseHandle(self.stdin);
             let _ = CloseHandle(self.stdout);
+
+            self.output.kill();
         }
 
         if let Some(read_thread_join) = self.read_thread_join.take() {
