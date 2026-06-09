@@ -226,8 +226,8 @@ impl LanguageServer {
 
     pub(super) fn poll(&mut self) -> Option<Message> {
         loop {
-            let (_, output) = self.process.input_output();
-            let mut output = output.lock().ok()?;
+            let (_, mut output) = self.process.input_output();
+            let output = output.data();
 
             match self.parse_state {
                 MessageParseState::Idle => {

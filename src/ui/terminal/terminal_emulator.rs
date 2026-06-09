@@ -265,11 +265,11 @@ impl TerminalEmulator {
 
     pub fn update(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
         if let Some(mut pty) = self.pty.take() {
-            let (input, output) = pty.input_output();
+            {
+                let (input, mut output) = pty.input_output();
+                let output = output.data();
 
-            if let Ok(mut output) = output.lock() {
-                self.handle_escape_sequences(docs, tab, input, &output, ctx);
-
+                self.handle_escape_sequences(docs, tab, input, output, ctx);
                 output.clear();
             }
 
@@ -588,6 +588,12 @@ impl TerminalEmulator {
             last_grid_height,
             ctx,
         );
+
+        let min_position = Position::ZERO;
+        let max_position = Position::new(self.grid_width - 1, self.grid_height - 1);
+
+        self.grid.cursor = self.grid.cursor.clamp(min_position, max_position);
+        self.other_grid.cursor = self.other_grid.cursor.clamp(min_position, max_position);
     }
 
     fn resize_doc_to_grid_size(

@@ -141,7 +141,7 @@
             },
             {
                 "kind": "Meta",
-                "pattern": "'%l+"
+                "pattern": "'[%l_]+"
             },
             {
                 "kind": "Symbol",

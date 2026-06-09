@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Condvar, Mutex, MutexGuard};
 
 use super::{platform_impl, result::Result};
 
@@ -6,6 +6,92 @@ use super::{platform_impl, result::Result};
 pub enum ProcessKind {
     Normal,
     Pty { width: usize, height: usize },
+}
+
+struct ProcessOutputState {
+    buffer: Vec<u8>,
+    is_alive: bool,
+}
+
+impl ProcessOutputState {
+    const MAX_OUTPUT: usize = 4096;
+
+    fn new() -> Self {
+        Self {
+            buffer: Vec::with_capacity(Self::MAX_OUTPUT),
+            is_alive: true,
+        }
+    }
+
+    fn should_wait(&self) -> bool {
+        self.is_alive && self.buffer.len() >= Self::MAX_OUTPUT
+    }
+
+    fn enqueue<'a>(&mut self, data: &'a [u8]) -> &'a [u8] {
+        if !self.is_alive {
+            return &[];
+        }
+
+        let allowed = data.len().min(self.buffer.len() - Self::MAX_OUTPUT);
+        self.buffer.extend_from_slice(&data[..allowed]);
+        &data[allowed..]
+    }
+}
+
+pub struct DequeuedProcessOutput<'a> {
+    state: MutexGuard<'a, ProcessOutputState>,
+    condvar: &'a Condvar,
+}
+
+impl DequeuedProcessOutput<'_> {
+    pub fn data(&mut self) -> &mut Vec<u8> {
+        &mut self.state.buffer
+    }
+}
+
+impl Drop for DequeuedProcessOutput<'_> {
+    fn drop(&mut self) {
+        self.condvar.notify_all();
+    }
+}
+
+pub struct ProcessOutput {
+    state: Mutex<ProcessOutputState>,
+    condvar: Condvar,
+}
+
+impl ProcessOutput {
+    pub fn new() -> Self {
+        Self {
+            state: Mutex::new(ProcessOutputState::new()),
+            condvar: Condvar::new(),
+        }
+    }
+
+    pub fn enqueue(&self, mut data: &[u8]) {
+        while !data.is_empty() {
+            let mut state = self.state.lock().unwrap();
+
+            while state.should_wait() {
+                state = self.condvar.wait(state).unwrap();
+            }
+
+            data = state.enqueue(data);
+        }
+    }
+
+    pub fn dequeue(&self) -> DequeuedProcessOutput<'_> {
+        DequeuedProcessOutput {
+            state: self.state.lock().unwrap(),
+            condvar: &self.condvar,
+        }
+    }
+
+    pub fn kill(&self) {
+        let mut state = self.state.lock().unwrap();
+        state.is_alive = false;
+        self.condvar.notify_all();
+    }
 }
 
 pub struct Process {
@@ -31,7 +117,7 @@ impl Process {
         &mut self.inner.input
     }
 
-    pub fn input_output(&mut self) -> (&mut Vec<u8>, &Arc<Mutex<Vec<u8>>>) {
-        (&mut self.inner.input, &self.inner.output)
+    pub fn input_output(&mut self) -> (&mut Vec<u8>, DequeuedProcessOutput<'_>) {
+        (&mut self.inner.input, self.inner.output.dequeue())
     }
 }

@@ -261,16 +261,6 @@ impl View {
     }
 
     pub fn update(&self) -> Option<()> {
-        let mut state = self.ivars().state.try_borrow_mut().ok()?;
-        let ViewState { app, window, gfx } = state.as_mut()?;
-
-        let is_animating = app.is_animating(window, gfx, window.inner.time);
-        let (time, dt) = window.inner.time(is_animating);
-        app.update(window, gfx, time, dt);
-
-        let (file_watcher, files, processes) = app.files_and_processes();
-        window.inner.update(file_watcher, files, processes);
-
         unsafe {
             self.setNeedsDisplay(true);
         }
@@ -318,7 +308,12 @@ impl View {
         let mut state = self.ivars().state.try_borrow_mut().ok()?;
         let ViewState { app, window, gfx } = state.as_mut()?;
 
-        let time = window.inner.time;
+        let is_animating = app.is_animating(window, gfx, window.inner.time);
+        let (time, dt) = window.inner.time(is_animating);
+        app.update(window, gfx, time, dt);
+
+        let (file_watcher, files, processes) = app.files_and_processes();
+        window.inner.update(file_watcher, files, processes);
 
         app.draw(window, gfx, time);
 

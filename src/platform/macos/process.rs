@@ -1,14 +1,14 @@
 use std::{
     ffi::CString,
     ptr::{null, null_mut},
-    sync::{Arc, Mutex},
+    sync::Arc,
     thread::{self, JoinHandle},
 };
 
 use libc::{kevent, EVFILT_READ, EV_ADD, EV_CLEAR};
 use objc2::rc::Weak;
 
-use crate::platform::process::ProcessKind;
+use crate::platform::process::{ProcessKind, ProcessOutput};
 
 use super::{
     result::Result,
@@ -19,7 +19,7 @@ const PIPE_READ: usize = 0;
 const PIPE_WRITE: usize = 1;
 
 pub struct Process {
-    pub output: Arc<Mutex<Vec<u8>>>,
+    pub output: Arc<ProcessOutput>,
     pub input: Vec<u8>,
 
     read_thread_join: Option<JoinHandle<()>>,
@@ -171,7 +171,7 @@ impl Process {
         }
 
         Ok(Self {
-            output: Arc::new(Mutex::new(Vec::new())),
+            output: Arc::new(ProcessOutput::new()),
             input: Vec::new(),
 
             read_thread_join: None,
@@ -222,7 +222,7 @@ impl Process {
     }
 
     fn run_read_thread(
-        output: Arc<Mutex<Vec<u8>>>,
+        output: Arc<ProcessOutput>,
         view: ViewRef,
         kq: i32,
         read_fd: i32,
@@ -259,8 +259,7 @@ impl Process {
                     unsafe { libc::read(read_fd, buffer.as_mut_ptr() as _, buffer.len()) };
 
                 if !matches!(bytes_read, 0 | -1) {
-                    let mut output = output.lock().unwrap();
-                    output.extend_from_slice(&buffer[..bytes_read as usize]);
+                    output.enqueue(&buffer[..bytes_read as usize]);
                 } else {
                     break;
                 }
@@ -280,6 +279,8 @@ impl Drop for Process {
             libc::close(self.kq);
             libc::close(self.read_fd);
             libc::close(self.write_fd);
+
+            self.output.kill();
         }
 
         if let Some(read_thread_join) = self.read_thread_join.take() {
