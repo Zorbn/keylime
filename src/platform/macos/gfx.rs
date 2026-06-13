@@ -1,5 +1,6 @@
 use std::{
     ffi::c_void,
+    mem::offset_of,
     ptr::{copy_nonoverlapping, NonNull},
 };
 
@@ -32,9 +33,9 @@ struct SceneProperties {
 };
 
 struct VertexInput {
-    float2 position;
-    float4 color;
-    float3 uv;
+    float2 position [[attribute(0)]];
+    float3 uv       [[attribute(1)]];
+    uint color      [[attribute(2)]];
 };
 
 struct VertexOutput {
@@ -46,13 +47,11 @@ struct VertexOutput {
 
 vertex VertexOutput vertex_main(
     device const SceneProperties& properties [[buffer(0)]],
-    device const VertexInput* vertices [[buffer(1)]],
-    uint vertex_idx [[vertex_id]]
+    VertexInput input [[stage_in]]
 ) {
     VertexOutput output;
-    VertexInput input = vertices[vertex_idx];
     output.position = properties.projection * float4(input.position.xy, 0, 1);
-    output.color = input.color;
+    output.color = metal::unpack_unorm4x8_to_float(input.color);
     output.uv = float3(input.uv.xy / properties.texture_size, input.uv.z);
     output.texture_size = properties.texture_size;
     return output;
@@ -84,11 +83,11 @@ struct SceneProperties {
 }
 
 #[derive(Copy, Clone)]
-#[repr(C, align(16))]
+#[repr(C)]
 struct VertexInput {
-    position: [f32; 4],
-    color: [f32; 4],
+    position: [f32; 2],
     uv: [f32; 3],
+    color: u32,
 }
 
 pub struct Gfx {
@@ -153,6 +152,34 @@ impl Gfx {
                 panic!("Library error: {:?}", localized_description);
             }
         };
+
+        let vertex_descriptor = unsafe {
+            let vertex_descriptor = MTLVertexDescriptor::new();
+
+            let position_attribute = vertex_descriptor.attributes().objectAtIndexedSubscript(0);
+            position_attribute.setFormat(MTLVertexFormat::Float2);
+            position_attribute.setBufferIndex(1);
+            position_attribute.setOffset(0);
+
+            let uv_attribute = vertex_descriptor.attributes().objectAtIndexedSubscript(1);
+            uv_attribute.setFormat(MTLVertexFormat::Float3);
+            uv_attribute.setBufferIndex(1);
+            uv_attribute.setOffset(offset_of!(VertexInput, uv));
+
+            let color_attribute = vertex_descriptor.attributes().objectAtIndexedSubscript(2);
+            color_attribute.setFormat(MTLVertexFormat::UInt);
+            color_attribute.setBufferIndex(1);
+            color_attribute.setOffset(offset_of!(VertexInput, color));
+
+            let layout = vertex_descriptor.layouts().objectAtIndexedSubscript(1);
+            layout.setStride(size_of::<VertexInput>());
+            layout.setStepRate(1);
+            layout.setStepFunction(MTLVertexStepFunction::PerVertex);
+
+            vertex_descriptor
+        };
+
+        pipeline_descriptor.setVertexDescriptor(Some(&vertex_descriptor));
 
         let vertex_function = library.newFunctionWithName(ns_string!("vertex_main"));
         pipeline_descriptor.setVertexFunction(vertex_function.as_deref());
@@ -532,35 +559,33 @@ impl Gfx {
         let uv_top = src.y;
         let uv_bottom = src.y + src.height;
 
-        let color = [
-            color.r as f32 / 255.0,
-            color.g as f32 / 255.0,
-            color.b as f32 / 255.0,
-            color.a as f32 / 255.0,
-        ];
-
         let kind = kind as usize as f32;
+
+        let color = ((color.a as u32) << 24)
+            | ((color.b as u32) << 16)
+            | ((color.g as u32) << 8)
+            | color.r as u32;
 
         self.vertices.extend_from_slice(&[
             VertexInput {
-                position: [dst.top_left.x, dst.top_left.y, 0.0, 0.0],
-                color,
+                position: [dst.top_left.x, dst.top_left.y],
                 uv: [uv_left, uv_top, kind],
+                color,
             },
             VertexInput {
-                position: [dst.top_right.x, dst.top_right.y, 0.0, 0.0],
-                color,
+                position: [dst.top_right.x, dst.top_right.y],
                 uv: [uv_right, uv_top, kind],
+                color,
             },
             VertexInput {
-                position: [dst.bottom_right.x, dst.bottom_right.y, 0.0, 0.0],
-                color,
+                position: [dst.bottom_right.x, dst.bottom_right.y],
                 uv: [uv_right, uv_bottom, kind],
+                color,
             },
             VertexInput {
-                position: [dst.bottom_left.x, dst.bottom_left.y, 0.0, 0.0],
-                color,
+                position: [dst.bottom_left.x, dst.bottom_left.y],
                 uv: [uv_left, uv_bottom, kind],
+                color,
             },
         ]);
     }

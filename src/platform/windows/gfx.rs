@@ -855,7 +855,10 @@ impl Gfx {
         let uv_top = src.y;
         let uv_bottom = src.y + src.height;
 
-        let color = ((color.a as u32) << 24) | ((color.b as u32) << 16) | ((color.g as u32) << 8) | color.r as u32;
+        let color = ((color.a as u32) << 24)
+            | ((color.b as u32) << 16)
+            | ((color.g as u32) << 8)
+            | color.r as u32;
 
         let vertices_len = self.vertices.len() as u32;
 
