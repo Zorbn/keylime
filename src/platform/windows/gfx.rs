@@ -43,7 +43,7 @@ cbuffer constants : register(b0) {
 struct VSInput {
 	float2 position : POSITION;
 	float3 uv : TEX;
-	float4 color : COLOR0;
+	unorm float4 color : COLOR0;
 };
 
 struct VSOutput {
@@ -69,17 +69,16 @@ VSOutput VsMain(VSInput input) {
 }
 
 PSOutput PsMain(VSOutput input) : SV_Target {
-    float4 normalizedColor = input.color / 255.0;
     float4 textureSample = _texture.Sample(_sampler, input.uv.xy);
 
     float4 alphaMasks[] = {
         textureSample.rgbr,
         textureSample.aaaa,
-        normalizedColor.aaaa,
+        input.color.aaaa,
     };
 
     PSOutput output;
-    output.color = input.uv.z == 1.0 ? float4(textureSample.rgb / textureSample.a, 1.0) : float4(normalizedColor.rgb, 1.0);
+    output.color = input.uv.z == 1.0 ? float4(textureSample.rgb / textureSample.a, 1.0) : float4(input.color.rgb, 1.0);
     output.alphaMask = alphaMasks[(int)input.uv.z];
     return output;
 }
@@ -106,10 +105,7 @@ struct Vertex {
     u: f32,
     v: f32,
     kind: f32,
-    r: f32,
-    g: f32,
-    b: f32,
-    a: f32,
+    color: u32,
 }
 
 pub struct Gfx {
@@ -315,9 +311,9 @@ impl Gfx {
                 D3D11_INPUT_ELEMENT_DESC {
                     SemanticName: s!("COLOR"),
                     SemanticIndex: 0,
-                    Format: DXGI_FORMAT_R32G32B32A32_FLOAT,
+                    Format: DXGI_FORMAT_R8G8B8A8_UNORM,
                     InputSlot: 0,
-                    AlignedByteOffset: offset_of!(Vertex, r) as u32,
+                    AlignedByteOffset: offset_of!(Vertex, color) as u32,
                     InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
                     InstanceDataStepRate: 0,
                 },
@@ -859,10 +855,7 @@ impl Gfx {
         let uv_top = src.y;
         let uv_bottom = src.y + src.height;
 
-        let r = color.r as f32;
-        let g = color.g as f32;
-        let b = color.b as f32;
-        let a = color.a as f32;
+        let color = ((color.a as u32) << 24) | ((color.b as u32) << 16) | ((color.g as u32) << 8) | color.r as u32;
 
         let vertices_len = self.vertices.len() as u32;
 
@@ -884,10 +877,7 @@ impl Gfx {
                 u: uv_left,
                 v: uv_top,
                 kind,
-                r,
-                g,
-                b,
-                a,
+                color,
             },
             Vertex {
                 x: dst.top_right.x,
@@ -895,10 +885,7 @@ impl Gfx {
                 u: uv_right,
                 v: uv_top,
                 kind,
-                r,
-                g,
-                b,
-                a,
+                color,
             },
             Vertex {
                 x: dst.bottom_right.x,
@@ -906,10 +893,7 @@ impl Gfx {
                 u: uv_right,
                 v: uv_bottom,
                 kind,
-                r,
-                g,
-                b,
-                a,
+                color,
             },
             Vertex {
                 x: dst.bottom_left.x,
@@ -917,10 +901,7 @@ impl Gfx {
                 u: uv_left,
                 v: uv_bottom,
                 kind,
-                r,
-                g,
-                b,
-                a,
+                color,
             },
         ]);
     }
