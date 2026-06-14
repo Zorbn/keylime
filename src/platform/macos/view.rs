@@ -52,6 +52,7 @@ struct ViewState {
     app: App,
     window: AnyWindow,
     gfx: AnyGfx,
+    needs_update: bool,
 }
 
 pub struct ViewIvars {
@@ -242,9 +243,12 @@ impl View {
         window.inner.view = Weak::from_retained(&view);
         gfx.inner.view = Weak::from_retained(&view);
 
-        view.ivars()
-            .state
-            .replace(Some(ViewState { app, window, gfx }));
+        view.ivars().state.replace(Some(ViewState {
+            app,
+            window,
+            gfx,
+            needs_update: true,
+        }));
 
         view.ivars()
             .display_link
@@ -261,6 +265,27 @@ impl View {
     }
 
     pub fn update(&self) -> Option<()> {
+        let mut state = self.ivars().state.try_borrow_mut().ok()?;
+        let ViewState {
+            app,
+            window,
+            gfx,
+            needs_update,
+        } = state.as_mut()?;
+
+        if !*needs_update {
+            return Some(());
+        }
+
+        *needs_update = false;
+
+        let is_animating = app.is_animating(window, gfx, window.inner.time);
+        let (time, dt) = window.inner.time(is_animating);
+        app.update(window, gfx, time, dt);
+
+        let (file_watcher, files, processes) = app.files_and_processes();
+        window.inner.update(file_watcher, files, processes);
+
         unsafe {
             self.setNeedsDisplay(true);
         }
@@ -268,9 +293,11 @@ impl View {
         Some(())
     }
 
-    fn on_frame_changed(&self, new_size: Option<NSSize>) -> Option<()> {
+    fn resize(&self, new_size: Option<NSSize>) -> Option<()> {
         let mut state = self.ivars().state.try_borrow_mut().ok()?;
-        let ViewState { app, window, gfx } = state.as_mut()?;
+        let ViewState {
+            app, window, gfx, ..
+        } = state.as_mut()?;
 
         let last_scale = window.inner.scale;
 
@@ -304,17 +331,23 @@ impl View {
         Some(())
     }
 
+    fn on_frame_changed(&self, new_size: Option<NSSize>) {
+        self.resize(new_size);
+        self.update();
+    }
+
     fn on_display_layer(&self) -> Option<()> {
         let mut state = self.ivars().state.try_borrow_mut().ok()?;
-        let ViewState { app, window, gfx } = state.as_mut()?;
+        let ViewState {
+            app,
+            window,
+            gfx,
+            needs_update,
+        } = state.as_mut()?;
 
-        let is_animating = app.is_animating(window, gfx, window.inner.time);
-        let (time, dt) = window.inner.time(is_animating);
-        app.update(window, gfx, time, dt);
+        *needs_update = true;
 
-        let (file_watcher, files, processes) = app.files_and_processes();
-        window.inner.update(file_watcher, files, processes);
-
+        let time = window.inner.time;
         app.draw(window, gfx, time);
 
         if !window.inner.was_shown {
@@ -359,7 +392,9 @@ impl View {
         }
 
         let mut state = self.ivars().state.try_borrow_mut().ok()?;
-        let ViewState { app, window, gfx } = state.as_mut()?;
+        let ViewState {
+            app, window, gfx, ..
+        } = state.as_mut()?;
 
         let time = window.inner.time;
 

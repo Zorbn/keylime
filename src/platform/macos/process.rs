@@ -259,13 +259,17 @@ impl Process {
                     unsafe { libc::read(read_fd, buffer.as_mut_ptr() as _, buffer.len()) };
 
                 if !matches!(bytes_read, 0 | -1) {
-                    output.enqueue(&buffer[..bytes_read as usize]);
+                    let mut data = &buffer[..bytes_read as usize];
+
+                    while !data.is_empty() {
+                        data = output.enqueue(data);
+
+                        unsafe {
+                            view.update();
+                        }
+                    }
                 } else {
                     break;
-                }
-
-                unsafe {
-                    view.update();
                 }
             }
         })

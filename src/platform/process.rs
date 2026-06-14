@@ -68,16 +68,14 @@ impl ProcessOutput {
         }
     }
 
-    pub fn enqueue(&self, mut data: &[u8]) {
-        while !data.is_empty() {
-            let mut state = self.state.lock().unwrap();
+    pub fn enqueue<'a>(&self, data: &'a [u8]) -> &'a [u8] {
+        let mut state = self.state.lock().unwrap();
 
-            while state.should_wait() {
-                state = self.condvar.wait(state).unwrap();
-            }
-
-            data = state.enqueue(data);
+        while state.should_wait() {
+            state = self.condvar.wait(state).unwrap();
         }
+
+        state.enqueue(data)
     }
 
     pub fn dequeue(&self) -> DequeuedProcessOutput<'_> {

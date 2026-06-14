@@ -288,10 +288,14 @@ impl Process {
                     }
                 }
 
-                output.enqueue(&buffer[..bytes_read as usize]);
+                let mut data = &buffer[..bytes_read as usize];
 
-                unsafe {
-                    let _ = SetEvent(event);
+                while !data.is_empty() {
+                    data = output.enqueue(data);
+
+                    unsafe {
+                        let _ = SetEvent(event);
+                    }
                 }
             }
         })
