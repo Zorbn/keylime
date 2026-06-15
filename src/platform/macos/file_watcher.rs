@@ -159,7 +159,7 @@ impl FileWatcher {
         }
 
         if had_changes {
-            callback_info.view.update();
+            callback_info.view.request_display();
         }
     }
 }

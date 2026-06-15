@@ -398,7 +398,7 @@ impl ViewRef {
         }
     }
 
-    pub unsafe fn update(&self) {
+    pub unsafe fn request_display(&self) {
         let Some(inner) = self.inner.load() else {
             return;
         };

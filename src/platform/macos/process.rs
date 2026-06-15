@@ -265,7 +265,7 @@ impl Process {
                         data = output.enqueue(data);
 
                         unsafe {
-                            view.update();
+                            view.request_display();
                         }
                     }
                 } else {
