@@ -38,13 +38,7 @@ macro_rules! handle_event {
         }
 
 
-        if let Some(display_link) = $self.ivars().display_link.get() {
-            if unsafe { !display_link.isPaused() } {
-                return;
-            }
-        };
-
-        $self.update();
+        $self.request_display();
     };
 }
 
@@ -52,7 +46,6 @@ struct ViewState {
     app: App,
     window: AnyWindow,
     gfx: AnyGfx,
-    needs_update: bool,
 }
 
 pub struct ViewIvars {
@@ -144,7 +137,7 @@ define_class!(
 
         #[unsafe(method(flagsChanged:))]
         unsafe fn flags_changed(&self, _event: &NSEvent) {
-            self.update();
+            self.request_display();
         }
 
         #[unsafe(method(mouseDown:))]
@@ -192,9 +185,14 @@ define_class!(
             handle_event!(handle_scroll_wheel, self, event);
         }
 
-        #[unsafe(method(update))]
-        fn update_objc(&self) {
-            self.update();
+        #[unsafe(method(requestDisplay))]
+        fn request_display_objc(&self) {
+            self.request_display();
+        }
+
+        #[unsafe(method(displayWithUpdate))]
+        fn display_with_update_objc(&self) {
+            self.on_display_layer(true);
         }
     }
 
@@ -203,7 +201,7 @@ define_class!(
     unsafe impl CALayerDelegate for View {
         #[unsafe(method(displayLayer:))]
         unsafe fn display_layer(&self, _layer: &CALayer) {
-            self.on_display_layer();
+            self.on_display_layer(false);
         }
     }
 );
@@ -243,17 +241,15 @@ impl View {
         window.inner.view = Weak::from_retained(&view);
         gfx.inner.view = Weak::from_retained(&view);
 
-        view.ivars().state.replace(Some(ViewState {
-            app,
-            window,
-            gfx,
-            needs_update: true,
-        }));
+        view.ivars()
+            .state
+            .replace(Some(ViewState { app, window, gfx }));
 
         view.ivars()
             .display_link
             .set(unsafe {
-                let display_link = view.displayLinkWithTarget_selector(&view, sel!(update));
+                let display_link =
+                    view.displayLinkWithTarget_selector(&view, sel!(displayWithUpdate));
                 display_link
                     .addToRunLoop_forMode(&NSRunLoop::currentRunLoop(), NSDefaultRunLoopMode);
 
@@ -264,40 +260,17 @@ impl View {
         view
     }
 
-    pub fn update(&self) -> Option<()> {
-        let mut state = self.ivars().state.try_borrow_mut().ok()?;
-        let ViewState {
-            app,
-            window,
-            gfx,
-            needs_update,
-        } = state.as_mut()?;
-
-        if !*needs_update {
-            return Some(());
-        }
-
-        *needs_update = false;
-
-        let is_animating = app.is_animating(window, gfx, window.inner.time);
-        let (time, dt) = window.inner.time(is_animating);
-        app.update(window, gfx, time, dt);
-
-        let (file_watcher, files, processes) = app.files_and_processes();
-        window.inner.update(file_watcher, files, processes);
-
+    pub fn request_display(&self) -> Option<()> {
         unsafe {
-            self.setNeedsDisplay(true);
+            self.ivars().display_link.get()?.setPaused(false);
         }
 
         Some(())
     }
 
-    fn resize(&self, new_size: Option<NSSize>) -> Option<()> {
+    fn on_frame_changed(&self, new_size: Option<NSSize>) -> Option<()> {
         let mut state = self.ivars().state.try_borrow_mut().ok()?;
-        let ViewState {
-            app, window, gfx, ..
-        } = state.as_mut()?;
+        let ViewState { app, window, gfx } = state.as_mut()?;
 
         let last_scale = window.inner.scale;
 
@@ -331,21 +304,18 @@ impl View {
         Some(())
     }
 
-    fn on_frame_changed(&self, new_size: Option<NSSize>) {
-        self.resize(new_size);
-        self.update();
-    }
-
-    fn on_display_layer(&self) -> Option<()> {
+    fn on_display_layer(&self, do_update: bool) -> Option<()> {
         let mut state = self.ivars().state.try_borrow_mut().ok()?;
-        let ViewState {
-            app,
-            window,
-            gfx,
-            needs_update,
-        } = state.as_mut()?;
+        let ViewState { app, window, gfx } = state.as_mut()?;
 
-        *needs_update = true;
+        if do_update {
+            let is_animating = app.is_animating(window, gfx, window.inner.time);
+            let (time, dt) = window.inner.time(is_animating);
+            app.update(window, gfx, time, dt);
+
+            let (file_watcher, files, processes) = app.files_and_processes();
+            window.inner.update(file_watcher, files, processes);
+        }
 
         let time = window.inner.time;
         app.draw(window, gfx, time);
@@ -370,9 +340,7 @@ impl View {
 
         window.inner.is_focused = is_focused;
 
-        unsafe {
-            self.setNeedsDisplay(true);
-        }
+        self.request_display();
 
         Some(())
     }
@@ -436,7 +404,11 @@ impl ViewRef {
         };
 
         unsafe {
-            inner.performSelectorOnMainThread_withObject_waitUntilDone(sel!(update), None, false);
+            inner.performSelectorOnMainThread_withObject_waitUntilDone(
+                sel!(requestDisplay),
+                None,
+                false,
+            );
         }
     }
 
