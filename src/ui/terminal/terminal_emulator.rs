@@ -270,7 +270,6 @@ impl TerminalEmulator {
                 let output = output.data();
 
                 self.handle_escape_sequences(docs, tab, input, output, ctx);
-                output.clear();
             }
 
             self.pty = Some(pty);

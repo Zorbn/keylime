@@ -14,7 +14,7 @@ struct ProcessOutputState {
 }
 
 impl ProcessOutputState {
-    const MAX_OUTPUT: usize = 4096;
+    const MAX_OUTPUT: usize = 1 << 16;
 
     fn new() -> Self {
         Self {
@@ -52,6 +52,7 @@ impl DequeuedProcessOutput<'_> {
 impl Drop for DequeuedProcessOutput<'_> {
     fn drop(&mut self) {
         self.condvar.notify_all();
+        self.state.buffer.clear();
     }
 }
 

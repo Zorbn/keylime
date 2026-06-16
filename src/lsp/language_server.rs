@@ -102,7 +102,8 @@ pub struct LanguageServer {
     next_request_id: usize,
     pending_requests: HashMap<usize, (Option<Pooled<PathBuf>>, &'static str)>,
     parse_state: MessageParseState,
-    message_queue: Vec<u8>,
+    incoming_messages: Vec<u8>,
+    outgoing_messages: Vec<u8>,
     has_initialized: bool,
 
     diagnostics: HashMap<Pooled<PathBuf>, Diagnostics>,
@@ -123,7 +124,8 @@ impl LanguageServer {
             next_request_id: 0,
             pending_requests: HashMap::new(),
             parse_state: MessageParseState::Idle,
-            message_queue: Vec::new(),
+            incoming_messages: Vec::new(),
+            outgoing_messages: Vec::new(),
             has_initialized: false,
 
             diagnostics: HashMap::new(),
@@ -227,24 +229,24 @@ impl LanguageServer {
     pub(super) fn poll(&mut self) -> Option<Message> {
         loop {
             let (_, mut output) = self.process.input_output();
-            let output = output.data();
+            self.incoming_messages.extend_from_slice(output.data());
 
             match self.parse_state {
                 MessageParseState::Idle => {
                     let mut header_len = None;
 
-                    for i in 3..output.len() {
-                        if &output[i - 3..=i] == b"\r\n\r\n" {
+                    for i in 3..self.incoming_messages.len() {
+                        if &self.incoming_messages[i - 3..=i] == b"\r\n\r\n" {
                             header_len = Some(i + 1);
                             break;
                         }
                     }
 
                     let header_len = header_len?;
-                    let header = str::from_utf8(&output[..header_len]);
+                    let header = str::from_utf8(&self.incoming_messages[..header_len]);
 
                     let Ok(header) = header else {
-                        output.drain(..header_len);
+                        self.incoming_messages.drain(..header_len);
                         return None;
                     };
 
@@ -252,30 +254,31 @@ impl LanguageServer {
                     let suffix_len = "\r\n\r\n".len();
 
                     if header_len < prefix_len + suffix_len {
-                        output.drain(..header_len);
+                        self.incoming_messages.drain(..header_len);
                         return None;
                     }
 
                     let Ok(content_len) =
                         header[prefix_len..header_len - suffix_len].parse::<usize>()
                     else {
-                        output.drain(..header_len);
+                        self.incoming_messages.drain(..header_len);
                         return None;
                     };
 
                     self.parse_state = MessageParseState::HasContentLen(content_len);
-                    output.drain(..header_len);
+                    self.incoming_messages.drain(..header_len);
                 }
                 MessageParseState::HasContentLen(content_len) => {
-                    if output.len() < content_len {
+                    if self.incoming_messages.len() < content_len {
                         return None;
                     }
 
                     self.parse_state = MessageParseState::Idle;
 
-                    let message = serde_json::from_slice::<Message>(&output[..content_len]);
+                    let message =
+                        serde_json::from_slice::<Message>(&self.incoming_messages[..content_len]);
 
-                    output.drain(..content_len);
+                    self.incoming_messages.drain(..content_len);
 
                     return message.ok();
                 }
@@ -339,10 +342,12 @@ impl LanguageServer {
 
                 self.has_initialized = true;
 
-                self.process.input().extend_from_slice(&self.message_queue);
+                self.process
+                    .input()
+                    .extend_from_slice(&self.outgoing_messages);
                 self.process.flush();
 
-                self.message_queue.clear();
+                self.outgoing_messages.clear();
 
                 None
             }
@@ -815,7 +820,7 @@ impl LanguageServer {
         let destination = if do_enqueue {
             self.process.input()
         } else {
-            &mut self.message_queue
+            &mut self.outgoing_messages
         };
 
         destination.extend_from_slice(header.as_bytes());
