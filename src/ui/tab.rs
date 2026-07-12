@@ -488,7 +488,9 @@ impl Tab {
 
         self.longest_line_length = self.longest_line_length.max(longest_visible_line);
 
-        let max_x = self.longest_line_length as f32 * ctx.gfx.glyph_width() - bounds.width;
+        let max_x = (self.longest_line_length + CameraAxis::RECENTER_DISTANCE) as f32
+            * ctx.gfx.glyph_width()
+            - bounds.width;
         let max_x = max_x.max(0.0);
 
         self.camera
