@@ -116,6 +116,8 @@ pub struct TerminalEmulator {
     scroll_top: usize,
     scroll_bottom: usize,
     is_in_alternate_buffer: bool,
+
+    previous_height: f32,
 }
 
 impl TerminalEmulator {
@@ -149,6 +151,8 @@ impl TerminalEmulator {
             scroll_top: 0,
             scroll_bottom: 0,
             is_in_alternate_buffer: false,
+
+            previous_height: 0.0,
         }
     }
 
@@ -168,6 +172,15 @@ impl TerminalEmulator {
 
         while let Some(msg) = ctx.ui.msg(widget_id) {
             match msg {
+                Msg::Resize { height, .. } => {
+                    tab.camera
+                        .vertical
+                        .jump_visual_distance((self.previous_height - height).max(0.0));
+
+                    self.previous_height = height;
+
+                    tab.receive_msg(msg, doc, ctx);
+                }
                 Msg::Grapheme(grapheme) => {
                     pty.input().extend(grapheme.bytes());
                     needs_recenter = true;
