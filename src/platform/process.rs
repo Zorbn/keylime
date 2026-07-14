@@ -32,7 +32,7 @@ impl ProcessOutputState {
             return &[];
         }
 
-        let allowed = data.len().min(self.buffer.len() - Self::MAX_OUTPUT);
+        let allowed = data.len().min(Self::MAX_OUTPUT - self.buffer.len());
         self.buffer.extend_from_slice(&data[..allowed]);
         &data[allowed..]
     }

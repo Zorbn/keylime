@@ -727,6 +727,10 @@ impl Tab {
             return;
         }
 
+        if y == 0 {
+            return;
+        }
+
         let previous_line_end = doc.line_end(y - 1);
         let is_at_block_start = doc.match_delimiter(previous_line_end, DelimiterKind::Start, ctx);
 

@@ -283,9 +283,9 @@ impl Drop for Process {
             libc::close(self.kq);
             libc::close(self.read_fd);
             libc::close(self.write_fd);
-
-            self.output.kill();
         }
+
+        self.output.kill();
 
         if let Some(read_thread_join) = self.read_thread_join.take() {
             let _ = read_thread_join.join();
