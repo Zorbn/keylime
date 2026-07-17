@@ -20,6 +20,8 @@ mod tests;
 
 use platform::{app_runner::run_app, result::Result};
 
+// TODO: Visual indent doesn't work on highlighted text in some cases, eg. strings
+// with leading whitespace, see the shader in windows/gfx.rs
 fn main() -> Result<()> {
     println!("Hello, world!");
 

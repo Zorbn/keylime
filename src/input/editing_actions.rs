@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::{
-    config::language::DelimiterKind,
+    config::{language::DelimiterKind, Config},
     ctx::Ctx,
     geometry::position::Position,
     platform::gfx::Gfx,
@@ -43,7 +43,7 @@ pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, ctx: &mut Ctx) {
 
         let next_grapheme = doc.grapheme(cursor.position);
 
-        let previous_position = doc.move_position(cursor.position, -1, 0, ctx.gfx);
+        let previous_position = doc.move_position(cursor.position, -1, 0, ctx.config, ctx.gfx);
         let previous_grapheme = doc.grapheme(previous_position);
 
         let matching_grapheme = get_matching_grapheme(grapheme);
@@ -58,7 +58,7 @@ pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, ctx: &mut Ctx) {
         }
 
         if is_matching_grapheme(grapheme) && next_grapheme == grapheme {
-            doc.move_cursor(index, 1, 0, false, ctx.gfx);
+            doc.move_cursor(index, 1, 0, false, ctx.config, ctx.gfx);
 
             continue;
         }
@@ -68,7 +68,7 @@ pub fn handle_grapheme(grapheme: &str, doc: &mut Doc, ctx: &mut Ctx) {
         {
             doc.insert_at_cursor(index, grapheme, ctx);
             doc.insert_at_cursor(index, matching_grapheme, ctx);
-            doc.move_cursor(index, -1, 0, false, ctx.gfx);
+            doc.move_cursor(index, -1, 0, false, ctx.config, ctx.gfx);
 
             continue;
         }
@@ -95,26 +95,34 @@ fn should_insert_matching_grapheme(
 
 pub fn handle_action(action: Action, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) -> bool {
     match action {
-        action_name!(MoveLeft, mods) => handle_move(-1, 0, mods.contains(Mod::Shift), doc, ctx.gfx),
-        action_name!(MoveRight, mods) => handle_move(1, 0, mods.contains(Mod::Shift), doc, ctx.gfx),
-        action_name!(MoveUp, mods) => handle_move(0, -1, mods.contains(Mod::Shift), doc, ctx.gfx),
-        action_name!(MoveDown, mods) => handle_move(0, 1, mods.contains(Mod::Shift), doc, ctx.gfx),
+        action_name!(MoveLeft, mods) => {
+            handle_move(-1, 0, mods.contains(Mod::Shift), doc, ctx.config, ctx.gfx)
+        }
+        action_name!(MoveRight, mods) => {
+            handle_move(1, 0, mods.contains(Mod::Shift), doc, ctx.config, ctx.gfx)
+        }
+        action_name!(MoveUp, mods) => {
+            handle_move(0, -1, mods.contains(Mod::Shift), doc, ctx.config, ctx.gfx)
+        }
+        action_name!(MoveDown, mods) => {
+            handle_move(0, 1, mods.contains(Mod::Shift), doc, ctx.config, ctx.gfx)
+        }
         action_name!(MoveLeftWord, mods) => {
-            doc.move_cursors_to_next_word(-1, mods.contains(Mod::Shift), ctx.gfx)
+            doc.move_cursors_to_next_word(-1, mods.contains(Mod::Shift), ctx.config, ctx.gfx)
         }
         action_name!(MoveRightWord, mods) => {
-            doc.move_cursors_to_next_word(1, mods.contains(Mod::Shift), ctx.gfx)
+            doc.move_cursors_to_next_word(1, mods.contains(Mod::Shift), ctx.config, ctx.gfx)
         }
         action_name!(MoveUpParagraph, mods) => {
-            doc.move_cursors_to_next_paragraph(-1, mods.contains(Mod::Shift), ctx.gfx)
+            doc.move_cursors_to_next_paragraph(-1, mods.contains(Mod::Shift), ctx.config, ctx.gfx)
         }
         action_name!(MoveDownParagraph, mods) => {
-            doc.move_cursors_to_next_paragraph(1, mods.contains(Mod::Shift), ctx.gfx)
+            doc.move_cursors_to_next_paragraph(1, mods.contains(Mod::Shift), ctx.config, ctx.gfx)
         }
         action_name!(ShiftLinesUp) => handle_shift_lines(-1, doc, ctx),
         action_name!(ShiftLinesDown) => handle_shift_lines(1, doc, ctx),
-        action_name!(AddCursorUp) => handle_add_cursor(-1, doc, ctx.gfx),
-        action_name!(AddCursorDown) => handle_add_cursor(1, doc, ctx.gfx),
+        action_name!(AddCursorUp) => handle_add_cursor(-1, doc, ctx.config, ctx.gfx),
+        action_name!(AddCursorDown) => handle_add_cursor(1, doc, ctx.config, ctx.gfx),
         action_name!(DeleteBackward) => handle_delete_backward(DeleteKind::Char, doc, ctx),
         action_name!(DeleteBackwardWord) => handle_delete_backward(DeleteKind::Word, doc, ctx),
         action_name!(DeleteBackwardLine) => handle_delete_backward(DeleteKind::Line, doc, ctx),
@@ -125,12 +133,24 @@ pub fn handle_action(action: Action, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) ->
         action_name!(PageUp, mods) => {
             let height_lines = tab.doc_height_lines(ctx.ui, ctx.gfx) as isize;
 
-            doc.move_cursors(0, -height_lines, mods.contains(Mod::Shift), ctx.gfx);
+            doc.move_cursors(
+                0,
+                -height_lines,
+                mods.contains(Mod::Shift),
+                ctx.config,
+                ctx.gfx,
+            );
         }
         action_name!(PageDown, mods) => {
             let height_lines = tab.doc_height_lines(ctx.ui, ctx.gfx) as isize;
 
-            doc.move_cursors(0, height_lines, mods.contains(Mod::Shift), ctx.gfx);
+            doc.move_cursors(
+                0,
+                height_lines,
+                mods.contains(Mod::Shift),
+                ctx.config,
+                ctx.gfx,
+            );
         }
         action_name!(Home, mods) => handle_home(mods.contains(Mod::Shift), doc, ctx.gfx),
         action_name!(End, mods) => handle_end(mods.contains(Mod::Shift), doc, ctx.gfx),
@@ -154,7 +174,9 @@ pub fn handle_action(action: Action, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) ->
         action_name!(Copy) => handle_copy(doc, ctx),
         action_name!(Cut) => handle_cut(doc, ctx),
         action_name!(Paste) => handle_paste(doc, ctx),
-        action_name!(AddCursorAtNextOccurance) => doc.add_cursor_at_next_occurance(ctx.gfx),
+        action_name!(AddCursorAtNextOccurance) => {
+            doc.add_cursor_at_next_occurance(ctx.config, ctx.gfx)
+        }
         action_name!(ToggleComments) => doc.toggle_comments_at_cursors(ctx),
         action_name!(Indent) => doc.indent_lines_at_cursors(false, ctx),
         action_name!(Unindent) => doc.indent_lines_at_cursors(true, ctx),
@@ -178,6 +200,7 @@ fn handle_move(
     direction_y: isize,
     should_select: bool,
     doc: &mut Doc,
+    config: &Config,
     gfx: &mut Gfx,
 ) {
     for index in doc.cursor_indices() {
@@ -192,15 +215,15 @@ fn handle_move(
                 }
 
                 if direction_y != 0 {
-                    doc.move_cursor(index, direction_x, direction_y, false, gfx);
+                    doc.move_cursor(index, direction_x, direction_y, false, config, gfx);
                 }
             }
-            _ => doc.move_cursor(index, direction_x, direction_y, should_select, gfx),
+            _ => doc.move_cursor(index, direction_x, direction_y, should_select, config, gfx),
         }
     }
 }
 
-pub fn handle_add_cursor(direction_y: isize, doc: &mut Doc, gfx: &mut Gfx) {
+pub fn handle_add_cursor(direction_y: isize, doc: &mut Doc, config: &Config, gfx: &mut Gfx) {
     let cursor = doc.cursor(CursorIndex::Main);
 
     let position = doc.move_position_with_desired_visual_x(
@@ -208,6 +231,7 @@ pub fn handle_add_cursor(direction_y: isize, doc: &mut Doc, gfx: &mut Gfx) {
         0,
         direction_y,
         Some(cursor.desired_visual_x),
+        config,
         gfx,
     );
 
@@ -220,6 +244,7 @@ pub fn handle_left_click(
     mods: Mods,
     count: MouseClickCount,
     is_drag: bool,
+    config: &Config,
     gfx: &mut Gfx,
 ) {
     let do_extend_selection = is_drag || mods.contains(Mod::Shift);
@@ -231,8 +256,8 @@ pub fn handle_left_click(
 
     if !do_extend_selection {
         match count {
-            MouseClickCount::Double => doc.select_current_word_at_cursors(gfx),
-            MouseClickCount::Triple => doc.select_current_line_at_cursors(gfx),
+            MouseClickCount::Double => doc.select_current_word_at_cursors(config, gfx),
+            MouseClickCount::Triple => doc.select_current_line_at_cursors(config, gfx),
             _ => {}
         }
 
@@ -245,7 +270,7 @@ pub fn handle_left_click(
         Doc::select_current_line_at_position
     };
 
-    let word_selection = select_at_position(doc, position, gfx);
+    let word_selection = select_at_position(doc, position, config, gfx);
 
     let cursor = doc.cursor(CursorIndex::Main);
 
@@ -259,10 +284,11 @@ pub fn handle_left_click(
     let selection_anchor_word = select_at_position(
         doc,
         if is_selected_word_left_of_anchor {
-            doc.move_position(selection_anchor, -1, 0, gfx)
+            doc.move_position(selection_anchor, -1, 0, config, gfx)
         } else {
             selection_anchor
         },
+        config,
         gfx,
     );
 
@@ -295,19 +321,19 @@ pub fn handle_delete_backward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
                     if end.x > 0 && (is_on_indent_boundary || end.x == line_start) {
                         doc.indent_start(end, ctx)
                     } else {
-                        let start = doc.move_position(end, -1, 0, ctx.gfx);
+                        let start = doc.move_position(end, -1, 0, ctx.config, ctx.gfx);
                         let start_grapheme = doc.grapheme(start);
 
                         if get_matching_grapheme(start_grapheme)
                             == Some(doc.grapheme(cursor.position))
                         {
-                            end = doc.move_position(end, 1, 0, ctx.gfx);
+                            end = doc.move_position(end, 1, 0, ctx.config, ctx.gfx);
                         }
 
                         start
                     }
                 }
-                DeleteKind::Word => doc.move_position_to_next_word(end, -1, ctx.gfx),
+                DeleteKind::Word => doc.move_position_to_next_word(end, -1, ctx.config, ctx.gfx),
                 DeleteKind::Line => Position::new(0, end.y),
             };
 
@@ -329,8 +355,8 @@ fn handle_delete_forward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
             let start = cursor.position;
 
             let end = match kind {
-                DeleteKind::Char => doc.move_position(start, 1, 0, ctx.gfx),
-                DeleteKind::Word => doc.move_position_to_next_word(start, 1, ctx.gfx),
+                DeleteKind::Char => doc.move_position(start, 1, 0, ctx.config, ctx.gfx),
+                DeleteKind::Word => doc.move_position_to_next_word(start, 1, ctx.config, ctx.gfx),
                 DeleteKind::Line => doc.line_end(start.y),
             };
 
@@ -367,7 +393,7 @@ pub fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
         let mut indent_text = STRING_POOL.new_item();
         indent_text.push_str(&indent_line[..indent_end]);
 
-        let previous_position = doc.move_position(cursor.position, -1, 0, ctx.gfx);
+        let previous_position = doc.move_position(cursor.position, -1, 0, ctx.config, ctx.gfx);
 
         let do_start_block = doc.match_delimiter(cursor.position, DelimiterKind::Start, ctx);
         let do_end_block =
@@ -453,10 +479,11 @@ fn handle_cut(doc: &mut Doc, ctx: &mut Ctx) {
         let cursor = doc.cursor(index);
 
         let selection = cursor.get_selection().unwrap_or_else(|| {
-            let mut selection = doc.select_current_line_at_position(cursor.position, ctx.gfx);
+            let mut selection =
+                doc.select_current_line_at_position(cursor.position, ctx.config, ctx.gfx);
 
             if cursor.position.y == doc.lines().len() - 1 {
-                selection.start = doc.move_position(selection.start, -1, 0, ctx.gfx);
+                selection.start = doc.move_position(selection.start, -1, 0, ctx.config, ctx.gfx);
             }
 
             selection
@@ -528,9 +555,9 @@ fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx) {
         }
 
         if end.y == doc.lines().len() - 1 {
-            start = doc.move_position(start, -1, 0, ctx.gfx);
+            start = doc.move_position(start, -1, 0, ctx.config, ctx.gfx);
         } else {
-            end = doc.move_position(end, 1, 0, ctx.gfx);
+            end = doc.move_position(end, 1, 0, ctx.config, ctx.gfx);
         }
 
         doc.delete(start, end, ctx);

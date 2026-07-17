@@ -7,7 +7,6 @@ use crate::{
         sides::{Side, Sides},
         visual_position::VisualPosition,
     },
-    text::grapheme::GraphemeIterator,
     ui::color::Color,
 };
 
@@ -28,6 +27,7 @@ pub struct Gfx {
 
 impl Gfx {
     pub const TAB_WIDTH: usize = 4;
+    pub const VISUAL_INDENT_WIDTH: f32 = 2.0;
 
     #[cfg(test)]
     pub fn new() -> Self {
@@ -54,37 +54,6 @@ impl Gfx {
 
     pub fn end(&mut self) {
         self.inner.end();
-    }
-
-    pub fn find_x_for_visual_x(&mut self, text: &str, visual_x: usize) -> usize {
-        self.find_x_for_visual_x_with_clamping(text, visual_x, true)
-            .unwrap()
-    }
-
-    pub fn find_x_for_visual_x_unclamped(&mut self, text: &str, visual_x: usize) -> Option<usize> {
-        self.find_x_for_visual_x_with_clamping(text, visual_x, false)
-    }
-
-    fn find_x_for_visual_x_with_clamping(
-        &mut self,
-        text: &str,
-        visual_x: usize,
-        do_clamp: bool,
-    ) -> Option<usize> {
-        let mut current_visual_x = 0;
-        let mut x = 0;
-
-        for grapheme in GraphemeIterator::new(text) {
-            current_visual_x += self.measure_text(grapheme);
-
-            if current_visual_x > visual_x {
-                return Some(x);
-            }
-
-            x += grapheme.len();
-        }
-
-        (do_clamp || current_visual_x + self.measure_text("\n") > visual_x).then_some(x)
     }
 
     fn glyph_spans(&mut self, text: &str) -> GlyphSpans {

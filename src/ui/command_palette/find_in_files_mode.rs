@@ -155,6 +155,7 @@ impl FindInFilesMode {
             command_palette.input(),
             doc.cursor(CursorIndex::Main).position,
             false,
+            ctx.config,
             ctx.gfx,
         ) {
             // Ignore additional results on the same line.

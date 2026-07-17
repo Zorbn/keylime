@@ -86,7 +86,12 @@ impl SignatureHelpPopup {
         }
 
         let mut position = doc
-            .position_to_visual(self.help_position, tab.camera.position(), ctx.gfx)
+            .position_to_visual(
+                self.help_position,
+                tab.camera.position(),
+                ctx.config,
+                ctx.gfx,
+            )
             .offset_by(tab.doc_bounds(ctx.ui));
 
         if ctx.ui.is_visible(self.documentation_popup.widget_id()) {

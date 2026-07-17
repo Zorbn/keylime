@@ -1,4 +1,5 @@
 use crate::{
+    config::Config,
     ctx::Ctx,
     geometry::position::Position,
     platform::gfx::Gfx,
@@ -60,6 +61,7 @@ impl CommandPaletteMode for SearchMode {
             tab,
             doc,
             kind == ResultListSubmitKind::Alternate,
+            args.ctx.config,
             args.ctx.gfx,
         );
 
@@ -160,6 +162,7 @@ impl CommandPaletteMode for SearchAndReplaceMode {
             tab,
             doc,
             kind == ResultListSubmitKind::Alternate,
+            args.ctx.config,
             args.ctx.gfx,
         );
 
@@ -191,7 +194,15 @@ fn preview_search(
 
     let search_term = command_palette.input();
 
-    search(search_term, Some(start), tab, doc, false, ctx.gfx);
+    search(
+        search_term,
+        Some(start),
+        tab,
+        doc,
+        false,
+        ctx.config,
+        ctx.gfx,
+    );
 }
 
 fn search(
@@ -200,12 +211,13 @@ fn search(
     tab: &mut Tab,
     doc: &mut Doc,
     is_reverse: bool,
+    config: &Config,
     gfx: &mut Gfx,
 ) {
     let cursor_position = doc.cursor(CursorIndex::Main).position;
     let start = start.unwrap_or(cursor_position);
 
-    if let Some(position) = doc.search(search_term, start, is_reverse, gfx) {
+    if let Some(position) = doc.search(search_term, start, is_reverse, config, gfx) {
         let end = Position::new(position.x + search_term.len(), position.y);
 
         doc.jump_cursors(position, false, gfx);

@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    config::theme::Theme,
+    config::{theme::Theme, Config},
     ctx::Ctx,
     geometry::position::Position,
     input::action::{action_name, Action},
@@ -86,7 +86,9 @@ impl FileExplorerMode {
             ctx,
         );
 
-        if let Some(extension_start) = doc.search_backward(".", doc.end(), false, ctx.gfx) {
+        if let Some(extension_start) =
+            doc.search_backward(".", doc.end(), false, ctx.config, ctx.gfx)
+        {
             doc.jump_cursor(CursorIndex::Main, extension_start, false, ctx.gfx);
         }
     }
@@ -263,13 +265,13 @@ impl CommandPaletteMode for FileExplorerMode {
         match action {
             action_name!(DeleteBackward) => {
                 let end = cursor.position;
-                let mut start = doc.move_position(end, -1, 0, args.ctx.gfx);
+                let mut start = doc.move_position(end, -1, 0, args.ctx.config, args.ctx.gfx);
 
                 if !is_grapheme_path_separator(doc.grapheme(start)) {
                     return false;
                 }
 
-                start = find_path_component_start(doc, start, args.ctx.gfx);
+                start = find_path_component_start(doc, start, args.ctx.config, args.ctx.gfx);
                 doc.delete(start, end, args.ctx);
 
                 true
@@ -486,12 +488,12 @@ fn delete_last_path_component(can_delete_dirs: bool, doc: &mut Doc, ctx: &mut Ct
     let end = doc.line_end(0);
 
     let find_start = if can_delete_dirs {
-        doc.move_position(end, -1, 0, ctx.gfx)
+        doc.move_position(end, -1, 0, ctx.config, ctx.gfx)
     } else {
         end
     };
 
-    let start = find_path_component_start(doc, find_start, ctx.gfx);
+    let start = find_path_component_start(doc, find_start, ctx.config, ctx.gfx);
 
     doc.delete(start, end, ctx);
 }
@@ -506,11 +508,16 @@ fn ends_with_path_separator(text: &str) -> bool {
         .any(|separator| text.ends_with(separator))
 }
 
-fn find_path_component_start(doc: &Doc, position: Position, gfx: &mut Gfx) -> Position {
+fn find_path_component_start(
+    doc: &Doc,
+    position: Position,
+    config: &Config,
+    gfx: &mut Gfx,
+) -> Position {
     let mut start = position;
 
     while start > Position::ZERO {
-        let next_start = doc.move_position(start, -1, 0, gfx);
+        let next_start = doc.move_position(start, -1, 0, config, gfx);
 
         if is_grapheme_path_separator(doc.grapheme(next_start)) {
             break;

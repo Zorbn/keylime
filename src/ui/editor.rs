@@ -262,9 +262,13 @@ impl Editor {
             return;
         };
 
-        if let Some(position) =
-            tab.visual_to_position_unclamped(ctx.window.mouse_position(), doc, ctx.ui, ctx.gfx)
-        {
+        if let Some(position) = tab.visual_to_position_unclamped(
+            ctx.window.mouse_position(),
+            doc,
+            ctx.ui,
+            ctx.config,
+            ctx.gfx,
+        ) {
             self.examine_popup
                 .show(position, tab.widget_id(), false, doc, ctx);
         } else {
@@ -427,7 +431,7 @@ impl Editor {
 
         let cursor_position = doc.cursor(CursorIndex::Main).position;
         let cursor_visual_position = doc
-            .position_to_visual(cursor_position, tab.camera.position(), ctx.gfx)
+            .position_to_visual(cursor_position, tab.camera.position(), ctx.config, ctx.gfx)
             .shift_y(ctx.gfx.line_height())
             .offset_by(doc_bounds);
 

@@ -73,7 +73,7 @@ impl ExaminePopup {
 
         let tab_bounds = tab.doc_bounds(ctx.ui);
         let position = doc
-            .position_to_visual(self.position, tab.camera.position(), ctx.gfx)
+            .position_to_visual(self.position, tab.camera.position(), ctx.config, ctx.gfx)
             .offset_by(tab_bounds);
 
         let is_position_visible = tab_bounds.contains_position(position);

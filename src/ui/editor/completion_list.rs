@@ -193,7 +193,7 @@ impl CompletionList {
         let position = doc.cursor(CursorIndex::Main).position;
 
         let visual_position = doc
-            .position_to_visual(position, tab.camera.position().floor(), ctx.gfx)
+            .position_to_visual(position, tab.camera.position().floor(), ctx.config, ctx.gfx)
             .offset_by(tab.doc_bounds(ctx.ui));
 
         ctx.ui.set_popup(
@@ -381,7 +381,7 @@ impl CompletionList {
     fn update_results(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
         self.prefix.clear();
 
-        let Some(prefix) = doc.get_completion_prefix(ctx.gfx) else {
+        let Some(prefix) = doc.get_completion_prefix(ctx.config, ctx.gfx) else {
             self.hide(ctx);
 
             return;

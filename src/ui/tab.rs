@@ -2,7 +2,10 @@ use core::f32;
 use std::{iter::Enumerate, ops::Range};
 
 use crate::{
-    config::language::{DelimiterKind, Language},
+    config::{
+        language::{DelimiterKind, Language},
+        Config,
+    },
     ctx::Ctx,
     geometry::{
         easing::ease_out_quart, position::Position, quad::Quad, rect::Rect,
@@ -177,7 +180,7 @@ impl Tab {
                 self.send_lsp_msg(Msg::HideEditorPopups, doc, ctx.ui);
 
                 if mods.contains(Mod::Ctrl) || mods.contains(Mod::Cmd) {
-                    let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.gfx);
+                    let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.config, ctx.gfx);
 
                     if mods.contains(Mod::Alt) {
                         doc.add_cursor_at(position, ctx.gfx);
@@ -188,9 +191,9 @@ impl Tab {
                     return;
                 }
 
-                let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.gfx);
+                let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.config, ctx.gfx);
 
-                handle_left_click(doc, position, mods, count, false, ctx.gfx);
+                handle_left_click(doc, position, mods, count, false, ctx.config, ctx.gfx);
 
                 self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
                 self.mouse_drag = Some(count);
@@ -295,10 +298,16 @@ impl Tab {
     pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx, dt: f32) {
         if let Some(count) = self.mouse_drag {
             let visual_position = ctx.window.mouse_position();
-            let position =
-                self.mouse_to_position(visual_position.x, visual_position.y, doc, ctx.ui, ctx.gfx);
+            let position = self.mouse_to_position(
+                visual_position.x,
+                visual_position.y,
+                doc,
+                ctx.ui,
+                ctx.config,
+                ctx.gfx,
+            );
 
-            handle_left_click(doc, position, Mods::NONE, count, true, ctx.gfx);
+            handle_left_click(doc, position, Mods::NONE, count, true, ctx.config, ctx.gfx);
 
             self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
         }
@@ -322,11 +331,19 @@ impl Tab {
             .set_scale(self.gutter_widget_id, WidgetScale::Fixed(gutter_width));
     }
 
-    fn mouse_to_position(&self, x: f32, y: f32, doc: &Doc, ui: &Ui, gfx: &mut Gfx) -> Position {
+    fn mouse_to_position(
+        &self,
+        x: f32,
+        y: f32,
+        doc: &Doc,
+        ui: &Ui,
+        config: &Config,
+        gfx: &mut Gfx,
+    ) -> Position {
         // Offset the raw mouse position to make selecting between characters more natural.
         let visual_position = VisualPosition::new(x + 0.25 * gfx.glyph_width(), y);
 
-        self.visual_to_position(visual_position, doc, ui, gfx)
+        self.visual_to_position(visual_position, doc, ui, config, gfx)
     }
 
     pub fn skip_cursor_animations(&mut self, doc: &Doc, ctx: &mut Ctx) {
@@ -334,8 +351,13 @@ impl Tab {
 
         for index in doc.cursor_indices() {
             let cursor = doc.cursor(index);
-            let cursor_position =
-                self.position_to_visual(cursor.position, VisualPosition::ZERO, doc, ctx.gfx);
+            let cursor_position = self.position_to_visual(
+                cursor.position,
+                VisualPosition::ZERO,
+                doc,
+                ctx.config,
+                ctx.gfx,
+            );
 
             self.cursor_animation_states.push(CursorAnimationState {
                 last_time: ctx.time,
@@ -352,8 +374,13 @@ impl Tab {
 
         for (i, index) in doc.cursor_indices().enumerate() {
             let cursor = doc.cursor(index);
-            let cursor_position =
-                self.position_to_visual(cursor.position, VisualPosition::ZERO, doc, gfx);
+            let cursor_position = self.position_to_visual(
+                cursor.position,
+                VisualPosition::ZERO,
+                doc,
+                ctx.config,
+                gfx,
+            );
 
             if i >= self.cursor_animation_states.len() {
                 self.cursor_animation_states.push(CursorAnimationState {
@@ -464,8 +491,13 @@ impl Tab {
         let gfx = &mut ctx.gfx;
 
         let new_cursor_position = doc.cursor(CursorIndex::Main).position;
-        let new_cursor_visual_position =
-            self.position_to_visual(new_cursor_position, self.camera.position(), doc, gfx);
+        let new_cursor_visual_position = self.position_to_visual(
+            new_cursor_position,
+            self.camera.position(),
+            doc,
+            ctx.config,
+            gfx,
+        );
 
         CameraRecenterRequest {
             can_start: self.handled_cursor_position != new_cursor_position,
@@ -525,8 +557,13 @@ impl Tab {
         let gfx = &mut ctx.gfx;
 
         let new_cursor_position = doc.cursor(CursorIndex::Main).position;
-        let new_cursor_visual_position =
-            self.position_to_visual(new_cursor_position, self.camera.position(), doc, gfx);
+        let new_cursor_visual_position = self.position_to_visual(
+            new_cursor_position,
+            self.camera.position(),
+            doc,
+            ctx.config,
+            gfx,
+        );
 
         CameraRecenterRequest {
             can_start: self.handled_cursor_position != new_cursor_position,
@@ -540,10 +577,11 @@ impl Tab {
         visual: VisualPosition,
         doc: &Doc,
         ui: &Ui,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> Position {
         let visual = self.visual_position_in_doc(visual, ui);
-        doc.visual_to_position(visual, self.camera.position(), gfx)
+        doc.visual_to_position(visual, self.camera.position(), config, gfx)
     }
 
     pub fn visual_to_position_unclamped(
@@ -551,6 +589,7 @@ impl Tab {
         visual: VisualPosition,
         doc: &Doc,
         ui: &Ui,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> Option<Position> {
         if !ui.bounds(self.doc_widget_id).contains_position(visual) {
@@ -558,7 +597,7 @@ impl Tab {
         }
 
         let visual = self.visual_position_in_doc(visual, ui);
-        doc.visual_to_position_unclamped(visual, self.camera.position(), gfx)
+        doc.visual_to_position_unclamped(visual, self.camera.position(), config, gfx)
     }
 
     fn position_to_visual(
@@ -566,9 +605,10 @@ impl Tab {
         position: Position,
         camera_position: VisualPosition,
         doc: &Doc,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> VisualPosition {
-        let visual = doc.position_to_visual(position, camera_position, gfx);
+        let visual = doc.position_to_visual(position, camera_position, config, gfx);
 
         self.visual_position_in_tab(visual)
     }
@@ -607,7 +647,7 @@ impl Tab {
     pub fn update_highlights(&self, language: &Language, doc: &mut Doc, ctx: &mut Ctx) {
         if let Some(syntax) = language.syntax.as_ref() {
             let bounds = ctx.ui.bounds(self.doc_widget_id);
-            doc.update_highlights(self.camera.position(), bounds, syntax, ctx.gfx);
+            doc.update_highlights(self.camera.position(), bounds, syntax, ctx.config, ctx.gfx);
         }
     }
 
@@ -751,6 +791,7 @@ impl Tab {
         };
 
         let indent_width = language.indent_width.measure(ctx.gfx);
+        let visual_indent_factor = Gfx::VISUAL_INDENT_WIDTH / indent_width as f32;
 
         let theme = &ctx.config.theme;
 
@@ -771,7 +812,9 @@ impl Tab {
             let gfx = &mut ctx.gfx;
 
             for x in (indent_width..indent_guide_x).step_by(indent_width) {
-                let visual_x = gfx.line_padding_x() + self.margin + gfx.glyph_width() * x as f32
+                let visual_x = gfx.line_padding_x()
+                    + self.margin
+                    + gfx.glyph_width() * x as f32 * visual_indent_factor
                     - camera_position.x;
 
                 let background_visual_y =
@@ -804,15 +847,31 @@ impl Tab {
         let lines = doc.lines();
         let highlighted_lines = doc.highlighted_lines();
 
+        // TODO:
+        let indent_width = ctx.config.indent_width_for_doc(doc);
+        let visual_indent_factor = Gfx::VISUAL_INDENT_WIDTH / indent_width.measure(gfx) as f32;
+
         for (i, y) in visible_lines.enumerate() {
+            let line_start = doc.line_start(y);
             let line = &lines[y];
 
-            let mut visual_x = gfx.line_padding_x() + self.margin - camera_position.x;
+            let indentation = &line[..line_start];
+            let indentation_width =
+                gfx.measure_text(indentation) as f32 * visual_indent_factor * gfx.glyph_width();
+
+            // TODO: We should use position_to_visual here with a 0 position to be able to reuse the work done there.
+            let mut visual_x =
+                gfx.line_padding_x() + self.margin - camera_position.x + indentation_width;
             let foreground_visual_y = self.line_foreground_visual_y(i, visible_lines.offset, gfx);
             let background_visual_y = self.line_background_visual_y(i, visible_lines.offset, gfx);
 
             if let Some(foreground) = foreground {
-                gfx.add_text(line, visual_x, foreground_visual_y, foreground);
+                gfx.add_text(
+                    &line[line_start..],
+                    visual_x,
+                    foreground_visual_y,
+                    foreground,
+                );
                 continue;
             }
 
@@ -821,11 +880,20 @@ impl Tab {
                 .map(HighlightedLine::highlights)
                 .filter(|highlights| !highlights.is_empty())
             else {
-                gfx.add_text(line, visual_x, foreground_visual_y, theme.normal);
+                gfx.add_text(
+                    &line[line_start..],
+                    visual_x,
+                    foreground_visual_y,
+                    theme.normal,
+                );
                 continue;
             };
 
             for highlight in highlights {
+                if highlight.end <= line_start {
+                    continue;
+                }
+
                 let foreground = ctx
                     .config
                     .theme
@@ -872,7 +940,7 @@ impl Tab {
 
                 if start == end && start.y >= visible_lines.min_y && start.y < visible_lines.max_y {
                     let highlight_position =
-                        self.position_to_visual(start, camera_position, doc, gfx);
+                        self.position_to_visual(start, camera_position, doc, ctx.config, gfx);
 
                     gfx.add_zig_zag_underline(
                         highlight_position.x - gfx.glyph_width(),
@@ -890,13 +958,13 @@ impl Tab {
 
                 while position < end {
                     if !diagnostic.contains_position(position, doc) {
-                        position = doc.move_position(position, 1, 0, gfx);
+                        position = doc.move_position(position, 1, 0, ctx.config, gfx);
 
                         continue;
                     }
 
                     let highlight_position =
-                        self.position_to_visual(position, camera_position, doc, gfx);
+                        self.position_to_visual(position, camera_position, doc, ctx.config, gfx);
 
                     let grapheme = doc.grapheme(position);
                     let grapheme_width = gfx.measure_text(grapheme);
@@ -908,7 +976,7 @@ impl Tab {
                         color,
                     );
 
-                    position = doc.move_position(position, 1, 0, gfx);
+                    position = doc.move_position(position, 1, 0, ctx.config, gfx);
                 }
             }
         }
@@ -931,16 +999,17 @@ impl Tab {
         }
 
         let visual_position = ctx.window.mouse_position();
-        let position = self.visual_to_position_unclamped(visual_position, doc, ui, gfx)?;
+        let position =
+            self.visual_to_position_unclamped(visual_position, doc, ui, ctx.config, gfx)?;
 
         if GraphemeCategory::new(doc.grapheme(position)) != GraphemeCategory::Identifier {
             return None;
         }
 
-        let selection = doc.select_current_word_at_position(position, gfx);
+        let selection = doc.select_current_word_at_position(position, ctx.config, gfx);
 
-        let start = self.position_to_visual(selection.start, camera_position, doc, gfx);
-        let end = self.position_to_visual(selection.end, camera_position, doc, gfx);
+        let start = self.position_to_visual(selection.start, camera_position, doc, ctx.config, gfx);
+        let end = self.position_to_visual(selection.end, camera_position, doc, ctx.config, gfx);
 
         gfx.add_underline(
             start.x,
@@ -981,8 +1050,13 @@ impl Tab {
                 self.cursor_animation_progress(ctx.time, animation_state.last_time);
             let trail_progress = ease_out_quart(trail_progress);
 
-            let cursor_position =
-                self.position_to_visual(doc.cursor(index).position, VisualPosition::ZERO, doc, gfx);
+            let cursor_position = self.position_to_visual(
+                doc.cursor(index).position,
+                VisualPosition::ZERO,
+                doc,
+                ctx.config,
+                gfx,
+            );
             let last_cursor_position = animation_state.last_position;
 
             let trail_position = last_cursor_position.lerp_to(cursor_position, trail_progress);
@@ -1072,10 +1146,16 @@ impl Tab {
             return;
         }
 
-        let highlight_position =
-            self.position_to_visual(Position::new(start_x, y), camera_position, doc, gfx);
+        let highlight_position = self.position_to_visual(
+            Position::new(start_x, y),
+            camera_position,
+            doc,
+            ctx.config,
+            gfx,
+        );
 
-        let line_width = gfx.measure_text(&lines[y][start_x..end_x]) + newline_width;
+        let line_width =
+            doc.measure_text(start_x, end_x, y, ctx.config, gfx) + newline_width as f32;
 
         // Make the selection flush with the side of the doc.
         let padding_x = if start_x == 0 {
@@ -1087,7 +1167,7 @@ impl Tab {
         let rect = Rect::new(
             highlight_position.x - padding_x,
             highlight_position.y,
-            line_width as f32 * gfx.glyph_width() + padding_x,
+            line_width * gfx.glyph_width() + padding_x,
             gfx.line_height(),
         );
 

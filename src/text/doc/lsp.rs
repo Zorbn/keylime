@@ -162,7 +162,7 @@ impl Doc {
             return None;
         }
 
-        self.get_completion_prefix(ctx.gfx)?;
+        self.get_completion_prefix(ctx.config, ctx.gfx)?;
 
         let language_server = self.get_language_server_mut(ctx)?;
         let path = self.path.some()?;

@@ -16,7 +16,7 @@ use lsp::DocLspState;
 
 use crate::{
     bit_field::define_bit_field,
-    config::language::DelimiterKind,
+    config::{language::DelimiterKind, Config},
     ctx::{ctx_with_time, Ctx},
     geometry::{position::Position, rect::Rect, visual_position::VisualPosition},
     lsp::types::DecodedDiagnostic,
@@ -258,9 +258,10 @@ impl Doc {
         position: Position,
         delta_x: isize,
         delta_y: isize,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> Position {
-        self.move_position_with_desired_visual_x(position, delta_x, delta_y, None, gfx)
+        self.move_position_with_desired_visual_x(position, delta_x, delta_y, None, config, gfx)
     }
 
     pub fn move_position_with_desired_visual_x(
@@ -269,6 +270,7 @@ impl Doc {
         delta_x: isize,
         delta_y: isize,
         desired_visual_x: Option<usize>,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> Position {
         let mut position = self.clamp_position(position);
@@ -285,7 +287,7 @@ impl Doc {
 
         if delta_y != 0 {
             if let Some(desired_visual_x) = desired_visual_x {
-                position.x = gfx.find_x_for_visual_x(&self.lines[position.y][..], desired_visual_x);
+                position.x = self.find_x_for_visual_x(desired_visual_x, position.y, config, gfx);
             } else if position.x > self.line_len(position.y) {
                 position.x = self.line_len(position.y);
             }
@@ -327,6 +329,7 @@ impl Doc {
         position: Position,
         delta_x: isize,
         category: GraphemeCategory,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> Position {
         let mut position = self.clamp_position(position);
@@ -337,10 +340,11 @@ impl Doc {
                 position,
                 side_offset,
                 0,
+                config,
                 gfx,
             )));
 
-            let next_position = self.move_position(position, delta_x, 0, gfx);
+            let next_position = self.move_position(position, delta_x, 0, config, gfx);
 
             if current_category != category
                 || current_category == GraphemeCategory::Newline
@@ -359,16 +363,23 @@ impl Doc {
         &self,
         position: Position,
         delta_x: isize,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> Position {
-        let starting_position =
-            self.move_position_skipping_category(position, delta_x, GraphemeCategory::Space, gfx);
+        let starting_position = self.move_position_skipping_category(
+            position,
+            delta_x,
+            GraphemeCategory::Space,
+            config,
+            gfx,
+        );
 
         let side_offset = Self::side_offset(delta_x);
         let starting_category = GraphemeCategory::new(self.grapheme(self.move_position(
             starting_position,
             side_offset,
             0,
+            config,
             gfx,
         )));
 
@@ -376,11 +387,12 @@ impl Doc {
             starting_position,
             delta_x,
             starting_category,
+            config,
             gfx,
         );
 
         if ending_position == position {
-            self.move_position(ending_position, delta_x, 0, gfx)
+            self.move_position(ending_position, delta_x, 0, config, gfx)
         } else {
             ending_position
         }
@@ -391,13 +403,14 @@ impl Doc {
         position: Position,
         delta_y: isize,
         do_skip_empty_lines: bool,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> Position {
         let mut position = self.clamp_position(position);
 
         loop {
             let current_line_is_empty = self.line_len(position.y) == 0;
-            let next_position = self.move_position(position, 0, delta_y, gfx);
+            let next_position = self.move_position(position, 0, delta_y, config, gfx);
 
             if current_line_is_empty != do_skip_empty_lines || next_position == position {
                 break;
@@ -414,17 +427,24 @@ impl Doc {
         position: Position,
         delta_y: isize,
         do_skip_leading_whitespace: bool,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> Position {
         let starting_position = if do_skip_leading_whitespace {
-            self.move_position_skipping_lines(position, delta_y, true, gfx)
+            self.move_position_skipping_lines(position, delta_y, true, config, gfx)
         } else {
             self.clamp_position(position)
         };
 
         let starting_line_is_empty = self.line_len(starting_position.y) == 0;
 
-        self.move_position_skipping_lines(starting_position, delta_y, starting_line_is_empty, gfx)
+        self.move_position_skipping_lines(
+            starting_position,
+            delta_y,
+            starting_line_is_empty,
+            config,
+            gfx,
+        )
     }
 
     fn side_offset(direction_x: isize) -> isize {
@@ -489,7 +509,7 @@ impl Doc {
         self.delete(start, end, ctx);
 
         if self.grapheme(start) == " " {
-            let end = self.move_position(start, 1, 0, ctx.gfx);
+            let end = self.move_position(start, 1, 0, ctx.config, ctx.gfx);
 
             self.delete(start, end, ctx);
         }
@@ -602,12 +622,12 @@ impl Doc {
     ) -> bool {
         let (start, end) = match kind {
             DelimiterKind::Start => (
-                self.move_position_to_next_word(position, -1, ctx.gfx),
+                self.move_position_to_next_word(position, -1, ctx.config, ctx.gfx),
                 position,
             ),
             DelimiterKind::End => (
                 position,
-                self.move_position_to_next_word(position, 1, ctx.gfx),
+                self.move_position_to_next_word(position, 1, ctx.config, ctx.gfx),
             ),
         };
 
@@ -698,7 +718,7 @@ impl Doc {
 
         for _ in 0..indent_width.len() {
             self.insert(start, grapheme, ctx);
-            start = self.move_position(start, 1, 0, ctx.gfx);
+            start = self.move_position(start, 1, 0, ctx.config, ctx.gfx);
         }
     }
 
@@ -710,7 +730,7 @@ impl Doc {
     pub fn indent_start(&self, end: Position, ctx: &mut Ctx) -> Position {
         let indent_width = ctx.config.indent_width_for_doc(self);
 
-        let mut start = self.move_position(end, -1, 0, ctx.gfx);
+        let mut start = self.move_position(end, -1, 0, ctx.config, ctx.gfx);
         let start_grapheme = self.grapheme(start);
 
         match start_grapheme {
@@ -718,7 +738,7 @@ impl Doc {
                 let indent_width = (end.x - 1) % indent_width.len() + 1;
 
                 for _ in 1..indent_width {
-                    let next_start = self.move_position(start, -1, 0, ctx.gfx);
+                    let next_start = self.move_position(start, -1, 0, ctx.config, ctx.gfx);
 
                     if self.grapheme(next_start) != " " {
                         break;
@@ -745,6 +765,7 @@ impl Doc {
         delta_x: isize,
         delta_y: isize,
         should_select: bool,
+        config: &Config,
         gfx: &mut Gfx,
     ) {
         self.update_cursor_selection(index, should_select);
@@ -758,6 +779,7 @@ impl Doc {
             delta_x,
             delta_y,
             Some(desired_visual_x),
+            config,
             gfx,
         );
 
@@ -771,10 +793,11 @@ impl Doc {
         delta_x: isize,
         delta_y: isize,
         should_select: bool,
+        config: &Config,
         gfx: &mut Gfx,
     ) {
         for index in self.cursor_indices() {
-            self.move_cursor(index, delta_x, delta_y, should_select, gfx);
+            self.move_cursor(index, delta_x, delta_y, should_select, config, gfx);
         }
     }
 
@@ -783,10 +806,11 @@ impl Doc {
         index: CursorIndex,
         delta_x: isize,
         should_select: bool,
+        config: &Config,
         gfx: &mut Gfx,
     ) {
         let cursor = self.cursor(index);
-        let destination = self.move_position_to_next_word(cursor.position, delta_x, gfx);
+        let destination = self.move_position_to_next_word(cursor.position, delta_x, config, gfx);
 
         self.jump_cursor(index, destination, should_select, gfx);
     }
@@ -795,10 +819,11 @@ impl Doc {
         &mut self,
         delta_x: isize,
         should_select: bool,
+        config: &Config,
         gfx: &mut Gfx,
     ) {
         for index in self.cursor_indices() {
-            self.move_cursor_to_next_word(index, delta_x, should_select, gfx);
+            self.move_cursor_to_next_word(index, delta_x, should_select, config, gfx);
         }
     }
 
@@ -807,10 +832,12 @@ impl Doc {
         index: CursorIndex,
         delta_y: isize,
         should_select: bool,
+        config: &Config,
         gfx: &mut Gfx,
     ) {
         let cursor = self.cursor(index);
-        let destination = self.move_position_to_next_paragraph(cursor.position, delta_y, true, gfx);
+        let destination =
+            self.move_position_to_next_paragraph(cursor.position, delta_y, true, config, gfx);
 
         self.jump_cursor(index, destination, should_select, gfx);
     }
@@ -819,10 +846,11 @@ impl Doc {
         &mut self,
         delta_y: isize,
         should_select: bool,
+        config: &Config,
         gfx: &mut Gfx,
     ) {
         for index in self.cursor_indices() {
-            self.move_cursor_to_next_paragraph(index, delta_y, should_select, gfx);
+            self.move_cursor_to_next_paragraph(index, delta_y, should_select, config, gfx);
         }
     }
 
@@ -1303,12 +1331,13 @@ impl Doc {
         text: &str,
         start: Position,
         is_reverse: bool,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> Option<Position> {
         if is_reverse {
-            self.search_backward(text, start, true, gfx)
+            self.search_backward(text, start, true, config, gfx)
         } else {
-            self.search_forward(text, start, true, gfx)
+            self.search_forward(text, start, true, config, gfx)
         }
     }
 
@@ -1317,13 +1346,14 @@ impl Doc {
         text: &str,
         start: Position,
         do_wrap: bool,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> Option<Position> {
         if text.is_empty() {
             return Some(start);
         }
 
-        let start = self.move_position(start, 1, 0, gfx);
+        let start = self.move_position(start, 1, 0, config, gfx);
 
         let mut y = start.y as isize;
         let mut x = start.x;
@@ -1383,13 +1413,14 @@ impl Doc {
         text: &str,
         start: Position,
         do_wrap: bool,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> Option<Position> {
         if text.is_empty() {
             return Some(start);
         }
 
-        let start = self.move_position(start, -1, 0, gfx);
+        let start = self.move_position(start, -1, 0, config, gfx);
 
         let mut y = start.y as isize;
         let mut x = start.x;
@@ -1470,17 +1501,103 @@ impl Doc {
         Position::new(clamped_x, clamped_y)
     }
 
+    pub fn find_x_for_visual_x(
+        &self,
+        visual_x: usize,
+        y: usize,
+        config: &Config,
+        gfx: &mut Gfx,
+    ) -> usize {
+        self.find_x_for_visual_x_with_clamping(visual_x, y, true, config, gfx)
+            .unwrap()
+    }
+
+    pub fn find_x_for_visual_x_unclamped(
+        &self,
+        visual_x: usize,
+        y: usize,
+        config: &Config,
+        gfx: &mut Gfx,
+    ) -> Option<usize> {
+        self.find_x_for_visual_x_with_clamping(visual_x, y, false, config, gfx)
+    }
+
+    fn find_x_for_visual_x_with_clamping(
+        &self,
+        visual_x: usize,
+        y: usize,
+        do_clamp: bool,
+        config: &Config,
+        gfx: &mut Gfx,
+    ) -> Option<usize> {
+        let visual_x = visual_x as f32;
+        let mut current_visual_x = 0.0;
+        let mut x = 0;
+
+        let line = &self.lines[y];
+        let line_start = self.line_start(y);
+
+        let indent_width = config.indent_width_for_doc(self);
+        let visual_indent_factor = Gfx::VISUAL_INDENT_WIDTH / indent_width.measure(gfx) as f32;
+
+        for grapheme in GraphemeIterator::new(line) {
+            current_visual_x += gfx.measure_text(grapheme) as f32
+                * if x < line_start {
+                    visual_indent_factor
+                } else {
+                    1.0
+                };
+
+            if current_visual_x > visual_x {
+                return Some(x);
+            }
+
+            x += grapheme.len();
+        }
+
+        (do_clamp || current_visual_x + gfx.measure_text("\n") as f32 > visual_x).then_some(x)
+    }
+
+    // TODO: Should this just take ctx?
+    pub fn measure_text(
+        &self,
+        start_x: usize,
+        end_x: usize,
+        y: usize,
+        config: &Config,
+        gfx: &mut Gfx,
+    ) -> f32 {
+        let line = &self.lines[y];
+        let line_start = self.line_start(y);
+
+        if start_x < line_start {
+            // TODO:
+            let indent_width = config.indent_width_for_doc(self);
+            let visual_indent_factor = Gfx::VISUAL_INDENT_WIDTH / indent_width.measure(gfx) as f32;
+
+            let line_start = line_start.min(end_x);
+            let leading_whitespace = &line[start_x..line_start];
+            let text = &line[line_start..end_x];
+            gfx.measure_text(leading_whitespace) as f32 * visual_indent_factor
+                + gfx.measure_text(text) as f32
+        } else {
+            let text = &line[start_x..end_x];
+            gfx.measure_text(text) as f32
+        }
+    }
+
+    // TODO: Should this just take ctx?
     pub fn position_to_visual(
         &self,
         position: Position,
         camera_position: VisualPosition,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> VisualPosition {
         let position = self.clamp_position(position);
-        let leading_text = &self.lines[position.y][..position.x];
 
         let visual_x = gfx.line_padding_x()
-            + gfx.measure_text(leading_text) as f32 * gfx.glyph_width()
+            + self.measure_text(0, position.x, position.y, config, gfx) * gfx.glyph_width()
             - camera_position.x;
 
         let visual_y = position.y as f32 * gfx.line_height() - camera_position.y;
@@ -1492,13 +1609,14 @@ impl Doc {
         &self,
         visual: VisualPosition,
         camera_position: VisualPosition,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> Position {
         let mut position = self.visual_to_position_with_visual_x(visual, camera_position, gfx);
         let visual_x = position.x;
 
         position = self.clamp_position(position);
-        position.x = gfx.find_x_for_visual_x(&self.lines[position.y], visual_x);
+        position.x = self.find_x_for_visual_x(visual_x, position.y, config, gfx);
 
         position
     }
@@ -1507,6 +1625,7 @@ impl Doc {
         &self,
         visual: VisualPosition,
         camera_position: VisualPosition,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> Option<Position> {
         if visual.y < 0.0 {
@@ -1519,7 +1638,7 @@ impl Doc {
             return None;
         }
 
-        position.x = gfx.find_x_for_visual_x_unclamped(&self.lines[position.y], position.x)?;
+        position.x = self.find_x_for_visual_x_unclamped(position.x, position.y, config, gfx)?;
 
         Some(position)
     }
@@ -1920,11 +2039,13 @@ impl Doc {
         camera_position: VisualPosition,
         bounds: Rect,
         syntax: &Syntax,
+        config: &Config,
         gfx: &mut Gfx,
     ) {
         let end = self.visual_to_position(
             VisualPosition::new(0.0, camera_position.y + bounds.height),
             camera_position,
+            config,
             gfx,
         );
 
@@ -1986,11 +2107,11 @@ impl Doc {
         }
     }
 
-    pub fn add_cursor_at_next_occurance(&mut self, gfx: &mut Gfx) {
+    pub fn add_cursor_at_next_occurance(&mut self, config: &Config, gfx: &mut Gfx) {
         let cursor = self.cursor(CursorIndex::Main);
 
         let Some(selection) = cursor.get_selection() else {
-            self.select_current_word_at_cursors(gfx);
+            self.select_current_word_at_cursors(config, gfx);
             return;
         };
 
@@ -2006,6 +2127,7 @@ impl Doc {
             &line[selection.start.x..selection.end.x],
             cursor.position,
             false,
+            config,
             gfx,
         ) else {
             return;
@@ -2017,24 +2139,30 @@ impl Doc {
             position,
             selection.end.x as isize - selection.start.x as isize,
             0,
+            config,
             gfx,
         );
 
         self.jump_cursor(CursorIndex::Main, end, true, gfx);
     }
 
-    pub fn select_current_line_at_position(&self, position: Position, gfx: &mut Gfx) -> Selection {
+    pub fn select_current_line_at_position(
+        &self,
+        position: Position,
+        config: &Config,
+        gfx: &mut Gfx,
+    ) -> Selection {
         let start = Position::new(0, position.y);
         let end = self.line_end(start.y);
-        let end = self.move_position(end, 1, 0, gfx);
+        let end = self.move_position(end, 1, 0, config, gfx);
 
         Selection { start, end }
     }
 
-    pub fn select_current_line_at_cursors(&mut self, gfx: &mut Gfx) {
+    pub fn select_current_line_at_cursors(&mut self, config: &Config, gfx: &mut Gfx) {
         for index in self.cursor_indices() {
             let position = self.cursor(index).position;
-            let selection = self.select_current_line_at_position(position, gfx);
+            let selection = self.select_current_line_at_position(position, config, gfx);
 
             let cursor = self.cursor_mut(index);
 
@@ -2046,22 +2174,23 @@ impl Doc {
     pub fn select_current_word_at_position(
         &self,
         mut position: Position,
+        config: &Config,
         gfx: &mut Gfx,
     ) -> Selection {
         let line_len = self.line_len(position.y);
 
         if position.x < line_len {
-            position = self.move_position(position, 1, 0, gfx);
+            position = self.move_position(position, 1, 0, config, gfx);
         }
 
         if position.x > 0 {
-            position = self.move_position_to_next_word(position, -1, gfx);
+            position = self.move_position_to_next_word(position, -1, config, gfx);
         }
 
         let start = position;
 
         if position.x < line_len {
-            position = self.move_position_to_next_word(position, 1, gfx);
+            position = self.move_position_to_next_word(position, 1, config, gfx);
         }
 
         let end = position;
@@ -2069,10 +2198,10 @@ impl Doc {
         Selection { start, end }
     }
 
-    pub fn select_current_word_at_cursors(&mut self, gfx: &mut Gfx) {
+    pub fn select_current_word_at_cursors(&mut self, config: &Config, gfx: &mut Gfx) {
         for index in self.cursor_indices() {
             let position = self.cursor(index).position;
-            let selection = self.select_current_word_at_position(position, gfx);
+            let selection = self.select_current_word_at_position(position, config, gfx);
 
             let cursor = self.cursor_mut(index);
 
@@ -2081,7 +2210,7 @@ impl Doc {
         }
     }
 
-    pub fn get_completion_prefix<'a>(&'a self, gfx: &mut Gfx) -> Option<&'a str> {
+    pub fn get_completion_prefix<'a>(&'a self, config: &Config, gfx: &mut Gfx) -> Option<&'a str> {
         let prefix_end = self.cursor(CursorIndex::Main).position;
 
         if prefix_end.x == 0 {
@@ -2091,7 +2220,7 @@ impl Doc {
         let mut prefix_start = prefix_end;
 
         while prefix_start.x > 0 {
-            let next_start = self.move_position(prefix_start, -1, 0, gfx);
+            let next_start = self.move_position(prefix_start, -1, 0, config, gfx);
 
             let grapheme = self.grapheme(next_start);
 
