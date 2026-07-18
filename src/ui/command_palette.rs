@@ -334,7 +334,7 @@ impl CommandPalette {
         });
 
         if do_reuse {
-            handle_select_all(&mut self.doc, ctx.gfx);
+            handle_select_all(&mut self.doc, ctx.config, ctx.gfx);
             self.update_results(editor, ctx);
 
             return;

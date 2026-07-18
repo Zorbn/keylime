@@ -89,7 +89,13 @@ impl FileExplorerMode {
         if let Some(extension_start) =
             doc.search_backward(".", doc.end(), false, ctx.config, ctx.gfx)
         {
-            doc.jump_cursor(CursorIndex::Main, extension_start, false, ctx.gfx);
+            doc.jump_cursor(
+                CursorIndex::Main,
+                extension_start,
+                false,
+                ctx.config,
+                ctx.gfx,
+            );
         }
     }
 

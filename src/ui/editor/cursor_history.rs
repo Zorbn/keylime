@@ -160,7 +160,7 @@ impl CursorHistory {
             }
         }
 
-        doc.jump_cursor(CursorIndex::Main, item.position, false, ctx.gfx);
+        doc.jump_cursor(CursorIndex::Main, item.position, false, ctx.config, ctx.gfx);
 
         if let Some(tab) = panes
             .get_last_focused_mut(ctx.ui)

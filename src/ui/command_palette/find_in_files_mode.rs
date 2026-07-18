@@ -105,7 +105,7 @@ impl FindInFilesMode {
             _ => return CommandPaletteAction::Close,
         };
 
-        doc.jump_cursors(position, false, args.ctx.gfx);
+        doc.jump_cursors(position, false, args.ctx.config, args.ctx.gfx);
         tab.camera.recenter();
 
         CommandPaletteAction::Close
@@ -163,6 +163,7 @@ impl FindInFilesMode {
                 CursorIndex::Main,
                 doc.line_end(result_position.y),
                 false,
+                ctx.config,
                 ctx.gfx,
             );
 

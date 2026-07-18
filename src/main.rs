@@ -20,8 +20,8 @@ mod tests;
 
 use platform::{app_runner::run_app, result::Result};
 
-// TODO: Visual indent doesn't work on highlighted text in some cases, eg. strings
-// with leading whitespace, see the shader in windows/gfx.rs
+// TODO: Fix tests.
+// TODO: Visual indent should only affect full units of indentation, so that spaces after indentation for alignment are preserved (eg. one space before * in a block comment).
 fn main() -> Result<()> {
     println!("Hello, world!");
 

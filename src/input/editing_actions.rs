@@ -152,19 +152,33 @@ pub fn handle_action(action: Action, tab: &Tab, doc: &mut Doc, ctx: &mut Ctx) ->
                 ctx.gfx,
             );
         }
-        action_name!(Home, mods) => handle_home(mods.contains(Mod::Shift), doc, ctx.gfx),
-        action_name!(End, mods) => handle_end(mods.contains(Mod::Shift), doc, ctx.gfx),
+        action_name!(Home, mods) => {
+            handle_home(mods.contains(Mod::Shift), doc, ctx.config, ctx.gfx)
+        }
+        action_name!(End, mods) => handle_end(mods.contains(Mod::Shift), doc, ctx.config, ctx.gfx),
         action_name!(GoToStart, mods) => {
             for index in doc.cursor_indices() {
-                doc.jump_cursor(index, Position::ZERO, mods.contains(Mod::Shift), ctx.gfx);
+                doc.jump_cursor(
+                    index,
+                    Position::ZERO,
+                    mods.contains(Mod::Shift),
+                    ctx.config,
+                    ctx.gfx,
+                );
             }
         }
         action_name!(GoToEnd, mods) => {
             for index in doc.cursor_indices() {
-                doc.jump_cursor(index, doc.end(), mods.contains(Mod::Shift), ctx.gfx);
+                doc.jump_cursor(
+                    index,
+                    doc.end(),
+                    mods.contains(Mod::Shift),
+                    ctx.config,
+                    ctx.gfx,
+                );
             }
         }
-        action_name!(SelectAll) => handle_select_all(doc, ctx.gfx),
+        action_name!(SelectAll) => handle_select_all(doc, ctx.config, ctx.gfx),
         action_keybind!(key: Escape, mods: Mods::NONE) => {
             return doc.clear_extra_cursors(CursorIndex::Some(0))
                 || doc.clear_cursor_selection(CursorIndex::Main);
@@ -209,9 +223,9 @@ fn handle_move(
         match cursor.get_selection() {
             Some(selection) if !should_select => {
                 if direction_x < 0 || direction_y < 0 {
-                    doc.jump_cursor(index, selection.start, false, gfx);
+                    doc.jump_cursor(index, selection.start, false, config, gfx);
                 } else if direction_x > 0 || direction_y > 0 {
-                    doc.jump_cursor(index, selection.end, false, gfx);
+                    doc.jump_cursor(index, selection.end, false, config, gfx);
                 }
 
                 if direction_y != 0 {
@@ -250,7 +264,7 @@ pub fn handle_left_click(
     let do_extend_selection = is_drag || mods.contains(Mod::Shift);
 
     if count == MouseClickCount::Single {
-        doc.jump_cursors(position, do_extend_selection, gfx);
+        doc.jump_cursors(position, do_extend_selection, config, gfx);
         return;
     }
 
@@ -298,8 +312,8 @@ pub fn handle_left_click(
         (selection_anchor_word.end, word_selection.start)
     };
 
-    doc.jump_cursors(start, false, gfx);
-    doc.jump_cursors(end, true, gfx);
+    doc.jump_cursors(start, false, config, gfx);
+    doc.jump_cursors(end, true, config, gfx);
 }
 
 pub fn handle_delete_backward(kind: DeleteKind, doc: &mut Doc, ctx: &mut Ctx) {
@@ -426,7 +440,7 @@ pub fn handle_enter(doc: &mut Doc, ctx: &mut Ctx) {
             doc.insert_at_cursor(index, "\n", ctx);
             doc.insert_at_cursor(index, &indent_text, ctx);
 
-            doc.jump_cursor(index, cursor_position, false, ctx.gfx);
+            doc.jump_cursor(index, cursor_position, false, ctx.config, ctx.gfx);
         }
     }
 }
@@ -439,7 +453,7 @@ fn handle_tab(mods: Mods, doc: &mut Doc, ctx: &mut Ctx) {
     }
 }
 
-fn handle_home(should_select: bool, doc: &mut Doc, gfx: &mut Gfx) {
+fn handle_home(should_select: bool, doc: &mut Doc, config: &Config, gfx: &mut Gfx) {
     for index in doc.cursor_indices() {
         let cursor = doc.cursor(index);
         let line_start_x = doc.line_start(cursor.position.y);
@@ -452,21 +466,21 @@ fn handle_home(should_select: bool, doc: &mut Doc, gfx: &mut Gfx) {
 
         let position = Position::new(x, cursor.position.y);
 
-        doc.jump_cursor(index, position, should_select, gfx);
+        doc.jump_cursor(index, position, should_select, config, gfx);
     }
 }
 
-fn handle_end(should_select: bool, doc: &mut Doc, gfx: &mut Gfx) {
+fn handle_end(should_select: bool, doc: &mut Doc, config: &Config, gfx: &mut Gfx) {
     for index in doc.cursor_indices() {
         let position = doc.line_end(doc.cursor(index).position.y);
 
-        doc.jump_cursor(index, position, should_select, gfx);
+        doc.jump_cursor(index, position, should_select, config, gfx);
     }
 }
 
-pub fn handle_select_all(doc: &mut Doc, gfx: &mut Gfx) {
-    doc.jump_cursors(Position::ZERO, false, gfx);
-    doc.jump_cursors(doc.end(), true, gfx);
+pub fn handle_select_all(doc: &mut Doc, config: &Config, gfx: &mut Gfx) {
+    doc.jump_cursors(Position::ZERO, false, config, gfx);
+    doc.jump_cursors(doc.end(), true, config, gfx);
 }
 
 fn handle_cut(doc: &mut Doc, ctx: &mut Ctx) {
@@ -582,11 +596,11 @@ fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx) {
             );
 
             if cursor_position == cursor_selection.start {
-                doc.jump_cursor(index, new_selection_end, false, ctx.gfx);
-                doc.jump_cursor(index, new_selection_start, true, ctx.gfx);
+                doc.jump_cursor(index, new_selection_end, false, ctx.config, ctx.gfx);
+                doc.jump_cursor(index, new_selection_start, true, ctx.config, ctx.gfx);
             } else {
-                doc.jump_cursor(index, new_selection_start, false, ctx.gfx);
-                doc.jump_cursor(index, new_selection_end, true, ctx.gfx);
+                doc.jump_cursor(index, new_selection_start, false, ctx.config, ctx.gfx);
+                doc.jump_cursor(index, new_selection_end, true, ctx.config, ctx.gfx);
             }
         } else {
             let new_position = Position::new(
@@ -594,7 +608,7 @@ fn handle_shift_lines(direction: isize, doc: &mut Doc, ctx: &mut Ctx) {
                 cursor_position.y.saturating_add_signed(direction),
             );
 
-            doc.jump_cursor(index, new_position, false, ctx.gfx);
+            doc.jump_cursor(index, new_position, false, ctx.config, ctx.gfx);
         }
     }
 }

@@ -269,7 +269,7 @@ impl Doc {
         position: Position,
         delta_x: isize,
         delta_y: isize,
-        desired_visual_x: Option<usize>,
+        desired_visual_x: Option<f32>,
         config: &Config,
         gfx: &mut Gfx,
     ) -> Position {
@@ -784,7 +784,7 @@ impl Doc {
         );
 
         if delta_x != 0 {
-            self.update_cursor_desired_visual_x(index, gfx);
+            self.update_cursor_desired_visual_x(index, config, gfx);
         }
     }
 
@@ -812,7 +812,7 @@ impl Doc {
         let cursor = self.cursor(index);
         let destination = self.move_position_to_next_word(cursor.position, delta_x, config, gfx);
 
-        self.jump_cursor(index, destination, should_select, gfx);
+        self.jump_cursor(index, destination, should_select, config, gfx);
     }
 
     pub fn move_cursors_to_next_word(
@@ -839,7 +839,7 @@ impl Doc {
         let destination =
             self.move_position_to_next_paragraph(cursor.position, delta_y, true, config, gfx);
 
-        self.jump_cursor(index, destination, should_select, gfx);
+        self.jump_cursor(index, destination, should_select, config, gfx);
     }
 
     pub fn move_cursors_to_next_paragraph(
@@ -859,16 +859,23 @@ impl Doc {
         index: CursorIndex,
         position: Position,
         should_select: bool,
+        config: &Config,
         gfx: &mut Gfx,
     ) {
         self.update_cursor_selection(index, should_select);
         self.cursor_mut(index).position = self.clamp_position(position);
-        self.update_cursor_desired_visual_x(index, gfx);
+        self.update_cursor_desired_visual_x(index, config, gfx);
     }
 
-    pub fn jump_cursors(&mut self, position: Position, should_select: bool, gfx: &mut Gfx) {
+    pub fn jump_cursors(
+        &mut self,
+        position: Position,
+        should_select: bool,
+        config: &Config,
+        gfx: &mut Gfx,
+    ) {
         self.clear_extra_cursors(CursorIndex::Main);
-        self.jump_cursor(CursorIndex::Main, position, should_select, gfx);
+        self.jump_cursor(CursorIndex::Main, position, should_select, config, gfx);
     }
 
     pub fn start_cursor_selection(&mut self, index: CursorIndex) {
@@ -891,24 +898,27 @@ impl Doc {
         }
     }
 
-    fn cursor_visual_x(&self, index: CursorIndex, gfx: &mut Gfx) -> usize {
+    fn cursor_visual_x(&self, index: CursorIndex, config: &Config, gfx: &mut Gfx) -> f32 {
         let cursor = self.cursor(index);
-        let leading_text = &self.lines[cursor.position.y][..cursor.position.x];
-
-        gfx.measure_text(leading_text)
+        self.measure_text(0, cursor.position.x, cursor.position.y, config, gfx)
     }
 
-    fn update_cursor_desired_visual_x(&mut self, index: CursorIndex, gfx: &mut Gfx) {
+    fn update_cursor_desired_visual_x(
+        &mut self,
+        index: CursorIndex,
+        config: &Config,
+        gfx: &mut Gfx,
+    ) {
         if !self.flags.contains(DocFlag::UpdateCursors) {
             return;
         }
 
-        self.cursor_mut(index).desired_visual_x = self.cursor_visual_x(index, gfx);
+        self.cursor_mut(index).desired_visual_x = self.cursor_visual_x(index, config, gfx);
     }
 
-    pub fn add_cursor_at(&mut self, position: Position, gfx: &mut Gfx) {
-        self.add_cursor(Cursor::new(position, 0));
-        self.update_cursor_desired_visual_x(CursorIndex::Main, gfx);
+    pub fn add_cursor_at(&mut self, position: Position, config: &Config, gfx: &mut Gfx) {
+        self.add_cursor(Cursor::new(position, 0.0));
+        self.update_cursor_desired_visual_x(CursorIndex::Main, config, gfx);
     }
 
     pub fn add_cursor(&mut self, mut cursor: Cursor) {
@@ -1022,14 +1032,18 @@ impl Doc {
 
                     if self.cursors.len() <= index {
                         self.cursors
-                            .resize(index + 1, Cursor::new(Position::ZERO, 0));
+                            .resize(index + 1, Cursor::new(Position::ZERO, 0.0));
                     }
 
-                    let mut cursor = Cursor::new(position, 0);
+                    let mut cursor = Cursor::new(position, 0.0);
                     cursor.selection_anchor = selection_anchor;
 
                     self.cursors[index] = cursor;
-                    self.update_cursor_desired_visual_x(CursorIndex::Some(index), ctx.gfx);
+                    self.update_cursor_desired_visual_x(
+                        CursorIndex::Some(index),
+                        ctx.config,
+                        ctx.gfx,
+                    );
                 }
                 Action::Insert { start, end } => {
                     were_cursors_reset = false;
@@ -1260,7 +1274,7 @@ impl Doc {
             cursor.position = position;
             cursor.selection_anchor = selection_anchor;
 
-            self.update_cursor_desired_visual_x(index, ctx.gfx);
+            self.update_cursor_desired_visual_x(index, ctx.config, ctx.gfx);
         }
 
         for language_server in ctx.lsp.iter_servers_mut() {
@@ -1492,8 +1506,7 @@ impl Doc {
     // It's ok for the x position to equal the length of the line.
     // That represents the cursor being right before the newline sequence.
     fn clamp_position(&self, position: Position) -> Position {
-        let max_y = self.lines.len() - 1;
-        let clamped_y = position.y.clamp(0, max_y);
+        let clamped_y = self.clamp_y(position.y);
 
         let max_x = self.lines[clamped_y].len();
         let clamped_x = position.x.clamp(0, max_x);
@@ -1501,9 +1514,14 @@ impl Doc {
         Position::new(clamped_x, clamped_y)
     }
 
+    fn clamp_y(&self, y: usize) -> usize {
+        let max_y = self.lines.len() - 1;
+        y.clamp(0, max_y)
+    }
+
     pub fn find_x_for_visual_x(
         &self,
-        visual_x: usize,
+        visual_x: f32,
         y: usize,
         config: &Config,
         gfx: &mut Gfx,
@@ -1514,7 +1532,7 @@ impl Doc {
 
     pub fn find_x_for_visual_x_unclamped(
         &self,
-        visual_x: usize,
+        visual_x: f32,
         y: usize,
         config: &Config,
         gfx: &mut Gfx,
@@ -1524,13 +1542,12 @@ impl Doc {
 
     fn find_x_for_visual_x_with_clamping(
         &self,
-        visual_x: usize,
+        visual_x: f32,
         y: usize,
         do_clamp: bool,
         config: &Config,
         gfx: &mut Gfx,
     ) -> Option<usize> {
-        let visual_x = visual_x as f32;
         let mut current_visual_x = 0.0;
         let mut x = 0;
 
@@ -1612,13 +1629,12 @@ impl Doc {
         config: &Config,
         gfx: &mut Gfx,
     ) -> Position {
-        let mut position = self.visual_to_position_with_visual_x(visual, camera_position, gfx);
-        let visual_x = position.x;
+        let (x, y) = self.visual_to_position_with_visual_x(visual, camera_position, gfx);
 
-        position = self.clamp_position(position);
-        position.x = self.find_x_for_visual_x(visual_x, position.y, config, gfx);
+        let y = self.clamp_y(y);
+        let x = self.find_x_for_visual_x(x, y, config, gfx);
 
-        position
+        Position::new(x, y)
     }
 
     pub fn visual_to_position_unclamped(
@@ -1632,15 +1648,15 @@ impl Doc {
             return None;
         }
 
-        let mut position = self.visual_to_position_with_visual_x(visual, camera_position, gfx);
+        let (x, y) = self.visual_to_position_with_visual_x(visual, camera_position, gfx);
 
-        if position.y >= self.lines.len() {
+        if y >= self.lines.len() {
             return None;
         }
 
-        position.x = self.find_x_for_visual_x_unclamped(position.x, position.y, config, gfx)?;
+        let x = self.find_x_for_visual_x_unclamped(x, y, config, gfx)?;
 
-        Some(position)
+        Some(Position::new(x, y))
     }
 
     fn visual_to_position_with_visual_x(
@@ -1648,9 +1664,9 @@ impl Doc {
         visual: VisualPosition,
         camera_position: VisualPosition,
         gfx: &Gfx,
-    ) -> Position {
-        Position::new(
-            ((visual.x + camera_position.x) / gfx.glyph_width()).max(0.0) as usize,
+    ) -> (f32, usize) {
+        (
+            ((visual.x + camera_position.x) / gfx.glyph_width()).max(0.0),
             ((visual.y + camera_position.y) / gfx.line_height()).max(0.0) as usize,
         )
     }
@@ -1691,7 +1707,7 @@ impl Doc {
 
     fn reset_cursors(&mut self) {
         self.cursors.clear();
-        self.cursors.push(Cursor::new(Position::ZERO, 0));
+        self.cursors.push(Cursor::new(Position::ZERO, 0.0));
     }
 
     pub fn clear_extra_cursors(&mut self, kept_index: CursorIndex) -> bool {
@@ -2133,7 +2149,7 @@ impl Doc {
             return;
         };
 
-        self.add_cursor_at(position, gfx);
+        self.add_cursor_at(position, config, gfx);
 
         let end = self.move_position(
             position,
@@ -2143,7 +2159,7 @@ impl Doc {
             gfx,
         );
 
-        self.jump_cursor(CursorIndex::Main, end, true, gfx);
+        self.jump_cursor(CursorIndex::Main, end, true, config, gfx);
     }
 
     pub fn select_current_line_at_position(

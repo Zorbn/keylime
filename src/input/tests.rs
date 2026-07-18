@@ -11,7 +11,13 @@ test_with_doc!(
     delete_backward_wrap_to_previous_line,
     HELLO_GOODBYE_TEXT,
     |ctx, doc| {
-        doc.jump_cursor(CursorIndex::Main, Position::new(0, 1), false, ctx.gfx);
+        doc.jump_cursor(
+            CursorIndex::Main,
+            Position::new(0, 1),
+            false,
+            ctx.config,
+            ctx.gfx,
+        );
         handle_delete_backward(DeleteKind::Char, doc, ctx);
 
         assert_eq!(doc.cursor(CursorIndex::Main).position, Position::new(11, 0));
@@ -82,8 +88,8 @@ test_with_doc!(surround_selection_with_pair, "hi there", |ctx, doc| {
             (end, start)
         };
 
-        doc.jump_cursor(CursorIndex::Main, start, false, ctx.gfx);
-        doc.jump_cursor(CursorIndex::Main, end, true, ctx.gfx);
+        doc.jump_cursor(CursorIndex::Main, start, false, ctx.config, ctx.gfx);
+        doc.jump_cursor(CursorIndex::Main, end, true, ctx.config, ctx.gfx);
         handle_grapheme(grapheme, doc, ctx);
     }
 
@@ -94,7 +100,13 @@ test_with_doc!(
     auto_indent_from_end_of_line,
     HELLO_WORLD_CODE_TEXT,
     |ctx, doc| {
-        doc.jump_cursor(CursorIndex::Main, Position::new(30, 1), false, ctx.gfx);
+        doc.jump_cursor(
+            CursorIndex::Main,
+            Position::new(30, 1),
+            false,
+            ctx.config,
+            ctx.gfx,
+        );
         handle_enter(doc, ctx);
 
         assert_eq!(
@@ -108,7 +120,13 @@ test_with_doc!(
     auto_indent_from_start_of_line,
     HELLO_WORLD_CODE_TEXT,
     |ctx, doc| {
-        doc.jump_cursor(CursorIndex::Main, Position::new(4, 1), false, ctx.gfx);
+        doc.jump_cursor(
+            CursorIndex::Main,
+            Position::new(4, 1),
+            false,
+            ctx.config,
+            ctx.gfx,
+        );
         handle_enter(doc, ctx);
 
         assert_eq!(
@@ -122,7 +140,13 @@ test_with_doc!(
     auto_indent_before_existing_indentation,
     HELLO_WORLD_CODE_TEXT,
     |ctx, doc| {
-        doc.jump_cursor(CursorIndex::Main, Position::new(0, 1), false, ctx.gfx);
+        doc.jump_cursor(
+            CursorIndex::Main,
+            Position::new(0, 1),
+            false,
+            ctx.config,
+            ctx.gfx,
+        );
         handle_enter(doc, ctx);
 
         assert_eq!(
@@ -136,7 +160,13 @@ test_with_doc!(
     auto_indent_within_existing_indentation,
     HELLO_WORLD_CODE_TEXT,
     |ctx, doc| {
-        doc.jump_cursor(CursorIndex::Main, Position::new(2, 1), false, ctx.gfx);
+        doc.jump_cursor(
+            CursorIndex::Main,
+            Position::new(2, 1),
+            false,
+            ctx.config,
+            ctx.gfx,
+        );
         handle_enter(doc, ctx);
 
         assert_eq!(
@@ -147,14 +177,20 @@ test_with_doc!(
 );
 
 test_with_doc!(multi_cursor_preserve_x, "hello\n\nworld", |ctx, doc| {
-    doc.jump_cursor(CursorIndex::Main, Position::new(1, 0), false, ctx.gfx);
-    assert_eq!(doc.cursor(CursorIndex::Main).desired_visual_x, 1);
+    doc.jump_cursor(
+        CursorIndex::Main,
+        Position::new(1, 0),
+        false,
+        ctx.config,
+        ctx.gfx,
+    );
+    assert_eq!(doc.cursor(CursorIndex::Main).desired_visual_x, 1.0);
 
     handle_add_cursor(1, doc, ctx.config, ctx.gfx);
     assert_eq!(doc.cursor(CursorIndex::Main).position, Position::new(0, 1));
-    assert_eq!(doc.cursor(CursorIndex::Main).desired_visual_x, 1);
+    assert_eq!(doc.cursor(CursorIndex::Main).desired_visual_x, 1.0);
 
     handle_add_cursor(1, doc, ctx.config, ctx.gfx);
     assert_eq!(doc.cursor(CursorIndex::Main).position, Position::new(1, 2));
-    assert_eq!(doc.cursor(CursorIndex::Main).desired_visual_x, 1);
+    assert_eq!(doc.cursor(CursorIndex::Main).desired_visual_x, 1.0);
 });

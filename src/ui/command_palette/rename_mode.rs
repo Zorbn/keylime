@@ -26,7 +26,7 @@ impl CommandPaletteMode for RenameMode {
         let CommandPalette { doc, tab, .. } = command_palette;
 
         doc.insert(doc.end(), &self.placeholder, args.ctx);
-        handle_select_all(doc, args.ctx.gfx);
+        handle_select_all(doc, args.ctx.config, args.ctx.gfx);
         tab.skip_cursor_animations(doc, args.ctx);
     }
 

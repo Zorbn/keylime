@@ -5,6 +5,7 @@ use std::{
 };
 
 use crate::{
+    config::Config,
     ctx::Ctx,
     geometry::{position::Position, rect::Rect},
     input::{
@@ -331,7 +332,7 @@ impl TerminalEmulator {
                 let text = STRING_POOL.init_item(|text| text.push_str(self.parser.next_text(len)));
                 self.insert_at_cursor(&text, doc, tab, ctx);
             }
-            EscapeSequence::Backspace => self.move_cursor(-1, 0, doc, ctx.gfx),
+            EscapeSequence::Backspace => self.move_cursor(-1, 0, doc, ctx.config, ctx.gfx),
             EscapeSequence::Tab => {
                 let next_tab_stop = (self.grid.cursor.x / 8 + 1) * 8;
 
@@ -340,14 +341,19 @@ impl TerminalEmulator {
                 }
             }
             EscapeSequence::CarriageReturn => {
-                self.jump_cursor(Position::new(0, self.grid.cursor.y), doc, ctx.gfx);
+                self.jump_cursor(
+                    Position::new(0, self.grid.cursor.y),
+                    doc,
+                    ctx.config,
+                    ctx.gfx,
+                );
             }
             EscapeSequence::Newline => self.newline_cursor(doc, tab, ctx),
             EscapeSequence::ReverseNewline => self.reverse_newline_cursor(doc, ctx),
             EscapeSequence::HideCursor => self.is_cursor_visible = false,
             EscapeSequence::ShowCursor => {
                 self.is_cursor_visible = true;
-                self.jump_doc_cursors_to_grid_cursor(doc, ctx.gfx);
+                self.jump_doc_cursors_to_grid_cursor(doc, ctx.config, ctx.gfx);
             }
             EscapeSequence::SwitchToNormalBuffer => self.switch_to_normal_buffer(docs, tab, ctx),
             EscapeSequence::SwitchToAlternateBuffer => self.switch_to_alternate_buffer(doc, tab),
@@ -386,28 +392,34 @@ impl TerminalEmulator {
                 let position =
                     self.grid_position_char_to_byte(Position::new(x, self.grid.cursor.y), doc);
 
-                self.jump_cursor(position, doc, ctx.gfx);
+                self.jump_cursor(position, doc, ctx.config, ctx.gfx);
             }
             EscapeSequence::SetCursorY(y) => {
                 let char_x = self.grid_position_byte_to_char(self.grid.cursor, doc);
                 let position = self.grid_position_char_to_byte(Position::new(char_x, y), doc);
 
-                self.jump_cursor(position, doc, ctx.gfx);
+                self.jump_cursor(position, doc, ctx.config, ctx.gfx);
             }
             EscapeSequence::SetCursorPosition(x, y) => {
                 let position = self.grid_position_char_to_byte(Position::new(x, y), doc);
 
-                self.jump_cursor(position, doc, ctx.gfx);
+                self.jump_cursor(position, doc, ctx.config, ctx.gfx);
             }
-            EscapeSequence::MoveCursorX(distance) => self.move_cursor(distance, 0, doc, ctx.gfx),
-            EscapeSequence::MoveCursorY(distance) => self.move_cursor(0, distance, doc, ctx.gfx),
+            EscapeSequence::MoveCursorX(distance) => {
+                self.move_cursor(distance, 0, doc, ctx.config, ctx.gfx)
+            }
+            EscapeSequence::MoveCursorY(distance) => {
+                self.move_cursor(0, distance, doc, ctx.config, ctx.gfx)
+            }
             EscapeSequence::MoveCursorYAndResetX(distance) => {
                 let y = self.grid.cursor.y.saturating_add_signed(distance);
 
-                self.jump_cursor(Position::new(0, y), doc, ctx.gfx);
+                self.jump_cursor(Position::new(0, y), doc, ctx.config, ctx.gfx);
             }
             EscapeSequence::SaveCursor => self.grid.saved_cursor = self.grid.cursor,
-            EscapeSequence::RestoreCursor => self.jump_cursor(self.grid.saved_cursor, doc, ctx.gfx),
+            EscapeSequence::RestoreCursor => {
+                self.jump_cursor(self.grid.saved_cursor, doc, ctx.config, ctx.gfx)
+            }
             EscapeSequence::ClearToScreenEnd => {
                 let start = self.grid.cursor;
                 let end = self.line_end(self.grid_height - 1, doc);
@@ -798,7 +810,7 @@ impl TerminalEmulator {
         self.grid.colored_lines.insert(scroll_top, bottom_grid_line);
 
         self.grid.cursor = self.grid_position_char_to_byte(self.grid.cursor, doc);
-        self.jump_doc_cursors_to_grid_cursor(doc, ctx.gfx);
+        self.jump_doc_cursors_to_grid_cursor(doc, ctx.config, ctx.gfx);
 
         self.highlight_lines(doc);
     }
@@ -848,7 +860,7 @@ impl TerminalEmulator {
         self.grid.colored_lines.insert(scroll_bottom, top_grid_line);
 
         self.grid.cursor = self.grid_position_char_to_byte(self.grid.cursor, doc);
-        self.jump_doc_cursors_to_grid_cursor(doc, ctx.gfx);
+        self.jump_doc_cursors_to_grid_cursor(doc, ctx.config, ctx.gfx);
 
         self.trim_scrollback_lines(doc, tab, ctx);
         self.highlight_lines(doc);
@@ -1001,7 +1013,7 @@ impl TerminalEmulator {
         y.saturating_sub(doc.lines().len().saturating_sub(self.grid_height))
     }
 
-    fn jump_doc_cursors_to_grid_cursor(&mut self, doc: &mut Doc, gfx: &mut Gfx) {
+    fn jump_doc_cursors_to_grid_cursor(&mut self, doc: &mut Doc, config: &Config, gfx: &mut Gfx) {
         if !self.is_cursor_visible {
             return;
         }
@@ -1009,24 +1021,31 @@ impl TerminalEmulator {
         let doc_position =
             self.grid_position_to_doc_position(self.clamp_position(self.grid.cursor, doc), doc);
 
-        doc.jump_cursors(doc_position, false, gfx);
+        doc.jump_cursors(doc_position, false, config, gfx);
     }
 
-    fn move_cursor(&mut self, delta_x: isize, delta_y: isize, doc: &mut Doc, gfx: &mut Gfx) {
+    fn move_cursor(
+        &mut self,
+        delta_x: isize,
+        delta_y: isize,
+        doc: &mut Doc,
+        config: &Config,
+        gfx: &mut Gfx,
+    ) {
         self.grid.cursor = self.move_position(self.grid.cursor, delta_x, delta_y, doc);
-        self.jump_doc_cursors_to_grid_cursor(doc, gfx);
+        self.jump_doc_cursors_to_grid_cursor(doc, config, gfx);
     }
 
-    fn jump_cursor(&mut self, position: Position, doc: &mut Doc, gfx: &mut Gfx) {
+    fn jump_cursor(&mut self, position: Position, doc: &mut Doc, config: &Config, gfx: &mut Gfx) {
         self.grid.cursor = self.clamp_position(position, doc);
-        self.jump_doc_cursors_to_grid_cursor(doc, gfx);
+        self.jump_doc_cursors_to_grid_cursor(doc, config, gfx);
     }
 
     fn newline_cursor(&mut self, doc: &mut Doc, tab: &mut Tab, ctx: &mut Ctx) {
         if self.grid.cursor.y == self.scroll_bottom {
             self.scroll_grid_region_up(self.scroll_top..=self.scroll_bottom, doc, tab, ctx);
         } else {
-            self.move_cursor(0, 1, doc, ctx.gfx);
+            self.move_cursor(0, 1, doc, ctx.config, ctx.gfx);
         }
     }
 
@@ -1034,21 +1053,26 @@ impl TerminalEmulator {
         if self.grid.cursor.y == self.scroll_top {
             self.scroll_grid_region_down(self.scroll_top..=self.scroll_bottom, doc, ctx);
         } else {
-            self.move_cursor(0, -1, doc, ctx.gfx);
+            self.move_cursor(0, -1, doc, ctx.config, ctx.gfx);
         }
     }
 
     fn insert_at_cursor(&mut self, text: &str, doc: &mut Doc, tab: &mut Tab, ctx: &mut Ctx) {
         for c in CharIterator::new(text) {
             if self.grid_position_byte_to_char(self.grid.cursor, doc) >= self.grid_width {
-                self.jump_cursor(Position::new(0, self.grid.cursor.y), doc, ctx.gfx);
+                self.jump_cursor(
+                    Position::new(0, self.grid.cursor.y),
+                    doc,
+                    ctx.config,
+                    ctx.gfx,
+                );
                 self.newline_cursor(doc, tab, ctx);
             }
 
             self.grid.cursor = self.raw_insert_char(self.grid.cursor, c, doc, ctx);
         }
 
-        self.jump_doc_cursors_to_grid_cursor(doc, ctx.gfx);
+        self.jump_doc_cursors_to_grid_cursor(doc, ctx.config, ctx.gfx);
     }
 
     fn color_to_bright(color: TerminalHighlightKind) -> TerminalHighlightKind {
@@ -1098,7 +1122,7 @@ impl TerminalEmulator {
             }
         }
 
-        self.jump_doc_cursors_to_grid_cursor(doc, ctx.gfx);
+        self.jump_doc_cursors_to_grid_cursor(doc, ctx.config, ctx.gfx);
     }
 
     // Should be used indirectly by delete, insert_at_cursor, etc.

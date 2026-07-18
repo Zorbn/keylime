@@ -183,7 +183,7 @@ impl Tab {
                     let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.config, ctx.gfx);
 
                     if mods.contains(Mod::Alt) {
-                        doc.add_cursor_at(position, ctx.gfx);
+                        doc.add_cursor_at(position, ctx.config, ctx.gfx);
                     } else {
                         doc.lsp_definition(position, ctx);
                     }
@@ -898,7 +898,7 @@ impl Tab {
                     .config
                     .theme
                     .highlight_kind_to_color(highlight.foreground);
-                let highlighted_text = &line[highlight.start..highlight.end];
+                let highlighted_text = &line[highlight.start.max(line_start)..highlight.end];
 
                 if let Some(highlight_background) = highlight.background {
                     let highlight_background = ctx

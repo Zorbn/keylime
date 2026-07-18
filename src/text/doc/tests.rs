@@ -67,7 +67,13 @@ test_with_doc!(repeated_search_backward, HELLO_GOODBYE_TEXT, |ctx, doc| {
 });
 
 test_with_doc!(select_next_occurances, HELLO_GOODBYE_TEXT, |ctx, doc| {
-    doc.jump_cursor(CursorIndex::Main, Position::new(6, 0), false, ctx.gfx);
+    doc.jump_cursor(
+        CursorIndex::Main,
+        Position::new(6, 0),
+        false,
+        ctx.config,
+        ctx.gfx,
+    );
 
     doc.add_cursor_at_next_occurance(ctx.config, ctx.gfx);
     assert_eq!(doc.cursor(CursorIndex::Main).position, Position::new(11, 0));
@@ -82,8 +88,20 @@ test_with_doc!(
     select_next_occurance_from_selection,
     HELLO_GOODBYE_TEXT,
     |ctx, doc| {
-        doc.jump_cursor(CursorIndex::Main, Position::new(11, 0), false, ctx.gfx);
-        doc.jump_cursor(CursorIndex::Main, Position::new(6, 0), true, ctx.gfx);
+        doc.jump_cursor(
+            CursorIndex::Main,
+            Position::new(11, 0),
+            false,
+            ctx.config,
+            ctx.gfx,
+        );
+        doc.jump_cursor(
+            CursorIndex::Main,
+            Position::new(6, 0),
+            true,
+            ctx.config,
+            ctx.gfx,
+        );
 
         doc.add_cursor_at_next_occurance(ctx.config, ctx.gfx);
         assert_eq!(doc.cursor(CursorIndex::Main).position, Position::new(13, 1));
@@ -94,8 +112,14 @@ test_with_doc!(
 test_with_doc!(multi_cursor_undo, HELLO_GOODBYE_TEXT, |ctx, doc| {
     let ctx = ctx_with_time!(ctx, 1.0);
 
-    doc.jump_cursor(CursorIndex::Main, Position::ZERO, false, ctx.gfx);
-    doc.add_cursor_at(Position::new(0, 1), ctx.gfx);
+    doc.jump_cursor(
+        CursorIndex::Main,
+        Position::ZERO,
+        false,
+        ctx.config,
+        ctx.gfx,
+    );
+    doc.add_cursor_at(Position::new(0, 1), ctx.config, ctx.gfx);
     doc.insert_at_cursors("test", ctx);
 
     assert_eq!(doc.to_string(), "testhello world\ntestgoodbye world");

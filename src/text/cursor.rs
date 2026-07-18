@@ -8,11 +8,11 @@ use super::selection::Selection;
 pub struct Cursor {
     pub position: Position,
     pub selection_anchor: Option<Position>,
-    pub desired_visual_x: usize,
+    pub desired_visual_x: f32,
 }
 
 impl Cursor {
-    pub fn new(position: Position, desired_visual_x: usize) -> Self {
+    pub fn new(position: Position, desired_visual_x: f32) -> Self {
         Self {
             position,
             selection_anchor: None,

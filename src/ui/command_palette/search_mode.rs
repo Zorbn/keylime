@@ -148,8 +148,14 @@ impl CommandPaletteMode for SearchAndReplaceMode {
 
                     let end = doc.cursor(CursorIndex::Main).position;
 
-                    doc.jump_cursor(CursorIndex::Main, start, false, args.ctx.gfx);
-                    doc.jump_cursor(CursorIndex::Main, end, true, args.ctx.gfx);
+                    doc.jump_cursor(
+                        CursorIndex::Main,
+                        start,
+                        false,
+                        args.ctx.config,
+                        args.ctx.gfx,
+                    );
+                    doc.jump_cursor(CursorIndex::Main, end, true, args.ctx.config, args.ctx.gfx);
 
                     return CommandPaletteAction::Stay;
                 }
@@ -220,13 +226,13 @@ fn search(
     if let Some(position) = doc.search(search_term, start, is_reverse, config, gfx) {
         let end = Position::new(position.x + search_term.len(), position.y);
 
-        doc.jump_cursors(position, false, gfx);
-        doc.jump_cursors(end, true, gfx);
+        doc.jump_cursors(position, false, config, gfx);
+        doc.jump_cursors(end, true, config, gfx);
 
         if !search_term.is_empty() {
             tab.camera.recenter();
         }
     } else if cursor_position != start {
-        doc.jump_cursors(start, false, gfx);
+        doc.jump_cursors(start, false, config, gfx);
     }
 }

@@ -33,6 +33,7 @@ impl CommandPaletteMode for GoToLineMode {
         doc.jump_cursors(
             Position::new(0, line.saturating_sub(1)),
             false,
+            args.ctx.config,
             args.ctx.gfx,
         );
         tab.camera.recenter();
