@@ -16,11 +16,11 @@ pub fn myers_diff<T: PartialEq>(a: &[T], b: &[T]) -> Pooled<Vec<DiffEdit>> {
     let width = b.len() + 1;
     matrix.resize(height * width, 0);
 
-    for i in 1..=b.len() {
+    for i in 1..width {
         matrix[i] = i;
     }
 
-    for i in 1..=a.len() {
+    for i in 1..height {
         matrix[i * width] = i;
     }
 
@@ -67,19 +67,11 @@ pub fn myers_diff<T: PartialEq>(a: &[T], b: &[T]) -> Pooled<Vec<DiffEdit>> {
         if deletion < insertion {
             if deletion < substitution {
                 push_edit(&mut edits, DiffEdit::Delete { count: 1 });
+
                 i -= 1;
-            } else if substitution != current {
-                push_edit(
-                    &mut edits,
-                    DiffEdit::Substitute {
-                        b_index: j - 1,
-                        count: 1,
-                    },
-                );
-                i -= 1;
-                j -= 1;
             } else {
-                push_edit(&mut edits, DiffEdit::Match { count: 1 });
+                push_substitution_or_match(&mut edits, j, substitution, current);
+
                 i -= 1;
                 j -= 1;
             }
@@ -91,19 +83,11 @@ pub fn myers_diff<T: PartialEq>(a: &[T], b: &[T]) -> Pooled<Vec<DiffEdit>> {
                     count: 1,
                 },
             );
-            j -= 1;
-        } else if substitution != current {
-            push_edit(
-                &mut edits,
-                DiffEdit::Substitute {
-                    b_index: j - 1,
-                    count: 1,
-                },
-            );
-            i -= 1;
+
             j -= 1;
         } else {
-            push_edit(&mut edits, DiffEdit::Match { count: 1 });
+            push_substitution_or_match(&mut edits, j, substitution, current);
+
             i -= 1;
             j -= 1;
         }
@@ -111,6 +95,26 @@ pub fn myers_diff<T: PartialEq>(a: &[T], b: &[T]) -> Pooled<Vec<DiffEdit>> {
 
     edits.reverse();
     edits
+}
+
+fn push_substitution_or_match(
+    edits: &mut Vec<DiffEdit>,
+    j: usize,
+    substitution: usize,
+    current: usize,
+) {
+    if substitution == current {
+        push_edit(edits, DiffEdit::Match { count: 1 });
+        return;
+    }
+
+    push_edit(
+        edits,
+        DiffEdit::Substitute {
+            b_index: j - 1,
+            count: 1,
+        },
+    );
 }
 
 fn push_edit(edits: &mut Vec<DiffEdit>, edit: DiffEdit) {
