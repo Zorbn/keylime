@@ -56,7 +56,7 @@ pub enum LineEnding {
 
 impl Default for LineEnding {
     fn default() -> Self {
-        if cfg!(target_os = "windows") {
+        if cfg!(all(target_os = "windows", not(test))) {
             Self::CrLf
         } else {
             Self::Lf
