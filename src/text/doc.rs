@@ -1317,15 +1317,15 @@ impl Doc {
         let mut buffer = STRING_POOL.new_item();
         let mut a_index = 0;
 
-        for edit in edits {
+        for edit in edits.iter() {
             match edit {
                 DiffEdit::Delete { count } => {
-                    let selection = self.select_lines_to_edit(a_index, count, ctx.gfx);
+                    let selection = self.select_lines_to_edit(a_index, *count, ctx.gfx);
                     self.delete(selection.start, selection.end, ctx);
                 }
                 DiffEdit::Insert { b_index, count } => {
                     let position = Position::new(0, a_index);
-                    let selection = other.select_lines_to_edit(b_index, count, ctx.gfx);
+                    let selection = other.select_lines_to_edit(*b_index, *count, ctx.gfx);
 
                     buffer.clear();
                     other.collect_string(selection.start, selection.end, &mut buffer);
@@ -1338,7 +1338,7 @@ impl Doc {
                     a_index += count;
                 }
                 DiffEdit::Substitute { b_index, count } => {
-                    for i in 0..count {
+                    for i in 0..*count {
                         self.replace_line_via_diff(a_index + i, &other.lines[b_index + i], ctx);
                     }
 
@@ -1352,7 +1352,7 @@ impl Doc {
         let edits = myers_diff(&self.lines[y].as_bytes(), other.as_bytes());
         let mut a_index = 0;
 
-        for edit in edits {
+        for edit in edits.iter() {
             match edit {
                 DiffEdit::Delete { count } => {
                     self.delete(
@@ -1364,7 +1364,7 @@ impl Doc {
                 DiffEdit::Insert { b_index, count } => {
                     self.insert(
                         Position::new(a_index, y),
-                        &other[b_index..b_index + count],
+                        &other[*b_index..b_index + count],
                         ctx,
                     );
 
@@ -1382,7 +1382,7 @@ impl Doc {
 
                     self.insert(
                         Position::new(a_index, y),
-                        &other[b_index..b_index + count],
+                        &other[*b_index..b_index + count],
                         ctx,
                     );
 

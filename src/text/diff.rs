@@ -1,4 +1,6 @@
-#[derive(Debug)]
+use crate::pool::{define_pool, Pooled};
+
+#[derive(Debug, Clone, Copy)]
 pub enum DiffEdit {
     Insert { b_index: usize, count: usize },
     Delete { count: usize },
@@ -6,8 +8,9 @@ pub enum DiffEdit {
     Match { count: usize },
 }
 
-// TODO: Reuse memory, don't allocate on every diff.
-pub fn myers_diff<T: PartialEq>(a: &[T], b: &[T]) -> Vec<DiffEdit> {
+define_pool!(DIFF_EDIT_POOL, UTF16_POOL_ITEMS, Vec<DiffEdit>);
+
+pub fn myers_diff<T: PartialEq>(a: &[T], b: &[T]) -> Pooled<Vec<DiffEdit>> {
     let mut matrix = Vec::new();
     let height = a.len() + 1;
     let width = b.len() + 1;
@@ -36,7 +39,7 @@ pub fn myers_diff<T: PartialEq>(a: &[T], b: &[T]) -> Vec<DiffEdit> {
         }
     }
 
-    let mut edits = Vec::new();
+    let mut edits = DIFF_EDIT_POOL.new_item();
     let mut i = a.len();
     let mut j = b.len();
 

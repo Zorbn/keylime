@@ -14,12 +14,15 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 macro_rules! define_pool {
     ($name:ident, $items_name:ident, $type_name:ty) => {
         thread_local! {
-            static $items_name: RefCell<Vec<$type_name>> = RefCell::new(Vec::new());
+            static $items_name: std::cell::RefCell<Vec<$type_name>> = std::cell::RefCell::new(Vec::new());
         }
 
-        pub static $name: Pool<$type_name> = Pool::<$type_name>::new(&$items_name);
+        pub static $name: crate::pool::Pool<$type_name> =
+            crate::pool::Pool::<$type_name>::new(&$items_name);
     };
 }
+
+pub(crate) use define_pool;
 
 define_pool!(STRING_POOL, STRING_POOL_ITEMS, String);
 define_pool!(PATH_POOL, PATH_POOL_ITEMS, PathBuf);
@@ -63,7 +66,7 @@ impl Poolable for PathBuf {
     }
 }
 
-impl Poolable for Vec<u16> {
+impl<T: Clone + 'static> Poolable for Vec<T> {
     fn clear(&mut self) {
         self.clear();
     }
