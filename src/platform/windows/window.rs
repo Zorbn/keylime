@@ -10,7 +10,8 @@ use windows::{
     Data::Text::UnicodeCharacters,
     Win32::{
         Foundation::{
-            GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_OBJECT_0, WPARAM,
+            GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_OBJECT_0,
+            WAIT_TIMEOUT, WPARAM,
         },
         Graphics::{
             Dwm::{DwmSetWindowAttribute, DWMWA_USE_IMMERSIVE_DARK_MODE},
@@ -21,7 +22,7 @@ use windows::{
             Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE},
             Ole::CF_UNICODETEXT,
             Performance::{QueryPerformanceCounter, QueryPerformanceFrequency},
-            Threading::INFINITE,
+            Threading::{WaitForSingleObject, INFINITE},
         },
         UI::{
             Input::KeyboardAndMouse::{
@@ -204,6 +205,10 @@ impl Window {
                 self.wait_handles.clear();
 
                 for process in processes {
+                    if WaitForSingleObject(process.inner.hprocess, 0) != WAIT_TIMEOUT {
+                        continue;
+                    }
+
                     self.wait_handles
                         .extend_from_slice(&[process.inner.hprocess, process.inner.event]);
                 }
