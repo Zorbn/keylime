@@ -8,11 +8,6 @@ use crate::{
         types::{DecodedRange, DecodedTextEdit},
         LspExpectedResponse, LspSentRequest,
     },
-    pool::STRING_POOL,
-    text::{
-        diff::{myers_diff, DiffEdit},
-        selection::Selection,
-    },
 };
 
 use crate::text::cursor_index::CursorIndex;
@@ -328,21 +323,6 @@ impl Doc {
     pub fn lsp_apply_edit_list(&mut self, edits: &mut [DecodedTextEdit], ctx: &mut Ctx) {
         let mut tmp = self.tmp_clone();
 
-        // let needs_skip_shifting = edits.iter().any(|edit| {
-        //     println!(
-        //         "shift check: got ({:?}, {:?}), checked for ({:?}, {:?})",
-        //         edit.range.start,
-        //         edit.range.end,
-        //         Position::ZERO,
-        //         self.end()
-        //     );
-        //     edit.range.start == Position::ZERO && edit.range.end == self.end()
-        // });
-
-        // if needs_skip_shifting {
-        //     self.start_skipping_shifting(ctx.time);
-        // }
-
         for i in 0..edits.len() {
             let current_edit = &edits[i];
 
@@ -360,122 +340,7 @@ impl Doc {
             }
         }
 
-        // TODO: Pull this out into a Doc::apply_diff function in doc.rs!
-        let edits = myers_diff(self.lines(), &tmp.lines);
-
-        // TODO: This was copied from handle_cut.
-        fn select_line(doc: &Doc, position: Position, ctx: &mut Ctx) -> Selection {
-            let mut selection = doc.select_current_line_at_position(position, ctx.gfx);
-
-            if position.y == doc.lines().len() - 1 {
-                selection.start = doc.move_position(selection.start, -1, 0, ctx.gfx);
-            }
-
-            selection
-        }
-
-        let mut buffer = STRING_POOL.new_item();
-        let mut a_index = 0;
-
-        for edit in edits {
-            match edit {
-                DiffEdit::Delete => {
-                    // result.remove(a_index);
-                    let selection = select_line(self, Position::new(0, a_index), ctx);
-                    self.delete(selection.start, selection.end, ctx);
-                }
-                DiffEdit::Insert { b_index } => {
-                    // result.replace_range(a_index..a_index, &b[*b_index..*b_index + 1]);
-                    let position = Position::new(0, a_index);
-                    let selection = select_line(&tmp, Position::new(0, b_index), ctx);
-                    tmp.collect_string(selection.start, selection.end, &mut buffer);
-                    self.insert(position, &buffer, ctx);
-
-                    a_index += 1;
-                }
-                DiffEdit::Match => {
-                    a_index += 1;
-                }
-                DiffEdit::Substite { b_index } => {
-                    // result.replace_range(a_index..a_index + 1, &b[*b_index..*b_index + 1]);
-
-                    // let position = Position::new(0, a_index);
-                    // let selection = select_line(self, position, ctx);
-                    // self.delete(selection.start, selection.end, ctx);
-
-                    // let selection = select_line(&tmp, Position::new(0, b_index), ctx);
-                    // tmp.collect_string(selection.start, selection.end, &mut buffer);
-                    // self.insert(position, &buffer, ctx);
-
-                    let a = &self.lines[a_index].as_bytes();
-                    let b = &tmp.lines[b_index].as_bytes();
-                    let edits = myers_diff(a, b);
-
-                    let y = a_index;
-
-                    {
-                        let mut a_index = 0;
-
-                        // TODO: We need to combine edits, imagine you insert an emoji. It's only valid as a multi-byte edit.
-                        for edit in edits {
-                            match edit {
-                                DiffEdit::Delete => {
-                                    // result.remove(a_index);
-
-                                    self.delete(
-                                        Position::new(a_index, y),
-                                        Position::new(a_index + 1, y),
-                                        ctx,
-                                    );
-                                }
-                                DiffEdit::Insert { b_index } => {
-                                    // result.replace_range(a_index..a_index, &b[*b_index..*b_index + 1]);
-
-                                    self.insert(
-                                        Position::new(a_index, y),
-                                        // TODO: No unwrap here, it could actually not be utf8 if the LSP has a bug.
-                                        str::from_utf8(&b[b_index..b_index + 1]).unwrap(),
-                                        ctx,
-                                    );
-
-                                    a_index += 1;
-                                }
-                                DiffEdit::Match => {
-                                    a_index += 1;
-                                }
-                                DiffEdit::Substite { b_index } => {
-                                    // result.replace_range(
-                                    //     a_index..a_index + 1,
-                                    //     &b[*b_index..*b_index + 1],
-                                    // );
-
-                                    self.delete(
-                                        Position::new(a_index, y),
-                                        Position::new(a_index + 1, y),
-                                        ctx,
-                                    );
-
-                                    self.insert(
-                                        Position::new(a_index, y),
-                                        // TODO: No unwrap here, it could actually not be utf8 if the LSP has a bug.
-                                        str::from_utf8(&b[b_index..b_index + 1]).unwrap(),
-                                        ctx,
-                                    );
-
-                                    a_index += 1;
-                                }
-                            }
-                        }
-                    }
-
-                    a_index += 1;
-                }
-            }
-        }
-
-        // if needs_skip_shifting {
-        //     self.stop_skipping_shifting(ctx);
-        // }
+        self.replace_via_diff(&tmp, ctx);
     }
 
     pub fn lsp_debounce_request(

@@ -23,14 +23,14 @@ use crate::{
     normalizable::Normalizable,
     platform::gfx::Gfx,
     pool::{Pooled, STRING_POOL},
-    text::grapheme,
 };
 
 use super::{
     action_history::{Action, ActionHistory, ActionKind},
     cursor::Cursor,
     cursor_index::{CursorIndex, CursorIndices},
-    grapheme::{CharCursor, CharIterator, GraphemeCursor, GraphemeIterator},
+    diff::{myers_diff, DiffEdit},
+    grapheme::{self, CharCursor, CharIterator, GraphemeCursor, GraphemeIterator},
     grapheme_category::GraphemeCategory,
     selection::Selection,
     syntax::Syntax,
@@ -137,7 +137,6 @@ pub struct Doc {
     expected_change_count: usize,
     version: usize,
     usages: usize,
-    do_skip_shifting: bool,
 
     lines: Vec<Pooled<String>>,
     cursors: Vec<Cursor>,
@@ -185,7 +184,6 @@ impl Doc {
             expected_change_count: 0,
             version: 0,
             usages: 0,
-            do_skip_shifting: false,
 
             lines,
             cursors: Vec::new(),
@@ -1107,7 +1105,9 @@ impl Doc {
         self.version += 1;
         self.lsp_did_change(start, end, "", ctx);
 
-        if self.do_shift() {
+        let do_update_cursors = self.flags.contains(DocFlag::UpdateCursors);
+
+        if do_update_cursors {
             self.add_cursors_to_action_history(action_kind, ctx.time);
         }
 
@@ -1139,7 +1139,7 @@ impl Doc {
             self.lines.drain(start.y + 1..end.y);
         }
 
-        if self.do_shift() {
+        if do_update_cursors {
             self.shift_positions(start, end, Self::shift_position_by_delete, ctx);
         }
 
@@ -1170,7 +1170,9 @@ impl Doc {
         self.version += 1;
         self.lsp_did_change(start, start, text, ctx);
 
-        if self.do_shift() {
+        let do_update_cursors = self.flags.contains(DocFlag::UpdateCursors);
+
+        if do_update_cursors {
             self.add_cursors_to_action_history(action_kind, ctx.time);
         }
 
@@ -1214,7 +1216,7 @@ impl Doc {
             action_history!(self, action_kind).push_insert(start, position, ctx.time);
         }
 
-        if self.do_shift() {
+        if do_update_cursors {
             self.shift_positions(start, position, Self::shift_position_by_insert, ctx);
         }
 
@@ -1307,6 +1309,87 @@ impl Doc {
 
         let start = self.cursor(index).position;
         self.insert(start, text, ctx);
+    }
+
+    fn replace_via_diff(&mut self, other: &Doc, ctx: &mut Ctx) {
+        let edits = myers_diff(self.lines(), &other.lines);
+
+        let mut buffer = STRING_POOL.new_item();
+        let mut a_index = 0;
+
+        for edit in edits {
+            match edit {
+                DiffEdit::Delete { count } => {
+                    let selection = self.select_lines_to_edit(a_index, count, ctx.gfx);
+                    self.delete(selection.start, selection.end, ctx);
+                }
+                DiffEdit::Insert { b_index, count } => {
+                    let position = Position::new(0, a_index);
+                    let selection = other.select_lines_to_edit(b_index, count, ctx.gfx);
+
+                    buffer.clear();
+                    other.collect_string(selection.start, selection.end, &mut buffer);
+
+                    self.insert(position, &buffer, ctx);
+
+                    a_index += count;
+                }
+                DiffEdit::Match { count } => {
+                    a_index += count;
+                }
+                DiffEdit::Substitute { b_index, count } => {
+                    for i in 0..count {
+                        self.replace_line_via_diff(a_index + i, &other.lines[b_index + i], ctx);
+                    }
+
+                    a_index += count;
+                }
+            }
+        }
+    }
+
+    fn replace_line_via_diff(&mut self, y: usize, other: &str, ctx: &mut Ctx) {
+        let edits = myers_diff(&self.lines[y].as_bytes(), other.as_bytes());
+        let mut a_index = 0;
+
+        for edit in edits {
+            match edit {
+                DiffEdit::Delete { count } => {
+                    self.delete(
+                        Position::new(a_index, y),
+                        Position::new(a_index + count, y),
+                        ctx,
+                    );
+                }
+                DiffEdit::Insert { b_index, count } => {
+                    self.insert(
+                        Position::new(a_index, y),
+                        &other[b_index..b_index + count],
+                        ctx,
+                    );
+
+                    a_index += count;
+                }
+                DiffEdit::Match { count } => {
+                    a_index += count;
+                }
+                DiffEdit::Substitute { b_index, count } => {
+                    self.delete(
+                        Position::new(a_index, y),
+                        Position::new(a_index + count, y),
+                        ctx,
+                    );
+
+                    self.insert(
+                        Position::new(a_index, y),
+                        &other[b_index..b_index + count],
+                        ctx,
+                    );
+
+                    a_index += count;
+                }
+            }
+        }
     }
 
     pub fn search(
@@ -1699,39 +1782,18 @@ impl Doc {
             return Ok(());
         };
 
-        let string = read_to_string(path)?;
-
-        self.start_skipping_shifting(ctx.time);
-
-        self.delete(Position::ZERO, self.end(), ctx);
-
-        let (line_ending, len) = self.line_ending_and_len(&string);
-
+        let text = read_to_string(path)?;
+        let (line_ending, _) = self.line_ending_and_len(&text);
         self.line_ending = line_ending;
-        self.insert(Position::ZERO, &string[..len], ctx);
 
-        self.stop_skipping_shifting(ctx);
+        let mut tmp = Doc::new(None, None, DocFlags::RAW);
+        tmp.insert(Position::ZERO, &text, ctx);
+
+        self.replace_via_diff(&tmp, ctx);
 
         self.is_saved = true;
 
         Ok(())
-    }
-
-    fn start_skipping_shifting(&mut self, time: f64) {
-        self.add_cursors_to_action_history(ActionKind::Done, time);
-
-        self.do_skip_shifting = true;
-    }
-
-    fn stop_skipping_shifting(&mut self, ctx: &mut Ctx) {
-        self.do_skip_shifting = false;
-
-        self.shift_positions(
-            Position::ZERO,
-            Position::ZERO,
-            |doc, _, _, position| doc.clamp_position(position),
-            ctx,
-        );
     }
 
     fn line_ending_and_len(&self, string: &str) -> (LineEnding, usize) {
@@ -1814,10 +1876,6 @@ impl Doc {
         }
 
         false
-    }
-
-    fn do_shift(&self) -> bool {
-        !self.do_skip_shifting && self.flags.contains(DocFlag::UpdateCursors)
     }
 
     pub fn flags(&self) -> DocFlags {
@@ -2001,7 +2059,7 @@ impl Doc {
         let cursor = self.cursor(CursorIndex::Main);
 
         let Some(selection) = cursor.get_selection() else {
-            self.select_current_word_at_cursors(gfx);
+            self.select_word_at_cursors(gfx);
             return;
         };
 
@@ -2034,7 +2092,20 @@ impl Doc {
         self.jump_cursor(CursorIndex::Main, end, true, gfx);
     }
 
-    pub fn select_current_line_at_position(&self, position: Position, gfx: &mut Gfx) -> Selection {
+    // Always tries to include a newline (even if you're on the last line) for better cutting, replacing, etc.
+    pub fn select_lines_to_edit(&self, y: usize, count: usize, gfx: &mut Gfx) -> Selection {
+        let mut start = Position::new(0, y);
+        let end = self.line_end(start.y + count - 1);
+        let end = self.move_position(end, 1, 0, gfx);
+
+        if start.y == self.lines().len() - 1 {
+            start = self.move_position(start, -1, 0, gfx);
+        }
+
+        Selection { start, end }
+    }
+
+    pub fn select_line_at_position(&self, position: Position, gfx: &mut Gfx) -> Selection {
         let start = Position::new(0, position.y);
         let end = self.line_end(start.y);
         let end = self.move_position(end, 1, 0, gfx);
@@ -2042,10 +2113,10 @@ impl Doc {
         Selection { start, end }
     }
 
-    pub fn select_current_line_at_cursors(&mut self, gfx: &mut Gfx) {
+    pub fn select_line_at_cursors(&mut self, gfx: &mut Gfx) {
         for index in self.cursor_indices() {
             let position = self.cursor(index).position;
-            let selection = self.select_current_line_at_position(position, gfx);
+            let selection = self.select_line_at_position(position, gfx);
 
             let cursor = self.cursor_mut(index);
 
@@ -2054,11 +2125,7 @@ impl Doc {
         }
     }
 
-    pub fn select_current_word_at_position(
-        &self,
-        mut position: Position,
-        gfx: &mut Gfx,
-    ) -> Selection {
+    pub fn select_word_at_position(&self, mut position: Position, gfx: &mut Gfx) -> Selection {
         let line_len = self.line_len(position.y);
 
         if position.x < line_len {
@@ -2080,10 +2147,10 @@ impl Doc {
         Selection { start, end }
     }
 
-    pub fn select_current_word_at_cursors(&mut self, gfx: &mut Gfx) {
+    pub fn select_word_at_cursors(&mut self, gfx: &mut Gfx) {
         for index in self.cursor_indices() {
             let position = self.cursor(index).position;
-            let selection = self.select_current_word_at_position(position, gfx);
+            let selection = self.select_word_at_position(position, gfx);
 
             let cursor = self.cursor_mut(index);
 

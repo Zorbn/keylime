@@ -937,7 +937,7 @@ impl Tab {
             return None;
         }
 
-        let selection = doc.select_current_word_at_position(position, gfx);
+        let selection = doc.select_word_at_position(position, gfx);
 
         let start = self.position_to_visual(selection.start, camera_position, doc, gfx);
         let end = self.position_to_visual(selection.end, camera_position, doc, gfx);
