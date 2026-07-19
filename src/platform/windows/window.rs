@@ -157,6 +157,10 @@ impl Window {
     }
 
     pub fn resize(&mut self, width: i32, height: i32) {
+        if width == 0 || height == 0 {
+            return;
+        }
+
         self.width = width;
         self.height = height;
 
