@@ -209,6 +209,17 @@ impl Doc {
         doc
     }
 
+    fn tmp_clone(&self) -> Doc {
+        let mut tmp = Doc::new(None, None, DocFlags::RAW);
+        tmp.lines.clear();
+
+        for line in &self.lines {
+            tmp.lines.push(line.clone());
+        }
+
+        tmp
+    }
+
     pub fn add_usage(&mut self) {
         self.usages += 1;
     }

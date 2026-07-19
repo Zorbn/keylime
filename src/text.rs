@@ -2,6 +2,7 @@ pub mod action_history;
 pub mod compare;
 pub mod cursor;
 pub mod cursor_index;
+mod diff;
 pub mod doc;
 pub mod grapheme;
 pub mod grapheme_category;
