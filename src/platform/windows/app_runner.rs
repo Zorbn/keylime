@@ -4,6 +4,7 @@ use windows::{
     core::{w, Result},
     Win32::{
         Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM},
+        Graphics::Dwm::DwmFlush,
         System::{
             Com::{
                 CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE,
@@ -204,6 +205,8 @@ impl AppRunner {
                     app.update(window, gfx, time, dt);
                     app.draw(window, gfx, time);
                 }
+
+                let _ = DwmFlush();
 
                 LRESULT(0)
             }
