@@ -18,7 +18,6 @@ use windows::{
             DirectComposition::*,
             Dxgi::{Common::*, *},
         },
-        UI::WindowsAndMessaging::GetClientRect,
     },
 };
 
@@ -27,6 +26,7 @@ use crate::{
     platform::{
         aliases::AnyText,
         gfx::SpriteKind,
+        platform_impl::window::Window,
         text_cache::{AtlasDimensions, GlyphCacheResult, GlyphSpan, GlyphSpans},
     },
     ui::color::Color,
@@ -180,9 +180,6 @@ impl Gfx {
         let swap_chain = {
             let factory: IDXGIFactory2 = CreateDXGIFactory2(DXGI_CREATE_FACTORY_FLAGS::default())?;
 
-            let mut rect = RECT::default();
-            GetClientRect(hwnd, &mut rect).unwrap();
-
             let desc = DXGI_SWAP_CHAIN_DESC1 {
                 Format: Self::PIXEL_FORMAT,
                 SampleDesc: DXGI_SAMPLE_DESC {
@@ -194,8 +191,8 @@ impl Gfx {
                 Scaling: DXGI_SCALING_STRETCH,
                 SwapEffect: DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
                 AlphaMode: DXGI_ALPHA_MODE_PREMULTIPLIED,
-                Width: (rect.right - rect.left) as u32,
-                Height: (rect.bottom - rect.top) as u32,
+                Width: Window::DEFAULT_WIDTH as u32,
+                Height: Window::DEFAULT_HEIGHT as u32,
                 ..Default::default()
             };
 
@@ -381,7 +378,7 @@ impl Gfx {
             uniform_buffer_result.unwrap()
         };
 
-        let gfx = Self {
+        let mut gfx = Self {
             device,
             _composition_device: composition_device,
             _target: target,
@@ -414,6 +411,8 @@ impl Gfx {
             text: None,
             glyph_cache_result: GlyphCacheResult::Hit,
         };
+
+        gfx.resize(Window::DEFAULT_WIDTH, Window::DEFAULT_HEIGHT)?;
 
         Ok(gfx)
     }

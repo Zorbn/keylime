@@ -99,8 +99,8 @@ pub struct Window {
 }
 
 impl Window {
-    const DEFAULT_WIDTH: i32 = 640;
-    const DEFAULT_HEIGHT: i32 = 480;
+    pub(super) const DEFAULT_WIDTH: i32 = 640;
+    pub(super) const DEFAULT_HEIGHT: i32 = 480;
 
     pub(super) fn new() -> Result<Self> {
         let mut timer_frequency = 0i64;

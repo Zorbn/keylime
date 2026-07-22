@@ -76,8 +76,6 @@ impl AppRunner {
 
         AddClipboardFormatListener(self.window.inner.hwnd())?;
 
-        let _ = ShowWindow(self.window.inner.hwnd(), SW_SHOWDEFAULT);
-
         Ok(())
     }
 
@@ -92,6 +90,8 @@ impl AppRunner {
             return;
         };
 
+        let mut has_drawn = false;
+
         while window.inner.is_running() {
             let time = window.inner.time;
             let is_animating = app.is_animating(window, gfx, time);
@@ -105,6 +105,16 @@ impl AppRunner {
 
             app.update(window, gfx, time, dt);
             app.draw(window, gfx, time);
+
+            if has_drawn {
+                continue;
+            }
+
+            has_drawn = true;
+
+            unsafe {
+                let _ = ShowWindow(window.inner.hwnd(), SW_SHOWDEFAULT);
+            }
         }
 
         let time = window.inner.time;
