@@ -243,7 +243,7 @@ impl Process {
         }
 
         unsafe {
-            WriteFile(self.stdin, Some(&self.input), None, None).unwrap();
+            let _ = WriteFile(self.stdin, Some(&self.input), None, None);
         }
 
         self.input.clear();
@@ -255,14 +255,13 @@ impl Process {
         };
 
         unsafe {
-            ResizePseudoConsole(
+            let _ = ResizePseudoConsole(
                 hpcon,
                 COORD {
                     X: width as i16,
                     Y: height as i16,
                 },
-            )
-            .unwrap();
+            );
         }
     }
 
