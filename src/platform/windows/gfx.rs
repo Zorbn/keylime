@@ -669,6 +669,16 @@ impl Gfx {
 
     pub fn end_frame(&mut self) {
         unsafe {
+            let backbuffer: ID3D11Texture2D = self.swap_chain.GetBuffer(0).unwrap();
+
+            self.context.ResolveSubresource(
+                &backbuffer,
+                0,
+                self.msaa_color_texture.as_ref().unwrap(),
+                0,
+                Self::PIXEL_FORMAT,
+            );
+
             self.swap_chain.Present(1, DXGI_PRESENT::default()).unwrap();
         }
 
@@ -833,16 +843,6 @@ impl Gfx {
                 .OMSetBlendState(&self.blend_state, None, 0xFFFFFFFFu32);
 
             self.context.DrawIndexed(self.indices.len() as u32, 0, 0);
-
-            let backbuffer: ID3D11Texture2D = self.swap_chain.GetBuffer(0).unwrap();
-
-            self.context.ResolveSubresource(
-                &backbuffer,
-                0,
-                self.msaa_color_texture.as_ref().unwrap(),
-                0,
-                Self::PIXEL_FORMAT,
-            );
         }
     }
 
