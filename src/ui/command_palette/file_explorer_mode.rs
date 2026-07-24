@@ -228,18 +228,23 @@ impl CommandPaletteMode for FileExplorerMode {
             return;
         };
 
-        let doc = &mut command_palette.doc;
+        let Some(path) = path.as_os_str().to_str() else {
+            return;
+        };
 
-        for component in path.components() {
-            let Some(string) = component.as_os_str().to_str() else {
-                continue;
-            };
+        let mut path = path.to_string();
 
-            doc.insert(doc.end(), string, args.ctx);
-
-            if !ends_with_path_separator(string) {
-                doc.insert(doc.end(), PREFERRED_PATH_SEPARATOR, args.ctx);
+        for separator in PATH_SEPARATORS {
+            if *separator != PREFERRED_PATH_SEPARATOR {
+                path = path.replace(separator, PREFERRED_PATH_SEPARATOR);
             }
+        }
+
+        let doc = &mut command_palette.doc;
+        doc.insert(doc.end(), &path, args.ctx);
+
+        if !path.ends_with(PREFERRED_PATH_SEPARATOR) {
+            doc.insert(doc.end(), PREFERRED_PATH_SEPARATOR, args.ctx);
         }
     }
 
