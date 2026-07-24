@@ -117,7 +117,15 @@ pub struct LanguageServer {
 
 impl LanguageServer {
     pub fn new(command: &str, current_dir: &Path, options: &Option<Value>) -> Option<Self> {
-        let process = Process::new(&[command], ProcessKind::Normal).ok()?;
+        let process = Process::new(&[command], ProcessKind::Normal)
+            .inspect_err(|err| {
+                eprintln!(
+                    "Failed to start language server \"{}\": {}",
+                    command,
+                    err.message()
+                )
+            })
+            .ok()?;
 
         let mut language_server = Self {
             process,
