@@ -26,7 +26,7 @@ pub enum MessageResponse {
 }
 
 pub fn find_file(kind: FindFileKind, window: &mut Window) -> Result<Pooled<PathBuf>> {
-    platform_impl::dialog::find_file(kind, window)
+    Ok(platform_impl::dialog::find_file(kind, window)?)
 }
 
 pub fn message(title: &str, text: &str, kind: MessageKind, window: &mut Window) -> MessageResponse {

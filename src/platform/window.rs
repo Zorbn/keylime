@@ -48,11 +48,11 @@ impl Window {
     }
 
     pub fn set_clipboard(&mut self, text: &str, was_copy_implicit: bool) -> Result<()> {
-        self.inner.set_clipboard(text, was_copy_implicit)
+        Ok(self.inner.set_clipboard(text, was_copy_implicit)?)
     }
 
     pub fn get_clipboard(&self, text: &mut String) -> Result<()> {
-        self.inner.get_clipboard(text)
+        Ok(self.inner.get_clipboard(text)?)
     }
 
     pub fn was_copy_implicit(&self) -> bool {

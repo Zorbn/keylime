@@ -599,7 +599,7 @@ impl Gfx {
         self.scale = scale;
 
         self.text = AnyText::new(font_name, |font_name| unsafe {
-            Text::new(font_name, font_size, scale, &self.device)
+            Ok(Text::new(font_name, font_size, scale, &self.device)?)
         })
         .ok();
     }
