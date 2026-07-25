@@ -40,7 +40,7 @@ pub fn find_file(kind: FindFileKind, window: &mut AnyWindow) -> Result<Pooled<Pa
 
         dialog.Show(None)?;
 
-        window.inner.time(false);
+        window.inner.restart_frame_timing();
 
         let result = dialog.GetResult()?;
         let wide_path = result.GetDisplayName(SIGDN_FILESYSPATH)?;
@@ -71,7 +71,7 @@ pub fn message(
 
         let response = MessageBoxW(None, &wide_text, &wide_title, style);
 
-        window.inner.time(false);
+        window.inner.restart_frame_timing();
 
         match response {
             IDYES => MessageResponse::Yes,

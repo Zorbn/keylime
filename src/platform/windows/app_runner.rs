@@ -93,7 +93,7 @@ impl AppRunner {
         let mut has_drawn = false;
 
         while window.inner.is_running() {
-            let time = window.inner.time;
+            let (time, dt) = window.inner.frame_times();
             let is_animating = app.is_animating(window, gfx, time);
 
             let (file_watcher, files, processes) = app.files_and_processes();
@@ -105,10 +105,12 @@ impl AppRunner {
                 processes,
             );
 
-            let (time, dt) = window.inner.time(is_animating);
+            window.inner.restart_frame_timing();
 
             app.update(window, gfx, time, dt);
             app.draw(window, gfx, time);
+
+            window.inner.stop_frame_timing();
 
             if has_drawn {
                 continue;
@@ -121,7 +123,7 @@ impl AppRunner {
             }
         }
 
-        let time = window.inner.time;
+        let (time, _) = window.inner.frame_times();
         app.close(window, gfx, time);
     }
 
@@ -212,12 +214,13 @@ impl AppRunner {
                 {
                     gfx.inner.resize(width, height).unwrap();
 
-                    let time = window.inner.time;
-                    let is_animating = app.is_animating(window, gfx, time);
-                    let (time, dt) = window.inner.time(is_animating);
+                    let (time, dt) = window.inner.frame_times();
+                    window.inner.restart_frame_timing();
 
                     app.update(window, gfx, time, dt);
                     app.draw(window, gfx, time);
+
+                    window.inner.stop_frame_timing();
                 }
 
                 let _ = DwmFlush();

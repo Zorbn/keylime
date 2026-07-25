@@ -66,8 +66,9 @@ struct RecordedMouseClick {
 
 pub struct Window {
     timer_frequency: i64,
-    last_queried_time: Option<i64>,
-    pub(super) time: f64,
+    last_queried_time: i64,
+    time: f64,
+    dt: f32,
 
     hwnd: HWND,
 
@@ -113,8 +114,9 @@ impl Window {
 
         Ok(Self {
             timer_frequency,
-            last_queried_time: None,
+            last_queried_time: 0,
             time: 0.0,
+            dt: 0.0,
 
             hwnd: HWND(null_mut()),
 
@@ -170,27 +172,27 @@ impl Window {
         });
     }
 
-    pub fn time(&mut self, is_animating: bool) -> (f64, f32) {
+    pub fn restart_frame_timing(&mut self) {
         unsafe {
-            let mut queried_time = 0i64;
-            let _ = QueryPerformanceCounter(&mut queried_time);
-
-            let dt = if let Some(last_queried_time) = self.last_queried_time {
-                (queried_time - last_queried_time) as f32 / self.timer_frequency as f32
-            } else {
-                0.0
-            };
-
-            self.last_queried_time = Some(queried_time);
-
-            self.time += dt as f64;
-
-            // Don't return massive delta times from big gaps in animation, because those
-            // might cause visual jumps or other problems. (eg. if you don't interact with
-            // the app for 15 seconds and then you do something that starts an animation,
-            // that animation shouldn't instantly jump to completion).
-            (self.time, if is_animating { dt } else { 0.0 })
+            let _ = QueryPerformanceCounter(&mut self.last_queried_time);
         }
+    }
+
+    pub fn stop_frame_timing(&mut self) {
+        let mut queried_time = 0i64;
+
+        unsafe {
+            let _ = QueryPerformanceCounter(&mut queried_time);
+        }
+
+        let dt = (queried_time - self.last_queried_time) as f32 / self.timer_frequency as f32;
+
+        self.time += dt as f64;
+        self.dt = dt;
+    }
+
+    pub fn frame_times(&mut self) -> (f64, f32) {
+        (self.time, self.dt)
     }
 
     pub fn update<'a>(
