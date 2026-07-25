@@ -192,7 +192,7 @@ define_class!(
 
         #[unsafe(method(displayWithUpdate))]
         fn display_with_update_objc(&self) {
-            self.on_display_layer(true);
+            self.on_display_layer();
         }
     }
 
@@ -201,7 +201,7 @@ define_class!(
     unsafe impl CALayerDelegate for View {
         #[unsafe(method(displayLayer:))]
         unsafe fn display_layer(&self, _layer: &CALayer) {
-            self.on_display_layer(false);
+            self.on_display_layer();
         }
     }
 );
@@ -268,15 +268,6 @@ impl View {
         Some(())
     }
 
-    fn update(app: &mut App, window: &mut AnyWindow, gfx: &mut AnyGfx) {
-        let is_animating = app.is_animating(window, gfx, window.inner.time);
-        let (time, dt) = window.inner.time(is_animating);
-        app.update(window, gfx, time, dt);
-
-        let (file_watcher, files, processes) = app.files_and_processes();
-        window.inner.update(file_watcher, files, processes);
-    }
-
     fn on_frame_changed(&self, new_size: Option<NSSize>) -> Option<()> {
         let mut state = self.ivars().state.try_borrow_mut().ok()?;
         let ViewState { app, window, gfx } = state.as_mut()?;
@@ -310,20 +301,21 @@ impl View {
             gfx.inner.set_font(font, *font_size, scale as f32);
         }
 
-        Self::update(app, window, gfx);
-
         Some(())
     }
 
-    fn on_display_layer(&self, do_update: bool) -> Option<()> {
+    fn on_display_layer(&self) -> Option<()> {
         let mut state = self.ivars().state.try_borrow_mut().ok()?;
         let ViewState { app, window, gfx } = state.as_mut()?;
 
-        if do_update {
-            Self::update(app, window, gfx);
-        }
+        window.inner.time_frame();
+        let (time, dt) = window.inner.frame_times();
 
-        let time = window.inner.time;
+        app.update(window, gfx, time, dt);
+
+        let (file_watcher, files, processes) = app.files_and_processes();
+        window.inner.update(file_watcher, files, processes);
+
         app.draw(window, gfx, time);
 
         if !window.inner.was_shown {
@@ -331,7 +323,11 @@ impl View {
             window.inner.was_shown = true;
         }
 
-        let is_animating = app.is_animating(window, gfx, window.inner.time);
+        let is_animating = app.is_animating(window, gfx, time);
+
+        if !is_animating {
+            window.inner.skip_frame_timing();
+        }
 
         unsafe {
             self.ivars().display_link.get()?.setPaused(!is_animating);
@@ -370,8 +366,7 @@ impl View {
             app, window, gfx, ..
         } = state.as_mut()?;
 
-        let time = window.inner.time;
-
+        let (time, _) = window.inner.frame_times();
         app.close(window, gfx, time);
 
         state.take();

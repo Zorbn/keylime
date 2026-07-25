@@ -31,7 +31,7 @@ pub fn find_file(kind: FindFileKind, window: &mut AnyWindow) -> Result<Pooled<Pa
             find_file_open(kind, mtm, content_rect, style)
         };
 
-        window.inner.time(false);
+        window.inner.skip_frame_timing();
 
         let path = url
             .ok_or("Dialog is missing a URL")?
@@ -114,7 +114,7 @@ pub fn message(
         alert.runModal()
     };
 
-    window.inner.time(false);
+    window.inner.skip_frame_timing();
 
     if response == NSAlertFirstButtonReturn {
         MessageResponse::Yes

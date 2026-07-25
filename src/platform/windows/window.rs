@@ -185,10 +185,10 @@ impl Window {
             let _ = QueryPerformanceCounter(&mut queried_time);
         }
 
-        let dt = (queried_time - self.last_queried_time) as f32 / self.timer_frequency as f32;
+        let dt = (queried_time - self.last_queried_time) as f64 / self.timer_frequency as f64;
 
-        self.time += dt as f64;
-        self.dt = dt;
+        self.time += dt;
+        self.dt = dt as f32;
     }
 
     pub fn frame_times(&mut self) -> (f64, f32) {

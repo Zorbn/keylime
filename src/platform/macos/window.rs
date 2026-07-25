@@ -42,7 +42,8 @@ pub struct Window {
 
     pub was_shown: bool,
     pub is_focused: bool,
-    pub time: f64,
+    time: f64,
+    dt: f32,
     last_queried_time: Option<f64>,
 
     pub msgs: Vec<Msg>,
@@ -93,6 +94,7 @@ impl Window {
             was_shown: false,
             is_focused: true,
             time: 0.0,
+            dt: 0.0,
             last_queried_time: None,
 
             scale,
@@ -146,21 +148,25 @@ impl Window {
         });
     }
 
-    pub fn time(&mut self, is_animating: bool) -> (f64, f32) {
-        let time = unsafe { NSDate::now().timeIntervalSinceReferenceDate() };
+    pub fn skip_frame_timing(&mut self) {
+        self.last_queried_time = None;
+    }
 
-        let dt = if let Some(last_queried_time) = self.last_queried_time {
-            (time - last_queried_time) as f32
-        } else {
-            0.0
-        };
+    pub fn time_frame(&mut self) {
+        let queried_time = unsafe { NSDate::now().timeIntervalSinceReferenceDate() };
 
-        self.last_queried_time = Some(time);
-        self.time += dt as f64;
+        if let Some(last_queried_time) = self.last_queried_time {
+            let dt = queried_time - last_queried_time;
 
-        let dt = if is_animating { dt } else { 0.0 };
+            self.time += dt;
+            self.dt = dt as f32;
+        }
 
-        (self.time, dt)
+        self.last_queried_time = Some(queried_time);
+    }
+
+    pub fn frame_times(&mut self) -> (f64, f32) {
+        (self.time, self.dt)
     }
 
     pub fn update<'a>(
