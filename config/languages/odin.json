@@ -9,7 +9,6 @@
         "line_pattern": "%((%d+):"
     },
     "lsp": {
-        "command": "/Users/nic/Downloads/ols-arm64-darwin/ols-arm64-darwin",
         "language_id": "odin"
     },
     "syntax": {
