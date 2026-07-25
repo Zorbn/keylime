@@ -274,7 +274,7 @@ impl Gfx {
         self.scale = scale;
 
         self.text = AnyText::new(font_name, |font_name| unsafe {
-            Text::new(font_name, font_size, scale)
+            Ok(Text::new(font_name, font_size, scale)?)
         })
         .ok();
     }

@@ -207,8 +207,8 @@ impl Doc {
         doc
     }
 
-    fn tmp_clone(&self) -> Doc {
-        let mut tmp = Doc::new(None, None, DocFlags::RAW);
+    fn tmp_clone(&self) -> Self {
+        let mut tmp = Self::new(None, None, DocFlags::RAW);
         tmp.lines.clear();
 
         for line in &self.lines {
@@ -1311,7 +1311,7 @@ impl Doc {
         self.insert(start, text, ctx);
     }
 
-    fn replace_via_diff(&mut self, other: &Doc, ctx: &mut Ctx) {
+    fn replace_via_diff(&mut self, other: &Self, ctx: &mut Ctx) {
         let edits = myers_diff(self.lines(), &other.lines);
 
         let mut buffer = STRING_POOL.new_item();
@@ -1349,7 +1349,7 @@ impl Doc {
     }
 
     fn replace_line_via_diff(&mut self, y: usize, other: &str, ctx: &mut Ctx) {
-        let edits = myers_diff(&self.lines[y].as_bytes(), other.as_bytes());
+        let edits = myers_diff(self.lines[y].as_bytes(), other.as_bytes());
         let mut a_index = 0;
 
         for edit in edits.iter() {
@@ -1786,7 +1786,7 @@ impl Doc {
         let (line_ending, _) = self.line_ending_and_len(&text);
         self.line_ending = line_ending;
 
-        let mut tmp = Doc::new(None, None, DocFlags::RAW);
+        let mut tmp = Self::new(None, None, DocFlags::RAW);
         tmp.insert(Position::ZERO, &text, ctx);
 
         self.replace_via_diff(&tmp, ctx);

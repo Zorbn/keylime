@@ -16,8 +16,8 @@ pub fn myers_diff<T: PartialEq>(a: &[T], b: &[T]) -> Pooled<Vec<DiffEdit>> {
     let width = b.len() + 1;
     matrix.resize(height * width, 0);
 
-    for i in 1..width {
-        matrix[i] = i;
+    for (i, item) in matrix[1..width].iter_mut().enumerate() {
+        *item = i;
     }
 
     for i in 1..height {

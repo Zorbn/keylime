@@ -10,9 +10,15 @@ pub enum PlatformError {
 impl Display for PlatformError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PlatformError::Str(str) => str.fmt(f),
-            PlatformError::String(string) => string.fmt(f),
+            Self::Str(str) => str.fmt(f),
+            Self::String(string) => string.fmt(f),
         }
+    }
+}
+
+impl From<&'static str> for PlatformError {
+    fn from(value: &'static str) -> Self {
+        Self::Str(value)
     }
 }
 
