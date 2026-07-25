@@ -243,7 +243,7 @@ impl CommandPaletteMode for FileExplorerMode {
         let doc = &mut command_palette.doc;
         doc.insert(doc.end(), &path, args.ctx);
 
-        if !path.ends_with(PREFERRED_PATH_SEPARATOR) {
+        if !path.is_empty() && !path.ends_with(PREFERRED_PATH_SEPARATOR) {
             doc.insert(doc.end(), PREFERRED_PATH_SEPARATOR, args.ctx);
         }
     }
