@@ -196,6 +196,7 @@ impl Window {
     pub fn update<'a>(
         &mut self,
         is_animating: bool,
+        latency_handle: HANDLE,
         file_watcher: &mut AnyFileWatcher,
         files: impl Iterator<Item = &'a Path>,
         processes: impl Iterator<Item = &'a mut AnyProcess>,
@@ -205,43 +206,41 @@ impl Window {
         unsafe {
             let mut msg = MSG::default();
 
-            if !is_animating {
-                self.wait_handles.clear();
+            self.wait_handles.clear();
 
-                for process in processes {
-                    if WaitForSingleObject(process.inner.hprocess, 0) != WAIT_TIMEOUT {
-                        continue;
-                    }
-
-                    self.wait_handles
-                        .extend_from_slice(&[process.inner.hprocess, process.inner.event]);
+            for process in processes {
+                if WaitForSingleObject(process.inner.hprocess, 0) != WAIT_TIMEOUT {
+                    continue;
                 }
 
-                let dir_handles_start = self.wait_handles.len();
+                self.wait_handles
+                    .extend_from_slice(&[process.inner.hprocess, process.inner.event]);
+            }
 
-                self.wait_handles.extend(
-                    file_watcher
-                        .inner
-                        .watched_dirs()
-                        .iter()
-                        .map(|watched_dir| watched_dir.event()),
-                );
+            if is_animating {
+                self.wait_handles.push(latency_handle);
+            }
 
-                let result = MsgWaitForMultipleObjects(
-                    Some(&self.wait_handles),
-                    false,
-                    INFINITE,
-                    QS_ALLINPUT,
-                );
+            let dir_handles_start = self.wait_handles.len();
 
-                let index = (result.0 - WAIT_OBJECT_0.0) as usize;
+            self.wait_handles.extend(
+                file_watcher
+                    .inner
+                    .watched_dirs()
+                    .iter()
+                    .map(|watched_dir| watched_dir.event()),
+            );
 
-                if index >= dir_handles_start && index < self.wait_handles.len() {
-                    file_watcher
-                        .inner
-                        .handle_dir_update(index - dir_handles_start)
-                        .unwrap();
-                }
+            let result =
+                MsgWaitForMultipleObjects(Some(&self.wait_handles), false, INFINITE, QS_ALLINPUT);
+
+            let index = (result.0 - WAIT_OBJECT_0.0) as usize;
+
+            if index >= dir_handles_start && index < self.wait_handles.len() {
+                file_watcher
+                    .inner
+                    .handle_dir_update(index - dir_handles_start)
+                    .unwrap();
             }
 
             file_watcher.inner.check_dir_updates().unwrap();

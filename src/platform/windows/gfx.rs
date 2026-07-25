@@ -8,7 +8,7 @@ use std::{
 use windows::{
     core::{s, Interface, Result},
     Win32::{
-        Foundation::{HMODULE, HWND, RECT, TRUE},
+        Foundation::{HANDLE, HMODULE, HWND, RECT, TRUE},
         Graphics::{
             Direct3D::{
                 Fxc::{D3DCompile, D3DCOMPILE_DEBUG},
@@ -114,7 +114,8 @@ pub struct Gfx {
     _target: IDCompositionTarget,
     _visual: IDCompositionVisual,
     context: ID3D11DeviceContext,
-    swap_chain: IDXGISwapChain1,
+    swap_chain: IDXGISwapChain2,
+    latency_handle: HANDLE,
     rasterizer_state: ID3D11RasterizerState,
     blend_state: ID3D11BlendState,
     vertex_shader: ID3D11VertexShader,
@@ -177,7 +178,7 @@ impl Gfx {
         let target = composition_device.CreateTargetForHwnd(hwnd, true)?;
         let visual = composition_device.CreateVisual()?;
 
-        let swap_chain = {
+        let swap_chain: IDXGISwapChain2 = {
             let factory: IDXGIFactory2 = CreateDXGIFactory2(DXGI_CREATE_FACTORY_FLAGS::default())?;
 
             let desc = DXGI_SWAP_CHAIN_DESC1 {
@@ -193,13 +194,17 @@ impl Gfx {
                 AlphaMode: DXGI_ALPHA_MODE_PREMULTIPLIED,
                 Width: Window::DEFAULT_WIDTH as u32,
                 Height: Window::DEFAULT_HEIGHT as u32,
+                Flags: DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT.0 as u32,
                 ..Default::default()
             };
 
             factory
-                .CreateSwapChainForComposition(&device, &desc, None)
-                .unwrap()
+                .CreateSwapChainForComposition(&device, &desc, None)?
+                .cast()?
         };
+
+        swap_chain.SetMaximumFrameLatency(1)?;
+        let latency_handle = swap_chain.GetFrameLatencyWaitableObject();
 
         visual.SetContent(&swap_chain)?;
         target.SetRoot(&visual)?;
@@ -385,6 +390,7 @@ impl Gfx {
             _visual: visual,
             context,
             swap_chain,
+            latency_handle,
             rasterizer_state,
             blend_state,
             vertex_shader,
@@ -553,7 +559,7 @@ impl Gfx {
                 self.width as u32,
                 self.height as u32,
                 DXGI_FORMAT_UNKNOWN,
-                DXGI_SWAP_CHAIN_FLAG::default(),
+                DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT,
             )
             .unwrap();
 
@@ -679,12 +685,16 @@ impl Gfx {
                 Self::PIXEL_FORMAT,
             );
 
-            self.swap_chain.Present(1, DXGI_PRESENT::default()).unwrap();
+            self.swap_chain.Present(0, DXGI_PRESENT::default()).unwrap();
         }
 
         if let Some(text) = &mut self.text {
             text.swap_caches();
         }
+    }
+
+    pub fn latency_handle(&self) -> HANDLE {
+        self.latency_handle
     }
 
     pub fn begin(&mut self, bounds: Option<Rect>) {

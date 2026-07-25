@@ -64,8 +64,8 @@ impl FileWatcher {
             a.len().cmp(&b.len())
         });
 
-        for watched_path in &mut self.watched_dirs {
-            watched_path.is_in_use = false;
+        for watched_dir in &mut self.watched_dirs {
+            watched_dir.is_in_use = false;
         }
 
         'docs: for file in files {

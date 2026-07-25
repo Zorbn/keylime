@@ -97,9 +97,13 @@ impl AppRunner {
             let is_animating = app.is_animating(window, gfx, time);
 
             let (file_watcher, files, processes) = app.files_and_processes();
-            window
-                .inner
-                .update(is_animating, file_watcher, files, processes);
+            window.inner.update(
+                is_animating,
+                gfx.inner.latency_handle(),
+                file_watcher,
+                files,
+                processes,
+            );
 
             let (time, dt) = window.inner.time(is_animating);
 
