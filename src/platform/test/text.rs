@@ -5,9 +5,15 @@ use crate::platform::{
 
 use super::result::Result;
 
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct GlyphId {
+    index: u16,
+    font_id: u16,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Glyph {
-    pub index: u16,
+    pub id: GlyphId,
     pub advance: usize,
 }
 

@@ -1,4 +1,10 @@
-use std::{ffi::c_void, ptr::null, slice::from_raw_parts};
+use std::{
+    collections::HashMap,
+    ffi::c_void,
+    mem::ManuallyDrop,
+    ptr::{null, null_mut},
+    slice::from_raw_parts,
+};
 
 use windows::{
     core::{implement, w, Error, Interface, Result, HSTRING, PCWSTR},
@@ -32,9 +38,15 @@ use crate::{
     pool::UTF16_POOL,
 };
 
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct GlyphId {
+    index: u16,
+    font_id: u16,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Glyph<'a> {
-    pub index: u16,
+    pub id: GlyphId,
     pub advance: usize,
     run: &'a DWRITE_GLYPH_RUN,
     measuring_mode: DWRITE_MEASURING_MODE,
@@ -56,6 +68,8 @@ pub struct Text {
 
     text_format: IDWriteTextFormat,
     text_rendering_params: IDWriteRenderingParams3,
+
+    font_ids: HashMap<Vec<u8>, u16>,
 
     glyph_width: f32,
     line_height: f32,
@@ -170,6 +184,8 @@ impl Text {
 
             text_format,
             text_rendering_params,
+
+            font_ids: HashMap::new(),
 
             glyph_width,
             line_height,
@@ -447,6 +463,50 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
         let glyph_advances = unsafe { from_raw_parts(glyph_run.glyphAdvances, glyph_count) };
 
         for (glyph_index, glyph_advance) in glyph_indices.iter().zip(glyph_advances) {
+            let Some(font_face) = glyph_run
+                .fontFace
+                .as_ref()
+                .map(|font_face| ManuallyDrop::new(font_face))
+            else {
+                continue;
+            };
+
+            let ref_key = unsafe {
+                let mut file_count = 1;
+                let mut file = None;
+
+                let mut ref_key = null_mut();
+                let mut ref_key_size = 0u32;
+
+                if font_face
+                    .GetFiles(&mut file_count, Some(&mut file))
+                    .is_err()
+                {
+                    continue;
+                }
+
+                if file
+                    .unwrap()
+                    .GetReferenceKey(&mut ref_key, &mut ref_key_size)
+                    .is_err()
+                {
+                    continue;
+                }
+
+                from_raw_parts(ref_key as *const u8, ref_key_size as usize)
+            };
+
+            let font_id = context
+                .text
+                .font_ids
+                .get(ref_key)
+                .copied()
+                .unwrap_or_else(|| {
+                    let next_font_id = context.text.font_ids.len() as u16;
+                    context.text.font_ids.insert(ref_key.to_vec(), next_font_id);
+                    next_font_id
+                });
+
             let glyph_advances = [0.0];
             let glyph_offsets = [DWRITE_GLYPH_OFFSET::default()];
 
@@ -462,7 +522,10 @@ impl IDWriteTextRenderer_Impl for TextRenderer_Impl {
             };
 
             let glyph = Glyph {
-                index: *glyph_index,
+                id: GlyphId {
+                    index: *glyph_index,
+                    font_id,
+                },
                 advance: *glyph_advance as usize,
                 run: &glyph_run,
                 measuring_mode,
