@@ -208,8 +208,9 @@ impl TerminalEmulator {
                     needs_recenter = true;
                 }
                 Msg::Action(
+                    action @
                     action_keybind!(keys: key @ (Key::Up | Key::Down | Key::Left | Key::Right | Key::Home | Key::End), mods),
-                ) => {
+                ) if action.name.is_none() => {
                     let key_byte = match key {
                         Key::Up => b'A',
                         Key::Down => b'B',
@@ -354,7 +355,7 @@ impl TerminalEmulator {
                 self.jump_doc_cursors_to_grid_cursor(doc, ctx.gfx);
             }
             EscapeSequence::SwitchToNormalBuffer => self.switch_to_normal_buffer(docs, tab, ctx),
-            EscapeSequence::SwitchToAlternateBuffer => self.switch_to_alternate_buffer(doc, tab),
+            EscapeSequence::SwitchToAlternateBuffer => self.switch_to_alternate_buffer(tab),
             EscapeSequence::QueryModifyKeyboard
             | EscapeSequence::QueryModifyCursorKeys
             | EscapeSequence::QueryModifyFunctionKeys
@@ -857,12 +858,12 @@ impl TerminalEmulator {
         }
     }
 
-    fn switch_to_alternate_buffer(&mut self, doc: &mut Doc, tab: &mut Tab) {
+    fn switch_to_alternate_buffer(&mut self, tab: &mut Tab) {
         if self.is_in_alternate_buffer {
             return;
         }
 
-        self.switch_buffer(doc, tab);
+        self.switch_buffer(tab);
     }
 
     fn switch_to_normal_buffer(&mut self, docs: &mut TerminalDocs, tab: &mut Tab, ctx: &mut Ctx) {
@@ -870,7 +871,7 @@ impl TerminalEmulator {
             return;
         }
 
-        self.switch_buffer(&mut docs.alternate, tab);
+        self.switch_buffer(tab);
 
         tab.camera
             .vertical
@@ -879,7 +880,7 @@ impl TerminalEmulator {
         tab.skip_camera_animations(&docs.normal, ctx);
     }
 
-    fn switch_buffer(&mut self, doc: &mut Doc, tab: &mut Tab) {
+    fn switch_buffer(&mut self, tab: &mut Tab) {
         swap(&mut self.grid, &mut self.other_grid);
 
         self.is_in_alternate_buffer = !self.is_in_alternate_buffer;
