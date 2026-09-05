@@ -64,15 +64,19 @@ impl ColoredGridLine {
         self.is_dirty = true;
     }
 
-    fn expand(&mut self, grid_width: usize) {
+    fn resize(&mut self, grid_width: usize) {
+        if self.colors.len() == grid_width {
+            return;
+        }
+
         while self.colors.len() < grid_width {
             self.colors.push((
                 TerminalHighlightKind::Foreground,
                 TerminalHighlightKind::Background,
             ));
-
-            self.is_dirty = true;
         }
+
+        self.is_dirty = true;
     }
 }
 
@@ -671,7 +675,7 @@ impl TerminalEmulator {
         }
 
         for colored_grid_line in colored_grid_lines {
-            colored_grid_line.expand(grid_width);
+            colored_grid_line.resize(grid_width);
         }
     }
 
@@ -793,7 +797,7 @@ impl TerminalEmulator {
 
         let mut bottom_grid_line = self.grid.colored_lines.remove(scroll_bottom);
         bottom_grid_line.clear();
-        bottom_grid_line.expand(self.grid_width);
+        bottom_grid_line.resize(self.grid_width);
 
         self.grid.colored_lines.insert(scroll_top, bottom_grid_line);
 
@@ -843,7 +847,7 @@ impl TerminalEmulator {
 
         let mut top_grid_line = self.grid.colored_lines.remove(scroll_top);
         top_grid_line.clear();
-        top_grid_line.expand(self.grid_width);
+        top_grid_line.resize(self.grid_width);
 
         self.grid.colored_lines.insert(scroll_bottom, top_grid_line);
 
@@ -1078,7 +1082,6 @@ impl TerminalEmulator {
             let colors = &colored_line.colors[..line_len];
 
             doc.highlight_line_from_terminal_colors(colors, doc_y);
-
             colored_line.is_dirty = false;
         }
     }
