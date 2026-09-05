@@ -6,6 +6,8 @@ use std::{
     rc::Rc,
 };
 
+use crate::platform::platform_impl::text::GlyphId;
+
 use super::platform_impl::{self, text::Glyph};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -75,7 +77,7 @@ impl Atlas {
         let mut new_atlas = Self {
             data: vec![0u8; new_width * new_height * 4],
             dimensions: new_atlas_dimensions,
-            has_color_glyphs: false,
+            has_color_glyphs: self.has_color_glyphs,
         };
 
         self.copy_to(&mut new_atlas, 0, 0);
@@ -172,7 +174,7 @@ impl GlyphCacheResult {
 }
 
 pub struct TextCache {
-    glyph_cache: HashMap<u16, GlyphSpan>,
+    glyph_cache: HashMap<GlyphId, GlyphSpan>,
 
     pub last_glyph_spans: Vec<GlyphSpan>,
     last_layout_data: Rc<RefCell<String>>,
@@ -224,7 +226,7 @@ impl TextCache {
 
         self.needs_first_resize = false;
 
-        if let Some(span) = self.glyph_cache.get(&glyph.index) {
+        if let Some(span) = self.glyph_cache.get(&glyph.id) {
             return (*span, result);
         }
 
@@ -258,12 +260,12 @@ impl TextCache {
             x,
             y,
             width,
-            height: sub_atlas.dimensions.height,
+            height,
             advance: glyph.advance,
             has_color_glyphs: sub_atlas.has_color_glyphs,
         };
 
-        self.glyph_cache.insert(glyph.index, span);
+        self.glyph_cache.insert(glyph.id, span);
 
         self.atlas_used_width += width;
         self.atlas_current_row_height = self.atlas_current_row_height.max(height);

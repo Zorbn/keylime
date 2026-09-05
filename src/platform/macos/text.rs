@@ -1,5 +1,6 @@
 use core::f64;
 use std::{
+    collections::HashMap,
     ops::Deref,
     ptr::{null_mut, NonNull},
 };
@@ -15,9 +16,15 @@ use objc2_core_graphics::*;
 use objc2_core_text::*;
 use objc2_foundation::{NSMutableAttributedString, NSRange, NSString};
 
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct GlyphId {
+    index: u16,
+    font_id: u16,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Glyph<'a> {
-    pub index: u16,
+    pub id: GlyphId,
     pub advance: usize,
     has_color: bool,
     font: &'a CTFont,
@@ -25,6 +32,7 @@ pub struct Glyph<'a> {
 
 pub struct Text {
     font: CFRetained<CTFont>,
+    font_ids: HashMap<CFRetained<CFString>, u16>,
 
     glyph_indices: Vec<u16>,
     glyph_advances: Vec<CGSize>,
@@ -83,6 +91,7 @@ impl Text {
 
         Ok(Self {
             font,
+            font_ids: HashMap::new(),
 
             glyph_indices: Vec::new(),
             glyph_advances: Vec::new(),
@@ -93,7 +102,7 @@ impl Text {
     }
 
     pub unsafe fn generate_atlas(&mut self, glyph: Glyph) -> Result<Atlas> {
-        let mut glyphs = [glyph.index];
+        let mut glyphs = [glyph.id.index];
         let glyphs = NonNull::new(glyphs.as_mut_ptr()).unwrap();
 
         let rect = CTFont::bounding_rects_for_glyphs(
@@ -238,6 +247,12 @@ impl Text {
             );
 
             for i in 0..glyph_count {
+                let next_font_id = self.font_ids.len() as u16;
+                let font_id = *self
+                    .font_ids
+                    .entry(font.post_script_name())
+                    .or_insert(next_font_id);
+
                 let index = self.glyph_indices[i];
                 let advance = self.glyph_advances[i].width as usize;
 
@@ -245,7 +260,7 @@ impl Text {
                     self,
                     text_cache,
                     Glyph {
-                        index,
+                        id: GlyphId { index, font_id },
                         advance,
                         has_color,
                         font,

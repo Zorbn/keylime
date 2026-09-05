@@ -295,6 +295,10 @@ impl TerminalEmulator {
         self.resize(docs, tab, ctx);
 
         tab.camera.horizontal.set_locked(true);
+
+        let doc = self.doc_mut(docs);
+
+        self.highlight_lines(doc);
     }
 
     fn handle_escape_sequences(
@@ -314,10 +318,6 @@ impl TerminalEmulator {
         while let Some(sequence) = self.parser.next_sequence() {
             self.handle_escape_sequence(docs, tab, input, sequence, ctx);
         }
-
-        let doc = self.doc_mut(docs);
-
-        self.highlight_lines(doc);
     }
 
     fn handle_escape_sequence(
@@ -632,16 +632,9 @@ impl TerminalEmulator {
             doc.delete(start, doc.end(), ctx);
         }
 
-        let mut needs_highlight = false;
-
         while self.grid_height > doc.lines().len() {
             doc.insert(doc.end(), "\n", ctx);
             doc.insert(doc.end(), &self.empty_line_text, ctx);
-            needs_highlight = true;
-        }
-
-        if needs_highlight {
-            self.highlight_lines(doc);
         }
 
         for y in 0..self.grid_height {
@@ -887,8 +880,6 @@ impl TerminalEmulator {
     }
 
     fn switch_buffer(&mut self, doc: &mut Doc, tab: &mut Tab) {
-        self.highlight_lines(doc);
-
         swap(&mut self.grid, &mut self.other_grid);
 
         self.is_in_alternate_buffer = !self.is_in_alternate_buffer;
