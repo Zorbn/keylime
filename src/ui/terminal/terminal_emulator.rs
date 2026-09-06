@@ -210,7 +210,11 @@ impl TerminalEmulator {
                 Msg::Action(
                     action @
                     action_keybind!(keys: key @ (Key::Up | Key::Down | Key::Left | Key::Right | Key::Home | Key::End), mods),
-                ) if action.name.is_none() => {
+                ) if !matches!(
+                    action.name,
+                    Some(ActionName::NextTab | ActionName::PreviousTab)
+                ) =>
+                {
                     let key_byte = match key {
                         Key::Up => b'A',
                         Key::Down => b'B',
