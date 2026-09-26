@@ -495,20 +495,29 @@ impl TerminalEmulator {
                 self.delete(start, end, doc, ctx);
             }
             EscapeSequence::DeleteCharsAfterCursor(distance) => {
+                let distance = distance.min(self.grid_width);
+
                 let start = self.grid.cursor;
-                let end = self.move_position(start, 1, 0, doc);
+                let end = self.move_position(start, distance as isize, 0, doc);
+                let grid_y = start.y;
 
                 let start = self.grid_position_to_doc_position(start, doc);
                 let end = self.grid_position_to_doc_position(end, doc);
 
-                if start.y != end.y {
-                    return;
-                }
+                let colored_line = &mut self.grid.colored_lines[grid_y];
+                colored_line.is_dirty = true;
+                colored_line.splice(start.x..end.x, iter::empty());
 
-                for _ in 0..distance {
-                    doc.delete(start, end, ctx);
-                    doc.insert(doc.line_end(start.y), " ", ctx);
-                }
+                let colors = (self.foreground_color, self.background_color);
+                let line_end = colored_line.len();
+                colored_line.splice(line_end..line_end, iter::repeat_n(colors, distance));
+
+                doc.delete(start, end, ctx);
+                doc.insert(
+                    doc.line_end(start.y),
+                    &self.empty_line_text[..distance],
+                    ctx,
+                );
             }
             EscapeSequence::SetScrollRegion { top, bottom } => {
                 self.scroll_bottom = bottom.clamp(0, self.grid_height - 1);
@@ -736,18 +745,19 @@ impl TerminalEmulator {
         ctx: &mut Ctx,
     ) {
         let max_lines = self.grid_height + max_scrollback_lines;
+        let doc_len = doc.lines().len();
 
-        if doc.lines().len() <= max_lines {
+        if doc_len <= max_lines {
             return;
         }
 
-        let excess_lines = doc.lines().len() - max_lines;
+        let excess_lines = doc_len - max_lines;
 
         let start = Position::ZERO;
         let end = Position::new(0, excess_lines);
 
         doc.delete(start, end, ctx);
-        doc.scroll_highlighted_lines(0..=doc.lines().len() - 1, excess_lines as isize);
+        doc.scroll_highlighted_lines(0..=doc_len - 1, excess_lines as isize);
 
         tab.camera
             .vertical
@@ -780,18 +790,25 @@ impl TerminalEmulator {
         let scroll_top = *region.start();
         let scroll_bottom = *region.end();
 
-        self.scroll_highlighted_lines(region, -1, doc);
+        let scroll_start = Position::new(0, scroll_top);
+        let scroll_end = self.line_end(scroll_bottom, doc);
 
-        let delete_start =
-            self.grid_position_to_doc_position(self.line_end(scroll_bottom - 1, doc), doc);
+        if scroll_top == scroll_bottom {
+            doc.delete(scroll_start, scroll_end, ctx);
+            doc.insert(scroll_start, &self.empty_line_text, ctx);
+        } else {
+            self.scroll_highlighted_lines(region, -1, doc);
 
-        let delete_end = self.grid_position_to_doc_position(self.line_end(scroll_bottom, doc), doc);
+            let delete_start =
+                self.grid_position_to_doc_position(self.line_end(scroll_bottom - 1, doc), doc);
+            let delete_end = self.grid_position_to_doc_position(scroll_end, doc);
 
-        let insert_start = self.grid_position_to_doc_position(Position::new(0, scroll_top), doc);
+            let insert_start = self.grid_position_to_doc_position(scroll_start, doc);
 
-        doc.delete(delete_start, delete_end, ctx);
-        doc.insert(insert_start, "\n", ctx);
-        doc.insert(insert_start, &self.empty_line_text, ctx);
+            doc.delete(delete_start, delete_end, ctx);
+            doc.insert(insert_start, "\n", ctx);
+            doc.insert(insert_start, &self.empty_line_text, ctx);
+        }
 
         let mut bottom_grid_line = self.grid.colored_lines.remove(scroll_bottom);
         bottom_grid_line.clear();
@@ -820,28 +837,34 @@ impl TerminalEmulator {
         let scroll_top = *region.start();
         let scroll_bottom = *region.end();
 
-        let should_use_scrollback = scroll_top == 0 && !self.is_in_alternate_buffer;
+        let scroll_start = Position::new(0, scroll_top);
+        let scroll_end = self.line_end(scroll_bottom, doc);
 
-        let insert_start = if should_use_scrollback {
-            self.grid_position_to_doc_position(self.line_end(scroll_bottom, doc), doc)
+        let should_use_scrollback = scroll_top == 0
+            && scroll_bottom == self.grid_height - 1
+            && !self.is_in_alternate_buffer;
+
+        if scroll_top == scroll_bottom {
+            doc.delete(scroll_start, scroll_end, ctx);
+            doc.insert(scroll_start, &self.empty_line_text, ctx);
+        } else if should_use_scrollback {
+            let insert_start = self.grid_position_to_doc_position(scroll_end, doc);
+
+            doc.insert(insert_start, &self.empty_line_text, ctx);
+            doc.insert(insert_start, "\n", ctx);
         } else {
             self.scroll_highlighted_lines(region, 1, doc);
 
             // We need to delete the line that got scrolled out:
-            let delete_start =
-                self.grid_position_to_doc_position(Position::new(0, scroll_top), doc);
+            let delete_start = self.grid_position_to_doc_position(scroll_start, doc);
             let delete_end = Position::new(0, delete_start.y + 1);
 
-            let insert_start =
-                self.grid_position_to_doc_position(self.line_end(scroll_bottom, doc), doc);
+            let insert_start = self.grid_position_to_doc_position(scroll_end, doc);
 
             doc.delete(delete_start, delete_end, ctx);
-
-            insert_start
+            doc.insert(insert_start, &self.empty_line_text, ctx);
+            doc.insert(insert_start, "\n", ctx);
         };
-
-        doc.insert(insert_start, &self.empty_line_text, ctx);
-        doc.insert(insert_start, "\n", ctx);
 
         let mut top_grid_line = self.grid.colored_lines.remove(scroll_top);
         top_grid_line.clear();
