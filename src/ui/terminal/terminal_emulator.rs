@@ -207,6 +207,10 @@ impl TerminalEmulator {
                     pty.input().extend_from_slice(&[key_byte]);
                     needs_recenter = true;
                 }
+                Msg::Action(action_keybind!(key: Delete)) => {
+                    pty.input().extend_from_slice(b"\x1B[3~");
+                    needs_recenter = true;
+                }
                 Msg::Action(
                     action @
                     action_keybind!(keys: key @ (Key::Up | Key::Down | Key::Left | Key::Right | Key::Home | Key::End), mods),
