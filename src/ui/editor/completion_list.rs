@@ -477,8 +477,8 @@ impl CompletionList {
         for index in doc.cursor_indices() {
             let position = doc.cursor(index).position;
 
-            let start_x = start.x - main_position.x + position.x;
-            let end_x = end.x - main_position.x + position.x;
+            let start_x = (start.x + position.x).saturating_sub(main_position.x);
+            let end_x = (end.x + position.x).saturating_sub(main_position.x);
 
             let start = Position::new(start_x, position.y);
             let end = Position::new(end_x, position.y);
