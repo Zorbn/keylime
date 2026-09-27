@@ -830,7 +830,10 @@ impl Tab {
                     .config
                     .theme
                     .highlight_kind_to_color(highlight.foreground);
-                let highlighted_text = &line[highlight.start..highlight.end];
+
+                let Some(highlighted_text) = line.get(highlight.start..highlight.end) else {
+                    break;
+                };
 
                 if let Some(highlight_background) = highlight.background {
                     let highlight_background = ctx
