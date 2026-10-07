@@ -49,6 +49,8 @@ pub struct App {
     config_dir: Pooled<PathBuf>,
     config: Config,
     config_error: Option<ConfigError>,
+
+    average_frame_time: f32,
 }
 
 impl App {
@@ -106,6 +108,8 @@ impl App {
             config_dir,
             config,
             config_error,
+
+            average_frame_time: 0.0,
         }
     }
 
@@ -132,6 +136,9 @@ impl App {
     }
 
     pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64, dt: f32) {
+        self.average_frame_time = self.average_frame_time + (dt - self.average_frame_time) * 0.01;
+        let dt = self.average_frame_time;
+
         let config_changed = self
             .file_watcher
             .changed_files(&self.current_dir)
