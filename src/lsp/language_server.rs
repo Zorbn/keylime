@@ -105,6 +105,7 @@ pub struct LanguageServer {
     incoming_messages: Vec<u8>,
     outgoing_messages: Vec<u8>,
     has_initialized: bool,
+    do_enqueue: bool,
 
     diagnostics: HashMap<Pooled<PathBuf>, Diagnostics>,
     needs_completion_resolve: bool,
@@ -131,6 +132,7 @@ impl LanguageServer {
             incoming_messages: Vec::new(),
             outgoing_messages: Vec::new(),
             has_initialized: false,
+            do_enqueue: false,
 
             diagnostics: HashMap::new(),
             needs_completion_resolve: false,
@@ -346,12 +348,7 @@ impl LanguageServer {
 
                 self.has_initialized = true;
 
-                self.process
-                    .input()
-                    .extend_from_slice(&self.outgoing_messages);
-                self.process.flush();
-
-                self.outgoing_messages.clear();
+                self.flush_outgoing();
 
                 None
             }
@@ -504,6 +501,28 @@ impl LanguageServer {
             }
             _ => None,
         }
+    }
+
+    pub fn begin_enqueuing(&mut self) {
+        self.do_enqueue = true;
+    }
+
+    pub fn end_enqueuing(&mut self) {
+        self.do_enqueue = false;
+        self.flush_outgoing();
+    }
+
+    fn flush_outgoing(&mut self) {
+        if self.should_enqueue(None) {
+            return;
+        }
+
+        self.process
+            .input()
+            .extend_from_slice(&self.outgoing_messages);
+        self.process.flush();
+
+        self.outgoing_messages.clear();
     }
 
     pub(super) fn set_diagnostics(
@@ -772,6 +791,10 @@ impl LanguageServer {
         );
     }
 
+    fn should_enqueue(&self, method: Option<&str>) -> bool {
+        self.do_enqueue || (!self.has_initialized && method != Some("initialized"))
+    }
+
     fn send_request(
         &mut self,
         path: Option<&Path>,
@@ -792,7 +815,7 @@ impl LanguageServer {
             "params": params,
         });
 
-        self.send_content(content, self.has_initialized || method == "initialize");
+        self.send_content(content, self.should_enqueue(Some(method)));
 
         LspSentRequest { method, id }
     }
@@ -804,7 +827,7 @@ impl LanguageServer {
             "params": params,
         });
 
-        self.send_content(content, self.has_initialized || method == "initialized");
+        self.send_content(content, self.should_enqueue(Some(method)));
     }
 
     fn send_response(&mut self, id: usize, result: Value) {
@@ -814,7 +837,7 @@ impl LanguageServer {
             "result": result,
         });
 
-        self.send_content(content, self.has_initialized);
+        self.send_content(content, self.should_enqueue(None));
     }
 
     fn send_content(&mut self, content: Value, do_enqueue: bool) {
@@ -822,15 +845,15 @@ impl LanguageServer {
         let header = format_pooled!("Content-Length: {}\r\n\r\n", content.len());
 
         let destination = if do_enqueue {
-            self.process.input()
-        } else {
             &mut self.outgoing_messages
+        } else {
+            self.process.input()
         };
 
         destination.extend_from_slice(header.as_bytes());
         destination.extend_from_slice(content.as_bytes());
 
-        if do_enqueue {
+        if !do_enqueue {
             self.process.flush();
         }
     }

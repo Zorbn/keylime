@@ -1317,6 +1317,8 @@ impl Doc {
         let mut buffer = STRING_POOL.new_item();
         let mut a_index = 0;
 
+        self.lsp_begin_enqueuing(ctx);
+
         for edit in edits.iter() {
             match edit {
                 DiffEdit::Delete { count } => {
@@ -1346,6 +1348,8 @@ impl Doc {
                 }
             }
         }
+
+        self.lsp_end_enqueuing(ctx);
     }
 
     fn replace_line_via_diff(&mut self, y: usize, other: &str, ctx: &mut Ctx) {

@@ -31,6 +31,28 @@ impl Doc {
             .get_language_server_mut(self, ctx.config, ctx.current_dir)
     }
 
+    pub fn lsp_begin_enqueuing(&self, ctx: &mut Ctx) -> Option<()> {
+        if !self.lsp_state.is_open {
+            return None;
+        }
+
+        let language_server = self.get_language_server_mut(ctx)?;
+        language_server.begin_enqueuing();
+
+        Some(())
+    }
+
+    pub fn lsp_end_enqueuing(&self, ctx: &mut Ctx) -> Option<()> {
+        if !self.lsp_state.is_open {
+            return None;
+        }
+
+        let language_server = self.get_language_server_mut(ctx)?;
+        language_server.end_enqueuing();
+
+        Some(())
+    }
+
     fn lsp_add_expected_response(
         &mut self,
         sent_request: LspSentRequest,
