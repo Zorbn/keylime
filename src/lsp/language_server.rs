@@ -2,6 +2,7 @@ use core::str;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
+    process,
 };
 
 use serde_json::{json, value::RawValue, Value};
@@ -143,6 +144,8 @@ impl LanguageServer {
             retrigger_chars: HashSet::new(),
         };
 
+        let process_id = process::id();
+
         let workspace_name = current_dir
             .file_name()
             .and_then(|file_name| file_name.to_str())
@@ -155,6 +158,7 @@ impl LanguageServer {
             None,
             "initialize",
             json!({
+                "processId": process_id,
                 "initializationOptions": options,
                 "rootUri": uri,
                 "workspaceFolders": [
@@ -286,7 +290,11 @@ impl LanguageServer {
 
                     self.incoming_messages.drain(..content_len);
 
-                    return message.ok();
+                    return message
+                        .inspect_err(|err| {
+                            eprintln!("Failed to parse language server message: {}", err)
+                        })
+                        .ok();
                 }
             }
         }
@@ -297,7 +305,7 @@ impl LanguageServer {
         message: &'a Message,
     ) -> (Option<Pooled<PathBuf>>, Option<&'a str>) {
         if let Some((_, (path, method))) = message
-            .id
+            .client_id()
             .and_then(|id| self.pending_requests.remove_entry(&id))
         {
             return (path, Some(method));
@@ -311,6 +319,10 @@ impl LanguageServer {
         method: &'a str,
         message: &'a Message,
     ) -> Option<MessageResult<'a>> {
+        if let Some(error) = &message.error {
+            eprintln!("Error in language server message: {}", error);
+        }
+
         match method {
             "initialize" => {
                 let result = message.result.as_ref()?;
@@ -495,7 +507,7 @@ impl LanguageServer {
                     }
                 }
 
-                self.send_response(message.id?, json!({}));
+                self.send_response(message.id.as_ref()?, json!({}));
 
                 None
             }
@@ -792,7 +804,8 @@ impl LanguageServer {
     }
 
     fn should_enqueue(&self, method: Option<&str>) -> bool {
-        self.do_enqueue || (!self.has_initialized && method != Some("initialized"))
+        self.do_enqueue
+            || (!self.has_initialized && !matches!(method, Some("initialize" | "initialized")))
     }
 
     fn send_request(
@@ -830,7 +843,7 @@ impl LanguageServer {
         self.send_content(content, self.should_enqueue(Some(method)));
     }
 
-    fn send_response(&mut self, id: usize, result: Value) {
+    fn send_response(&mut self, id: &Value, result: Value) {
         let content = json!({
             "jsonrpc": "2.0",
             "id": id,

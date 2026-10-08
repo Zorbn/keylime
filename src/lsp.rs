@@ -79,7 +79,7 @@ impl Lsp {
             .unzip();
 
         if let Some(ref mut doc) = doc {
-            if !doc.lsp_is_response_expected(method, message.id, ctx) {
+            if !doc.lsp_is_response_expected(method, message.client_id(), ctx) {
                 return None;
             }
         }
@@ -111,7 +111,7 @@ impl Lsp {
 
                 editor
                     .completion_list
-                    .lsp_resolve_completion_item(message.id, item, ctx);
+                    .lsp_resolve_completion_item(message.client_id(), item, ctx);
             }
             MessageResult::CodeAction(results) => {
                 let results = results

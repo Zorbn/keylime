@@ -5,6 +5,10 @@
         "ts"
     ],
     "indent_width": 4,
+    "lsp": {
+        "command": "tsc --lsp --stdio",
+        "language_id": "typescript"
+    },
     "syntax": {
         "keywords": [
             "arguments",

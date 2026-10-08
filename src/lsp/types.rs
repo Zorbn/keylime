@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{value::RawValue, Value};
@@ -138,14 +138,29 @@ impl EncodedTextEdit {
 #[serde(rename_all = "camelCase")]
 pub(super) struct EncodedCompletionItem {
     label: Pooled<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     sort_text: Option<Pooled<String>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     filter_text: Option<Pooled<String>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     insert_text: Option<Pooled<String>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     text_edit: Option<EncodedTextEdit>,
-    #[serde(default)]
+
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     additional_text_edits: Vec<EncodedTextEdit>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     detail: Option<Pooled<String>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     documentation: Option<Documentation>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<Value>,
 }
 
@@ -253,11 +268,34 @@ pub(super) struct RegistrationParams<'a> {
 }
 
 #[derive(Debug, Deserialize)]
+pub(super) struct Error {
+    code: i32,
+    message: String,
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.code, self.message)
+    }
+}
+
+#[derive(Debug, Deserialize)]
 pub(super) struct Message {
-    pub id: Option<usize>,
+    pub id: Option<Value>,
     pub method: Option<Pooled<String>>,
     pub result: Option<Box<RawValue>>,
     pub params: Option<Box<RawValue>>,
+    pub error: Option<Error>,
+}
+
+impl Message {
+    pub fn client_id(&self) -> Option<usize> {
+        if let Some(Value::Number(n)) = &self.id {
+            n.as_u64().map(|n| n as usize)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
