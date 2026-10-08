@@ -862,10 +862,12 @@ impl TerminalEmulator {
             // We need to delete the line that got scrolled out:
             let delete_start = self.grid_position_to_doc_position(scroll_start, doc);
             let delete_end = Position::new(0, delete_start.y + 1);
-
-            let insert_start = self.grid_position_to_doc_position(scroll_end, doc);
+            let insert_y = self.grid_y_to_doc_y(scroll_bottom - 1, doc);
 
             doc.delete(delete_start, delete_end, ctx);
+
+            let insert_start = doc.line_end(insert_y);
+
             doc.insert(insert_start, &self.empty_line_text, ctx);
             doc.insert(insert_start, "\n", ctx);
         };
