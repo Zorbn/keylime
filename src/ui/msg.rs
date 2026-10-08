@@ -23,6 +23,7 @@ pub enum Msg {
     Action(Action),
     ShowCompletions,
     HideCompletions,
+    TriggerDiagnostics,
     TriggerSignatureHelp {
         trigger_char: char,
         is_retrigger: bool,

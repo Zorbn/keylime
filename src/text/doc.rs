@@ -1142,8 +1142,6 @@ impl Doc {
         if do_update_cursors {
             self.shift_positions(start, end, Self::shift_position_by_delete, ctx);
         }
-
-        self.lsp_diagnostic(ctx);
     }
 
     pub fn insert(&mut self, start: Position, text: &str, ctx: &mut Ctx) -> Position {
@@ -1219,8 +1217,6 @@ impl Doc {
         if do_update_cursors {
             self.shift_positions(start, position, Self::shift_position_by_insert, ctx);
         }
-
-        self.lsp_diagnostic(ctx);
 
         position
     }

@@ -111,6 +111,7 @@ pub struct LanguageServer {
 
     diagnostics: HashMap<Pooled<PathBuf>, Diagnostics>,
     needs_completion_resolve: bool,
+    has_inter_file_dependencies: bool,
     do_pull_diagnostics: bool,
 
     position_encoding: PositionEncoding,
@@ -138,6 +139,7 @@ impl LanguageServer {
 
             diagnostics: HashMap::new(),
             needs_completion_resolve: false,
+            has_inter_file_dependencies: false,
             do_pull_diagnostics: false,
 
             position_encoding: PositionEncoding::Utf16,
@@ -354,7 +356,10 @@ impl LanguageServer {
                         );
                     }
 
-                    self.do_pull_diagnostics = result.capabilities.diagnostic_provider.is_some();
+                    if let Some(provider) = result.capabilities.diagnostic_provider {
+                        self.do_pull_diagnostics = true;
+                        self.has_inter_file_dependencies = provider.inter_file_dependencies;
+                    }
                 }
 
                 self.send_notification("initialized", json!({}));
@@ -514,6 +519,10 @@ impl LanguageServer {
             }
             _ => None,
         }
+    }
+
+    pub fn has_inter_file_dependencies(&self) -> bool {
+        self.has_inter_file_dependencies
     }
 
     pub fn begin_enqueuing(&mut self) {

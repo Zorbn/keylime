@@ -153,6 +153,7 @@ impl Tab {
                 handle_grapheme(&grapheme, doc, ctx);
 
                 self.send_lsp_msg(Msg::HideExaminePopup, doc, ctx.ui);
+                self.send_trigger_diagnostics(doc, ctx);
                 self.send_show_completions(true, doc, ctx.ui);
                 self.send_trigger_signature_help(&grapheme, doc, ctx);
             }
@@ -220,6 +221,7 @@ impl Tab {
                 }
 
                 self.send_lsp_msg(Msg::HideExaminePopup, doc, ctx.ui);
+                self.send_trigger_diagnostics(doc, ctx);
 
                 if matches!(action, action_name!(DeleteBackward)) {
                     self.send_show_completions(true, doc, ctx.ui);
@@ -228,6 +230,21 @@ impl Tab {
                 }
             }
             _ => ctx.ui.skip(self.widget_id, msg),
+        }
+    }
+
+    fn send_trigger_diagnostics(&mut self, doc: &mut Doc, ctx: &mut Ctx) {
+        if !doc.flags().contains(DocFlag::AllowLanguageServer) {
+            return;
+        }
+
+        if doc
+            .get_language_server_mut(ctx)
+            .is_some_and(|language_server| language_server.has_inter_file_dependencies())
+        {
+            self.send_lsp_msg(Msg::TriggerDiagnostics, doc, ctx.ui);
+        } else {
+            doc.lsp_diagnostic(ctx);
         }
     }
 

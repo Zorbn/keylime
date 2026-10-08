@@ -233,7 +233,10 @@ pub(super) struct SignatureHelpContext {
 }
 
 #[derive(Debug, Deserialize)]
-pub(super) struct DiagnosticOptions {}
+#[serde(rename_all = "camelCase")]
+pub(super) struct DiagnosticOptions {
+    pub inter_file_dependencies: bool,
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

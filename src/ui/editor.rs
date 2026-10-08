@@ -112,6 +112,11 @@ impl Editor {
                     }
                 }
                 Msg::HideCompletions => self.completion_list.hide(ctx),
+                Msg::TriggerDiagnostics => {
+                    for doc in self.doc_list.iter_mut() {
+                        doc.lsp_diagnostic(ctx);
+                    }
+                }
                 Msg::TriggerSignatureHelp {
                     trigger_char,
                     is_retrigger,
