@@ -138,28 +138,20 @@ impl EncodedTextEdit {
 #[serde(rename_all = "camelCase")]
 pub(super) struct EncodedCompletionItem {
     label: Pooled<String>,
-
     #[serde(skip_serializing_if = "Option::is_none")]
     sort_text: Option<Pooled<String>>,
-
     #[serde(skip_serializing_if = "Option::is_none")]
     filter_text: Option<Pooled<String>>,
-
     #[serde(skip_serializing_if = "Option::is_none")]
     insert_text: Option<Pooled<String>>,
-
     #[serde(skip_serializing_if = "Option::is_none")]
     text_edit: Option<EncodedTextEdit>,
-
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     additional_text_edits: Vec<EncodedTextEdit>,
-
     #[serde(skip_serializing_if = "Option::is_none")]
     detail: Option<Pooled<String>>,
-
     #[serde(skip_serializing_if = "Option::is_none")]
     documentation: Option<Documentation>,
-
     #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<Value>,
 }
@@ -229,6 +221,15 @@ pub(super) struct SignatureHelpOptions {
     pub trigger_characters: Vec<Pooled<String>>,
     #[serde(default)]
     pub retrigger_characters: Vec<Pooled<String>>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct SignatureHelpContext {
+    pub trigger_kind: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trigger_character: Option<char>,
+    pub is_retrigger: bool,
 }
 
 #[derive(Debug, Deserialize)]

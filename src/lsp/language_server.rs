@@ -15,6 +15,7 @@ use crate::{
             EncodedDefinitionResult, EncodedFullDocumentDiagnosticParams, EncodedLocation,
             EncodedPosition, EncodedPublishDiagnosticsParams, InitializeResult,
             LspCodeActionResult, LspCompletionResult, Message, RegistrationParams,
+            SignatureHelpContext,
         },
         uri::uri_to_path,
     },
@@ -734,14 +735,14 @@ impl LanguageServer {
                     "uri": path_to_uri(path),
                 },
                 "position": EncodedPosition::encode(position, self.position_encoding, doc),
-                "context": {
-                    "triggerKind": if trigger_char.is_some() {
+                "context": SignatureHelpContext {
+                    trigger_kind: if trigger_char.is_some() {
                         2
                     } else {
                         3
                     },
-                    "triggerCharacter": trigger_char,
-                    "isRetrigger": is_retrigger,
+                    trigger_character: trigger_char,
+                    is_retrigger,
                 },
             }),
         )
