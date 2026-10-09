@@ -331,7 +331,26 @@ impl Doc {
         position
     }
 
-    pub fn move_position_skipping_category(
+    fn move_position_in_category(
+        &self,
+        position: Position,
+        delta_x: isize,
+        category: GraphemeCategory,
+        gfx: &mut Gfx,
+    ) -> Position {
+        let position = self.clamp_position(position);
+        let side_offset = Self::side_offset(delta_x);
+        let current_category =
+            GraphemeCategory::new(self.grapheme(self.move_position(position, side_offset, 0, gfx)));
+
+        if current_category == category {
+            self.move_position(position, delta_x, 0, gfx)
+        } else {
+            position
+        }
+    }
+
+    fn move_position_skipping_category(
         &self,
         position: Position,
         delta_x: isize,
@@ -371,7 +390,7 @@ impl Doc {
         gfx: &mut Gfx,
     ) -> Position {
         let starting_position =
-            self.move_position_skipping_category(position, delta_x, GraphemeCategory::Space, gfx);
+            self.move_position_in_category(position, delta_x, GraphemeCategory::Space, gfx);
 
         let side_offset = Self::side_offset(delta_x);
         let starting_category = GraphemeCategory::new(self.grapheme(self.move_position(

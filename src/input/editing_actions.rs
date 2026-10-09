@@ -219,6 +219,7 @@ pub fn handle_left_click(
     position: Position,
     mods: Mods,
     count: MouseClickCount,
+    from: Option<Selection>,
     is_drag: bool,
     gfx: &mut Gfx,
 ) {
@@ -239,6 +240,12 @@ pub fn handle_left_click(
         return;
     }
 
+    let cursor = doc.cursor(CursorIndex::Main);
+    let from = from.unwrap_or(Selection {
+        start: cursor.position,
+        end: cursor.position,
+    });
+
     let select_at_position = if count == MouseClickCount::Double {
         Doc::select_word_at_position
     } else {
@@ -247,29 +254,13 @@ pub fn handle_left_click(
 
     let word_selection = select_at_position(doc, position, gfx);
 
-    let cursor = doc.cursor(CursorIndex::Main);
+    let start = from.start.min(word_selection.start);
+    let end = from.end.max(word_selection.end);
 
-    let selection_anchor = cursor.selection_anchor.unwrap_or(cursor.position);
-
-    let is_selected_word_left_of_anchor = cursor
-        .get_selection()
-        .map(|selection| selection_anchor == selection.end)
-        .unwrap_or(false);
-
-    let selection_anchor_word = select_at_position(
-        doc,
-        if is_selected_word_left_of_anchor {
-            doc.move_position(selection_anchor, -1, 0, gfx)
-        } else {
-            selection_anchor
-        },
-        gfx,
-    );
-
-    let (start, end) = if selection_anchor <= position {
-        (selection_anchor_word.start, word_selection.end)
+    let (start, end) = if position > from.start {
+        (start, end)
     } else {
-        (selection_anchor_word.end, word_selection.start)
+        (end, start)
     };
 
     doc.jump_cursors(start, false, gfx);

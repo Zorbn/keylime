@@ -59,6 +59,12 @@ struct CursorAnimationState {
     position: VisualPosition,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct MouseDrag {
+    from: Option<Selection>,
+    click_count: MouseClickCount,
+}
+
 pub struct Tab {
     widget_id: WidgetId,
     gutter_widget_id: WidgetId,
@@ -69,7 +75,7 @@ pub struct Tab {
     pub camera: Camera,
     handled_cursor_position: Position,
     longest_line_length: usize,
-    mouse_drag: Option<MouseClickCount>,
+    mouse_drag: Option<MouseDrag>,
     cursor_animation_states: Vec<CursorAnimationState>,
     do_show_completions: bool,
 
@@ -191,10 +197,16 @@ impl Tab {
 
                 let position = self.mouse_to_position(x, y, doc, ctx.ui, ctx.gfx);
 
-                handle_left_click(doc, position, mods, count, false, ctx.gfx);
+                handle_left_click(doc, position, mods, count, None, false, ctx.gfx);
 
-                self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
-                self.mouse_drag = Some(count);
+                let cursor = doc.cursor(CursorIndex::Main);
+
+                self.handled_cursor_position = cursor.position;
+
+                self.mouse_drag = Some(MouseDrag {
+                    from: cursor.get_selection(),
+                    click_count: count,
+                });
             }
             Msg::Mousebind(Mousebind {
                 kind: MousebindKind::Move,
@@ -310,12 +322,20 @@ impl Tab {
     }
 
     pub fn update(&mut self, doc: &mut Doc, ctx: &mut Ctx, dt: f32) {
-        if let Some(count) = self.mouse_drag {
+        if let Some(mouse_drag) = self.mouse_drag {
             let visual_position = ctx.window.mouse_position();
             let position =
                 self.mouse_to_position(visual_position.x, visual_position.y, doc, ctx.ui, ctx.gfx);
 
-            handle_left_click(doc, position, Mods::NONE, count, true, ctx.gfx);
+            handle_left_click(
+                doc,
+                position,
+                Mods::NONE,
+                mouse_drag.click_count,
+                mouse_drag.from,
+                true,
+                ctx.gfx,
+            );
 
             self.handled_cursor_position = doc.cursor(CursorIndex::Main).position;
         }

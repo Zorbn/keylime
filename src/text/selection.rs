@@ -1,6 +1,6 @@
 use crate::geometry::position::Position;
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Selection {
     pub start: Position,
     pub end: Position,
