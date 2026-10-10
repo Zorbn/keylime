@@ -88,6 +88,8 @@ pub struct EncodedDiagnostic {
     pub range: EncodedRange,
     #[serde(default = "EncodedDiagnostic::DEFAULT_SEVERITY")]
     pub severity: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<Value>,
 }
 
 impl EncodedDiagnostic {
@@ -102,6 +104,7 @@ impl EncodedDiagnostic {
             message: self.message,
             range: self.range.decode(encoding, doc),
             severity: self.severity,
+            code: self.code,
         }
     }
 }
@@ -433,6 +436,7 @@ pub struct DecodedDiagnostic {
     pub message: Pooled<String>,
     pub range: DecodedRange,
     pub severity: usize,
+    pub code: Option<Value>,
 }
 
 impl DecodedDiagnostic {
@@ -476,6 +480,7 @@ impl DecodedDiagnostic {
             message: self.message.clone(),
             range: self.range.encode(encoding, doc),
             severity: self.severity,
+            code: self.code.clone(),
         }
     }
 }
