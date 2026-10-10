@@ -305,33 +305,39 @@ impl View {
     }
 
     fn on_display_layer(&self) -> Option<()> {
-        let mut state = self.ivars().state.try_borrow_mut().ok()?;
-        let ViewState { app, window, gfx } = state.as_mut()?;
+        let ns_window = {
+            let mut state = self.ivars().state.try_borrow_mut().ok()?;
+            let ViewState { app, window, gfx } = state.as_mut()?;
 
-        window.inner.time_frame();
-        let (time, dt) = window.inner.frame_times();
+            window.inner.time_frame();
+            let (time, dt) = window.inner.frame_times();
 
-        app.update(window, gfx, time, dt);
+            app.update(window, gfx, time, dt);
 
-        let (file_watcher, files, processes) = app.files_and_processes();
-        window.inner.update(file_watcher, files, processes);
+            let (file_watcher, files, processes) = app.files_and_processes();
+            window.inner.update(file_watcher, files, processes);
 
-        app.draw(window, gfx, time);
+            app.draw(window, gfx, time);
 
-        if !window.inner.was_shown {
-            window.inner.ns_window.makeKeyAndOrderFront(None);
+            let is_animating = app.is_animating(window, gfx, time);
+
+            if !is_animating {
+                window.inner.skip_frame_timing();
+            }
+
+            unsafe {
+                self.ivars().display_link.get()?.setPaused(!is_animating);
+            }
+
+            if window.inner.was_shown {
+                return Some(());
+            }
+
             window.inner.was_shown = true;
-        }
+            window.inner.ns_window.clone()
+        };
 
-        let is_animating = app.is_animating(window, gfx, time);
-
-        if !is_animating {
-            window.inner.skip_frame_timing();
-        }
-
-        unsafe {
-            self.ivars().display_link.get()?.setPaused(!is_animating);
-        }
+        ns_window.makeKeyAndOrderFront(None);
 
         Some(())
     }
