@@ -461,14 +461,27 @@ impl Tab {
         (doc_len - 1) as f32 * gfx.line_height() + self.margin * 2.0
     }
 
+    fn recenter_request_with_focus(
+        &self,
+        recenter_request: CameraRecenterRequest,
+        ui: &Ui,
+    ) -> CameraRecenterRequest {
+        CameraRecenterRequest {
+            can_start: recenter_request.can_start && ui.is_focused(self.widget_id),
+            ..recenter_request
+        }
+    }
+
     fn recenter_request_vertical(&self, doc: &Doc, ctx: &mut Ctx) -> CameraRecenterRequest {
-        if self.mouse_drag.is_some() {
+        let recenter_request = if self.mouse_drag.is_some() {
             self.recenter_request_dragging_vertical(ctx)
         } else if doc.flags().contains(DocFlag::RecenterOnBottom) {
             self.recenter_request_on_bottom_vertical(doc, ctx)
         } else {
             self.recenter_request_on_cursor_vertical(doc, ctx)
-        }
+        };
+
+        self.recenter_request_with_focus(recenter_request, ctx.ui)
     }
 
     fn recenter_request_dragging_vertical(&self, ctx: &Ctx) -> CameraRecenterRequest {
@@ -536,11 +549,13 @@ impl Tab {
     }
 
     fn recenter_request_horizontal(&self, doc: &Doc, ctx: &mut Ctx) -> CameraRecenterRequest {
-        if self.mouse_drag.is_some() {
+        let recenter_request = if self.mouse_drag.is_some() {
             self.recenter_request_dragging_horizontal(ctx)
         } else {
             self.recenter_request_on_cursor_horizontal(doc, ctx)
-        }
+        };
+
+        self.recenter_request_with_focus(recenter_request, ctx.ui)
     }
 
     fn recenter_request_dragging_horizontal(&self, ctx: &Ctx) -> CameraRecenterRequest {
