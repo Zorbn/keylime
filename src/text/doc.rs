@@ -1421,17 +1421,11 @@ impl Doc {
         if is_reverse {
             self.search_backward(text, start, true, gfx)
         } else {
-            self.search_forward(text, start, true, gfx)
+            self.search_forward(text, start, true)
         }
     }
 
-    pub fn search_forward(
-        &self,
-        text: &str,
-        start: Position,
-        do_wrap: bool,
-        gfx: &mut Gfx,
-    ) -> Option<Position> {
+    pub fn search_forward(&self, text: &str, start: Position, do_wrap: bool) -> Option<Position> {
         if text.is_empty() {
             return Some(start);
         }

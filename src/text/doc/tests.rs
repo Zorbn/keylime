@@ -19,8 +19,8 @@ test_with_doc!(search_forward_wrap, HELLO_GOODBYE_TEXT, |ctx, doc| {
 test_with_doc!(
     search_forward_wrap_disabled,
     HELLO_GOODBYE_TEXT,
-    |ctx, doc| {
-        let position = doc.search_forward("hello", Position::new(0, 1), false, ctx.gfx);
+    |_ctx, doc| {
+        let position = doc.search_forward("hello", Position::new(0, 1), false);
         assert_eq!(position, None);
     }
 );
