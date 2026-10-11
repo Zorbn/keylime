@@ -630,17 +630,36 @@ impl<T> Pane<T> {
         None
     }
 
-    pub fn add_tab(&mut self, data_id: SlotId, data_list: &mut SlotList<T>, ctx: &mut Ctx) {
-        let tab = Tab::new(self.view.widget_id, data_id, ctx.ui);
-
+    fn add_data_usage(&mut self, data_id: SlotId, data_list: &mut SlotList<T>) {
         data_list
             .get_mut(data_id)
             .map(|data| (self.get_doc_mut)(data))
-            .expect("tried to add a tab referencing a non-existent data")
+            .expect("tab is referencing a non-existent data")
             .add_usage();
+    }
+
+    pub fn replace_tab(&mut self, data_id: SlotId, data_list: &mut SlotList<T>, ui: &mut Ui) {
+        let tab = Tab::new(self.view.widget_id, data_id, ui);
+
+        self.add_data_usage(data_id, data_list);
 
         let tab_id = tab.widget_id();
-        let index = (self.focused_tab_index(ctx.ui) + 1).min(self.tabs.len());
+        let index = self.focused_tab_index(ui);
+
+        self.remove_tab_externals(index, data_list, ui);
+        self.tabs[index] = tab;
+
+        ui.move_child(tab_id, index);
+        self.focus_tab_at_index(index, ui);
+    }
+
+    pub fn add_tab(&mut self, data_id: SlotId, data_list: &mut SlotList<T>, ui: &mut Ui) {
+        let tab = Tab::new(self.view.widget_id, data_id, ui);
+
+        self.add_data_usage(data_id, data_list);
+
+        let tab_id = tab.widget_id();
+        let index = (self.focused_tab_index(ui) + 1).min(self.tabs.len());
 
         self.tabs.insert(index, tab);
         self.tab_bar.tab_animation_states.insert(
@@ -656,13 +675,23 @@ impl<T> Pane<T> {
             },
         );
 
-        ctx.ui.move_child(tab_id, index);
-        self.focus_tab_at_index(index, ctx.ui);
+        ui.move_child(tab_id, index);
+        self.focus_tab_at_index(index, ui);
     }
 
     pub fn remove_tab(&mut self, data_list: &mut SlotList<T>, ui: &mut Ui) {
-        let get_doc_mut = self.get_doc_mut;
         let index = self.focused_tab_index(ui);
+
+        self.remove_tab_externals(index, data_list, ui);
+        self.tabs.remove(index);
+        self.tab_bar.tab_animation_states.remove(index);
+
+        let focused_index = index.min(self.tabs.len());
+        self.focus_tab_at_index(focused_index, ui);
+    }
+
+    fn remove_tab_externals(&mut self, index: usize, data_list: &mut SlotList<T>, ui: &mut Ui) {
+        let get_doc_mut = self.get_doc_mut;
 
         let Some((_, data)) = self.get_tab_with_data_mut(index, data_list) else {
             return;
@@ -672,15 +701,7 @@ impl<T> Pane<T> {
 
         if let Some(child_id) = ui.child_ids(self.view.widget_id).get(index) {
             ui.remove_widget(*child_id);
-        } else {
-            return;
         }
-
-        self.tabs.remove(index);
-        self.tab_bar.tab_animation_states.remove(index);
-
-        let focused_index = index.min(self.tabs.len());
-        self.focus_tab_at_index(focused_index, ui);
     }
 
     fn focus_next_tab(&self, ui: &mut Ui) -> bool {

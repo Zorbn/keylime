@@ -36,7 +36,7 @@ impl EditorPane {
         let mut inner = Pane::new(|doc| doc, |doc| doc, widget_id, ctx);
 
         let doc_index = doc_list.add(Doc::new(None, None, DocFlags::MULTI_LINE));
-        inner.add_tab(doc_index, doc_list, ctx);
+        inner.add_tab(doc_index, doc_list, ctx.ui);
 
         Self { inner, widget_id }
     }
@@ -85,11 +85,12 @@ impl EditorPane {
             let is_focused_doc_worthless = doc.is_worthless();
 
             if !is_doc_worthless && is_focused_doc_worthless {
-                self.remove_tab(doc_list, ctx);
+                self.replace_tab(doc_id, doc_list, ctx.ui);
+                return;
             }
         }
 
-        self.inner.add_tab(doc_id, doc_list, ctx);
+        self.inner.add_tab(doc_id, doc_list, ctx.ui);
     }
 
     fn remove_tab(&mut self, doc_list: &mut SlotList<Doc>, ctx: &mut Ctx) -> bool {

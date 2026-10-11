@@ -26,7 +26,7 @@ impl TerminalPane {
 
         let term = Self::new_term();
         let doc_index = term_list.add(term);
-        inner.add_tab(doc_index, term_list, ctx);
+        inner.add_tab(doc_index, term_list, ctx.ui);
 
         Self { inner, widget_id }
     }
@@ -54,7 +54,7 @@ impl PaneWrapper<Term> for TerminalPane {
                     let term = Self::new_term();
                     let term_index = term_list.add(term);
 
-                    self.add_tab(term_index, term_list, ctx);
+                    self.add_tab(term_index, term_list, ctx.ui);
                 }
                 Msg::Action(action_name!(CloseTab)) => {
                     if let Some(tab) = self.get_focused_tab(ctx.ui) {
