@@ -19,6 +19,7 @@ pub fn score_fuzzy_match(haystack: &str, needle: &str) -> f32 {
     const AWARD_DISTANCE_FALLOFF: f32 = 0.8;
     const AWARD_MATCH_BONUS: f32 = 1.0;
     const AWARD_MAX_AFTER_MISMATCH: f32 = 1.0;
+    const CASE_INSENSITIVITY_PENALTY: f32 = 0.5;
 
     let mut score = 0.0;
     let mut next_match_award = AWARD_MATCH_BONUS;
@@ -27,13 +28,17 @@ pub fn score_fuzzy_match(haystack: &str, needle: &str) -> f32 {
     let mut needle_chars = needle.chars().peekable();
 
     while let Some((haystack_char, needle_char)) = haystack_chars.next().zip(needle_chars.peek()) {
-        let haystack_char = haystack_char.to_ascii_lowercase();
-        let needle_char = needle_char.to_ascii_lowercase();
+        let award = if haystack_char == *needle_char {
+            next_match_award
+        } else if haystack_char.eq_ignore_ascii_case(needle_char) {
+            next_match_award * CASE_INSENSITIVITY_PENALTY
+        } else {
+            0.0
+        };
 
-        if haystack_char == needle_char {
-            score += next_match_award;
+        if award != 0.0 {
+            score += award;
             next_match_award += AWARD_MATCH_BONUS;
-
             needle_chars.next();
         } else {
             next_match_award =
