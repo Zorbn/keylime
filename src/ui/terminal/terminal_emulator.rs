@@ -844,9 +844,7 @@ impl TerminalEmulator {
         let scroll_start = Position::new(0, scroll_top);
         let scroll_end = self.line_end(scroll_bottom, doc);
 
-        let should_use_scrollback = scroll_top == 0
-            && scroll_bottom == self.grid_height - 1
-            && !self.is_in_alternate_buffer;
+        let should_use_scrollback = scroll_top == 0 && !self.is_in_alternate_buffer;
 
         if scroll_top == scroll_bottom {
             doc.delete(scroll_start, scroll_end, ctx);
