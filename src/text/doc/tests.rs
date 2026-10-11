@@ -1,8 +1,9 @@
 use crate::{
     ctx::ctx_with_time,
     geometry::position::Position,
+    platform::gfx::Gfx,
     tests::{test_with_doc, HELLO_GOODBYE_TEXT},
-    text::{action_history::ActionKind, cursor_index::CursorIndex},
+    text::{action_history::ActionKind, cursor_index::CursorIndex, doc::Doc},
 };
 
 test_with_doc!(search_forward, HELLO_GOODBYE_TEXT, |ctx, doc| {
@@ -44,14 +45,19 @@ test_with_doc!(
 );
 
 test_with_doc!(repeated_search_forward, HELLO_GOODBYE_TEXT, |ctx, doc| {
-    let position = doc.search("world", Position::ZERO, false, ctx.gfx);
-    assert_eq!(position, Some(Position::new(6, 0)));
+    fn search_end(doc: &Doc, text: &str, start: Position, gfx: &mut Gfx) -> Option<Position> {
+        doc.search(text, start, false, gfx)
+            .map(|position| Position::new(position.x + text.len(), position.y))
+    }
 
-    let position = doc.search("world", position.unwrap(), false, ctx.gfx);
-    assert_eq!(position, Some(Position::new(8, 1)));
+    let position = search_end(doc, "world", Position::ZERO, ctx.gfx);
+    assert_eq!(position, Some(Position::new(11, 0)));
 
-    let position = doc.search("world", position.unwrap(), false, ctx.gfx);
-    assert_eq!(position, Some(Position::new(6, 0)));
+    let position = search_end(doc, "world", position.unwrap(), ctx.gfx);
+    assert_eq!(position, Some(Position::new(13, 1)));
+
+    let position = search_end(doc, "world", position.unwrap(), ctx.gfx);
+    assert_eq!(position, Some(Position::new(11, 0)));
 });
 
 test_with_doc!(repeated_search_backward, HELLO_GOODBYE_TEXT, |ctx, doc| {

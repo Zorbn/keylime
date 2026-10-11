@@ -279,4 +279,8 @@ impl CommandPaletteMode for FindInFilesMode {
     fn is_animating(&self) -> bool {
         !self.incremental_results.is_finished()
     }
+
+    fn is_reusable(&self) -> bool {
+        true
+    }
 }

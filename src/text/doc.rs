@@ -1436,8 +1436,6 @@ impl Doc {
             return Some(start);
         }
 
-        let start = self.move_position(start, 1, 0, gfx);
-
         let mut y = start.y as isize;
         let mut x = start.x;
 
@@ -2092,7 +2090,7 @@ impl Doc {
 
         let Some(position) = self.search(
             &line[selection.start.x..selection.end.x],
-            cursor.position,
+            selection.end,
             false,
             gfx,
         ) else {
