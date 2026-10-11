@@ -172,7 +172,7 @@ impl Window {
         });
     }
 
-    pub fn restart_frame_timing(&mut self) {
+    pub fn start_frame_timing(&mut self) {
         unsafe {
             let _ = QueryPerformanceCounter(&mut self.last_queried_time);
         }

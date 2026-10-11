@@ -148,10 +148,6 @@ impl Window {
         });
     }
 
-    pub fn skip_frame_timing(&mut self) {
-        self.last_queried_time = None;
-    }
-
     pub fn time_frame(&mut self) {
         let queried_time = unsafe { NSDate::now().timeIntervalSinceReferenceDate() };
 

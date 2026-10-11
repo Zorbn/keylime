@@ -131,14 +131,9 @@ impl PaneWrapper<Doc> for EditorPane {
         while let Some(msg) = ctx.ui.msg(self.widget_id) {
             match msg {
                 Msg::Action(action_name!(OpenFile)) => {
-                    if let Ok(path) = find_file(FindFileKind::OpenFile, ctx.window) {
+                    if let Ok(path) = find_file(FindFileKind::OpenFile) {
                         if let Err(err) = self.open_file(&path, doc_list, ctx) {
-                            message(
-                                "Error Opening File",
-                                &err.to_string(),
-                                MessageKind::Ok,
-                                ctx.window,
-                            );
+                            message("Error Opening File", &err.to_string(), MessageKind::Ok);
                         }
                     }
                 }
@@ -160,12 +155,7 @@ impl PaneWrapper<Doc> for EditorPane {
                         self.inner.get_focused_tab_with_data_mut(doc_list, ctx.ui)
                     {
                         if let Err(err) = doc.reload(ctx) {
-                            message(
-                                "Failed to Reload File",
-                                &err.to_string(),
-                                MessageKind::Ok,
-                                ctx.window,
-                            );
+                            message("Failed to Reload File", &err.to_string(), MessageKind::Ok);
                         }
                     }
                 }

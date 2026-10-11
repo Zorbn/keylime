@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::pool::Pooled;
 
-use super::{platform_impl, result::Result, window::Window};
+use super::{platform_impl, result::Result};
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum FindFileKind {
@@ -25,10 +25,10 @@ pub enum MessageResponse {
     Cancel,
 }
 
-pub fn find_file(kind: FindFileKind, window: &mut Window) -> Result<Pooled<PathBuf>> {
-    Ok(platform_impl::dialog::find_file(kind, window)?)
+pub fn find_file(kind: FindFileKind) -> Result<Pooled<PathBuf>> {
+    Ok(platform_impl::dialog::find_file(kind)?)
 }
 
-pub fn message(title: &str, text: &str, kind: MessageKind, window: &mut Window) -> MessageResponse {
-    platform_impl::dialog::message(title, text, kind, window)
+pub fn message(title: &str, text: &str, kind: MessageKind) -> MessageResponse {
+    platform_impl::dialog::message(title, text, kind)
 }

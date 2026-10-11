@@ -34,6 +34,8 @@ macro_rules! ctx_for_app {
     };
 }
 
+const MAX_FRAME_TIME: f32 = 0.1;
+
 pub struct App {
     ui: Ui,
     controller: Controller,
@@ -136,7 +138,7 @@ impl App {
     }
 
     pub fn update(&mut self, window: &mut Window, gfx: &mut Gfx, time: f64, dt: f32) {
-        self.average_frame_time = self.average_frame_time + (dt - self.average_frame_time) * 0.01;
+        self.average_frame_time += (dt.min(MAX_FRAME_TIME) - self.average_frame_time) * 0.01;
         let dt = self.average_frame_time;
 
         let config_changed = self
@@ -162,7 +164,7 @@ impl App {
             .then(|| self.config_error.take())
             .flatten()
         {
-            err.show_message(window);
+            err.show_message();
         }
 
         self.receive_msgs(window, gfx, time);

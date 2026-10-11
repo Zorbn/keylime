@@ -105,7 +105,7 @@ impl AppRunner {
                 processes,
             );
 
-            window.inner.restart_frame_timing();
+            window.inner.start_frame_timing();
 
             app.update(window, gfx, time, dt);
             app.draw(window, gfx, time);
@@ -215,7 +215,7 @@ impl AppRunner {
                     gfx.inner.resize(width, height).unwrap();
 
                     let (time, dt) = window.inner.frame_times();
-                    window.inner.restart_frame_timing();
+                    window.inner.start_frame_timing();
 
                     app.update(window, gfx, time, dt);
                     app.draw(window, gfx, time);

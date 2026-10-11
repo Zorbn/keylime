@@ -321,10 +321,6 @@ impl View {
 
             let is_animating = app.is_animating(window, gfx, time);
 
-            if !is_animating {
-                window.inner.skip_frame_timing();
-            }
-
             unsafe {
                 self.ivars().display_link.get()?.setPaused(!is_animating);
             }
