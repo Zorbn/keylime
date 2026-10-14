@@ -2,6 +2,7 @@ use crate::{
     geometry::rect::Rect,
     input::{action::Action, mouse_scroll::MouseScroll, mousebind::Mousebind},
     pool::Pooled,
+    ui::slot_list::SlotId,
 };
 
 #[derive(Debug, Clone)]
@@ -23,7 +24,9 @@ pub enum Msg {
     Action(Action),
     ShowCompletions,
     HideCompletions,
-    TriggerDiagnostics,
+    TriggerDependentDiagnostics {
+        doc_id: SlotId,
+    },
     TriggerSignatureHelp {
         trigger_char: char,
         is_retrigger: bool,

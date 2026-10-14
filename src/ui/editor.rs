@@ -48,6 +48,11 @@ pub mod editor_pane;
 mod examine_popup;
 mod signature_help_popup;
 
+struct DependentDiagnosticsRequest {
+    doc_id: SlotId,
+    time: f64,
+}
+
 pub struct Editor {
     doc_list: SlotList<Doc>,
     panes: PaneList<EditorPane, Doc>,
@@ -57,6 +62,7 @@ pub struct Editor {
     cursor_history: CursorHistory,
 
     hover_timer: f32,
+    dependent_diagnostics_request: Option<DependentDiagnosticsRequest>,
 
     examine_popup: ExaminePopup,
     pub signature_help_popup: SignatureHelpPopup,
@@ -66,6 +72,7 @@ pub struct Editor {
 
 impl Editor {
     const HOVER_TIME: f32 = 0.5;
+    const DEPENDENT_DIAGNOSTICS_TIME: f64 = 0.5;
 
     pub fn new(parent_id: WidgetId, ctx: &mut Ctx) -> Self {
         let widget_id = ctx.ui.new_widget(parent_id, Default::default());
@@ -79,6 +86,7 @@ impl Editor {
             cursor_history: CursorHistory::new(),
 
             hover_timer: 0.0,
+            dependent_diagnostics_request: None,
 
             examine_popup: ExaminePopup::new(widget_id, ctx),
             signature_help_popup: SignatureHelpPopup::new(widget_id, ctx),
@@ -97,6 +105,7 @@ impl Editor {
             || self.examine_popup.is_animating(ctx)
             || self.panes.is_animating(ctx)
             || self.hover_timer > 0.0
+            || self.dependent_diagnostics_request.is_some()
     }
 
     pub fn receive_msgs(&mut self, ctx: &mut Ctx) {
@@ -112,10 +121,11 @@ impl Editor {
                     }
                 }
                 Msg::HideCompletions => self.completion_list.hide(ctx),
-                Msg::TriggerDiagnostics => {
-                    for doc in self.doc_list.iter_mut() {
-                        doc.lsp_diagnostic(ctx);
-                    }
+                Msg::TriggerDependentDiagnostics { doc_id } => {
+                    self.dependent_diagnostics_request = Some(DependentDiagnosticsRequest {
+                        doc_id,
+                        time: ctx.time,
+                    });
                 }
                 Msg::TriggerSignatureHelp {
                     trigger_char,
@@ -207,6 +217,7 @@ impl Editor {
         self.reload_changed_files(file_watcher, ctx);
 
         self.update_hover(ctx, dt);
+        self.update_dependent_diagnostics(ctx);
 
         self.panes.remove_excess(ctx.ui, |pane| !pane.has_tabs());
 
@@ -269,6 +280,24 @@ impl Editor {
                 .show(position, tab.widget_id(), false, doc, ctx);
         } else {
             self.examine_popup.hide(ctx.ui);
+        }
+    }
+
+    fn update_dependent_diagnostics(&mut self, ctx: &mut Ctx) {
+        let Some(request) = &self
+            .dependent_diagnostics_request
+            .as_ref()
+            .filter(|request| ctx.time - request.time >= Self::DEPENDENT_DIAGNOSTICS_TIME)
+        else {
+            return;
+        };
+
+        for (_, doc) in self
+            .doc_list
+            .enumerate_mut()
+            .filter(|(doc_id, _)| *doc_id != request.doc_id)
+        {
+            doc.lsp_diagnostic(ctx);
         }
     }
 

@@ -250,13 +250,19 @@ impl Tab {
             return;
         }
 
+        doc.lsp_diagnostic(ctx);
+
         if doc
             .get_language_server_mut(ctx)
             .is_some_and(|language_server| language_server.has_inter_file_dependencies())
         {
-            self.send_lsp_msg(Msg::TriggerDiagnostics, doc, ctx.ui);
-        } else {
-            doc.lsp_diagnostic(ctx);
+            self.send_lsp_msg(
+                Msg::TriggerDependentDiagnostics {
+                    doc_id: self.data_id,
+                },
+                doc,
+                ctx.ui,
+            );
         }
     }
 
