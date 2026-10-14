@@ -155,7 +155,7 @@ impl LanguageServer {
             .unwrap_or_default();
 
         let uri = path_to_uri(current_dir);
-        let documentation_formats = ["plaintext", "markdown"];
+        let documentation_formats = ["markdown", "plaintext"];
 
         language_server.send_request(
             None,
