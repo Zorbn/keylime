@@ -1430,6 +1430,8 @@ impl Doc {
             return Some(start);
         }
 
+        let start = self.clamp_position(start);
+
         let mut y = start.y as isize;
         let mut x = start.x;
 
