@@ -247,7 +247,8 @@ impl Editor {
             .update(self.handled_doc_id, doc_id, self.handled_position, position);
 
         self.signature_help_popup.update(tab, doc, ctx, dt);
-        self.examine_popup.update(tab, doc, ctx, dt);
+        self.examine_popup
+            .update(&self.panes, &self.doc_list, ctx, dt);
 
         self.handled_position = Some(position);
         self.handled_doc_id = Some(doc_id);

@@ -9,6 +9,7 @@ use crate::{
     ui::{
         core::{Ui, WidgetSettings},
         msg::Msg,
+        tab::Tab,
     },
 };
 
@@ -120,6 +121,22 @@ impl<TPane: PaneWrapper<TData>, TData> PaneList<TPane, TData> {
             .iter()
             .position(|pane| ui.is_hovered(pane.widget_id()))
             .and_then(|index| self.panes.get_mut(index))
+    }
+
+    pub fn get_tab_with_data_for_widget<'a>(
+        &'a self,
+        widget_id: WidgetId,
+        data_list: &'a SlotList<TData>,
+    ) -> Option<(&'a Tab, &'a TData)> {
+        let tab = self
+            .panes
+            .iter()
+            .flat_map(|pane| pane.iter_tabs())
+            .find(|tab| tab.widget_id() == widget_id)?;
+
+        let data = data_list.get(tab.data_id())?;
+
+        Some((tab, data))
     }
 
     pub fn add(&mut self, pane: TPane, ui: &mut Ui) {

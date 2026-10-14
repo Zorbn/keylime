@@ -1082,6 +1082,10 @@ impl Ui {
         }
     }
 
+    pub fn exists(&self, widget_id: WidgetId) -> bool {
+        self.get_widget(widget_id).is_some()
+    }
+
     fn get_widget(&self, widget_id: WidgetId) -> Option<&Widget> {
         self.widget_slots
             .get(widget_id.index)

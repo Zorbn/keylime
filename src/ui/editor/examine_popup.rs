@@ -5,8 +5,10 @@ use crate::{
     text::doc::Doc,
     ui::{
         core::{Ui, WidgetId, WidgetSettings},
+        editor::editor_pane::EditorPane,
+        pane_list::PaneList,
         popup::{Popup, PopupAlignment},
-        tab::Tab,
+        slot_list::SlotList,
     },
 };
 
@@ -24,12 +26,17 @@ enum ExaminePopupKind {
     Hover,
 }
 
+struct RequestedLocation {
+    parent_id: WidgetId,
+    position: Position,
+}
+
 pub struct ExaminePopup {
     widget_id: WidgetId,
     popup: Popup,
     kind: ExaminePopupKind,
     position: Position,
-    desired_position: Position,
+    requested_location: Option<RequestedLocation>,
 }
 
 impl ExaminePopup {
@@ -49,7 +56,7 @@ impl ExaminePopup {
             popup: Popup::new(widget_id, ctx),
             kind: ExaminePopupKind::None,
             position: Position::ZERO,
-            desired_position: Position::ZERO,
+            requested_location: None,
         }
     }
 
@@ -61,12 +68,23 @@ impl ExaminePopup {
         self.popup.receive_msgs(ctx);
     }
 
-    pub fn update(&mut self, tab: &Tab, doc: &Doc, ctx: &mut Ctx, dt: f32) {
+    pub fn update(
+        &mut self,
+        panes: &PaneList<EditorPane, Doc>,
+        doc_list: &SlotList<Doc>,
+        ctx: &mut Ctx,
+        dt: f32,
+    ) {
+        let Some((tab, doc)) = ctx
+            .ui
+            .parent_id(self.widget_id)
+            .and_then(|parent_id| panes.get_tab_with_data_for_widget(parent_id, doc_list))
+        else {
+            return;
+        };
+
         if matches!(self.kind, ExaminePopupKind::Diagnostic)
-            && ctx
-                .lsp
-                .get_diagnostic_at(self.desired_position, doc)
-                .is_none()
+            && ctx.lsp.get_diagnostic_at(self.position, doc).is_none()
         {
             self.hide(ctx.ui);
         }
@@ -98,9 +116,10 @@ impl ExaminePopup {
         doc: &mut Doc,
         ctx: &mut Ctx,
     ) {
-        ctx.ui.reparent_widget(self.widget_id, parent_id);
-
-        self.desired_position = position;
+        self.requested_location = Some(RequestedLocation {
+            parent_id,
+            position,
+        });
 
         let can_open_diagnostic = !do_toggle || self.kind != ExaminePopupKind::Diagnostic;
 
@@ -137,6 +156,20 @@ impl ExaminePopup {
     fn set_data(&mut self, kind: ExaminePopupData, doc: &Doc, ctx: &mut Ctx) {
         self.hide(ctx.ui);
 
+        let Some(RequestedLocation {
+            parent_id,
+            position,
+        }) = self.requested_location.take()
+        else {
+            return;
+        };
+
+        if !ctx.ui.exists(parent_id) {
+            return;
+        }
+
+        ctx.ui.reparent_widget(self.widget_id, parent_id);
+
         match kind {
             ExaminePopupData::None => {}
             ExaminePopupData::Diagnostic(diagnostic) => {
@@ -146,9 +179,7 @@ impl ExaminePopup {
             }
             ExaminePopupData::Hover(contents, range) => {
                 self.popup.show(&contents.text(), contents.extension(), ctx);
-                self.position = range
-                    .map(|range| range.start)
-                    .unwrap_or(self.desired_position);
+                self.position = range.map(|range| range.start).unwrap_or(position);
                 self.kind = ExaminePopupKind::Hover;
             }
         }
